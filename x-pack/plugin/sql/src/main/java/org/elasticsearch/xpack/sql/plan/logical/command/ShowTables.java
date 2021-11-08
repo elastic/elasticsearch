@@ -59,14 +59,24 @@ public class ShowTables extends Command {
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         // to avoid redundancy, indicate whether frozen fields are required by specifying the type
-        EnumSet<IndexType> withFrozen = session.configuration().includeFrozen() || includeFrozen ?
-                IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
+        EnumSet<IndexType> withFrozen = session.configuration().includeFrozen() || includeFrozen
+            ? IndexType.VALID_INCLUDE_FROZEN
+            : IndexType.VALID_REGULAR;
 
-        session.indexResolver().resolveNames(idx, regex, withFrozen, ActionListener.wrap(result -> {
-            listener.onResponse(of(session, result.stream()
-                 .map(t -> asList(t.name(), t.type().toSql(), t.type().toNative()))
-                .collect(toList())));
-        }, listener::onFailure));
+        session.indexResolver()
+            .resolveNames(
+                idx,
+                regex,
+                withFrozen,
+                ActionListener.wrap(
+                    result -> {
+                        listener.onResponse(
+                            of(session, result.stream().map(t -> asList(t.name(), t.type().toSql(), t.type().toNative())).collect(toList()))
+                        );
+                    },
+                    listener::onFailure
+                )
+            );
     }
 
     @Override
@@ -85,8 +95,6 @@ public class ShowTables extends Command {
         }
 
         ShowTables other = (ShowTables) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern)
-                && includeFrozen == other.includeFrozen;
+        return Objects.equals(index, other.index) && Objects.equals(pattern, other.pattern) && includeFrozen == other.includeFrozen;
     }
 }

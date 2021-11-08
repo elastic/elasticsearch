@@ -64,14 +64,46 @@ public class NodeLoadDetectorTests extends ESTestCase {
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
         // MachineLearning.MACHINE_MEMORY_NODE_ATTR negative, so this will fall back to allocating by count
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                nodeAttr, Collections.emptySet(), Version.CURRENT))
-            .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                nodeAttr, Collections.emptySet(), Version.CURRENT))
-            .add(new DiscoveryNode("_node_name3", "_node_id3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                nodeAttr, Collections.emptySet(), Version.CURRENT))
-            .add(new DiscoveryNode("_node_name4", "_node_id4", new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
-                nodeAttr, Collections.emptySet(), Version.CURRENT))
+            .add(
+                new DiscoveryNode(
+                    "_node_name1",
+                    "_node_id1",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    nodeAttr,
+                    Collections.emptySet(),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "_node_name2",
+                    "_node_id2",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                    nodeAttr,
+                    Collections.emptySet(),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "_node_name3",
+                    "_node_id3",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                    nodeAttr,
+                    Collections.emptySet(),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "_node_name4",
+                    "_node_id4",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
+                    nodeAttr,
+                    Collections.emptySet(),
+                    Version.CURRENT
+                )
+            )
             .build();
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
@@ -81,31 +113,31 @@ public class NodeLoadDetectorTests extends ESTestCase {
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id4", "_node_id4", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
-        final ClusterState cs = ClusterState.builder(new ClusterName("_name")).nodes(nodes)
-                .metadata(
-                    Metadata.builder()
-                        .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
-                        .putCustom(
-                            TrainedModelAllocationMetadata.NAME,
-                            TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(
-                                    "model1",
-                                    TrainedModelAllocation.Builder
-                                        .empty(new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT, 1, 1))
-                                        .addNewRoutingEntry("_node_id4")
-                                        .addNewFailedRoutingEntry("_node_id2", "test")
-                                        .addNewRoutingEntry("_node_id1")
-                                        .updateExistingRoutingEntry(
-                                            "_node_id1",
-                                            new RoutingStateAndReason(
-                                                randomFrom(RoutingState.STOPPED, RoutingState.FAILED),
-                                                "test"
-                                            )
-                                        )
+        final ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .nodes(nodes)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                    .putCustom(
+                        TrainedModelAllocationMetadata.NAME,
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(
+                                "model1",
+                                TrainedModelAllocation.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT, 1, 1)
                                 )
-                                .build()
-                        )
-                ).build();
+                                    .addNewRoutingEntry("_node_id4")
+                                    .addNewFailedRoutingEntry("_node_id2", "test")
+                                    .addNewRoutingEntry("_node_id1")
+                                    .updateExistingRoutingEntry(
+                                        "_node_id1",
+                                        new RoutingStateAndReason(randomFrom(RoutingState.STOPPED, RoutingState.FAILED), "test")
+                                    )
+                            )
+                            .build()
+                    )
+            )
+            .build();
 
         NodeLoad load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id1"), 10, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
@@ -141,8 +173,16 @@ public class NodeLoadDetectorTests extends ESTestCase {
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "foo");
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                nodeAttr, Collections.emptySet(), Version.CURRENT))
+            .add(
+                new DiscoveryNode(
+                    "_node_name1",
+                    "_node_id1",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    nodeAttr,
+                    Collections.emptySet(),
+                    Version.CURRENT
+                )
+            )
             .build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
@@ -159,8 +199,16 @@ public class NodeLoadDetectorTests extends ESTestCase {
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "bar");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                nodeAttr, Collections.emptySet(), Version.CURRENT))
+            .add(
+                new DiscoveryNode(
+                    "_node_name1",
+                    "_node_id1",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    nodeAttr,
+                    Collections.emptySet(),
+                    Version.CURRENT
+                )
+            )
             .build();
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));

@@ -124,7 +124,7 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        //TODO do we really need to do this???
+        // TODO do we really need to do this???
         return null;
     }
 

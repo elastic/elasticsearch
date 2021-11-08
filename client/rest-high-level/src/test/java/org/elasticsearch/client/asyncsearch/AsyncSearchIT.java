@@ -51,8 +51,7 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         assertNotNull(getResponse.getSearchResponse());
 
         DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(submitResponse.getId());
-        AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest,
-                RequestOptions.DEFAULT);
+        AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest, RequestOptions.DEFAULT);
         assertNotNull(deleteAsyncSearchResponse);
         assertNotNull(deleteAsyncSearchResponse.isAcknowledged());
     }

@@ -31,7 +31,7 @@ public class IndicesAccessControlTests extends ESTestCase {
     public void testEmptyIndicesAccessControl() {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         assertTrue(indicesAccessControl.isGranted());
-        assertNull(indicesAccessControl.getIndexPermissions(randomAlphaOfLengthBetween(3,20)));
+        assertNull(indicesAccessControl.getIndexPermissions(randomAlphaOfLengthBetween(3, 20)));
     }
 
     public void testSLimitedIndicesAccessControl() {
@@ -63,17 +63,23 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
-        indicesAccessControl = new IndicesAccessControl(true,
-                Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
+        indicesAccessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll()))
+        );
         limitedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
 
-        indicesAccessControl = new IndicesAccessControl(true,
-                Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
-        limitedByIndicesAccessControl = new IndicesAccessControl(true,
-                Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
+        indicesAccessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll()))
+        );
+        limitedByIndicesAccessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll()))
+        );
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(notNullValue()));
@@ -82,13 +88,19 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(false));
 
         final FieldPermissions fieldPermissions1 = new FieldPermissions(
-                new FieldPermissionsDefinition(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }));
+            new FieldPermissionsDefinition(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" })
+        );
         final FieldPermissions fieldPermissions2 = new FieldPermissions(
-                new FieldPermissionsDefinition(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }));
-        indicesAccessControl = new IndicesAccessControl(true,
-                Collections.singletonMap("_index", new IndexAccessControl(true, fieldPermissions1, DocumentPermissions.allowAll())));
-        limitedByIndicesAccessControl = new IndicesAccessControl(true,
-                Collections.singletonMap("_index", new IndexAccessControl(true, fieldPermissions2, DocumentPermissions.allowAll())));
+            new FieldPermissionsDefinition(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" })
+        );
+        indicesAccessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap("_index", new IndexAccessControl(true, fieldPermissions1, DocumentPermissions.allowAll()))
+        );
+        limitedByIndicesAccessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap("_index", new IndexAccessControl(true, fieldPermissions2, DocumentPermissions.allowAll()))
+        );
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(notNullValue()));
@@ -103,16 +115,19 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(resultFieldPermissions.grantsAccessTo("f4"), is(false));
 
         Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
-        final DocumentPermissions documentPermissions = DocumentPermissions
-                .filteredBy(queries);
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(queries);
         assertThat(documentPermissions, is(notNullValue()));
         assertThat(documentPermissions.hasDocumentLevelPermissions(), is(true));
         assertThat(documentPermissions.getQueries(), equalTo(queries));
 
-        indicesAccessControl = new IndicesAccessControl(true,
-                Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
-        limitedByIndicesAccessControl = new IndicesAccessControl(true,
-                Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), documentPermissions)));
+        indicesAccessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll()))
+        );
+        limitedByIndicesAccessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), documentPermissions))
+        );
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(notNullValue()));

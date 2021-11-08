@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Stream;
+
 import javax.security.auth.x500.X500Principal;
 
 /**
@@ -107,11 +108,15 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         // Silently skipping security auto configuration because node considered as restarting.
         for (Path dataPath : env.dataFiles()) {
             if (Files.isDirectory(dataPath) && false == isDirEmpty(dataPath)) {
-                terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
-                terminal.println(Terminal.Verbosity.VERBOSE,
-                    "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
-                        "clusters only.");
+                terminal.println(
+                    Terminal.Verbosity.VERBOSE,
+                    "Skipping security auto configuration because it appears that the node is not starting up for the first time."
+                );
+                terminal.println(
+                    Terminal.Verbosity.VERBOSE,
+                    "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new "
+                        + "clusters only."
+                );
                 // we wish the node to start as usual during a restart
                 // but still the exit code should indicate that this has not been run
                 throw new UserException(ExitCodes.NOOP, null);

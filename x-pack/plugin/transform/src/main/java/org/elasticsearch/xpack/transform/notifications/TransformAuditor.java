@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.notifications;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.Client;
@@ -34,22 +35,23 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
     private volatile boolean isResetMode = false;
 
     public TransformAuditor(Client client, String nodeName, ClusterService clusterService) {
-        super(new OriginSettingClient(client, TRANSFORM_ORIGIN), TransformInternalIndexConstants.AUDIT_INDEX,
-            TransformInternalIndexConstants.AUDIT_INDEX, null,
+        super(
+            new OriginSettingClient(client, TRANSFORM_ORIGIN),
+            TransformInternalIndexConstants.AUDIT_INDEX,
+            TransformInternalIndexConstants.AUDIT_INDEX,
+            null,
             () -> {
                 try {
                     IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata();
 
-                    PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateMeta.name())
-                        .patterns(templateMeta.patterns())
+                    PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateMeta.name()).patterns(templateMeta.patterns())
                         .version(templateMeta.version())
                         .settings(templateMeta.settings())
                         .mapping(templateMeta.mappings().uncompressed(), XContentType.JSON);
 
                     for (ObjectObjectCursor<String, AliasMetadata> cursor : templateMeta.getAliases()) {
                         AliasMetadata meta = cursor.value;
-                        Alias alias = new Alias(meta.alias())
-                            .indexRouting(meta.indexRouting())
+                        Alias alias = new Alias(meta.alias()).indexRouting(meta.indexRouting())
                             .searchRouting(meta.searchRouting())
                             .isHidden(meta.isHidden())
                             .writeIndex(meta.writeIndex());
@@ -65,7 +67,11 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                     return null;
                 }
             },
-            () -> null, nodeName, TransformAuditMessage::new, clusterService);
+            () -> null,
+            nodeName,
+            TransformAuditMessage::new,
+            clusterService
+        );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {
                 isResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();

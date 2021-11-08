@@ -44,6 +44,12 @@ public abstract class WatcherConditionScript {
         WatcherConditionScript newInstance(Map<String, Object> params, WatchExecutionContext watcherContext);
     }
 
-    public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("watcher_condition", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
+    public static ScriptContext<Factory> CONTEXT = new ScriptContext<>(
+        "watcher_condition",
+        Factory.class,
+        200,
+        TimeValue.timeValueMillis(0),
+        ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(),
+        true
+    );
 }

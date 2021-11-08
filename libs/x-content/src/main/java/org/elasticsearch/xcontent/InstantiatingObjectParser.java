@@ -49,7 +49,9 @@ import java.util.function.Consumer;
  * }</pre>
  */
 public class InstantiatingObjectParser<Value, Context>
-    implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
+    implements
+        BiFunction<XContentParser, Context, Value>,
+        ContextParser<Context, Value> {
 
     public static <Value, Context> Builder<Value, Context> builder(String name, boolean ignoreUnknownFields, Class<Value> valueClass) {
         return new Builder<>(name, ignoreUnknownFields, valueClass);
@@ -76,7 +78,7 @@ public class InstantiatingObjectParser<Value, Context>
             this.valueClass = valueClass;
         }
 
-        @SuppressWarnings({"unchecked", "checkstyle:HiddenField"})
+        @SuppressWarnings({ "unchecked", "checkstyle:HiddenField" })
         public InstantiatingObjectParser<Value, Context> build() {
             Constructor<?> constructor = null;
             int neededArguments = constructingObjectParser.getNumberOfFields();
@@ -84,12 +86,16 @@ public class InstantiatingObjectParser<Value, Context>
             for (Constructor<?> c : valueClass.getConstructors()) {
                 if (c.getAnnotation(ParserConstructor.class) != null) {
                     if (constructor != null) {
-                        throw new IllegalArgumentException("More then one public constructor with @ParserConstructor annotation exist in " +
-                            "the class " + valueClass.getName());
+                        throw new IllegalArgumentException(
+                            "More then one public constructor with @ParserConstructor annotation exist in "
+                                + "the class "
+                                + valueClass.getName()
+                        );
                     }
                     if (c.getParameterCount() != neededArguments) {
-                        throw new IllegalArgumentException("Annotated constructor doesn't have " + neededArguments +
-                            " arguments in the class " + valueClass.getName());
+                        throw new IllegalArgumentException(
+                            "Annotated constructor doesn't have " + neededArguments + " arguments in the class " + valueClass.getName()
+                        );
                     }
                     constructor = c;
                 }
@@ -99,43 +105,61 @@ public class InstantiatingObjectParser<Value, Context>
                 for (Constructor<?> c : valueClass.getConstructors()) {
                     if (c.getParameterCount() == neededArguments) {
                         if (constructor != null) {
-                            throw new IllegalArgumentException("More then one public constructor with " + neededArguments +
-                                " arguments found. The use of @ParserConstructor annotation is required for class " + valueClass.getName());
+                            throw new IllegalArgumentException(
+                                "More then one public constructor with "
+                                    + neededArguments
+                                    + " arguments found. The use of @ParserConstructor annotation is required for class "
+                                    + valueClass.getName()
+                            );
                         }
                         constructor = c;
                     }
                 }
             }
             if (constructor == null) {
-                throw new IllegalArgumentException("No public constructors with " + neededArguments + " parameters exist in the class " +
-                    valueClass.getName());
+                throw new IllegalArgumentException(
+                    "No public constructors with " + neededArguments + " parameters exist in the class " + valueClass.getName()
+                );
             }
             this.constructor = (Constructor<Value>) constructor;
             return new InstantiatingObjectParser<>(constructingObjectParser);
         }
 
         @Override
-        public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
-                                     ObjectParser.ValueType type) {
+        public <T> void declareField(
+            BiConsumer<Value, T> consumer,
+            ContextParser<Context, T> parser,
+            ParseField parseField,
+            ObjectParser.ValueType type
+        ) {
             constructingObjectParser.declareField(consumer, parser, parseField, type);
         }
 
         @Override
-        public <T> void declareNamedObject(BiConsumer<Value, T> consumer, ObjectParser.NamedObjectParser<T, Context> namedObjectParser,
-                                           ParseField parseField) {
+        public <T> void declareNamedObject(
+            BiConsumer<Value, T> consumer,
+            ObjectParser.NamedObjectParser<T, Context> namedObjectParser,
+            ParseField parseField
+        ) {
             constructingObjectParser.declareNamedObject(consumer, namedObjectParser, parseField);
         }
 
         @Override
-        public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer,
-                                            ObjectParser.NamedObjectParser<T, Context> namedObjectParser, ParseField parseField) {
+        public <T> void declareNamedObjects(
+            BiConsumer<Value, List<T>> consumer,
+            ObjectParser.NamedObjectParser<T, Context> namedObjectParser,
+            ParseField parseField
+        ) {
             constructingObjectParser.declareNamedObjects(consumer, namedObjectParser, parseField);
         }
 
         @Override
-        public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer,
-                                            ObjectParser.NamedObjectParser<T, Context> namedObjectParser,
-                                            Consumer<Value> orderedModeCallback, ParseField parseField) {
+        public <T> void declareNamedObjects(
+            BiConsumer<Value, List<T>> consumer,
+            ObjectParser.NamedObjectParser<T, Context> namedObjectParser,
+            Consumer<Value> orderedModeCallback,
+            ParseField parseField
+        ) {
             constructingObjectParser.declareNamedObjects(consumer, namedObjectParser, orderedModeCallback, parseField);
         }
 
@@ -156,8 +180,9 @@ public class InstantiatingObjectParser<Value, Context>
 
         private Value build(Object[] args) {
             if (constructor == null) {
-                throw new IllegalArgumentException("InstantiatingObjectParser for type " + valueClass.getName() + " has to be finalized " +
-                    "before the first use");
+                throw new IllegalArgumentException(
+                    "InstantiatingObjectParser for type " + valueClass.getName() + " has to be finalized " + "before the first use"
+                );
             }
             try {
                 return constructor.newInstance(args);
@@ -166,7 +191,6 @@ public class InstantiatingObjectParser<Value, Context>
             }
         }
     }
-
 
     private final ConstructingObjectParser<Value, Context> constructingObjectParser;
 

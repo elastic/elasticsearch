@@ -98,8 +98,7 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequest(Client client, String indexAliasName, String documentId, BytesReference source) {
-        GetResult result = new GetResult(indexAliasName, documentId, 0, 1, 1, true, source,
-            emptyMap(), emptyMap());
+        GetResult result = new GetResult(indexAliasName, documentId, 0, 1, 1, true, source, emptyMap(), emptyMap());
         mockGetRequest(client, indexAliasName, documentId, result);
     }
 
@@ -169,8 +168,16 @@ public final class SecurityMocks {
         final ClusterService clusterService = mock(ClusterService.class);
 
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
-        final TokenService service = new TokenService(settings, clock, client, licenseState, securityContext,
-            mockSecurityIndexManager(SECURITY_MAIN_ALIAS), mockSecurityIndexManager(SECURITY_TOKENS_ALIAS), clusterService);
+        final TokenService service = new TokenService(
+            settings,
+            clock,
+            client,
+            licenseState,
+            securityContext,
+            mockSecurityIndexManager(SECURITY_MAIN_ALIAS),
+            mockSecurityIndexManager(SECURITY_TOKENS_ALIAS),
+            clusterService
+        );
         return new TokenServiceMock(service, client);
     }
 

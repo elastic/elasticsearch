@@ -9,24 +9,21 @@
 package org.elasticsearch.plugin.analysis.icu;
 
 import com.ibm.icu.text.Normalizer2;
+
 import org.apache.lucene.analysis.CharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.StringReader;
-
 
 /**
  * Test
  */
 public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     public void testDefaultSetting() throws Exception {
-        Settings settings = Settings.builder()
-            .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
-            .build();
+        Settings settings = Settings.builder().put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer").build();
         TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
         CharFilterFactory charFilterFactory = analysis.charFilter.get("myNormalizerChar");
 

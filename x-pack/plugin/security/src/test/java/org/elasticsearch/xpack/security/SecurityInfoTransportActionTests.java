@@ -12,12 +12,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -71,18 +71,23 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.enabled(), is(true));
 
-        Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(),false).build();
-        featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), disabled);
+        Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        featureSet = new SecurityInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), disabled);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -124,12 +129,12 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
-        when(ipFilter.usageStats())
-                .thenReturn(MapBuilder.<String, Object>newMapBuilder()
-                        .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
-                        .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
-                        .map());
-
+        when(ipFilter.usageStats()).thenReturn(
+            MapBuilder.<String, Object>newMapBuilder()
+                .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
+                .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
+                .map()
+        );
 
         final boolean rolesStoreEnabled = randomBoolean();
         configureRoleStoreUsage(rolesStoreEnabled);
@@ -296,8 +301,15 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     private SecurityUsageTransportAction newUsageAction(Settings settings) {
-        return new SecurityUsageTransportAction(mock(TransportService.class),null,
-            null, mock(ActionFilters.class),null,
-            settings, licenseState, securityServices);
+        return new SecurityUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            settings,
+            licenseState,
+            securityServices
+        );
     }
 }

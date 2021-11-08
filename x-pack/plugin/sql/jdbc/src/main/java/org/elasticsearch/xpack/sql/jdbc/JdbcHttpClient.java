@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -58,18 +58,22 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
-                fetch,
-                TimeValue.timeValueMillis(meta.timeoutInMs()),
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-                null,
-                Boolean.FALSE,
-                null,
-                new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
-                conCfg.fieldMultiValueLeniency(),
-                conCfg.indexIncludeFrozen(),
-                conCfg.binaryCommunication(),
-                emptyMap());
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(
+            sql,
+            params,
+            conCfg.zoneId(),
+            fetch,
+            TimeValue.timeValueMillis(meta.timeoutInMs()),
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            null,
+            Boolean.FALSE,
+            null,
+            new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
+            conCfg.fieldMultiValueLeniency(),
+            conCfg.indexIncludeFrozen(),
+            conCfg.binaryCommunication(),
+            emptyMap()
+        );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -79,8 +83,13 @@ class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC), conCfg.binaryCommunication());
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(
+            cursor,
+            TimeValue.timeValueMillis(meta.timeoutInMs()),
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            new RequestInfo(Mode.JDBC),
+            conCfg.binaryCommunication()
+        );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }
@@ -104,9 +113,12 @@ class JdbcHttpClient {
 
     private void checkServerVersion() throws SQLException {
         if (ClientVersion.isServerCompatible(serverInfo.version) == false) {
-            throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
-                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
-                serverInfo.version.toString());
+            throw new SQLException(
+                "This version of the JDBC driver is only compatible with Elasticsearch version "
+                    + ClientVersion.CURRENT.majorMinorToString()
+                    + " or newer; attempting to connect to a server version "
+                    + serverInfo.version.toString()
+            );
         }
     }
 

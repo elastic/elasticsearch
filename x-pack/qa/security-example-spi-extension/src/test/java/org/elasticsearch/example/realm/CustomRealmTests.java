@@ -31,10 +31,14 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticateDefaultConfig() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(CustomRealm.TYPE, "test");
-        CustomRealm realm = new CustomRealm(new RealmConfig(
-            realmIdentifier,
-            Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+        CustomRealm realm = new CustomRealm(
+            new RealmConfig(
+                realmIdentifier,
+                Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+                TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings)
+            )
+        );
         SecureString password = CustomRealm.DEFAULT_KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.DEFAULT_KNOWN_USER, password);
         PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
@@ -57,12 +61,9 @@ public class CustomRealmTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .putList(getFullSettingKey(realmIdentifier.getName(), CustomRealm.ROLES_SETTING), "president", "villain")
             .build();
-        CustomRealm realm = new CustomRealm(new RealmConfig(
-            realmIdentifier,
-            settings,
-            TestEnvironment.newEnvironment(settings),
-            new ThreadContext(settings)
-        ));
+        CustomRealm realm = new CustomRealm(
+            new RealmConfig(realmIdentifier, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings))
+        );
         UsernamePasswordToken token = new UsernamePasswordToken("skroob", new SecureString(password.toCharArray()));
         PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();
         realm.authenticate(token, plainActionFuture);
@@ -75,10 +76,14 @@ public class CustomRealmTests extends ESTestCase {
     public void testAuthenticateBadUser() {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(CustomRealm.TYPE, "test");
-        CustomRealm realm = new CustomRealm(new RealmConfig(
-            realmIdentifier,
-            Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+        CustomRealm realm = new CustomRealm(
+            new RealmConfig(
+                realmIdentifier,
+                Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+                TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings)
+            )
+        );
         SecureString password = CustomRealm.DEFAULT_KNOWN_PW.clone();
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.DEFAULT_KNOWN_USER + "1", password);
         PlainActionFuture<AuthenticationResult> plainActionFuture = new PlainActionFuture<>();

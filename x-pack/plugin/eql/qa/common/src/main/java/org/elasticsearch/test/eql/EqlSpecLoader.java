@@ -30,10 +30,10 @@ public class EqlSpecLoader {
         }
     }
 
-    public static List<EqlSpec> load(String ...paths) throws Exception {
+    public static List<EqlSpec> load(String... paths) throws Exception {
         Set<String> uniqueTestNames = new HashSet<>();
         List<EqlSpec> specs = new ArrayList<>();
-        for (String path: paths) {
+        for (String path : paths) {
             specs.addAll(load(path, uniqueTestNames));
         }
         return specs;

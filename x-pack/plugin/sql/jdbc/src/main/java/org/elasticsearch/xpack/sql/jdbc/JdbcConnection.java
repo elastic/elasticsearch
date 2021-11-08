@@ -261,7 +261,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-            throws SQLException {
+        throws SQLException {
         checkOpen();
         checkHoldability(resultSetHoldability);
         return prepareStatement(sql, resultSetType, resultSetConcurrency);
@@ -269,7 +269,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-            throws SQLException {
+        throws SQLException {
         checkOpen();
         checkHoldability(resultSetHoldability);
         return prepareCall(sql, resultSetType, resultSetConcurrency);

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -17,11 +18,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,8 +56,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         IndexMetadata originalIndexMeta = metadata.index(index);
 
         if (originalIndexMeta == null) {
-            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(), index.getName());
+            String errorMessage = String.format(
+                Locale.ROOT,
+                "[%s] lifecycle action for index [%s] executed but index no longer exists",
+                getKey().getAction(),
+                index.getName()
+            );
             // Index must have been since deleted
             logger.debug(errorMessage);
             return new Result(false, new Info(errorMessage));
@@ -64,8 +69,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
         if (indexingComplete) {
-            String message = String.format(Locale.ROOT, "index [%s] has lifecycle complete set, skipping [%s]",
-                originalIndexMeta.getIndex().getName(), WaitForActiveShardsStep.NAME);
+            String message = String.format(
+                Locale.ROOT,
+                "index [%s] has lifecycle complete set, skipping [%s]",
+                originalIndexMeta.getIndex().getName(),
+                WaitForActiveShardsStep.NAME
+            );
             logger.trace(message);
             return new Result(true, new Info(message));
         }
@@ -86,8 +95,13 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         } else {
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
             if (Strings.isNullOrEmpty(rolloverAlias)) {
-                throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
-                    + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
+                throw new IllegalStateException(
+                    "setting ["
+                        + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+                        + "] is not set on index ["
+                        + originalIndexMeta.getIndex().getName()
+                        + "]"
+                );
             }
 
             IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(rolloverAlias);
@@ -128,9 +142,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     }
 
     private static Result getErrorResultOnNullMetadata(StepKey key, Index originalIndex) {
-        String errorMessage = String.format(Locale.ROOT,
-            "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]", originalIndex.getName(),
-            key.getAction());
+        String errorMessage = String.format(
+            Locale.ROOT,
+            "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
+            originalIndex.getName(),
+            key.getAction()
+        );
 
         // Index must have been since deleted
         logger.debug(errorMessage);
@@ -157,8 +174,11 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             if (enoughShardsActive) {
                 message = "the target of [" + targetActiveShardsCount + "] are active. Don't need to wait anymore";
             } else {
-                message = "waiting for [" + targetActiveShardsCount + "] shards to become active, but only [" + currentActiveShardsCount +
-                    "] are active";
+                message = "waiting for ["
+                    + targetActiveShardsCount
+                    + "] shards to become active, but only ["
+                    + currentActiveShardsCount
+                    + "] are active";
             }
         }
 
@@ -182,10 +202,10 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 return false;
             }
             ActiveShardsInfo info = (ActiveShardsInfo) o;
-            return currentActiveShardsCount == info.currentActiveShardsCount &&
-                enoughShardsActive == info.enoughShardsActive &&
-                Objects.equals(targetActiveShardsCount, info.targetActiveShardsCount) &&
-                Objects.equals(message, info.message);
+            return currentActiveShardsCount == info.currentActiveShardsCount
+                && enoughShardsActive == info.enoughShardsActive
+                && Objects.equals(targetActiveShardsCount, info.targetActiveShardsCount)
+                && Objects.equals(message, info.message);
         }
 
         @Override

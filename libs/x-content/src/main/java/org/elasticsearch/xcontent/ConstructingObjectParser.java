@@ -66,8 +66,10 @@ import java.util.stream.Collectors;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> implements
-    BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context>
+    implements
+        BiFunction<XContentParser, Context, Value>,
+        ContextParser<Context, Value> {
 
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
@@ -86,8 +88,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * List of constructor names used for generating the error message if not all arrive.
      */
-    private final Map<RestApiVersion, List<ConstructorArgInfo>> constructorArgInfos =
-        new EnumMap<>(RestApiVersion.class);
+    private final Map<RestApiVersion, List<ConstructorArgInfo>> constructorArgInfos = new EnumMap<>(RestApiVersion.class);
     private final ObjectParser<Target, Context> objectParser;
     private final BiFunction<Object[], Context, Value> builder;
     /**
@@ -156,7 +157,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         try {
             return parse(parser, context);
         } catch (IOException e) {
-            throw new XContentParseException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
+            throw new XContentParseException(parser.getTokenLocation(), "[" + objectParser.getName() + "] failed to parse object", e);
         }
     }
 
@@ -219,8 +220,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
-                                                ParseField parseField) {
+    public <T> void declareNamedObject(
+        BiConsumer<Value, T> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        ParseField parseField
+    ) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -248,8 +252,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-            ParseField parseField) {
+    public <T> void declareNamedObjects(
+        BiConsumer<Value, List<T>> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        ParseField parseField
+    ) {
 
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
@@ -278,8 +285,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-            Consumer<Value> orderedModeCallback, ParseField parseField) {
+    public <T> void declareNamedObjects(
+        BiConsumer<Value, List<T>> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        Consumer<Value> orderedModeCallback,
+        ParseField parseField
+    ) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -302,19 +313,27 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * or expensive lookups whenever the constructor args come in.
              */
             Map<RestApiVersion, Integer> positions = addConstructorArg(consumer, parseField);
-            objectParser.declareNamedObjects((target, v) -> target.constructorArg(positions, v), namedObjectParser,
-                wrapOrderedModeCallBack(orderedModeCallback), parseField);
+            objectParser.declareNamedObjects(
+                (target, v) -> target.constructorArg(positions, v),
+                namedObjectParser,
+                wrapOrderedModeCallBack(orderedModeCallback),
+                parseField
+            );
         } else {
             numberOfFields += 1;
-            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser,
-                wrapOrderedModeCallBack(orderedModeCallback), parseField);
+            objectParser.declareNamedObjects(
+                queueingConsumer(consumer, parseField),
+                namedObjectParser,
+                wrapOrderedModeCallBack(orderedModeCallback),
+                parseField
+            );
         }
     }
 
     int getNumberOfFields() {
-        assert this.constructorArgInfos.get(RestApiVersion.current()).size()
-            == this.constructorArgInfos.get(RestApiVersion.minimumSupported()).size() :
-            "Constructors must have same number of arguments per all compatible versions";
+        assert this.constructorArgInfos.get(RestApiVersion.current()).size() == this.constructorArgInfos.get(
+            RestApiVersion.minimumSupported()
+        ).size() : "Constructors must have same number of arguments per all compatible versions";
         return this.constructorArgInfos.get(RestApiVersion.current()).size();
     }
 
@@ -337,15 +356,15 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
 
         if (RestApiVersion.minimumSupported().matches(parseField.getForRestApiVersion())) {
-            constructorArgInfos.computeIfAbsent(RestApiVersion.minimumSupported(), (v)-> new ArrayList<>())
+            constructorArgInfos.computeIfAbsent(RestApiVersion.minimumSupported(), (v) -> new ArrayList<>())
                 .add(new ConstructorArgInfo(parseField, required));
         }
         if (RestApiVersion.current().matches(parseField.getForRestApiVersion())) {
-            constructorArgInfos.computeIfAbsent(RestApiVersion.current(), (v)-> new ArrayList<>())
+            constructorArgInfos.computeIfAbsent(RestApiVersion.current(), (v) -> new ArrayList<>())
                 .add(new ConstructorArgInfo(parseField, required));
         }
 
-        //calculate the positions for the arguments
+        // calculate the positions for the arguments
         return constructorArgInfos.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
     }
 
@@ -400,8 +419,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                 try {
                     consumer.accept(targetObject, v);
                 } catch (Exception e) {
-                    throw new XContentParseException(location,
-                            "[" + objectParser.getName() + "] failed to parse field [" + parseField.getPreferredName() + "]", e);
+                    throw new XContentParseException(
+                        location,
+                        "[" + objectParser.getName() + "] failed to parse field [" + parseField.getPreferredName() + "]",
+                        e
+                    );
                 }
             });
         };
@@ -455,8 +477,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         Target(XContentParser parser, Context context) {
             this.parser = parser;
             this.context = context;
-            this.constructorArgs = new Object[constructorArgInfos
-                .getOrDefault(parser.getRestApiVersion(), Collections.emptyList()).size()];
+            this.constructorArgs = new Object[constructorArgInfos.getOrDefault(parser.getRestApiVersion(), Collections.emptyList()).size()];
         }
 
         /**
@@ -475,9 +496,9 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          * Queue a consumer that we'll call once the targetObject is built. If targetObject has been built this will fail because the caller
          * should have just applied the consumer immediately.
          */
-        @SuppressWarnings({"unchecked", "rawtypes"})
+        @SuppressWarnings({ "unchecked", "rawtypes" })
         private void queue(Consumer<Value> queueMe) {
-            assert targetObject == null: "Don't queue after the targetObject has been built! Just apply the consumer directly.";
+            assert targetObject == null : "Don't queue after the targetObject has been built! Just apply the consumer directly.";
             if (queuedFields == null) {
                 this.queuedFields = (Consumer<Value>[]) new Consumer[numberOfFields];
             }
@@ -517,9 +538,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * use of ConstructingObjectParser. You should be using ObjectParser instead. Since this is more of a programmer error and the
              * parser ought to still work we just assert this.
              */
-            assert false == constructorArgInfos.isEmpty() : "[" + objectParser.getName() + "] must configure at least one constructor "
-                        + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
-                        + "in the parser declaration.";
+            assert false == constructorArgInfos.isEmpty()
+                : "["
+                    + objectParser.getName()
+                    + "] must configure at least one constructor "
+                    + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
+                    + "in the parser declaration.";
             // All missing constructor arguments were optional. Just build the target and return it.
             buildTarget();
             return targetObject;
@@ -536,11 +560,17 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                     queuedFields[queuedFieldsCount].accept(targetObject);
                 }
             } catch (XContentParseException e) {
-                throw new XContentParseException(e.getLocation(),
-                    "failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+                throw new XContentParseException(
+                    e.getLocation(),
+                    "failed to build [" + objectParser.getName() + "] after last required field arrived",
+                    e
+                );
             } catch (Exception e) {
-                throw new XContentParseException(null,
-                        "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+                throw new XContentParseException(
+                    null,
+                    "Failed to build [" + objectParser.getName() + "] after last required field arrived",
+                    e
+                );
             }
         }
     }

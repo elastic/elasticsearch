@@ -46,7 +46,11 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
 
         when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
@@ -58,7 +62,11 @@ public class CCRInfoTransportActionTests extends ESTestCase {
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings.build(),
+            licenseState
+        );
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
@@ -68,7 +76,11 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
     public void testName() {
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
         assertThat(featureSet.name(), equalTo("ccr"));
     }
 
@@ -122,8 +134,15 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        var usageAction = new CCRUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+        var usageAction = new CCRUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            Settings.EMPTY,
+            licenseState
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, clusterState, future);
         CCRInfoTransportAction.Usage ccrUsage = (CCRInfoTransportAction.Usage) future.get().getUsage();

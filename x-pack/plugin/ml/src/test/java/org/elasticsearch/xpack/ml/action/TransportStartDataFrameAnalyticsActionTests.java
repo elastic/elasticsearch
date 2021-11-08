@@ -52,10 +52,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     public void testGetAssignment_UpgradeModeIsEnabled() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
-        ClusterState clusterState =
-            ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
-                .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
+            .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
@@ -66,10 +65,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     public void testGetAssignment_NoNodes() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
-        ClusterState clusterState =
-            ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
-                .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
@@ -80,14 +78,15 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     public void testGetAssignment_NoMlNodes() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
-        ClusterState clusterState =
-            ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
-                .nodes(DiscoveryNodes.builder()
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .nodes(
+                DiscoveryNodes.builder()
                     .add(createNode(0, false, Version.CURRENT))
                     .add(createNode(1, false, Version.CURRENT))
-                    .add(createNode(2, false, Version.CURRENT)))
-                .build();
+                    .add(createNode(2, false, Version.CURRENT))
+            )
+            .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
@@ -96,36 +95,47 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             allOf(
                 containsString("Not opening job [data_frame_id] on node [_node_name0]. Reason: This node isn't a machine learning node."),
                 containsString("Not opening job [data_frame_id] on node [_node_name1]. Reason: This node isn't a machine learning node."),
-                containsString("Not opening job [data_frame_id] on node [_node_name2]. Reason: This node isn't a machine learning node.")));
+                containsString("Not opening job [data_frame_id] on node [_node_name2]. Reason: This node isn't a machine learning node.")
+            )
+        );
     }
 
     // Cannot assign the node because none of the existing nodes is appropriate:
-    //  - _node_name0 is too old (version 7.2.0)
-    //  - _node_name1 is too old (version 7.9.1)
-    //  - _node_name2 is too old (version 7.9.2)
+    // - _node_name0 is too old (version 7.2.0)
+    // - _node_name1 is too old (version 7.9.1)
+    // - _node_name2 is too old (version 7.9.2)
     public void testGetAssignment_MlNodesAreTooOld() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
-        ClusterState clusterState =
-            ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
-                .nodes(DiscoveryNodes.builder()
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .nodes(
+                DiscoveryNodes.builder()
                     .add(createNode(0, true, Version.V_7_2_0))
                     .add(createNode(1, true, Version.V_7_9_1))
-                    .add(createNode(2, true, Version.V_7_9_2)))
-                .build();
+                    .add(createNode(2, true, Version.V_7_9_2))
+            )
+            .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(
             assignment.getExplanation(),
             allOf(
-                containsString("Not opening job [data_frame_id] on node [{_node_name0}{version=7.2.0}], "
-                    + "because the data frame analytics requires a node of version [7.3.0] or higher"),
-                containsString("Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
-                    + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"),
-                containsString("Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
-                    + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher")));
+                containsString(
+                    "Not opening job [data_frame_id] on node [{_node_name0}{version=7.2.0}], "
+                        + "because the data frame analytics requires a node of version [7.3.0] or higher"
+                ),
+                containsString(
+                    "Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
+                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                ),
+                containsString(
+                    "Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
+                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                )
+            )
+        );
     }
 
     // The node can be assigned despite being newer than the job.
@@ -133,12 +143,10 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     public void testGetAssignment_MlNodeIsNewerThanTheMlJobButTheAssignmentSuceeds() {
         TaskExecutor executor = createTaskExecutor();
         TaskParams params = new TaskParams(JOB_ID, Version.V_7_9_0, false);
-        ClusterState clusterState =
-            ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
-                .nodes(DiscoveryNodes.builder()
-                    .add(createNode(0, true, Version.V_7_10_0)))
-                .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .nodes(DiscoveryNodes.builder().add(createNode(0, true, Version.V_7_10_0)))
+            .build();
 
         Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         assertThat(assignment.getExecutorNode(), is(equalTo("_node_id0")));
@@ -147,16 +155,17 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
     private static TaskExecutor createTaskExecutor() {
         ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings =
-            new ClusterSettings(
-                Settings.EMPTY,
-                Sets.newHashSet(
-                    MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
-                    MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                    MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
-                    MachineLearning.MAX_ML_NODE_SIZE,
-                    MachineLearning.MAX_LAZY_ML_NODES,
-                    MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.newHashSet(
+                MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE
+            )
+        );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         return new TaskExecutor(
@@ -178,6 +187,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
             Map.of("ml.max_open_jobs", isMlNode ? "10" : "0", "ml.machine_memory", String.valueOf(ByteSizeValue.ofGb(1).getBytes())),
             Collections.emptySet(),
-            nodeVersion);
+            nodeVersion
+        );
     }
 }

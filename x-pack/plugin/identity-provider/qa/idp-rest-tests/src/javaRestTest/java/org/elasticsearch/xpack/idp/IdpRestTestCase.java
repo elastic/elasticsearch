@@ -26,9 +26,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
 import java.io.IOException;
@@ -49,26 +49,18 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("idp_admin", new SecureString("idp-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private RestHighLevelClient getHighLevelAdminClient() {
         if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(
-                adminClient(),
-                ignore -> {
-                },
-                List.of()) {
+            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
             };
         }
         return highLevelAdminClient;
@@ -88,8 +80,12 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         client.security().deleteUser(request, RequestOptions.DEFAULT);
     }
 
-    protected void createRole(String name, Collection<String> clusterPrivileges, Collection<IndicesPrivileges> indicesPrivileges,
-                              Collection<ApplicationResourcePrivileges> applicationPrivileges) throws IOException {
+    protected void createRole(
+        String name,
+        Collection<String> clusterPrivileges,
+        Collection<IndicesPrivileges> indicesPrivileges,
+        Collection<ApplicationResourcePrivileges> applicationPrivileges
+    ) throws IOException {
         final RestHighLevelClient client = getHighLevelAdminClient();
         final Role role = Role.builder()
             .name(name)
@@ -108,7 +104,8 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
 
     protected void createApplicationPrivileges(String applicationName, Map<String, Collection<String>> privileges) throws IOException {
         final RestHighLevelClient client = getHighLevelAdminClient();
-        final List<ApplicationPrivilege> applicationPrivileges = privileges.entrySet().stream()
+        final List<ApplicationPrivilege> applicationPrivileges = privileges.entrySet()
+            .stream()
             .map(e -> new ApplicationPrivilege(applicationName, e.getKey(), List.copyOf(e.getValue()), null))
             .collect(Collectors.toUnmodifiableList());
         final PutPrivilegesRequest request = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);

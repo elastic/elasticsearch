@@ -53,17 +53,18 @@ public class SysTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(keyword("TABLE_CAT"),
-                      keyword("TABLE_SCHEM"),
-                      keyword("TABLE_NAME"),
-                      keyword("TABLE_TYPE"),
-                      keyword("REMARKS"),
-                      keyword("TYPE_CAT"),
-                      keyword("TYPE_SCHEM"),
-                      keyword("TYPE_NAME"),
-                      keyword("SELF_REFERENCING_COL_NAME"),
-                      keyword("REF_GENERATION")
-                      );
+        return asList(
+            keyword("TABLE_CAT"),
+            keyword("TABLE_SCHEM"),
+            keyword("TABLE_NAME"),
+            keyword("TABLE_TYPE"),
+            keyword("REMARKS"),
+            keyword("TYPE_CAT"),
+            keyword("TYPE_SCHEM"),
+            keyword("TYPE_NAME"),
+            keyword("SELF_REFERENCING_COL_NAME"),
+            keyword("REF_GENERATION")
+        );
     }
 
     @Override
@@ -77,8 +78,7 @@ public class SysTables extends Command {
         // catalog enumeration
         if (clusterPattern == null || clusterPattern.pattern().equals(SQL_WILDCARD)) {
             // enumerate only if pattern is "" and no types are specified (types is null)
-            if (pattern != null && pattern.pattern().isEmpty() && index == null
-                    && types == null) {
+            if (pattern != null && pattern.pattern().isEmpty() && index == null && types == null) {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
@@ -94,8 +94,10 @@ public class SysTables extends Command {
         if (types == null) {
             // empty string for catalog
             if (clusterPattern != null && clusterPattern.pattern().isEmpty()
-                    // empty string for table like and no index specified
-                    && pattern != null && pattern.pattern().isEmpty() && index == null) {
+            // empty string for table like and no index specified
+                && pattern != null
+                && pattern.pattern().isEmpty()
+                && index == null) {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else is made of empty strings
                 // NB: since the types are sent in SQL, frozen doesn't have to be taken into account since
@@ -112,7 +114,6 @@ public class SysTables extends Command {
                 return;
             }
         }
-
 
         // no enumeration pattern found, list actual tables
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
@@ -137,23 +138,28 @@ public class SysTables extends Command {
             }
         }
 
-        session.indexResolver().resolveNames(idx, regex, tableTypes, ActionListener.wrap(result -> listener.onResponse(
-                of(session, result.stream()
-                 // sort by type, then by name
-                 .sorted(Comparator.<IndexInfo, String> comparing(i -> i.type().toSql())
-                           .thenComparing(Comparator.comparing(i -> i.name())))
-                 .map(t -> asList(cluster,
-                         null,
-                         t.name(),
-                         t.type().toSql(),
-                         EMPTY,
-                         null,
-                         null,
-                         null,
-                         null,
-                         null))
-                .collect(toList())))
-        , listener::onFailure));
+        session.indexResolver()
+            .resolveNames(
+                idx,
+                regex,
+                tableTypes,
+                ActionListener.wrap(
+                    result -> listener.onResponse(
+                        of(
+                            session,
+                            result.stream()
+                                // sort by type, then by name
+                                .sorted(
+                                    Comparator.<IndexInfo, String>comparing(i -> i.type().toSql())
+                                        .thenComparing(Comparator.comparing(i -> i.name()))
+                                )
+                                .map(t -> asList(cluster, null, t.name(), t.type().toSql(), EMPTY, null, null, null, null, null))
+                                .collect(toList())
+                        )
+                    ),
+                    listener::onFailure
+                )
+            );
     }
 
     @Override
@@ -173,8 +179,8 @@ public class SysTables extends Command {
 
         SysTables other = (SysTables) obj;
         return Objects.equals(clusterPattern, other.clusterPattern)
-                && Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern)
-                && Objects.equals(types, other.types);
+            && Objects.equals(index, other.index)
+            && Objects.equals(pattern, other.pattern)
+            && Objects.equals(types, other.types);
     }
 }

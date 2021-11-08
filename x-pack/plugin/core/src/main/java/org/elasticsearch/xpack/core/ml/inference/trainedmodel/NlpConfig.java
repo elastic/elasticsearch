@@ -17,7 +17,6 @@ public interface NlpConfig extends LenientlyParsedInferenceConfig, StrictlyParse
     ParseField RESULTS_FIELD = new ParseField("results_field");
     ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
 
-
     /**
      * @return the vocabulary configuration that allows retrieving it
      */

@@ -196,12 +196,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 }
             }
 
-            private void processTokenStream(
-                long owningBucketOrd,
-                TokenStream ts,
-                int doc,
-                CategorizationTokenTree categorizer
-            ) throws IOException {
+            private void processTokenStream(long owningBucketOrd, TokenStream ts, int doc, CategorizationTokenTree categorizer)
+                throws IOException {
                 ArrayList<Integer> tokens = new ArrayList<>();
                 try {
                     CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);

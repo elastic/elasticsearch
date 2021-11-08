@@ -60,10 +60,7 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteAllAnnotations() {
         JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        jobDataDeleter.deleteAllAnnotations(ActionListener.wrap(
-            deleteResponse -> {},
-            e -> fail(e.toString())
-        ));
+        jobDataDeleter.deleteAllAnnotations(ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString())));
 
         verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
 
@@ -76,15 +73,12 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteAnnotations_TimestampFiltering() {
         JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        Tuple<Long, Long> range =
-            randomFrom(
-                tuple(1_000_000_000L, 2_000_000_000L),
-                tuple(1_000_000_000L, null),
-                tuple(null, 2_000_000_000L));
-        jobDataDeleter.deleteAnnotations(range.v1(), range.v2(), null, ActionListener.wrap(
-            deleteResponse -> {},
-            e -> fail(e.toString())
-        ));
+        Tuple<Long, Long> range = randomFrom(
+            tuple(1_000_000_000L, 2_000_000_000L),
+            tuple(1_000_000_000L, null),
+            tuple(null, 2_000_000_000L)
+        );
+        jobDataDeleter.deleteAnnotations(range.v1(), range.v2(), null, ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString())));
 
         verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
 
@@ -97,10 +91,12 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteAnnotations_EventFiltering() {
         JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        jobDataDeleter.deleteAnnotations(null, null, Set.of("dummy_event"), ActionListener.wrap(
-            deleteResponse -> {},
-            e -> fail(e.toString())
-        ));
+        jobDataDeleter.deleteAnnotations(
+            null,
+            null,
+            Set.of("dummy_event"),
+            ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString()))
+        );
 
         verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
 
@@ -113,10 +109,7 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteDatafeedTimingStats() {
         JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(
-            deleteResponse -> {},
-            e -> fail(e.toString())
-        ));
+        jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString())));
 
         verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
 

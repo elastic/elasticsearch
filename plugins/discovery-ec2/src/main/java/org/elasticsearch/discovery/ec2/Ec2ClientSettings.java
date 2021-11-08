@@ -13,6 +13,7 @@ import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -48,12 +49,20 @@ final class Ec2ClientSettings {
     static final Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("discovery.ec2.proxy.port", 80, 0, 1 << 16, Property.NodeScope);
 
     /** An override for the ec2 endpoint to connect to. */
-    static final Setting<String> ENDPOINT_SETTING = new Setting<>("discovery.ec2.endpoint", "", s -> s.toLowerCase(Locale.ROOT),
-            Property.NodeScope);
+    static final Setting<String> ENDPOINT_SETTING = new Setting<>(
+        "discovery.ec2.endpoint",
+        "",
+        s -> s.toLowerCase(Locale.ROOT),
+        Property.NodeScope
+    );
 
     /** The protocol to use to connect to to ec2. */
-    static final Setting<Protocol> PROTOCOL_SETTING = new Setting<>("discovery.ec2.protocol", "https",
-            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
+    static final Setting<Protocol> PROTOCOL_SETTING = new Setting<>(
+        "discovery.ec2.protocol",
+        "https",
+        s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
+        Property.NodeScope
+    );
 
     /** The username of a proxy to connect to s3 through. */
     static final Setting<SecureString> PROXY_USERNAME_SETTING = SecureSetting.secureString("discovery.ec2.proxy.username", null);
@@ -62,8 +71,11 @@ final class Ec2ClientSettings {
     static final Setting<SecureString> PROXY_PASSWORD_SETTING = SecureSetting.secureString("discovery.ec2.proxy.password", null);
 
     /** The socket timeout for connecting to s3. */
-    static final Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting("discovery.ec2.read_timeout",
-            TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope);
+    static final Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting(
+        "discovery.ec2.read_timeout",
+        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT),
+        Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(Ec2ClientSettings.class);
 
@@ -99,8 +111,16 @@ final class Ec2ClientSettings {
     /** The read timeout for the ec2 client. */
     final int readTimeoutMillis;
 
-    protected Ec2ClientSettings(AWSCredentials credentials, String endpoint, Protocol protocol, String proxyHost, int proxyPort,
-            String proxyUsername, String proxyPassword, int readTimeoutMillis) {
+    protected Ec2ClientSettings(
+        AWSCredentials credentials,
+        String endpoint,
+        Protocol protocol,
+        String proxyHost,
+        int proxyPort,
+        String proxyUsername,
+        String proxyPassword,
+        int readTimeoutMillis
+    ) {
         this.credentials = credentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
@@ -112,27 +132,41 @@ final class Ec2ClientSettings {
     }
 
     static AWSCredentials loadCredentials(Settings settings) {
-        try (SecureString key = ACCESS_KEY_SETTING.get(settings);
-             SecureString secret = SECRET_KEY_SETTING.get(settings);
-             SecureString sessionToken = SESSION_TOKEN_SETTING.get(settings)) {
+        try (
+            SecureString key = ACCESS_KEY_SETTING.get(settings);
+            SecureString secret = SECRET_KEY_SETTING.get(settings);
+            SecureString sessionToken = SESSION_TOKEN_SETTING.get(settings)
+        ) {
             if (key.length() == 0 && secret.length() == 0) {
                 if (sessionToken.length() > 0) {
-                    throw new SettingsException("Setting [{}] is set but [{}] and [{}] are not",
-                        SESSION_TOKEN_SETTING.getKey(), ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
+                    throw new SettingsException(
+                        "Setting [{}] is set but [{}] and [{}] are not",
+                        SESSION_TOKEN_SETTING.getKey(),
+                        ACCESS_KEY_SETTING.getKey(),
+                        SECRET_KEY_SETTING.getKey()
+                    );
                 }
 
                 logger.debug("Using either environment variables, system properties or instance profile credentials");
                 return null;
             } else {
                 if (key.length() == 0) {
-                    deprecationLogger.critical(DeprecationCategory.SETTINGS, "ec2_invalid_settings",
+                    deprecationLogger.critical(
+                        DeprecationCategory.SETTINGS,
+                        "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",
-                        SECRET_KEY_SETTING.getKey(), ACCESS_KEY_SETTING.getKey());
+                        SECRET_KEY_SETTING.getKey(),
+                        ACCESS_KEY_SETTING.getKey()
+                    );
                 }
                 if (secret.length() == 0) {
-                    deprecationLogger.critical(DeprecationCategory.SETTINGS, "ec2_invalid_settings",
+                    deprecationLogger.critical(
+                        DeprecationCategory.SETTINGS,
+                        "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",
-                        ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
+                        ACCESS_KEY_SETTING.getKey(),
+                        SECRET_KEY_SETTING.getKey()
+                    );
                 }
 
                 final AWSCredentials credentials;
@@ -152,8 +186,10 @@ final class Ec2ClientSettings {
     /** Parse settings for a single client. */
     static Ec2ClientSettings getClientSettings(Settings settings) {
         final AWSCredentials credentials = loadCredentials(settings);
-        try (SecureString proxyUsername = PROXY_USERNAME_SETTING.get(settings);
-             SecureString proxyPassword = PROXY_PASSWORD_SETTING.get(settings)) {
+        try (
+            SecureString proxyUsername = PROXY_USERNAME_SETTING.get(settings);
+            SecureString proxyPassword = PROXY_PASSWORD_SETTING.get(settings)
+        ) {
             return new Ec2ClientSettings(
                 credentials,
                 ENDPOINT_SETTING.get(settings),
@@ -162,7 +198,8 @@ final class Ec2ClientSettings {
                 PROXY_PORT_SETTING.get(settings),
                 proxyUsername.toString(),
                 proxyPassword.toString(),
-                (int)READ_TIMEOUT_SETTING.get(settings).millis());
+                (int) READ_TIMEOUT_SETTING.get(settings).millis()
+            );
         }
     }
 

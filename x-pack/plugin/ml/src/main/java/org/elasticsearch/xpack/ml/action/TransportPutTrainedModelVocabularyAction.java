@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
-
 public class TransportPutTrainedModelVocabularyAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private final TrainedModelProvider trainedModelProvider;
@@ -80,7 +79,7 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
             }
             trainedModelProvider.storeTrainedModelVocabulary(
                 request.getModelId(),
-                ((NlpConfig)inferenceConfig).getVocabularyConfig(),
+                ((NlpConfig) inferenceConfig).getVocabularyConfig(),
                 new Vocabulary(request.getVocabulary(), request.getModelId()),
                 ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
             );
@@ -91,7 +90,7 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        //TODO do we really need to do this???
+        // TODO do we really need to do this???
         return null;
     }
 

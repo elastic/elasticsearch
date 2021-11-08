@@ -62,8 +62,10 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final NodeStatsCollector collector = new NodeStatsCollector(clusterService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
-        final FailedNodeException e = expectThrows(FailedNodeException.class, () ->
-                collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), clusterState));
+        final FailedNodeException e = expectThrows(
+            FailedNodeException.class,
+            () -> collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), clusterState)
+        );
         assertEquals(exception, e);
     }
 
@@ -134,8 +136,9 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);
         when(nodesStatsResponse.hasFailures()).thenReturn(true);
-        when(nodesStatsResponse.failures()).thenReturn(List.of(new FailedNodeException("node", "msg",
-                new ElasticsearchTimeoutException("test"))));
+        when(nodesStatsResponse.failures()).thenReturn(
+            List.of(new FailedNodeException("node", "msg", new ElasticsearchTimeoutException("test")))
+        );
 
         final Client client = mock(Client.class);
         thenReturnNodeStats(client, timeout, nodesStatsResponse);

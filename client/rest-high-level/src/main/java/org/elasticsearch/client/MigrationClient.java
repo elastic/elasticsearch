@@ -42,8 +42,13 @@ public final class MigrationClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeprecationInfoResponse getDeprecationInfo(DeprecationInfoRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
-            DeprecationInfoResponse::fromXContent, Collections.emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            MigrationRequestConverters::getDeprecationInfo,
+            options,
+            DeprecationInfoResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -53,10 +58,19 @@ public final class MigrationClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getDeprecationInfoAsync(DeprecationInfoRequest request, RequestOptions options,
-                                               ActionListener<DeprecationInfoResponse> listener)  {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
-            DeprecationInfoResponse::fromXContent, listener, Collections.emptySet());
+    public Cancellable getDeprecationInfoAsync(
+        DeprecationInfoRequest request,
+        RequestOptions options,
+        ActionListener<DeprecationInfoResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            MigrationRequestConverters::getDeprecationInfo,
+            options,
+            DeprecationInfoResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -66,8 +80,8 @@ public final class MigrationClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetFeatureUpgradeStatusResponse getFeatureUpgradeStatus(
-        GetFeatureUpgradeStatusRequest request, RequestOptions options) throws IOException {
+    public GetFeatureUpgradeStatusResponse getFeatureUpgradeStatus(GetFeatureUpgradeStatusRequest request, RequestOptions options)
+        throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             MigrationRequestConverters::getFeatureUpgradeStatus,
@@ -84,8 +98,11 @@ public final class MigrationClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getFeatureUpgradeStatusAsync(GetFeatureUpgradeStatusRequest request,
-                                                    RequestOptions options, ActionListener<GetFeatureUpgradeStatusResponse> listener) {
+    public Cancellable getFeatureUpgradeStatusAsync(
+        GetFeatureUpgradeStatusRequest request,
+        RequestOptions options,
+        ActionListener<GetFeatureUpgradeStatusResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             MigrationRequestConverters::getFeatureUpgradeStatus,
@@ -103,8 +120,7 @@ public final class MigrationClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PostFeatureUpgradeResponse postFeatureUpgrade(
-        PostFeatureUpgradeRequest request, RequestOptions options) throws IOException {
+    public PostFeatureUpgradeResponse postFeatureUpgrade(PostFeatureUpgradeRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             MigrationRequestConverters::postFeatureUpgrade,
@@ -122,8 +138,10 @@ public final class MigrationClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable postFeatureUpgradeAsync(
-        PostFeatureUpgradeRequest request, RequestOptions options,
-        ActionListener<PostFeatureUpgradeResponse> listener) throws IOException {
+        PostFeatureUpgradeRequest request,
+        RequestOptions options,
+        ActionListener<PostFeatureUpgradeResponse> listener
+    ) throws IOException {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             MigrationRequestConverters::postFeatureUpgrade,

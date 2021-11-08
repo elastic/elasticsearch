@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -48,6 +48,7 @@ public class ObjectParserTests extends ESTestCase {
             public String test;
             int testNumber;
             List<Integer> ints = new ArrayList<>();
+
             public void setTestNumber(int testNumber) {
                 this.testNumber = testNumber;
             }
@@ -70,22 +71,40 @@ public class ObjectParserTests extends ESTestCase {
 
     public void testNullDeclares() {
         ObjectParser<Void, Void> objectParser = new ObjectParser<>("foo");
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> objectParser.declareField(null, (r, c) -> null, new ParseField("test"), ObjectParser.ValueType.STRING));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectParser.declareField(null, (r, c) -> null, new ParseField("test"), ObjectParser.ValueType.STRING)
+        );
         assertEquals("[consumer] is required", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (ContextParser<Void, Object>) null,
-                new ParseField("test"), ObjectParser.ValueType.STRING));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectParser.declareField(
+                (o, v) -> {},
+                (ContextParser<Void, Object>) null,
+                new ParseField("test"),
+                ObjectParser.ValueType.STRING
+            )
+        );
         assertEquals("[parser] is required", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (CheckedFunction<XContentParser, Object, IOException>) null,
-                new ParseField("test"), ObjectParser.ValueType.STRING));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectParser.declareField(
+                (o, v) -> {},
+                (CheckedFunction<XContentParser, Object, IOException>) null,
+                new ParseField("test"),
+                ObjectParser.ValueType.STRING
+            )
+        );
         assertEquals("[parser] is required", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (r, c) -> null, null, ObjectParser.ValueType.STRING));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectParser.declareField((o, v) -> {}, (r, c) -> null, null, ObjectParser.ValueType.STRING)
+        );
         assertEquals("[parseField] is required", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
-                (o, v) -> {}, (r, c) -> null, new ParseField("test"), null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> objectParser.declareField((o, v) -> {}, (r, c) -> null, new ParseField("test"), null)
+        );
         assertEquals("[type] is required", e.getMessage());
     }
 
@@ -117,16 +136,16 @@ public class ObjectParserTests extends ESTestCase {
                 String host = "";
                 int port = 0;
                 XContentParser.Token token;
-                while (( token = parser.currentToken()) != XContentParser.Token.END_OBJECT) {
+                while ((token = parser.currentToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         fieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.VALUE_STRING){
+                    } else if (token == XContentParser.Token.VALUE_STRING) {
                         if (fieldName.equals("host")) {
                             host = parser.text();
                         } else {
                             throw new IllegalStateException("boom");
                         }
-                    } else if (token == XContentParser.Token.VALUE_NUMBER){
+                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
                         if (fieldName.equals("port")) {
                             port = parser.intValue();
                         } else {
@@ -141,6 +160,7 @@ public class ObjectParserTests extends ESTestCase {
         class Foo {
             public String name;
             public URI uri;
+
             public void setName(String name) {
                 this.name = name;
             }
@@ -174,15 +194,14 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareString(Foo::setName, new ParseField("name"));
         objectParser.declareObjectOrDefault(Foo::setURI, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));
         Foo s = objectParser.parse(parser, new Foo(), new CustomParseContext(new ClassicParser()));
-        assertEquals(s.uri.getHost(),  "foobar");
-        assertEquals(s.uri.getPort(),  80);
+        assertEquals(s.uri.getHost(), "foobar");
+        assertEquals(s.uri.getPort(), 80);
         assertEquals(s.name, "foobarbaz");
     }
 
     public void testExceptions() throws IOException {
         class TestStruct {
-            public void setTest(int test) {
-            }
+            public void setTest(int test) {}
         }
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("the_parser");
         TestStruct s = new TestStruct();
@@ -238,8 +257,7 @@ public class ObjectParserTests extends ESTestCase {
         TestStruct s = new TestStruct();
         s.object = new TestStruct();
         objectParser.declareField((i, c, x) -> c.test = i.intValue(), new ParseField("test"), ValueType.INT);
-        objectParser.declareField((i, c, x) -> objectParser.parse(parser, c.object, null), new ParseField("object"),
-                ValueType.OBJECT);
+        objectParser.declareField((i, c, x) -> objectParser.parse(parser, c.object, null), new ParseField("object"), ValueType.OBJECT);
         objectParser.parse(parser, s, null);
         assertEquals(s.test, 1);
         assertEquals(s.object.test, 2);
@@ -308,7 +326,8 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     enum TestEnum {
-        FOO, BAR
+        FOO,
+        BAR
     }
 
     public void testParseEnumFromString() throws IOException {
@@ -409,39 +428,51 @@ public class ObjectParserTests extends ESTestCase {
             List<String> string_array_field;
             boolean null_value;
             String string_or_null = "adsfsa";
+
             public void setInt_field(int int_field) {
                 this.int_field = int_field;
             }
+
             public void setNullableIntField(int nullableIntField) {
                 this.nullableIntField = nullableIntField;
             }
+
             public void setLong_field(long long_field) {
                 this.long_field = long_field;
             }
+
             public void setFloat_field(float float_field) {
                 this.float_field = float_field;
             }
+
             public void setDouble_field(double double_field) {
                 this.double_field = double_field;
             }
+
             public void setNullableDoubleField(double nullableDoubleField) {
                 this.nullableDoubleField = nullableDoubleField;
             }
+
             public void setString_field(String string_field) {
                 this.string_field = string_field;
             }
+
             public void setInt_array_field(List<Integer> int_array_field) {
                 this.int_array_field = int_array_field;
             }
+
             public void setLong_array_field(List<Long> long_array_field) {
                 this.long_array_field = long_array_field;
             }
+
             public void setFloat_array_field(List<Float> float_array_field) {
                 this.float_array_field = float_array_field;
             }
+
             public void setDouble_array_field(List<Double> double_array_field) {
                 this.double_array_field = double_array_field;
             }
+
             public void setString_array_field(List<String> string_array_field) {
                 this.string_array_field = string_array_field;
             }
@@ -497,8 +528,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                "{\"named\": { \"a\": {\"foo\" : 11} }, \"bar\": \"baz\"}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": { \"a\": {\"foo\" : 11} }, \"bar\": \"baz\"}");
         NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
         assertEquals("a", h.named.name);
         assertEquals(11, h.named.foo);
@@ -531,35 +561,46 @@ public class ObjectParserTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}, \"b\": {}}]}");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectsHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_objects_holder] failed to parse field [named]"));
-        assertThat(e.getCause().getMessage(),
-                containsString("[named] can be a single object with any number of fields " +
-                    "or an array where each entry is an object with a single field"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "[named] can be a single object with any number of fields "
+                    + "or an array where each entry is an object with a single field"
+            )
+        );
     }
 
     public void testParseNamedObjectsNoFieldsInArray() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {} ]}");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectsHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_objects_holder] failed to parse field [named]"));
-        assertThat(e.getCause().getMessage(),
-                containsString("[named] can be a single object with any number of fields " +
-                    "or an array where each entry is an object with a single field"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "[named] can be a single object with any number of fields "
+                    + "or an array where each entry is an object with a single field"
+            )
+        );
     }
 
     public void testParseNamedObjectsJunkInArray() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ \"junk\" ] }");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectsHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_objects_holder] failed to parse field [named]"));
-        assertThat(e.getCause().getMessage(),
-                containsString("[named] can be a single object with any number of fields " +
-                    "or an array where each entry is an object with a single field"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "[named] can be a single object with any number of fields "
+                    + "or an array where each entry is an object with a single field"
+            )
+        );
     }
 
     public void testParseNamedObjectsInOrderNotSupported() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"named\": [ {\"a\": {}} ] }");
 
         // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
-        ObjectParser<NamedObjectsHolder, Void> objectParser = new ObjectParser<>("named_object_holder",
-                NamedObjectsHolder::new);
+        ObjectParser<NamedObjectsHolder, Void> objectParser = new ObjectParser<>("named_object_holder", NamedObjectsHolder::new);
         objectParser.declareNamedObjects(NamedObjectsHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
 
         // Now firing the xml through it fails
@@ -666,8 +707,12 @@ public class ObjectParserTests extends ESTestCase {
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
         TestStruct s = new TestStruct();
 
-        objectParser.declareFieldArray(TestStruct::setArray, (p, c) -> XContentParserUtils.parseFieldsValue(p),
-            new ParseField("test_array"), ValueType.VALUE_ARRAY);
+        objectParser.declareFieldArray(
+            TestStruct::setArray,
+            (p, c) -> XContentParserUtils.parseFieldsValue(p),
+            new ParseField("test_array"),
+            ValueType.VALUE_ARRAY
+        );
         objectParser.declareIntArray(TestStruct::setInts, new ParseField("int_array"));
         objectParser.parse(parser, s, null);
         assertEquals(s.testArray, Arrays.asList(1, null, "3", 4.2));
@@ -700,50 +745,57 @@ public class ObjectParserTests extends ESTestCase {
     public void testNoopDeclareObject() throws IOException {
         ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", AtomicReference::new);
         parser.declareString(AtomicReference::set, new ParseField("body"));
-        parser.declareObject((a,b) -> {}, (p, c) -> null, new ParseField("noop"));
+        parser.declareObject((a, b) -> {}, (p, c) -> null, new ParseField("noop"));
 
         assertEquals("i", parser.parse(createParser(JsonXContent.jsonXContent, "{\"body\": \"i\"}"), null).get());
-        Exception garbageException = expectThrows(IllegalStateException.class, () -> parser.parse(
-                createParser(JsonXContent.jsonXContent, "{\"noop\": {\"garbage\": \"shouldn't\"}}"),
-                null));
+        Exception garbageException = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": {\"garbage\": \"shouldn't\"}}"), null)
+        );
         assertEquals("parser for [noop] did not end on END_OBJECT", garbageException.getMessage());
-        Exception sneakyException = expectThrows(IllegalStateException.class, () -> parser.parse(
-                createParser(JsonXContent.jsonXContent, "{\"noop\": {\"body\": \"shouldn't\"}}"),
-                null));
+        Exception sneakyException = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": {\"body\": \"shouldn't\"}}"), null)
+        );
         assertEquals("parser for [noop] did not end on END_OBJECT", sneakyException.getMessage());
     }
 
     public void testNoopDeclareField() throws IOException {
         ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", AtomicReference::new);
         parser.declareString(AtomicReference::set, new ParseField("body"));
-        parser.declareField((a,b) -> {}, (p, c) -> null, new ParseField("noop"), ValueType.STRING_ARRAY);
+        parser.declareField((a, b) -> {}, (p, c) -> null, new ParseField("noop"), ValueType.STRING_ARRAY);
 
         assertEquals("i", parser.parse(createParser(JsonXContent.jsonXContent, "{\"body\": \"i\"}"), null).get());
-        Exception e = expectThrows(IllegalStateException.class, () -> parser.parse(
-                createParser(JsonXContent.jsonXContent, "{\"noop\": [\"ignored\"]}"),
-                null));
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": [\"ignored\"]}"), null)
+        );
         assertEquals("parser for [noop] did not end on END_ARRAY", e.getMessage());
     }
 
     public void testNoopDeclareObjectArray() {
         ObjectParser<AtomicReference<String>, Void> parser = new ObjectParser<>("noopy", AtomicReference::new);
         parser.declareString(AtomicReference::set, new ParseField("body"));
-        parser.declareObjectArray((a,b) -> {}, (p, c) -> null, new ParseField("noop"));
+        parser.declareObjectArray((a, b) -> {}, (p, c) -> null, new ParseField("noop"));
 
-        XContentParseException garbageError = expectThrows(XContentParseException.class, () -> parser.parse(
-                createParser(JsonXContent.jsonXContent, "{\"noop\": [{\"garbage\": \"shouldn't\"}}]"),
-                null));
+        XContentParseException garbageError = expectThrows(
+            XContentParseException.class,
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": [{\"garbage\": \"shouldn't\"}}]"), null)
+        );
         assertEquals("expected value but got [FIELD_NAME]", garbageError.getCause().getMessage());
-        XContentParseException sneakyError = expectThrows(XContentParseException.class, () -> parser.parse(
-                createParser(JsonXContent.jsonXContent, "{\"noop\": [{\"body\": \"shouldn't\"}}]"),
-                null));
+        XContentParseException sneakyError = expectThrows(
+            XContentParseException.class,
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": [{\"body\": \"shouldn't\"}}]"), null)
+        );
         assertEquals("expected value but got [FIELD_NAME]", sneakyError.getCause().getMessage());
     }
 
     // singular
     static class NamedObjectHolder {
-        public static final ObjectParser<NamedObjectHolder, Void> PARSER = new ObjectParser<>("named_object_holder",
-                NamedObjectHolder::new);
+        public static final ObjectParser<NamedObjectHolder, Void> PARSER = new ObjectParser<>(
+            "named_object_holder",
+            NamedObjectHolder::new
+        );
         static {
             PARSER.declareNamedObject(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
             PARSER.declareString(NamedObjectHolder::setBar, new ParseField("bar"));
@@ -763,11 +815,17 @@ public class ObjectParserTests extends ESTestCase {
 
     // plural
     static class NamedObjectsHolder {
-        public static final ObjectParser<NamedObjectsHolder, Void> PARSER = new ObjectParser<>("named_objects_holder",
-                NamedObjectsHolder::new);
+        public static final ObjectParser<NamedObjectsHolder, Void> PARSER = new ObjectParser<>(
+            "named_objects_holder",
+            NamedObjectsHolder::new
+        );
         static {
-            PARSER.declareNamedObjects(NamedObjectsHolder::setNamed, NamedObject.PARSER, NamedObjectsHolder::keepNamedInOrder,
-                    new ParseField("named"));
+            PARSER.declareNamedObjects(
+                NamedObjectsHolder::setNamed,
+                NamedObject.PARSER,
+                NamedObjectsHolder::keepNamedInOrder,
+                new ParseField("named")
+            );
         }
 
         private List<NamedObject> named;
@@ -805,16 +863,19 @@ public class ObjectParserTests extends ESTestCase {
     private static class ObjectWithArbitraryFields {
         String name;
         Map<String, Object> fields = new HashMap<>();
+
         void setField(String key, Object value) {
             fields.put(key, value);
         }
+
         void setName(String name) {
             this.name = name;
         }
     }
 
     public void testConsumeUnknownFields() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
+        XContentParser parser = createParser(
+            JsonXContent.jsonXContent,
             "{\n"
                 + "  \"test\" : \"foo\",\n"
                 + "  \"test_number\" : 2,\n"
@@ -823,9 +884,13 @@ public class ObjectParserTests extends ESTestCase {
                 + "  \"test_null\" : null,\n"
                 + "  \"test_array\":  [1,2,3,4],\n"
                 + "  \"test_nested\": { \"field\" : \"value\", \"field2\" : [ \"list1\", \"list2\" ] }\n"
-                + "}");
-        ObjectParser<ObjectWithArbitraryFields, Void> op
-            = new ObjectParser<>("unknown", ObjectWithArbitraryFields::setField, ObjectWithArbitraryFields::new);
+                + "}"
+        );
+        ObjectParser<ObjectWithArbitraryFields, Void> op = new ObjectParser<>(
+            "unknown",
+            ObjectWithArbitraryFields::setField,
+            ObjectWithArbitraryFields::new
+        );
         op.declareString(ObjectWithArbitraryFields::setName, new ParseField("name"));
 
         ObjectWithArbitraryFields o = op.parse(parser, null);
@@ -857,7 +922,7 @@ public class ObjectParserTests extends ESTestCase {
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo", true, TestStruct::new);
         objectParser.declareLong(TestStruct::setA, new ParseField("a"));
         objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+        objectParser.declareRequiredFieldSet(new String[] { "a", "b" });
 
         TestStruct obj = objectParser.apply(parser, null);
         assertThat(obj.a, equalTo(123L));
@@ -867,7 +932,7 @@ public class ObjectParserTests extends ESTestCase {
         objectParser = new ObjectParser<>("foo", true, TestStruct::new);
         objectParser.declareLong(TestStruct::setA, new ParseField("a"));
         objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+        objectParser.declareRequiredFieldSet(new String[] { "a", "b" });
 
         obj = objectParser.apply(parser, null);
         assertThat(obj.a, nullValue());
@@ -877,7 +942,7 @@ public class ObjectParserTests extends ESTestCase {
         objectParser = new ObjectParser<>("foo", true, TestStruct::new);
         objectParser.declareLong(TestStruct::setA, new ParseField("a"));
         objectParser.declareLong(TestStruct::setB, new ParseField("b"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
+        objectParser.declareRequiredFieldSet(new String[] { "a", "b" });
 
         obj = objectParser.apply(parser, null);
         assertThat(obj.a, equalTo(123L));
@@ -915,12 +980,14 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareLong(TestStruct::setB, new ParseField("b"));
         objectParser.declareLong(TestStruct::setC, new ParseField("c"));
         objectParser.declareLong(TestStruct::setD, new ParseField("d"));
-        objectParser.declareRequiredFieldSet(new String[]{"a", "b"});
-        objectParser.declareRequiredFieldSet(new String[]{"c", "d"});
+        objectParser.declareRequiredFieldSet(new String[] { "a", "b" });
+        objectParser.declareRequiredFieldSet(new String[] { "c", "d" });
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-        assertThat(e.getMessage(), equalTo("Required one of fields [a, b], but none were specified. " +
-            "Required one of fields [c, d], but none were specified. "));
+        assertThat(
+            e.getMessage(),
+            equalTo("Required one of fields [a, b], but none were specified. " + "Required one of fields [c, d], but none were specified. ")
+        );
     }
 
     public void testExclusiveFieldSet() throws IOException {
@@ -945,26 +1012,31 @@ public class ObjectParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("The following fields are not allowed together: [a, b]"));
 
         e = expectThrows(IllegalArgumentException.class, () -> parser.parse(badmulti, null));
-        assertThat(e.getMessage(),
-            containsString("allowed together: [a, b] The following fields are not allowed together: [c, d]"));
+        assertThat(e.getMessage(), containsString("allowed together: [a, b] The following fields are not allowed together: [c, d]"));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Arrays.asList(
-            new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text()),
-            new NamedXContentRegistry.Entry(Object.class, new ParseField("int"), p -> p.intValue()),
-            new NamedXContentRegistry.Entry(Object.class, new ParseField("float"), p -> p.floatValue()),
-            new NamedXContentRegistry.Entry(Object.class, new ParseField("bool"), p -> p.booleanValue())
-        ));
+        return new NamedXContentRegistry(
+            Arrays.asList(
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text()),
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("int"), p -> p.intValue()),
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("float"), p -> p.floatValue()),
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("bool"), p -> p.booleanValue())
+            )
+        );
     }
 
     private static class TopLevelNamedXConent {
         public static final ObjectParser<TopLevelNamedXConent, Void> PARSER = new ObjectParser<>(
-            "test", Object.class, TopLevelNamedXConent::setNamed, TopLevelNamedXConent::new
+            "test",
+            Object.class,
+            TopLevelNamedXConent::setNamed,
+            TopLevelNamedXConent::new
         );
 
         Object named;
+
         void setNamed(Object named) {
             if (this.named != null) {
                 throw new IllegalArgumentException("Only one [named] allowed!");
@@ -1013,24 +1085,29 @@ public class ObjectParserTests extends ESTestCase {
     public static class StructWithCompatibleFields {
         // real usage would have RestApiVersion.V_7 instead of currentVersion or minimumSupported
 
-        static final ObjectParser<StructWithCompatibleFields, Void> PARSER =
-            new ObjectParser<>("struct_with_compatible_fields", StructWithCompatibleFields::new);
+        static final ObjectParser<StructWithCompatibleFields, Void> PARSER = new ObjectParser<>(
+            "struct_with_compatible_fields",
+            StructWithCompatibleFields::new
+        );
         static {
             // declare a field with `new_name` being preferable, and old_name deprecated.
             // The declaration is only available for lookup when parser has compatibility set
-            PARSER.declareInt(StructWithCompatibleFields::setIntField,
-                new ParseField("new_name", "old_name")
-                    .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())));
+            PARSER.declareInt(
+                StructWithCompatibleFields::setIntField,
+                new ParseField("new_name", "old_name").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()))
+            );
 
             // declare `new_name` to be parsed when compatibility is NOT used
-            PARSER.declareInt(StructWithCompatibleFields::setIntField,
-                new ParseField("new_name")
-                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current())));
+            PARSER.declareInt(
+                StructWithCompatibleFields::setIntField,
+                new ParseField("new_name").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current()))
+            );
 
             // declare `old_name` to throw exception when compatibility is NOT used
-            PARSER.declareInt((r,s) -> failWithException(),
-                new ParseField("old_name")
-                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current())));
+            PARSER.declareInt(
+                (r, s) -> failWithException(),
+                new ParseField("old_name").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.current()))
+            );
         }
 
         private static void failWithException() {
@@ -1039,7 +1116,7 @@ public class ObjectParserTests extends ESTestCase {
 
         private int intField;
 
-        private  void setIntField(int intField) {
+        private void setIntField(int intField) {
             this.intField = intField;
         }
     }
@@ -1047,53 +1124,71 @@ public class ObjectParserTests extends ESTestCase {
     public void testCompatibleFieldDeclarations() throws IOException {
         {
             // new_name is the only way to parse when compatibility is not set
-            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
-                RestApiVersion.current());
+            XContentParser parser = createParserWithCompatibilityFor(
+                JsonXContent.jsonXContent,
+                "{\"new_name\": 1}",
+                RestApiVersion.current()
+            );
             StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
             assertEquals(1, o.intField);
         }
 
         {
             // old_name results with an exception when compatibility is not set
-            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"old_name\": 1}",
-                RestApiVersion.current());
+            XContentParser parser = createParserWithCompatibilityFor(
+                JsonXContent.jsonXContent,
+                "{\"old_name\": 1}",
+                RestApiVersion.current()
+            );
             expectThrows(IllegalArgumentException.class, () -> StructWithCompatibleFields.PARSER.parse(parser, null));
         }
         {
             // new_name is allowed to be parsed with compatibility
-            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
-                RestApiVersion.minimumSupported());
+            XContentParser parser = createParserWithCompatibilityFor(
+                JsonXContent.jsonXContent,
+                "{\"new_name\": 1}",
+                RestApiVersion.minimumSupported()
+            );
             StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
             assertEquals(1, o.intField);
         }
         {
             // old_name is allowed to be parsed with compatibility, but results in deprecation
-            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"old_name\": 1}",
-                RestApiVersion.minimumSupported());
+            XContentParser parser = createParserWithCompatibilityFor(
+                JsonXContent.jsonXContent,
+                "{\"old_name\": 1}",
+                RestApiVersion.minimumSupported()
+            );
             StructWithCompatibleFields o = StructWithCompatibleFields.PARSER.parse(parser, null);
             assertEquals(1, o.intField);
-            assertWarnings(false, "[struct_with_compatible_fields][1:14] " +
-                "Deprecated field [old_name] used, expected [new_name] instead");
+            assertWarnings(
+                false,
+                "[struct_with_compatible_fields][1:14] " + "Deprecated field [old_name] used, expected [new_name] instead"
+            );
 
         }
     }
+
     public static class StructWithOnOrAfterField {
         // real usage would have exact version like RestApiVersion.V_7 (equal to current version) instead of minimumSupported
 
-        static final ObjectParser<StructWithOnOrAfterField, Void> PARSER =
-            new ObjectParser<>("struct_with_on_or_after_field", StructWithOnOrAfterField::new);
+        static final ObjectParser<StructWithOnOrAfterField, Void> PARSER = new ObjectParser<>(
+            "struct_with_on_or_after_field",
+            StructWithOnOrAfterField::new
+        );
         static {
 
             // in real usage you would use a real version like RestApiVersion.V_8 and expect it to parse for version V_9, V_10 etc
-            PARSER.declareInt(StructWithOnOrAfterField::setIntField,
-                new ParseField("new_name")
-                    .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())));
+            PARSER.declareInt(
+                StructWithOnOrAfterField::setIntField,
+                new ParseField("new_name").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()))
+            );
 
         }
 
         private int intField;
 
-        private  void setIntField(int intField) {
+        private void setIntField(int intField) {
             this.intField = intField;
         }
     }
@@ -1103,14 +1198,20 @@ public class ObjectParserTests extends ESTestCase {
         // to do this, we assume a version N is minimum (so that the test passes for future releases) and the N+1 is current()
 
         // new name is accessed in "current" version - lets assume the current is minimumSupported
-        XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
-            RestApiVersion.minimumSupported());
+        XContentParser parser = createParserWithCompatibilityFor(
+            JsonXContent.jsonXContent,
+            "{\"new_name\": 1}",
+            RestApiVersion.minimumSupported()
+        );
         StructWithOnOrAfterField o1 = StructWithOnOrAfterField.PARSER.parse(parser, null);
         assertEquals(1, o1.intField);
 
         // new name is accessed in "future" version - lets assume the future is currentVersion (minimumSupported+1)
-        XContentParser futureParser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, "{\"new_name\": 1}",
-            RestApiVersion.current());
+        XContentParser futureParser = createParserWithCompatibilityFor(
+            JsonXContent.jsonXContent,
+            "{\"new_name\": 1}",
+            RestApiVersion.current()
+        );
         StructWithOnOrAfterField o2 = StructWithOnOrAfterField.PARSER.parse(futureParser, null);
         assertEquals(1, o2.intField);
     }
@@ -1119,17 +1220,18 @@ public class ObjectParserTests extends ESTestCase {
         class DoubleFieldDeclaration {
             private int intField;
 
-            private  void setIntField(int intField) {
+            private void setIntField(int intField) {
                 this.intField = intField;
             }
         }
 
-        ObjectParser<DoubleFieldDeclaration, Void> PARSER =
-            new ObjectParser<>("double_field_declaration", DoubleFieldDeclaration::new);
+        ObjectParser<DoubleFieldDeclaration, Void> PARSER = new ObjectParser<>("double_field_declaration", DoubleFieldDeclaration::new);
         PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"));
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name")));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> PARSER.declareInt(DoubleFieldDeclaration::setIntField, new ParseField("name"))
+        );
 
         assertThat(exception, instanceOf(IllegalArgumentException.class));
         assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));

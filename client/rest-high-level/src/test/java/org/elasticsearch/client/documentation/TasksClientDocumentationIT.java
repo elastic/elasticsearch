@@ -176,7 +176,6 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         List<org.elasticsearch.client.tasks.TaskGroup> groups = response.getTaskGroups(); // <2>
         // end::cancel-tasks-response-calc
 
-
         // tag::cancel-tasks-response-failures
         List<org.elasticsearch.client.tasks.ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
         List<org.elasticsearch.client.tasks.TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>

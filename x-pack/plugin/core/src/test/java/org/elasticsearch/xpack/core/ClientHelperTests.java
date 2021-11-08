@@ -122,7 +122,6 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
-
         doAnswer(invocationOnMock -> {
             assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
@@ -237,8 +236,18 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
     }
@@ -251,11 +260,23 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> headers = MapBuilder.<String, String> newMapBuilder().put(AuthenticationField.AUTHENTICATION_KEY, "anything")
-                .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything").map();
+        Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
+            .put(AuthenticationField.AUTHENTICATION_KEY, "anything")
+            .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")
+            .map();
 
         assertRunAsExecution(headers, h -> {
             assertThat(h.keySet(), hasSize(2));
@@ -272,10 +293,20 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> unrelatedHeaders = MapBuilder.<String, String> newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
+        Map<String, String> unrelatedHeaders = MapBuilder.<String, String>newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
 
         assertExecutionWithOrigin(unrelatedHeaders, client);
     }
@@ -325,7 +356,8 @@ public class ClientHelperTests extends ESTestCase {
         {  // Singleton map with a security-related header
             assertThat(
                 ClientHelper.filterSecurityHeaders(Collections.singletonMap(AuthenticationServiceField.RUN_AS_USER_HEADER, "value")),
-                hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value"));
+                hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value")
+            );
         }
         {  // Map with 3 headers out of which only 1 is security-related
             Map<String, String> headers = new HashMap<>();

@@ -13,8 +13,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 
 import java.io.IOException;
@@ -191,14 +191,9 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
 
     public void testCalculateAllocationState() {
         List<DiscoveryNode> nodes = Stream.generate(TrainedModelAllocationTests::buildNode).limit(5).collect(Collectors.toList());
+        assertThat(TrainedModelAllocation.Builder.empty(randomParams()).calculateAllocationState(), equalTo(AllocationState.STARTING));
         assertThat(
-            TrainedModelAllocation.Builder.empty(randomParams()).calculateAllocationState(),
-            equalTo(AllocationState.STARTING)
-        );
-        assertThat(
-            TrainedModelAllocation.Builder.empty(randomParams())
-                .stopAllocation("test")
-                .calculateAllocationState(),
+            TrainedModelAllocation.Builder.empty(randomParams()).stopAllocation("test").calculateAllocationState(),
             equalTo(AllocationState.STOPPING)
         );
 
@@ -235,7 +230,6 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
             assertThat(builder.calculateAllocationState(), equalTo(AllocationState.STARTED));
         }
     }
-
 
     private static DiscoveryNode buildNode() {
         return new DiscoveryNode(

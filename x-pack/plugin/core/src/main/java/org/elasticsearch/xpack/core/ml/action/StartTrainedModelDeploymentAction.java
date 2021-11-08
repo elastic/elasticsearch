@@ -18,14 +18,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -77,7 +77,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 request.setModelId(modelId);
             } else if (Strings.isNullOrEmpty(modelId) == false && modelId.equals(request.getModelId()) == false) {
                 throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.INCONSISTENT_ID, MODEL_ID, request.getModelId(), modelId));
+                    Messages.getMessage(Messages.INCONSISTENT_ID, MODEL_ID, request.getModelId(), modelId)
+                );
             }
             return request;
         }
@@ -229,7 +230,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             "trained_model_deployment_params",
             true,
-            a -> new TaskParams((String)a[0], (Long)a[1], (int) a[2], (int) a[3])
+            a -> new TaskParams((String) a[0], (Long) a[1], (int) a[2], (int) a[3])
         );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -79,8 +79,13 @@ public interface XContent {
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
+    XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length
+    ) throws IOException;
 
     /**
      * Creates a parser over the provided reader.
@@ -93,11 +98,20 @@ public interface XContent {
      *
      * @param restApiVersion - indicates if the N-1 or N compatible XContent parsing logic will be used.
      */
-    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                InputStream is, RestApiVersion restApiVersion) throws IOException;
+    XContentParser createParserForCompatibility(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        InputStream is,
+        RestApiVersion restApiVersion
+    ) throws IOException;
 
-    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
-                                                RestApiVersion restApiVersion) throws IOException;
+    XContentParser createParserForCompatibility(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length,
+        RestApiVersion restApiVersion
+    ) throws IOException;
 
 }

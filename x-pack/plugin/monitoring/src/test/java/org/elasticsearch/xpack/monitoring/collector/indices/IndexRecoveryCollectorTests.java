@@ -102,18 +102,17 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             ShardId shardId = new ShardId("_index_" + i, "_uuid_" + i, i);
             RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
             final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_" + i);
-            final ShardRouting shardRouting = ShardRouting
-                                                .newUnassigned(shardId, true, source, unassignedInfo)
-                                                .initialize(localNode.getId(), "_allocation_id", 10 * i);
+            final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
+                .initialize(localNode.getId(), "_allocation_id", 10 * i);
 
             final RecoveryState recoveryState = new RecoveryState(shardRouting, localNode, localNode);
             recoveryStates.put("_index_" + i, singletonList(recoveryState));
         }
-        final RecoveryResponse recoveryResponse =
-                new RecoveryResponse(randomInt(), randomInt(), randomInt(), recoveryStates, emptyList());
+        final RecoveryResponse recoveryResponse = new RecoveryResponse(randomInt(), randomInt(), randomInt(), recoveryStates, emptyList());
 
-        final RecoveryRequestBuilder recoveryRequestBuilder =
-                spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
+        final RecoveryRequestBuilder recoveryRequestBuilder = spy(
+            new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE)
+        );
         doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -188,12 +187,23 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        final RecoveryResponse recoveryResponse =
-                new RecoveryResponse(randomInt(), randomInt(), randomInt(), emptyMap(), List.of(new DefaultShardOperationFailedException(
-                        "test", 0, new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout")))));
+        final RecoveryResponse recoveryResponse = new RecoveryResponse(
+            randomInt(),
+            randomInt(),
+            randomInt(),
+            emptyMap(),
+            List.of(
+                new DefaultShardOperationFailedException(
+                    "test",
+                    0,
+                    new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout"))
+                )
+            )
+        );
 
-        final RecoveryRequestBuilder recoveryRequestBuilder =
-                spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));
+        final RecoveryRequestBuilder recoveryRequestBuilder = spy(
+            new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE)
+        );
         doReturn(recoveryResponse).when(recoveryRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);

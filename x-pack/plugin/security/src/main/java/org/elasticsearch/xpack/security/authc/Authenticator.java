@@ -197,19 +197,14 @@ public interface Authenticator {
 
     class Result {
 
-        private static final Result NOT_HANDLED =
-            new Result(Status.NOT_HANDLED, null, null, null);
+        private static final Result NOT_HANDLED = new Result(Status.NOT_HANDLED, null, null, null);
 
         private final Status status;
         private final Authentication authentication;
         private final String message;
         private final Exception exception;
 
-        public Result(
-            Status status,
-            @Nullable Authentication authentication,
-            @Nullable String message,
-            @Nullable Exception exception) {
+        public Result(Status status, @Nullable Authentication authentication, @Nullable String message, @Nullable Exception exception) {
             this.status = status;
             this.authentication = authentication;
             this.message = message;
@@ -241,9 +236,7 @@ public interface Authenticator {
             return NOT_HANDLED;
         }
 
-        public static Result unsuccessful(
-            String message,
-            @Nullable Exception cause) {
+        public static Result unsuccessful(String message, @Nullable Exception cause) {
             Objects.requireNonNull(message);
             return new Result(Status.UNSUCCESSFUL, null, message, cause);
         }

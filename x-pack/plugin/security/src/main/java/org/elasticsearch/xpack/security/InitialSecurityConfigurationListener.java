@@ -105,8 +105,9 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
                 client
             );
             enrollmentTokenGenerator.createKibanaEnrollmentToken(
-                groupedActionListener.map(token -> token == null ? Map.of() : Map.of(tokenKey, token.getEncoded(), fingerprintKey,
-                    token.getFingerprint()))
+                groupedActionListener.map(
+                    token -> token == null ? Map.of() : Map.of(tokenKey, token.getEncoded(), fingerprintKey, token.getFingerprint())
+                )
             );
             securityIndexManager.removeStateListener(this);
         }

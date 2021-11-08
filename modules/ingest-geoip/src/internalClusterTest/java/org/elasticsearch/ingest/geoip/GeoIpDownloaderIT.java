@@ -19,9 +19,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -29,13 +26,16 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
@@ -93,12 +93,15 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
-        ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder()
-                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
-                .putNull("ingest.geoip.database_validity"))
+            .setPersistentSettings(
+                Settings.builder()
+                    .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                    .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                    .putNull("ingest.geoip.database_validity")
+            )
             .get();
         assertTrue(settingsResponse.isAcknowledged());
 
@@ -125,12 +128,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
-        ClusterUpdateSettingsResponse settingsResponse =
-            client().admin().cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                    .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-                .get();
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
+            .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
@@ -140,15 +142,15 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         putPipeline();
         verifyUpdatedDatabase();
 
-        settingsResponse =
-            client().admin().cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                    .put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)))
-                .get();
+        settingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)))
+            .get();
         assertTrue(settingsResponse.isAcknowledged());
         Thread.sleep(10);
-        settingsResponse = client().admin().cluster()
+        settingsResponse = client().admin()
+            .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
             .get();
@@ -176,18 +178,17 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertFalse(result.getIngestDocument().hasField("ip-asn"));
             assertFalse(result.getIngestDocument().hasField("ip-country"));
         });
-        settingsResponse =
-            client().admin().cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                    .putNull("ingest.geoip.database_validity"))
-                .get();
+        settingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("ingest.geoip.database_validity"))
+            .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
                     Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
-                    assertThat(names, hasItems("GeoLite2-ASN.mmdb","GeoLite2-City.mmdb","GeoLite2-Country.mmdb"));
+                    assertThat(names, hasItems("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"));
                 }
             }
         });
@@ -197,7 +198,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         testGeoIpDatabasesDownload();
         long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastCheck();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
             .get();
@@ -207,7 +209,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
-        ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
             .get();
@@ -223,11 +226,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
                     assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
                     GeoIpTaskState.Metadata metadata = state.get(id);
-                    BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
-                        .filter(new MatchQueryBuilder("name", id))
-                        .filter(new RangeQueryBuilder("chunk")
-                            .from(metadata.getFirstChunk())
-                            .to(metadata.getLastChunk(), true));
+                    BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
+                        .filter(new RangeQueryBuilder("chunk").from(metadata.getFirstChunk()).to(metadata.getLastChunk(), true));
                     int size = metadata.getLastChunk() - metadata.getFirstChunk() + 1;
                     SearchResponse res = client().prepareSearch(GeoIpDownloader.DATABASES_INDEX)
                         .setSize(size)
@@ -288,10 +288,21 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
                     List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
-                    assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
-                        "GeoLite2-City.mmdb_COPYRIGHT.txt", "GeoLite2-Country.mmdb_COPYRIGHT.txt", "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
-                        "GeoLite2-City.mmdb_LICENSE.txt", "GeoLite2-Country.mmdb_LICENSE.txt", "GeoLite2-ASN.mmdb_LICENSE.txt",
-                        "GeoLite2-ASN.mmdb_README.txt"));
+                    assertThat(
+                        files,
+                        containsInAnyOrder(
+                            "GeoLite2-City.mmdb",
+                            "GeoLite2-Country.mmdb",
+                            "GeoLite2-ASN.mmdb",
+                            "GeoLite2-City.mmdb_COPYRIGHT.txt",
+                            "GeoLite2-Country.mmdb_COPYRIGHT.txt",
+                            "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                            "GeoLite2-City.mmdb_LICENSE.txt",
+                            "GeoLite2-Country.mmdb_LICENSE.txt",
+                            "GeoLite2-ASN.mmdb_LICENSE.txt",
+                            "GeoLite2-ASN.mmdb_README.txt"
+                        )
+                    );
                 }
             }
         });
@@ -323,8 +334,17 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument(), notNullValue());
             Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
-            assertThat(source, hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City.mmdb",
-                "_geoip_database_unavailable_GeoLite2-Country.mmdb", "_geoip_database_unavailable_GeoLite2-ASN.mmdb")));
+            assertThat(
+                source,
+                hasEntry(
+                    "tags",
+                    List.of(
+                        "_geoip_database_unavailable_GeoLite2-City.mmdb",
+                        "_geoip_database_unavailable_GeoLite2-Country.mmdb",
+                        "_geoip_database_unavailable_GeoLite2-ASN.mmdb"
+                    )
+                )
+            );
         }
 
         // Enable downloader:
@@ -443,7 +463,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     private List<Path> getGeoIpTmpDirs() throws IOException {
-        final Set<String> ids = clusterService().state().nodes().getDataNodes().values().stream()
+        final Set<String> ids = clusterService().state()
+            .nodes()
+            .getDataNodes()
+            .values()
+            .stream()
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
         // All nodes share the same geoip base dir in the shared tmp dir:
@@ -465,24 +489,28 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .forEach(path -> {
                 try {
                     Files.createDirectories(path);
-                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-City.mmdb"),
-                        path.resolve("GeoLite2-City.mmdb"));
-                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-ASN.mmdb"),
-                        path.resolve("GeoLite2-ASN.mmdb"));
-                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-Country.mmdb"),
-                        path.resolve("GeoLite2-Country.mmdb"));
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-City.mmdb"), path.resolve("GeoLite2-City.mmdb"));
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-ASN.mmdb"), path.resolve("GeoLite2-ASN.mmdb"));
+                    Files.copy(
+                        GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-Country.mmdb"),
+                        path.resolve("GeoLite2-Country.mmdb")
+                    );
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
             });
 
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response  response =
-                client().execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request()).actionGet();
+            GeoIpDownloaderStatsAction.Response response = client().execute(
+                GeoIpDownloaderStatsAction.INSTANCE,
+                new GeoIpDownloaderStatsAction.Request()
+            ).actionGet();
             assertThat(response.getNodes(), not(empty()));
             for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
-                assertThat(nodeResponse.getConfigDatabases(),
-                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb"));
+                assertThat(
+                    nodeResponse.getConfigDatabases(),
+                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
+                );
             }
         });
     }

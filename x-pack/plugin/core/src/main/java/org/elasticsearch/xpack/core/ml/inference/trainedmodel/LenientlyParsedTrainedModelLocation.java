@@ -7,5 +7,4 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-public interface LenientlyParsedTrainedModelLocation extends TrainedModelLocation{
-}
+public interface LenientlyParsedTrainedModelLocation extends TrainedModelLocation {}

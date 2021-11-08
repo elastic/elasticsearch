@@ -16,15 +16,15 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
@@ -160,20 +160,22 @@ public class HttpClientRequestTests extends ESTestCase {
         HttpClient httpClient = new HttpClient(conCfg);
 
         Mode mode = randomFrom(Mode.JDBC, Mode.ODBC);
-        SqlQueryRequest request = new SqlQueryRequest(query,
-                null,
-                ZoneId.of("Z"),
-                randomIntBetween(1, 100),
-                TimeValue.timeValueMillis(randomNonNegativeLong()),
-                TimeValue.timeValueMillis(randomNonNegativeLong()),
-                null,
-                randomBoolean(),
-                randomAlphaOfLength(128),
-                new RequestInfo(mode, ClientVersion.CURRENT),
-                randomBoolean(),
-                randomBoolean(),
-                isBinary,
-                Collections.emptyMap());
+        SqlQueryRequest request = new SqlQueryRequest(
+            query,
+            null,
+            ZoneId.of("Z"),
+            randomIntBetween(1, 100),
+            TimeValue.timeValueMillis(randomNonNegativeLong()),
+            TimeValue.timeValueMillis(randomNonNegativeLong()),
+            null,
+            randomBoolean(),
+            randomAlphaOfLength(128),
+            new RequestInfo(mode, ClientVersion.CURRENT),
+            randomBoolean(),
+            randomBoolean(),
+            isBinary,
+            Collections.emptyMap()
+        );
 
         prepareMockResponse();
         try {
@@ -207,8 +209,7 @@ public class HttpClientRequestTests extends ESTestCase {
         private String hostname;
         private int port;
 
-        RawRequestMockWebServer() {
-        }
+        RawRequestMockWebServer() {}
 
         void start() throws IOException {
             InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
@@ -237,8 +238,14 @@ public class HttpClientRequestTests extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to respond to request [{} {}]",
-                            s.getRequestMethod(), s.getRequestURI()), e);
+                    logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to respond to request [{} {}]",
+                            s.getRequestMethod(),
+                            s.getRequestURI()
+                        ),
+                        e
+                    );
                 } finally {
                     s.close();
                 }
@@ -283,7 +290,6 @@ public class HttpClientRequestTests extends ESTestCase {
             server.stop(0);
         }
     }
-
 
     private static class RawRequest {
 

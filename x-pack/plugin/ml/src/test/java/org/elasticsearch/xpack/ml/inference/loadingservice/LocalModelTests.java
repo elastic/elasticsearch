@@ -73,7 +73,8 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassificationInference(false))
             .build();
 
-        LocalModel model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(
+            modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -81,20 +82,26 @@ public class LocalModelTests extends ESTestCase {
             ClassificationConfig.EMPTY_PARAMS,
             randomFrom(License.OperationMode.values()),
             modelStatsService,
-            mock(CircuitBreaker.class));
-        Map<String, Object> fields = new HashMap<>() {{
-            put("field.foo", 1.0);
-            put("field", Collections.singletonMap("bar", 0.5));
-            put("categorical", "dog");
-        }};
+            mock(CircuitBreaker.class)
+        );
+        Map<String, Object> fields = new HashMap<>() {
+            {
+                put("field.foo", 1.0);
+                put("field", Collections.singletonMap("bar", 0.5));
+                put("categorical", "dog");
+            }
+        };
 
         SingleValueInferenceResults result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), is("0"));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
-        ClassificationInferenceResults classificationResult =
-            (ClassificationInferenceResults)getSingleValue(model, fields, new ClassificationConfigUpdate(1, null, null, null, null));
+        ClassificationInferenceResults classificationResult = (ClassificationInferenceResults) getSingleValue(
+            model,
+            fields,
+            new ClassificationConfigUpdate(1, null, null, null, null)
+        );
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("0"));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
@@ -104,7 +111,8 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildClassificationInference(true))
             .build();
-        model = new LocalModel(modelId,
+        model = new LocalModel(
+            modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -112,27 +120,34 @@ public class LocalModelTests extends ESTestCase {
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
             modelStatsService,
-            mock(CircuitBreaker.class));
+            mock(CircuitBreaker.class)
+        );
         result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("no"));
 
-        classificationResult = (ClassificationInferenceResults)getSingleValue(model,
+        classificationResult = (ClassificationInferenceResults) getSingleValue(
+            model,
             fields,
-            new ClassificationConfigUpdate(1, null, null, null, null));
+            new ClassificationConfigUpdate(1, null, null, null, null)
+        );
         assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("no"));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
 
-        classificationResult = (ClassificationInferenceResults)getSingleValue(model,
+        classificationResult = (ClassificationInferenceResults) getSingleValue(
+            model,
             fields,
-            new ClassificationConfigUpdate(2, null, null, null, null));
+            new ClassificationConfigUpdate(2, null, null, null, null)
+        );
         assertThat(classificationResult.getTopClasses(), hasSize(2));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
-        classificationResult = (ClassificationInferenceResults)getSingleValue(model,
+        classificationResult = (ClassificationInferenceResults) getSingleValue(
+            model,
             fields,
-            new ClassificationConfigUpdate(-1, null, null, null, null));
+            new ClassificationConfigUpdate(-1, null, null, null, null)
+        );
         assertThat(classificationResult.getTopClasses(), hasSize(2));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
     }
@@ -148,7 +163,8 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassificationInference(true))
             .build();
 
-        LocalModel model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(
+            modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -156,25 +172,29 @@ public class LocalModelTests extends ESTestCase {
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
             modelStatsService,
-            mock(CircuitBreaker.class));
-        Map<String, Object> fields = new HashMap<>() {{
-            put("field.foo", 1.0);
-            put("field.bar", 0.5);
-            put("categorical", "dog");
-        }};
+            mock(CircuitBreaker.class)
+        );
+        Map<String, Object> fields = new HashMap<>() {
+            {
+                put("field.foo", 1.0);
+                put("field.bar", 0.5);
+                put("categorical", "dog");
+            }
+        };
 
         InferenceResults result = getInferenceResult(
             model,
             fields,
-            new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING));
+            new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.STRING)
+        );
 
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         writeResult(result, document, "result_field", modelId);
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("no"));
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
-        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo("no"));
-        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo("yes"));
+        assertThat(((Map<String, Object>) list.get(0)).get("class_name"), equalTo("no"));
+        assertThat(((Map<String, Object>) list.get(1)).get("class_name"), equalTo("yes"));
 
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.NUMBER));
 
@@ -183,8 +203,8 @@ public class LocalModelTests extends ESTestCase {
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.0));
         list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
-        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo(0.0));
-        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo(1.0));
+        assertThat(((Map<String, Object>) list.get(0)).get("class_name"), equalTo(0.0));
+        assertThat(((Map<String, Object>) list.get(1)).get("class_name"), equalTo(1.0));
 
         result = getInferenceResult(model, fields, new ClassificationConfigUpdate(2, null, null, null, PredictionFieldType.BOOLEAN));
 
@@ -193,8 +213,8 @@ public class LocalModelTests extends ESTestCase {
         assertThat(document.getFieldValue("result_field.predicted_value", Boolean.class), equalTo(false));
         list = document.getFieldValue("result_field.top_classes", List.class);
         assertThat(list.size(), equalTo(2));
-        assertThat(((Map<String, Object>)list.get(0)).get("class_name"), equalTo(false));
-        assertThat(((Map<String, Object>)list.get(1)).get("class_name"), equalTo(true));
+        assertThat(((Map<String, Object>) list.get(0)).get("class_name"), equalTo(false));
+        assertThat(((Map<String, Object>) list.get(1)).get("class_name"), equalTo(true));
     }
 
     public void testRegression() throws Exception {
@@ -205,7 +225,8 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap(), false)))
             .setTrainedModel(buildRegressionInference())
             .build();
-        LocalModel model = new LocalModel("regression_model",
+        LocalModel model = new LocalModel(
+            "regression_model",
             "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
@@ -213,13 +234,16 @@ public class LocalModelTests extends ESTestCase {
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
             modelStatsService,
-            mock(CircuitBreaker.class));
+            mock(CircuitBreaker.class)
+        );
 
-        Map<String, Object> fields = new HashMap<>() {{
-            put("foo", 1.0);
-            put("bar.keyword", 0.5);
-            put("categorical", "dog");
-        }};
+        Map<String, Object> fields = new HashMap<>() {
+            {
+                put("foo", 1.0);
+                put("bar.keyword", 0.5);
+                put("categorical", "dog");
+            }
+        };
 
         SingleValueInferenceResults results = getSingleValue(model, fields, RegressionConfigUpdate.EMPTY_PARAMS);
         assertThat(results.value(), equalTo(1.3));
@@ -242,17 +266,19 @@ public class LocalModelTests extends ESTestCase {
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
             modelStatsService,
-            mock(CircuitBreaker.class));
+            mock(CircuitBreaker.class)
+        );
 
-        Map<String, Object> fields = new HashMap<>() {{
-            put("something", 1.0);
-            put("other", 0.5);
-            put("baz", "dog");
-        }};
+        Map<String, Object> fields = new HashMap<>() {
+            {
+                put("something", 1.0);
+                put("other", 0.5);
+                put("baz", "dog");
+            }
+        };
 
-        WarningInferenceResults results = (WarningInferenceResults)getInferenceResult(model, fields, RegressionConfigUpdate.EMPTY_PARAMS);
-        assertThat(results.getWarning(),
-            equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
+        WarningInferenceResults results = (WarningInferenceResults) getInferenceResult(model, fields, RegressionConfigUpdate.EMPTY_PARAMS);
+        assertThat(results.getWarning(), equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, "regression_model")));
         assertThat(model.getLatestStatsAndReset().getMissingAllFieldsCount(), equalTo(1L));
     }
 
@@ -266,7 +292,8 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassificationInference(false))
             .build();
 
-        LocalModel model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(
+            modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -276,13 +303,15 @@ public class LocalModelTests extends ESTestCase {
             modelStatsService,
             mock(CircuitBreaker.class)
         );
-        Map<String, Object> fields = new HashMap<>() {{
-            put("field.foo", 1.0);
-            put("field.bar", 0.5);
-            put("categorical", "dog");
-        }};
+        Map<String, Object> fields = new HashMap<>() {
+            {
+                put("field.foo", 1.0);
+                put("field.bar", 0.5);
+                put("categorical", "dog");
+            }
+        };
 
-        for(int i = 0; i < 100; i++) {
+        for (int i = 0; i < 100; i++) {
             getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         }
         SingleValueInferenceResults result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
@@ -293,7 +322,7 @@ public class LocalModelTests extends ESTestCase {
         verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
             @Override
             public boolean matches(Object o) {
-                return ((InferenceStats)o).getInferenceCount() == 99L;
+                return ((InferenceStats) o).getInferenceCount() == 99L;
             }
         }), anyBoolean());
     }
@@ -307,7 +336,6 @@ public class LocalModelTests extends ESTestCase {
         Map<String, Object> fields = new TreeMap<>();
         fields.put("a1", "a_value");
         fields.put("b1", "b_value");
-
 
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
 
@@ -324,13 +352,12 @@ public class LocalModelTests extends ESTestCase {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
         String modelId = "ref-count-model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar");
-        InferenceDefinition definition = InferenceDefinition.builder()
-            .setTrainedModel(buildClassificationInference(false))
-            .build();
+        InferenceDefinition definition = InferenceDefinition.builder().setTrainedModel(buildClassificationInference(false)).build();
 
         {
             CircuitBreaker breaker = mock(CircuitBreaker.class);
-            LocalModel model = new LocalModel(modelId,
+            LocalModel model = new LocalModel(
+                modelId,
                 "test-node",
                 definition,
                 new TrainedModelInput(inputFields),
@@ -355,7 +382,8 @@ public class LocalModelTests extends ESTestCase {
 
         {
             CircuitBreaker breaker = mock(CircuitBreaker.class);
-            LocalModel model = new LocalModel(modelId,
+            LocalModel model = new LocalModel(
+                modelId,
                 "test-node",
                 definition,
                 new TrainedModelInput(inputFields),
@@ -377,16 +405,13 @@ public class LocalModelTests extends ESTestCase {
         }
     }
 
-    private static SingleValueInferenceResults getSingleValue(LocalModel model,
-                                                              Map<String, Object> fields,
-                                                              InferenceConfigUpdate config)
+    private static SingleValueInferenceResults getSingleValue(LocalModel model, Map<String, Object> fields, InferenceConfigUpdate config)
         throws Exception {
-        return (SingleValueInferenceResults)getInferenceResult(model, fields, config);
+        return (SingleValueInferenceResults) getInferenceResult(model, fields, config);
     }
 
-    private static InferenceResults getInferenceResult(LocalModel model,
-                                                       Map<String, Object> fields,
-                                                       InferenceConfigUpdate config) throws Exception {
+    private static InferenceResults getInferenceResult(LocalModel model, Map<String, Object> fields, InferenceConfigUpdate config)
+        throws Exception {
         PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();
         model.infer(fields, config, future);
         return future.get();
@@ -400,43 +425,28 @@ public class LocalModelTests extends ESTestCase {
     }
 
     public static InferenceModel buildClassificationInference(boolean includeLables) throws IOException {
-        return serializeFromTrainedModel((Ensemble)buildClassification(includeLables));
+        return serializeFromTrainedModel((Ensemble) buildClassification(includeLables));
     }
 
     public static TrainedModel buildClassification(boolean includeLabels) {
         List<String> featureNames = Arrays.asList("field.foo", "field.bar", "animal_cat", "animal_dog");
         Tree tree1 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(0.5))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(0.5))
             .addNode(TreeNode.builder(1).setLeafValue(1.0))
-            .addNode(TreeNode.builder(2)
-                .setThreshold(0.8)
-                .setSplitFeature(1)
-                .setLeftChild(3)
-                .setRightChild(4))
+            .addNode(TreeNode.builder(2).setThreshold(0.8).setSplitFeature(1).setLeftChild(3).setRightChild(4))
             .addNode(TreeNode.builder(3).setLeafValue(0.0))
-            .addNode(TreeNode.builder(4).setLeafValue(1.0)).build();
+            .addNode(TreeNode.builder(4).setLeafValue(1.0))
+            .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(3)
-                .setThreshold(1.0))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(3).setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(0.0))
             .addNode(TreeNode.builder(2).setLeafValue(1.0))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(1.0))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(1.0))
             .addNode(TreeNode.builder(2).setLeafValue(0.0))
             .build();
@@ -445,48 +455,33 @@ public class LocalModelTests extends ESTestCase {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 2))
+            .setOutputAggregator(new WeightedMode(new double[] { 0.7, 0.5, 1.0 }, 2))
             .build();
     }
 
     public static InferenceModel buildRegressionInference() throws IOException {
-        return serializeFromTrainedModel((Ensemble)buildRegression());
+        return serializeFromTrainedModel((Ensemble) buildRegression());
     }
 
     public static TrainedModel buildRegression() {
         List<String> featureNames = Arrays.asList("field.foo", "field.bar", "animal_cat", "animal_dog");
         Tree tree1 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(0.5))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(0.5))
             .addNode(TreeNode.builder(1).setLeafValue(0.3))
-            .addNode(TreeNode.builder(2)
-                .setThreshold(0.0)
-                .setSplitFeature(3)
-                .setLeftChild(3)
-                .setRightChild(4))
+            .addNode(TreeNode.builder(2).setThreshold(0.0).setSplitFeature(3).setLeftChild(3).setRightChild(4))
             .addNode(TreeNode.builder(3).setLeafValue(0.1))
-            .addNode(TreeNode.builder(4).setLeafValue(0.2)).build();
+            .addNode(TreeNode.builder(4).setLeafValue(0.2))
+            .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(2)
-                .setThreshold(1.0))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(2).setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(1.5))
             .addNode(TreeNode.builder(2).setLeafValue(0.9))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(1)
-                .setThreshold(0.2))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(1).setThreshold(0.2))
             .addNode(TreeNode.builder(1).setLeafValue(1.5))
             .addNode(TreeNode.builder(2).setLeafValue(0.9))
             .build();
@@ -494,7 +489,7 @@ public class LocalModelTests extends ESTestCase {
             .setTargetType(TargetType.REGRESSION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedSum(new double[]{0.5, 0.5, 0.5}))
+            .setOutputAggregator(new WeightedSum(new double[] { 0.5, 0.5, 0.5 }))
             .build();
     }
 

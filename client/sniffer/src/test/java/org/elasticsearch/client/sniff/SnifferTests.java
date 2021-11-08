@@ -91,7 +91,7 @@ public class SnifferTests extends RestClientTestCase {
             };
             CountingNodesSniffer nodesSniffer = new CountingNodesSniffer();
             int iters = randomIntBetween(5, 30);
-            try (Sniffer sniffer = new Sniffer(restClient, nodesSniffer, noOpScheduler, 1000L, -1)){
+            try (Sniffer sniffer = new Sniffer(restClient, nodesSniffer, noOpScheduler, 1000L, -1)) {
                 {
                     assertEquals(1, restClient.getNodes().size());
                     Node node = restClient.getNodes().get(0);
@@ -118,7 +118,7 @@ public class SnifferTests extends RestClientTestCase {
                             assertEquals(expectedNodes, restClient.getNodes());
                             lastNodes = restClient.getNodes();
                         }
-                    } catch(IOException e) {
+                    } catch (IOException e) {
                         if (nodesSniffer.failures.get() > failures) {
                             failures++;
                             assertEquals("communication breakdown", e.getMessage());
@@ -158,11 +158,11 @@ public class SnifferTests extends RestClientTestCase {
                 assertEquals(sniffInterval, task.nextTaskDelay);
                 int numberOfRuns = runs.getAndDecrement();
                 if (numberOfRuns == iters) {
-                    //the first call is to schedule the first sniff round from the Sniffer constructor, with delay O
+                    // the first call is to schedule the first sniff round from the Sniffer constructor, with delay O
                     assertEquals(0L, delayMillis);
                     assertEquals(sniffInterval, task.nextTaskDelay);
                 } else {
-                    //all of the subsequent times "schedule" is called with delay set to the configured sniff interval
+                    // all of the subsequent times "schedule" is called with delay set to the configured sniff interval
                     assertEquals(sniffInterval, delayMillis);
                     assertEquals(sniffInterval, task.nextTaskDelay);
                     if (numberOfRuns == 0) {
@@ -170,7 +170,7 @@ public class SnifferTests extends RestClientTestCase {
                         return null;
                     }
                 }
-                //we submit rather than scheduling to make the test quick and not depend on time
+                // we submit rather than scheduling to make the test quick and not depend on time
                 Future<?> future = executor.submit(task);
                 futures.add(future);
                 if (numberOfRuns == 1) {
@@ -182,15 +182,15 @@ public class SnifferTests extends RestClientTestCase {
 
             @Override
             public void shutdown() {
-                //the executor is closed externally, shutdown is tested separately
+                // the executor is closed externally, shutdown is tested separately
             }
         };
         try {
             new Sniffer(restClient, nodesSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
             assertTrue("timeout waiting for sniffing rounds to be completed", completionLatch.await(1000, TimeUnit.MILLISECONDS));
             assertEquals(iters, futures.size());
-            //the last future is the only one that may not be completed yet, as the count down happens
-            //while scheduling the next round which is still part of the execution of the runnable itself.
+            // the last future is the only one that may not be completed yet, as the count down happens
+            // while scheduling the next round which is still part of the execution of the runnable itself.
             assertTrue(lastTask.get().hasStarted());
             lastFuture.get().get();
             for (Future<?> future : futures) {
@@ -223,7 +223,7 @@ public class SnifferTests extends RestClientTestCase {
             @Override
             public Future<?> schedule(Sniffer.Task task, long delayMillis) {
                 if (initialized.compareAndSet(false, true)) {
-                    //run from the same thread so the sniffer gets for sure initialized and the scheduled task gets cancelled on close
+                    // run from the same thread so the sniffer gets for sure initialized and the scheduled task gets cancelled on close
                     task.run();
                 }
                 return future;
@@ -259,8 +259,7 @@ public class SnifferTests extends RestClientTestCase {
             }
 
             @Override
-            public void shutdown() {
-            }
+            public void shutdown() {}
         };
 
         Sniffer sniffer = new Sniffer(restClient, nodesSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
@@ -307,8 +306,8 @@ public class SnifferTests extends RestClientTestCase {
                                 try {
                                     task.run();
                                 } finally {
-                                    //we need to make sure that the sniffer is initialized, so the sniffOnFailure
-                                    //call does what it needs to do. Otherwise nothing happens until initialized.
+                                    // we need to make sure that the sniffer is initialized, so the sniffOnFailure
+                                    // call does what it needs to do. Otherwise nothing happens until initialized.
                                     initializingLatch.countDown();
                                 }
                             }
@@ -349,8 +348,7 @@ public class SnifferTests extends RestClientTestCase {
                 }
 
                 @Override
-                public void shutdown() {
-                }
+                public void shutdown() {}
             };
             final Sniffer sniffer = new Sniffer(restClient, nodesSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
             assertTrue("timeout waiting for sniffer to get initialized", initializingLatch.await(1000, TimeUnit.MILLISECONDS));
@@ -358,8 +356,8 @@ public class SnifferTests extends RestClientTestCase {
             ExecutorService onFailureExecutor = Executors.newFixedThreadPool(randomIntBetween(5, 20));
             Set<Future<?>> onFailureFutures = new CopyOnWriteArraySet<>();
             try {
-                //with tasks executing quickly one after each other, it is very likely that the onFailure round gets skipped
-                //as another round is already running. We retry till enough runs get through as that's what we want to test.
+                // with tasks executing quickly one after each other, it is very likely that the onFailure round gets skipped
+                // as another round is already running. We retry till enough runs get through as that's what we want to test.
                 while (onFailureTasks.size() < minNumOnFailureRounds) {
                     onFailureFutures.add(onFailureExecutor.submit(new Runnable() {
                         @Override
@@ -430,13 +428,12 @@ public class SnifferTests extends RestClientTestCase {
             try {
                 task.future.get();
                 fail("cancellation exception should have been thrown");
-            } catch(CancellationException ignore) {
-            }
+            } catch (CancellationException ignore) {}
             return false;
         } else {
             try {
                 assertNull(task.future.get());
-            } catch(CancellationException ignore) {
+            } catch (CancellationException ignore) {
                 assertTrue(task.future.isCancelled());
             }
             assertTrue(task.future.isDone());
@@ -455,8 +452,7 @@ public class SnifferTests extends RestClientTestCase {
             }
 
             @Override
-            public void shutdown() {
-            }
+            public void shutdown() {}
         };
         Sniffer sniffer = new Sniffer(restClient, nodesSniffer, noOpScheduler, 0L, 0L);
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
@@ -475,32 +471,32 @@ public class SnifferTests extends RestClientTestCase {
                 boolean skip = scheduledTask.skip();
                 try {
                     assertNull(future.get());
-                } catch(CancellationException ignore) {
+                } catch (CancellationException ignore) {
                     assertTrue(future.isCancelled());
                 }
 
                 if (skip) {
-                    //the task was either cancelled before starting, in which case it will never start (thanks to Future#cancel),
-                    //or skipped, in which case it will run but do nothing (thanks to Task#skip).
-                    //Here we want to make sure that whenever skip returns true, the task either won't run or it won't do anything,
-                    //otherwise we may end up with parallel sniffing tracks given that each task schedules the following one. We need to
+                    // the task was either cancelled before starting, in which case it will never start (thanks to Future#cancel),
+                    // or skipped, in which case it will run but do nothing (thanks to Task#skip).
+                    // Here we want to make sure that whenever skip returns true, the task either won't run or it won't do anything,
+                    // otherwise we may end up with parallel sniffing tracks given that each task schedules the following one. We need to
                     // make sure that onFailure takes scheduling over while at the same time ordinary rounds don't go on.
                     assertFalse(task.hasStarted());
                     assertTrue(task.isSkipped());
                     assertTrue(future.isCancelled());
                     assertTrue(future.isDone());
                 } else {
-                    //if a future is cancelled when its execution has already started, future#get throws CancellationException before
-                    //completion. The execution continues though so we use a latch to try and wait for the task to be completed.
-                    //Here we want to make sure that whenever skip returns false, the task will be completed, otherwise we may be
-                    //missing to schedule the following round, which means no sniffing will ever happen again besides on failure sniffing.
+                    // if a future is cancelled when its execution has already started, future#get throws CancellationException before
+                    // completion. The execution continues though so we use a latch to try and wait for the task to be completed.
+                    // Here we want to make sure that whenever skip returns false, the task will be completed, otherwise we may be
+                    // missing to schedule the following round, which means no sniffing will ever happen again besides on failure sniffing.
                     assertTrue(wrapper.await());
-                    //the future may or may not be cancelled but the task has for sure started and completed
+                    // the future may or may not be cancelled but the task has for sure started and completed
                     assertTrue(task.toString(), task.hasStarted());
                     assertFalse(task.isSkipped());
                     assertTrue(future.isDone());
                 }
-                //subsequent cancel calls return false for sure
+                // subsequent cancel calls return false for sure
                 int cancelCalls = randomIntBetween(1, 10);
                 for (int j = 0; j < cancelCalls; j++) {
                     assertFalse(scheduledTask.skip());
@@ -556,7 +552,7 @@ public class SnifferTests extends RestClientTestCase {
             int run = runs.incrementAndGet();
             if (rarely()) {
                 failures.incrementAndGet();
-                //check that if communication breaks, sniffer keeps on working
+                // check that if communication breaks, sniffer keeps on working
                 throw new IOException("communication breakdown");
             }
             if (rarely()) {
@@ -596,13 +592,14 @@ public class SnifferTests extends RestClientTestCase {
 
         ScheduledExecutorService scheduledExecutorService = mock(ScheduledExecutorService.class);
         final ScheduledFuture<?> mockedFuture = mock(ScheduledFuture.class);
-        when(scheduledExecutorService.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class)))
-                .then(new Answer<ScheduledFuture<?>>() {
-                    @Override
-                    public ScheduledFuture<?> answer(InvocationOnMock invocationOnMock) {
-                        return mockedFuture;
-                    }
-        });
+        when(scheduledExecutorService.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class))).then(
+            new Answer<ScheduledFuture<?>>() {
+                @Override
+                public ScheduledFuture<?> answer(InvocationOnMock invocationOnMock) {
+                    return mockedFuture;
+                }
+            }
+        );
         DefaultScheduler scheduler = new DefaultScheduler(scheduledExecutorService);
         long delay = randomLongBetween(1, Long.MAX_VALUE);
         Future<?> future = scheduler.schedule(task, delay);

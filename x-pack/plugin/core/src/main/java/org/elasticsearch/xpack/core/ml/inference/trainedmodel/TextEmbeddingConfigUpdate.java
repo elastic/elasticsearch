@@ -28,7 +28,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     public static TextEmbeddingConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
+        String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
@@ -42,7 +42,8 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         ObjectParser<TextEmbeddingConfigUpdate.Builder, Void> parser = new ObjectParser<>(
             NAME,
             lenient,
-            TextEmbeddingConfigUpdate.Builder::new);
+            TextEmbeddingConfigUpdate.Builder::new
+        );
         parser.declareString(TextEmbeddingConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
         return parser;
     }
@@ -96,14 +97,12 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
             throw ExceptionsHelper.badRequestException(
                 "Inference config of type [{}] can not be updated with a inference request of type [{}]",
                 originalConfig.getName(),
-                getName());
+                getName()
+            );
         }
 
-        TextEmbeddingConfig embeddingConfig = (TextEmbeddingConfig)originalConfig;
-        return new TextEmbeddingConfig(
-            embeddingConfig.getVocabularyConfig(),
-            embeddingConfig.getTokenization(),
-            resultsField);
+        TextEmbeddingConfig embeddingConfig = (TextEmbeddingConfig) originalConfig;
+        return new TextEmbeddingConfig(embeddingConfig.getVocabularyConfig(), embeddingConfig.getTokenization(), resultsField);
     }
 
     @Override
@@ -118,8 +117,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder()
-            .setResultsField(resultsField);
+        return new Builder().setResultsField(resultsField);
     }
 
     @Override
@@ -135,8 +133,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         return Objects.hash(resultsField);
     }
 
-    public static class Builder
-        implements InferenceConfigUpdate.Builder<TextEmbeddingConfigUpdate.Builder, TextEmbeddingConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<TextEmbeddingConfigUpdate.Builder, TextEmbeddingConfigUpdate> {
         private String resultsField;
 
         @Override

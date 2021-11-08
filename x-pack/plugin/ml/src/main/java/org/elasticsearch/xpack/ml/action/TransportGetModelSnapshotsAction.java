@@ -20,8 +20,9 @@ import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-public class TransportGetModelSnapshotsAction extends HandledTransportAction<GetModelSnapshotsAction.Request,
-        GetModelSnapshotsAction.Response> {
+public class TransportGetModelSnapshotsAction extends HandledTransportAction<
+    GetModelSnapshotsAction.Request,
+    GetModelSnapshotsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetModelSnapshotsAction.class);
 
@@ -29,16 +30,23 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetModelSnapshotsAction(TransportService transportService, ActionFilters actionFilters,
-                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
+    public TransportGetModelSnapshotsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        JobResultsProvider jobResultsProvider,
+        JobManager jobManager
+    ) {
         super(GetModelSnapshotsAction.NAME, transportService, actionFilters, GetModelSnapshotsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(Task task, GetModelSnapshotsAction.Request request,
-                             ActionListener<GetModelSnapshotsAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetModelSnapshotsAction.Request request,
+        ActionListener<GetModelSnapshotsAction.Response> listener
+    ) {
         logger.debug(
             () -> new ParameterizedMessage(
                 "Get model snapshots for job {} snapshot ID {}. from = {}, size = {} start = '{}', end='{}', sort={} descending={}",
@@ -49,20 +57,20 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
                 request.getStart(),
                 request.getEnd(),
                 request.getSort(),
-                request.getDescOrder()));
+                request.getDescOrder()
+            )
+        );
 
         if (Strings.isAllOrWildcard(request.getJobId())) {
             getModelSnapshots(request, listener);
             return;
         }
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-            ok -> getModelSnapshots(request, listener),
-            listener::onFailure
-        ));
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(ok -> getModelSnapshots(request, listener), listener::onFailure));
     }
 
     private void getModelSnapshots(GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {
-        jobResultsProvider.modelSnapshots(request.getJobId(),
+        jobResultsProvider.modelSnapshots(
+            request.getJobId(),
             request.getPageParams().getFrom(),
             request.getPageParams().getSize(),
             request.getStart(),
@@ -71,6 +79,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
             request.getDescOrder(),
             request.getSnapshotId(),
             page -> listener.onResponse(new GetModelSnapshotsAction.Response(page)),
-            listener::onFailure);
+            listener::onFailure
+        );
     }
 }

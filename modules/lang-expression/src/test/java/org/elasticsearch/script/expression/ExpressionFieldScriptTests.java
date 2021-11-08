@@ -58,16 +58,12 @@ public class ExpressionFieldScriptTests extends ESTestCase {
     }
 
     public void testCompileError() {
-        ScriptException e = expectThrows(ScriptException.class, () -> {
-            compile("doc['field'].value * *@#)(@$*@#$ + 4");
-        });
+        ScriptException e = expectThrows(ScriptException.class, () -> { compile("doc['field'].value * *@#)(@$*@#$ + 4"); });
         assertTrue(e.getCause() instanceof ParseException);
     }
 
     public void testLinkError() {
-        ScriptException e = expectThrows(ScriptException.class, () -> {
-            compile("doc['nonexistent'].value * 5");
-        });
+        ScriptException e = expectThrows(ScriptException.class, () -> { compile("doc['nonexistent'].value * 5"); });
         assertTrue(e.getCause() instanceof ParseException);
     }
 

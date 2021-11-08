@@ -89,20 +89,25 @@ public class PyTorchStateStreamer {
 
     private int writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
         if (modelSizeBytes == null) {
-            String message = String.format(Locale.ROOT,
+            String message = String.format(
+                Locale.ROOT,
                 "The definition doc for model [%s] has a null value for field [%s]",
-                modelId, TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+                modelId,
+                TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()
+            );
             logger.error(message);
             throw new IllegalStateException(message);
         }
         if (modelSizeBytes <= 0) {
             // The other end expects an unsigned 32 bit int a -ve value is invalid.
             // ByteSizeValue allows -1 bytes as a valid value so this check is still required
-            String message = String.format(Locale.ROOT,
+            String message = String.format(
+                Locale.ROOT,
                 "The definition doc for model [%s] has a negative value [%s] for field [%s]",
                 modelId,
                 modelSizeBytes,
-                TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+                TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()
+            );
 
             logger.error(message);
             throw new IllegalStateException(message);
@@ -110,9 +115,13 @@ public class PyTorchStateStreamer {
 
         if (modelSizeBytes > Integer.MAX_VALUE) {
             // TODO use a long in case models are larger than 2^31 bytes
-            String message = String.format(Locale.ROOT,
+            String message = String.format(
+                Locale.ROOT,
                 "model [%s] has a size [%s] larger than the max size [%s]",
-                modelId, modelSizeBytes, Integer.MAX_VALUE);
+                modelId,
+                modelSizeBytes,
+                Integer.MAX_VALUE
+            );
             logger.error(message);
             throw new IllegalStateException(message);
         }

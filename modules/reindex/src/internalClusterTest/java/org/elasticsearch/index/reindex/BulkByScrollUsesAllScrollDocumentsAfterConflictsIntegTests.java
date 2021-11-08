@@ -22,9 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -36,6 +34,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -52,9 +52,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.lucene.uid.Versions.MATCH_DELETED;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -101,14 +101,14 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
     public void testUpdateByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final boolean scriptEnabled = randomBoolean();
-        executeConcurrentUpdatesOnSubsetOfDocs(indexName,
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            indexName,
             indexName,
             scriptEnabled,
             updateByQuery(),
             true,
-            (bulkByScrollResponse, updatedDocCount) -> {
-                assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount));
-        });
+            (bulkByScrollResponse, updatedDocCount) -> { assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount)); }
+        );
     }
 
     public void testReindex() throws Exception {
@@ -123,35 +123,40 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         reindexRequestBuilder.destination().setVersion(MATCH_DELETED);
 
         final boolean scriptEnabled = randomBoolean();
-        executeConcurrentUpdatesOnSubsetOfDocs(sourceIndex,
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            sourceIndex,
             targetIndex,
             scriptEnabled,
             reindexRequestBuilder,
             false,
-            (bulkByScrollResponse, reindexDocCount) -> {
-            assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
-        });
+            (bulkByScrollResponse, reindexDocCount) -> { assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount)); }
+        );
     }
 
     public void testDeleteByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        executeConcurrentUpdatesOnSubsetOfDocs(indexName,
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            indexName,
             indexName,
             false,
             deleteByQuery(),
             true,
-            (bulkByScrollResponse, deletedDocCount) -> {
-                assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount));
-        });
+            (bulkByScrollResponse, deletedDocCount) -> { assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount)); }
+        );
     }
 
-    <R extends AbstractBulkByScrollRequest<R>,
-     Self extends AbstractBulkByScrollRequestBuilder<R, Self>> void executeConcurrentUpdatesOnSubsetOfDocs(String sourceIndex,
-        String targetIndex,
-        boolean scriptEnabled,
-        AbstractBulkByScrollRequestBuilder<R, Self> requestBuilder,
-        boolean useOptimisticConcurrency,
-        BiConsumer<BulkByScrollResponse, Integer> resultConsumer) throws Exception {
+    <
+        R extends AbstractBulkByScrollRequest<R>,
+        Self extends AbstractBulkByScrollRequestBuilder<R, Self>>
+        void
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            String sourceIndex,
+            String targetIndex,
+            boolean scriptEnabled,
+            AbstractBulkByScrollRequestBuilder<R, Self> requestBuilder,
+            boolean useOptimisticConcurrency,
+            BiConsumer<BulkByScrollResponse, Integer> resultConsumer
+        ) throws Exception {
         createIndexWithSingleShard(sourceIndex);
 
         final int numDocs = 100;
@@ -219,9 +224,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         // Ensure that the concurrent writes are enqueued before the update by query request is sent
         assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
 
-        requestBuilder.source(sourceIndex)
-            .maxDocs(maxDocs)
-            .abortOnVersionConflict(false);
+        requestBuilder.source(sourceIndex).maxDocs(maxDocs).abortOnVersionConflict(false);
 
         if (scriptEnabled) {
             final Script script = new Script(ScriptType.INLINE, SCRIPT_LANG, NOOP_GENERATOR, Collections.emptyMap());
@@ -285,11 +288,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         // Use explicit mappings so we don't have to create those on demands and the task ordering
         // can change to wait for mapping updates
-        assertAcked(
-            prepareCreate(index)
-                .setSettings(indexSettings)
-                .setMapping(mappings)
-        );
+        assertAcked(prepareCreate(index).setSettings(indexSettings).setMapping(mappings));
     }
 
     private IndexRequest createUpdatedIndexRequest(SearchHit searchHit, String targetIndex, boolean useOptimisticUpdate) {

@@ -46,25 +46,24 @@ public class OperatorPrivilegesTests extends ESTestCase {
     }
 
     public void testWillNotProcessWhenFeatureIsDisabledOrLicenseDoesNotSupport() {
-        final Settings settings = Settings.builder()
-            .put("xpack.security.operator_privileges.enabled", randomBoolean())
-            .build();
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", randomBoolean()).build();
         when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(false);
         final ThreadContext threadContext = new ThreadContext(settings);
 
         operatorPrivilegesService.maybeMarkOperatorUser(mock(Authentication.class), threadContext);
         verifyZeroInteractions(fileOperatorUsersStore);
 
-        final ElasticsearchSecurityException e =
-            operatorPrivilegesService.check("cluster:action", mock(TransportRequest.class), threadContext);
+        final ElasticsearchSecurityException e = operatorPrivilegesService.check(
+            "cluster:action",
+            mock(TransportRequest.class),
+            threadContext
+        );
         assertNull(e);
         verifyZeroInteractions(operatorOnlyRegistry);
     }
 
     public void testMarkOperatorUser() {
-        final Settings settings = Settings.builder()
-            .put("xpack.security.operator_privileges.enabled", true)
-            .build();
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(true);
         final Authentication operatorAuth = mock(Authentication.class);
         final Authentication nonOperatorAuth = mock(Authentication.class);
@@ -74,8 +73,10 @@ public class OperatorPrivilegesTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(settings);
 
         operatorPrivilegesService.maybeMarkOperatorUser(operatorAuth, threadContext);
-        assertEquals(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
-            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+        assertEquals(
+            AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
+            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+        );
 
         threadContext = new ThreadContext(settings);
         operatorPrivilegesService.maybeMarkOperatorUser(nonOperatorAuth, threadContext);
@@ -83,9 +84,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
     }
 
     public void testCheck() {
-        final Settings settings = Settings.builder()
-            .put("xpack.security.operator_privileges.enabled", true)
-            .build();
+        final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(true);
 
         final String operatorAction = "cluster:operator_only/action";
@@ -100,7 +99,10 @@ public class OperatorPrivilegesTests extends ESTestCase {
             assertNull(operatorPrivilegesService.check(operatorAction, mock(TransportRequest.class), threadContext));
         } else {
             final ElasticsearchSecurityException e = operatorPrivilegesService.check(
-                operatorAction, mock(TransportRequest.class), threadContext);
+                operatorAction,
+                mock(TransportRequest.class),
+                threadContext
+            );
             assertNotNull(e);
             assertThat(e.getMessage(), containsString("Operator privileges are required for " + message));
         }
@@ -132,8 +134,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
 
         final TransportRequest request = mock(TransportRequest.class);
-        assertNull(NOOP_OPERATOR_PRIVILEGES_SERVICE.check(
-            randomAlphaOfLengthBetween(10, 20), request, threadContext));
+        assertNull(NOOP_OPERATOR_PRIVILEGES_SERVICE.check(randomAlphaOfLengthBetween(10, 20), request, threadContext));
         verifyZeroInteractions(request);
     }
 

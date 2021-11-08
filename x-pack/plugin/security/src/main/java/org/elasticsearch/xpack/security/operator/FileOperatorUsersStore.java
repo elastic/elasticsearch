@@ -12,19 +12,19 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -53,7 +53,7 @@ public class FileOperatorUsersStore {
     private volatile OperatorUsersDescriptor operatorUsersDescriptor;
 
     public FileOperatorUsersStore(Environment env, ResourceWatcherService watcherService) {
-        this.file =  XPackPlugin.resolveConfigFile(env, "operator_users.yml");
+        this.file = XPackPlugin.resolveConfigFile(env, "operator_users.yml");
         this.operatorUsersDescriptor = parseFile(this.file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileOperatorUsersStore.FileListener());
@@ -105,10 +105,8 @@ public class FileOperatorUsersStore {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             OperatorUsersDescriptor that = (OperatorUsersDescriptor) o;
             return groups.equals(that.groups);
         }
@@ -128,7 +126,10 @@ public class FileOperatorUsersStore {
 
     static final class Group {
         private static final Set<String> SINGLETON_REALM_TYPES = Set.of(
-            FileRealmSettings.TYPE, NativeRealmSettings.TYPE, ReservedRealm.TYPE);
+            FileRealmSettings.TYPE,
+            NativeRealmSettings.TYPE,
+            ReservedRealm.TYPE
+        );
 
         private final Set<String> usernames;
         private final String realmName;
@@ -143,13 +144,13 @@ public class FileOperatorUsersStore {
             this(usernames, realmName, null, null);
         }
 
-        Group(Set<String> usernames, @Nullable String realmName, @Nullable String realmType,
-                     @Nullable String authenticationType) {
+        Group(Set<String> usernames, @Nullable String realmName, @Nullable String realmType, @Nullable String authenticationType) {
             this.usernames = usernames;
             this.realmName = realmName;
             this.realmType = realmType == null ? FileRealmSettings.TYPE : realmType;
-            this.authenticationType = authenticationType == null ? Authentication.AuthenticationType.REALM :
-                Authentication.AuthenticationType.valueOf(authenticationType.toUpperCase(Locale.ROOT));
+            this.authenticationType = authenticationType == null
+                ? Authentication.AuthenticationType.REALM
+                : Authentication.AuthenticationType.valueOf(authenticationType.toUpperCase(Locale.ROOT));
             validate();
         }
 
@@ -165,7 +166,9 @@ public class FileOperatorUsersStore {
                 if (false == SINGLETON_REALM_TYPES.contains(realmType)) {
                     validationException.addValidationError(
                         "[realm_name] must be specified for realm types other than ["
-                            + Strings.collectionToCommaDelimitedString(SINGLETON_REALM_TYPES) + "]");
+                            + Strings.collectionToCommaDelimitedString(SINGLETON_REALM_TYPES)
+                            + "]"
+                    );
                 }
             }
             if (false == validationException.validationErrors().isEmpty()) {
@@ -192,15 +195,13 @@ public class FileOperatorUsersStore {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Group group = (Group) o;
             return usernames.equals(group.usernames)
-              && Objects.equals(realmName, group.realmName)
-              && realmType.equals(group.realmType)
-              && authenticationType == group.authenticationType;
+                && Objects.equals(realmName, group.realmName)
+                && realmType.equals(group.realmType)
+                && authenticationType == group.authenticationType;
         }
 
         @Override
@@ -211,8 +212,11 @@ public class FileOperatorUsersStore {
 
     public static OperatorUsersDescriptor parseFile(Path file, Logger logger) {
         if (false == Files.exists(file)) {
-            logger.warn("Operator privileges [{}] is enabled, but operator user file does not exist. " +
-                    "No user will be able to perform operator-only actions.", OPERATOR_PRIVILEGES_ENABLED.getKey());
+            logger.warn(
+                "Operator privileges [{}] is enabled, but operator user file does not exist. "
+                    + "No user will be able to perform operator-only actions.",
+                OPERATOR_PRIVILEGES_ENABLED.getKey()
+            );
             return EMPTY_OPERATOR_USERS_DESCRIPTOR;
         } else {
             logger.debug("Reading operator users file [{}]", file.toAbsolutePath());
@@ -235,18 +239,15 @@ public class FileOperatorUsersStore {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Group, Void> GROUP_PARSER = new ConstructingObjectParser<>(
-        "operator_privileges.operator.group", false,
-        (Object[] arr) -> new Group(
-            Set.copyOf((List<String>)arr[0]),
-            (String) arr[1],
-            (String) arr[2],
-            (String) arr[3]
-        )
+        "operator_privileges.operator.group",
+        false,
+        (Object[] arr) -> new Group(Set.copyOf((List<String>) arr[0]), (String) arr[1], (String) arr[2], (String) arr[3])
     );
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<OperatorUsersDescriptor, Void> OPERATOR_USER_PARSER = new ConstructingObjectParser<>(
-        "operator_privileges.operator", false,
+        "operator_privileges.operator",
+        false,
         (Object[] arr) -> new OperatorUsersDescriptor((List<Group>) arr[0])
     );
 

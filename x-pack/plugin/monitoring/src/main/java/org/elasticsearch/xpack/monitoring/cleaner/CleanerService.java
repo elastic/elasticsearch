@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.threadpool.Scheduler;
@@ -40,8 +40,13 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     private volatile TimeValue globalRetention;
 
-    CleanerService(Settings settings, ClusterSettings clusterSettings, XPackLicenseState licenseState, ThreadPool threadPool,
-                   ExecutionScheduler executionScheduler) {
+    CleanerService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        ExecutionScheduler executionScheduler
+    ) {
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
@@ -59,8 +64,7 @@ public class CleanerService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("starting cleaning service");
-        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())),
-            executorName());
+        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())), executorName());
         logger.debug("cleaning service started");
     }
 
@@ -94,8 +98,7 @@ public class CleanerService extends AbstractLifecycleComponent {
         // we only care about their value if they are allowed to set it
         if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) && globalRetention != null) {
             return globalRetention;
-        }
-        else {
+        } else {
             return MonitoringField.HISTORY_DURATION.getDefault(Settings.EMPTY);
         }
     }
@@ -243,9 +246,7 @@ public class CleanerService extends AbstractLifecycleComponent {
         @Override
         public TimeValue nextExecutionDelay(ZonedDateTime now) {
             // Runs at 01:00 AM today or the next day if it's too late
-            ZonedDateTime next = now.toLocalDate()
-                .atStartOfDay(now.getZone())
-                .plusHours(1);
+            ZonedDateTime next = now.toLocalDate().atStartOfDay(now.getZone()).plusHours(1);
             // if it's not after now, then it needs to be the next day!
             if (next.isAfter(now) == false) {
                 next = next.plusDays(1);

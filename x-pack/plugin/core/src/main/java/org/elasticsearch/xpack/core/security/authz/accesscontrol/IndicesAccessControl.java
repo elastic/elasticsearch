@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -31,9 +31,13 @@ import java.util.stream.Collectors;
 public class IndicesAccessControl {
 
     public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
-    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
-            Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
-                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
+    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(
+        true,
+        Collections.singletonMap(
+            IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
+            new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())
+        )
+    );
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
 
     private final boolean granted;
@@ -61,23 +65,29 @@ public class IndicesAccessControl {
     }
 
     public Collection<?> getDeniedIndices() {
-        return this.indexPermissions.entrySet().stream()
+        return this.indexPermissions.entrySet()
+            .stream()
             .filter(e -> e.getValue().granted == false)
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableSet());
     }
 
     public boolean hasFieldOrDocumentLevelSecurity() {
-        return indexPermissions.values().stream().anyMatch(indexAccessControl ->
-            indexAccessControl.fieldPermissions.hasFieldLevelSecurity()
-                || indexAccessControl.documentPermissions.hasDocumentLevelPermissions()
-        );
+        return indexPermissions.values()
+            .stream()
+            .anyMatch(
+                indexAccessControl -> indexAccessControl.fieldPermissions.hasFieldLevelSecurity()
+                    || indexAccessControl.documentPermissions.hasDocumentLevelPermissions()
+            );
     }
 
     public List<String> getIndicesWithFieldOrDocumentLevelSecurity() {
-        return indexPermissions.entrySet().stream()
-            .filter(entry -> entry.getValue().fieldPermissions.hasFieldLevelSecurity()
-                || entry.getValue().documentPermissions.hasDocumentLevelPermissions())
+        return indexPermissions.entrySet()
+            .stream()
+            .filter(
+                entry -> entry.getValue().fieldPermissions.hasFieldLevelSecurity()
+                    || entry.getValue().documentPermissions.hasDocumentLevelPermissions()
+            )
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableList());
     }
@@ -138,20 +148,23 @@ public class IndicesAccessControl {
             } else {
                 granted = false;
             }
-            FieldPermissions fieldPermissions = getFieldPermissions().limitFieldPermissions(
-                    limitedByIndexAccessControl.fieldPermissions);
-            DocumentPermissions documentPermissions = getDocumentPermissions()
-                    .limitDocumentPermissions(limitedByIndexAccessControl.getDocumentPermissions());
+            FieldPermissions fieldPermissions = getFieldPermissions().limitFieldPermissions(limitedByIndexAccessControl.fieldPermissions);
+            DocumentPermissions documentPermissions = getDocumentPermissions().limitDocumentPermissions(
+                limitedByIndexAccessControl.getDocumentPermissions()
+            );
             return new IndexAccessControl(granted, fieldPermissions, documentPermissions);
         }
 
         @Override
         public String toString() {
-            return "IndexAccessControl{" +
-                    "granted=" + granted +
-                    ", fieldPermissions=" + fieldPermissions +
-                    ", documentPermissions=" + documentPermissions +
-                    '}';
+            return "IndexAccessControl{"
+                + "granted="
+                + granted
+                + ", fieldPermissions="
+                + fieldPermissions
+                + ", documentPermissions="
+                + documentPermissions
+                + '}';
         }
 
         @Override
@@ -172,13 +185,12 @@ public class IndicesAccessControl {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             IndexAccessControl that = (IndexAccessControl) o;
-            return granted == that.granted && Objects.equals(fieldPermissions, that.fieldPermissions) && Objects.equals(documentPermissions,
-                that.documentPermissions);
+            return granted == that.granted
+                && Objects.equals(fieldPermissions, that.fieldPermissions)
+                && Objects.equals(documentPermissions, that.documentPermissions);
         }
 
         @Override
@@ -216,9 +228,6 @@ public class IndicesAccessControl {
 
     @Override
     public String toString() {
-        return "IndicesAccessControl{" +
-                "granted=" + granted +
-                ", indexPermissions=" + indexPermissions +
-                '}';
+        return "IndicesAccessControl{" + "granted=" + granted + ", indexPermissions=" + indexPermissions + '}';
     }
 }

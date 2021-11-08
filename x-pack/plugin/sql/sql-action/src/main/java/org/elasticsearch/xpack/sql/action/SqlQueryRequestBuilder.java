@@ -28,20 +28,70 @@ import static java.util.Collections.emptyMap;
 public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest, SqlQueryResponse> {
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
-        this(client, action, "", emptyList(), null, emptyMap(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY,
-            Protocol.INDEX_INCLUDE_FROZEN, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT, Protocol.DEFAULT_KEEP_ON_COMPLETION,
-            Protocol.DEFAULT_KEEP_ALIVE);
+        this(
+            client,
+            action,
+            "",
+            emptyList(),
+            null,
+            emptyMap(),
+            Protocol.TIME_ZONE,
+            Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT,
+            false,
+            "",
+            new RequestInfo(Mode.PLAIN),
+            Protocol.FIELD_MULTI_VALUE_LENIENCY,
+            Protocol.INDEX_INCLUDE_FROZEN,
+            Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
+            Protocol.DEFAULT_KEEP_ON_COMPLETION,
+            Protocol.DEFAULT_KEEP_ALIVE
+        );
     }
 
-    public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
-            QueryBuilder filter, Map<String, Object> runtimeMappings, ZoneId zoneId, int fetchSize, TimeValue requestTimeout,
-            TimeValue pageTimeout, boolean columnar, String nextPageInfo, RequestInfo requestInfo,
-            boolean multiValueFieldLeniency, boolean indexIncludeFrozen, TimeValue waitForCompletionTimeout, boolean keepOnCompletion,
-            TimeValue keepAlive) {
-        super(client, action, new SqlQueryRequest(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout,
-                columnar, nextPageInfo, requestInfo, multiValueFieldLeniency, indexIncludeFrozen, waitForCompletionTimeout,
-                keepOnCompletion, keepAlive));
+    public SqlQueryRequestBuilder(
+        ElasticsearchClient client,
+        SqlQueryAction action,
+        String query,
+        List<SqlTypedParamValue> params,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        ZoneId zoneId,
+        int fetchSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        boolean columnar,
+        String nextPageInfo,
+        RequestInfo requestInfo,
+        boolean multiValueFieldLeniency,
+        boolean indexIncludeFrozen,
+        TimeValue waitForCompletionTimeout,
+        boolean keepOnCompletion,
+        TimeValue keepAlive
+    ) {
+        super(
+            client,
+            action,
+            new SqlQueryRequest(
+                query,
+                params,
+                filter,
+                runtimeMappings,
+                zoneId,
+                fetchSize,
+                requestTimeout,
+                pageTimeout,
+                columnar,
+                nextPageInfo,
+                requestInfo,
+                multiValueFieldLeniency,
+                indexIncludeFrozen,
+                waitForCompletionTimeout,
+                keepOnCompletion,
+                keepAlive
+            )
+        );
     }
 
     public SqlQueryRequestBuilder query(String query) {

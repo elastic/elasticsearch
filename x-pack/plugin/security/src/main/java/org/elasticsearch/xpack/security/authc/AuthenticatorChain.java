@@ -63,12 +63,7 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(
-            serviceAccountAuthenticator,
-            oAuth2TokenAuthenticator,
-            apiKeyAuthenticator,
-            realmsAuthenticator
-        );
+        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
     }
 
     void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
@@ -94,19 +89,13 @@ class AuthenticatorChain {
      * This method currently uses a shorter chain to match existing behaviour. But there is no reason
      * why this could not use the same chain.
      */
-    void authenticateAsyncWithExistingCredentials(
-        Authenticator.Context context,
-        ActionListener<Authentication> listener) {
+    void authenticateAsyncWithExistingCredentials(Authenticator.Context context, ActionListener<Authentication> listener) {
         assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
         context.setHandleNullToken(false);  // already has a token, should not try null token
         doAuthenticate(context, false, listener);
     }
 
-    private void doAuthenticate(
-        Authenticator.Context context,
-        boolean shouldExtractCredentials,
-        ActionListener<Authentication> listener
-    ) {
+    private void doAuthenticate(Authenticator.Context context, boolean shouldExtractCredentials, ActionListener<Authentication> listener) {
         // The iterating listener walks through the list of Authenticators and attempts to authenticate using
         // each Authenticator (and optionally asks it to extract the authenticationToken).
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
@@ -127,7 +116,8 @@ class AuthenticatorChain {
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
-            result -> result.getStatus() == Authenticator.Status.UNSUCCESSFUL || result.getStatus() == Authenticator.Status.NOT_HANDLED);
+            result -> result.getStatus() == Authenticator.Status.UNSUCCESSFUL || result.getStatus() == Authenticator.Status.NOT_HANDLED
+        );
         iteratingActionListener.run();
     }
 
@@ -197,10 +187,13 @@ class AuthenticatorChain {
         final User user = authentication.getUser();
         if (runAsUsername.isEmpty()) {
             logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
-            listener.onFailure(context.getRequest()
-                .runAsDenied(new Authentication(new User(runAsUsername, null, user),
-                    authentication.getAuthenticatedBy(),
-                    null), context.getMostRecentAuthenticationToken()));
+            listener.onFailure(
+                context.getRequest()
+                    .runAsDenied(
+                        new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null),
+                        context.getMostRecentAuthenticationToken()
+                    )
+            );
             return;
         }
 
@@ -228,9 +221,13 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage(
-                "caught exception while trying to read authentication from request [{}]",
-                context.getRequest()), e);
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "caught exception while trying to read authentication from request [{}]",
+                    context.getRequest()
+                ),
+                e
+            );
             throw context.getRequest().tamperedRequest();
         }
         if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
@@ -262,26 +259,32 @@ class AuthenticatorChain {
             logger.trace(
                 "No valid credentials found in request [{}], using fallback [{}]",
                 context.getRequest(),
-                context.getFallbackUser().principal());
+                context.getFallbackUser().principal()
+            );
             Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__fallback", "__fallback", nodeName);
-            authentication = new Authentication(context.getFallbackUser(),
+            authentication = new Authentication(
+                context.getFallbackUser(),
                 authenticatedBy,
                 null,
                 Version.CURRENT,
                 Authentication.AuthenticationType.INTERNAL,
-                Collections.emptyMap());
+                Collections.emptyMap()
+            );
         } else if (shouldFallbackToAnonymous(context)) {
             logger.trace(
                 "No valid credentials found in request [{}], using anonymous [{}]",
                 context.getRequest(),
-                anonymousUser.principal());
+                anonymousUser.principal()
+            );
             Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__anonymous", "__anonymous", nodeName);
-            authentication = new Authentication(anonymousUser,
+            authentication = new Authentication(
+                anonymousUser,
                 authenticatedBy,
                 null,
                 Version.CURRENT,
                 Authentication.AuthenticationType.ANONYMOUS,
-                Collections.emptyMap());
+                Collections.emptyMap()
+            );
         } else {
             authentication = null;
         }
@@ -289,16 +292,21 @@ class AuthenticatorChain {
         if (authentication != null) {
             // TODO: we can also support run-as for fallback users if needed
             // TODO: the authentication for fallback user is now serialised in the inner threadContext
-            //       instead of at the AuthenticationService level
+            // instead of at the AuthenticationService level
             writeAuthToContext(context, authentication, listener);
         } else {
             final ElasticsearchSecurityException ese = context.getRequest().anonymousAccessDenied();
             if (false == context.getUnsuccessfulMessages().isEmpty()) {
-                logger.debug("Authenticating with null credentials is unsuccessful in request [{}]" +
-                    " after unsuccessful attempts of other credentials", context.getRequest());
+                logger.debug(
+                    "Authenticating with null credentials is unsuccessful in request [{}]"
+                        + " after unsuccessful attempts of other credentials",
+                    context.getRequest()
+                );
                 final ElasticsearchSecurityException eseWithPreviousCredentials = new ElasticsearchSecurityException(
                     "unable to authenticate with provided credentials and anonymous access is not allowed for this request",
-                    ese.status(), ese.getCause());
+                    ese.status(),
+                    ese.getCause()
+                );
                 ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);
@@ -335,11 +343,12 @@ class AuthenticatorChain {
             // i.e. not read from either header or transient header
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("Failed to store authentication [{}] for request [{}]",
-                authentication,
-                context.getRequest()), e);
-            final ElasticsearchSecurityException ese = context.getRequest().exceptionProcessingRequest(
-                e, context.getMostRecentAuthenticationToken());
+            logger.debug(
+                new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, context.getRequest()),
+                e
+            );
+            final ElasticsearchSecurityException ese = context.getRequest()
+                .exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken());
             addMetadata(context, ese);
             listener.onFailure(ese);
             return;
@@ -371,9 +380,9 @@ class AuthenticatorChain {
             return false;
         }
         String header = context.getThreadContext().getHeader("Authorization");
-        if (Strings.hasText(header) &&
-            ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length()) ||
-                (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+        if (Strings.hasText(header)
+            && ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length())
+                || (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
             return false;
         }
         return true;

@@ -29,7 +29,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
 
-
 public class NodeLoadDetector {
 
     private final MlMemoryTracker mlMemoryTracker;
@@ -42,12 +41,14 @@ public class NodeLoadDetector {
         return mlMemoryTracker;
     }
 
-    public NodeLoad detectNodeLoad(ClusterState clusterState,
-                                   boolean allNodesHaveDynamicMaxWorkers,
-                                   DiscoveryNode node,
-                                   int dynamicMaxOpenJobs,
-                                   int maxMachineMemoryPercent,
-                                   boolean useAutoMachineMemoryCalculation) {
+    public NodeLoad detectNodeLoad(
+        ClusterState clusterState,
+        boolean allNodesHaveDynamicMaxWorkers,
+        DiscoveryNode node,
+        int dynamicMaxOpenJobs,
+        int maxMachineMemoryPercent,
+        boolean useAutoMachineMemoryCalculation
+    ) {
         return detectNodeLoad(
             clusterState,
             TrainedModelAllocationMetadata.fromState(clusterState),
@@ -59,13 +60,15 @@ public class NodeLoadDetector {
         );
     }
 
-    public NodeLoad detectNodeLoad(ClusterState clusterState,
-                                   TrainedModelAllocationMetadata allocationMetadata,
-                                   boolean allNodesHaveDynamicMaxWorkers,
-                                   DiscoveryNode node,
-                                   int dynamicMaxOpenJobs,
-                                   int maxMachineMemoryPercent,
-                                   boolean useAutoMachineMemoryCalculation) {
+    public NodeLoad detectNodeLoad(
+        ClusterState clusterState,
+        TrainedModelAllocationMetadata allocationMetadata,
+        boolean allNodesHaveDynamicMaxWorkers,
+        DiscoveryNode node,
+        int dynamicMaxOpenJobs,
+        int maxMachineMemoryPercent,
+        boolean useAutoMachineMemoryCalculation
+    ) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Map<String, String> nodeAttributes = node.getAttributes();
         List<String> errors = new ArrayList<>();
@@ -80,14 +83,14 @@ public class NodeLoadDetector {
                 maxNumberOfOpenJobs = -1;
             }
         }
-        OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node,
-            maxMachineMemoryPercent,
-            useAutoMachineMemoryCalculation);
+        OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAutoMachineMemoryCalculation);
         if (maxMlMemory.isEmpty()) {
-            errors.add(MachineLearning.MACHINE_MEMORY_NODE_ATTR
-                + " attribute ["
-                + nodeAttributes.get(MachineLearning.MACHINE_MEMORY_NODE_ATTR)
-                + "] is not a long");
+            errors.add(
+                MachineLearning.MACHINE_MEMORY_NODE_ATTR
+                    + " attribute ["
+                    + nodeAttributes.get(MachineLearning.MACHINE_MEMORY_NODE_ATTR)
+                    + "] is not a long"
+            );
         }
 
         NodeLoad.Builder nodeLoad = NodeLoad.builder(node.getId())
@@ -105,7 +108,9 @@ public class NodeLoadDetector {
     private void updateLoadGivenTasks(NodeLoad.Builder nodeLoad, PersistentTasksCustomMetadata persistentTasks) {
         if (persistentTasks != null) {
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> memoryTrackedTasks = findAllMemoryTrackedTasks(
-                persistentTasks, nodeLoad.getNodeId());
+                persistentTasks,
+                nodeLoad.getNodeId()
+            );
             for (PersistentTasksCustomMetadata.PersistentTask<?> task : memoryTrackedTasks) {
                 MemoryTrackedTaskState state = MlTasks.getMemoryTrackedTaskState(task);
                 if (state == null || state.consumesMemory()) {
@@ -136,8 +141,11 @@ public class NodeLoadDetector {
     }
 
     private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> findAllMemoryTrackedTasks(
-        PersistentTasksCustomMetadata persistentTasks, String nodeId) {
-        return persistentTasks.tasks().stream()
+        PersistentTasksCustomMetadata persistentTasks,
+        String nodeId
+    ) {
+        return persistentTasks.tasks()
+            .stream()
             .filter(NodeLoadDetector::isMemoryTrackedTask)
             .filter(task -> nodeId.equals(task.getExecutorNode()))
             .collect(Collectors.toList());

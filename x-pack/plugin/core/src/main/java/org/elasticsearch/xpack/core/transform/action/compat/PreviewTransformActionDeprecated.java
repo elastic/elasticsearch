@@ -19,5 +19,4 @@ public class PreviewTransformActionDeprecated extends ActionType<PreviewTransfor
         super(NAME, PreviewTransformAction.Response::new);
     }
 
-
 }

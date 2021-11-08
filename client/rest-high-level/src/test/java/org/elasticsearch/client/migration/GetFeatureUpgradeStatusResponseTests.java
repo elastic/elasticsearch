@@ -21,7 +21,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCase<
-    org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse, GetFeatureUpgradeStatusResponse> {
+    org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse,
+    GetFeatureUpgradeStatusResponse> {
 
     /** Our constructor should convert nulls to empty lists */
     public void testConstructorHandlesNullLists() {
@@ -33,18 +34,24 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
 
     @Override
     protected org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse createServerTestInstance(
-        XContentType xContentType) {
+        XContentType xContentType
+    ) {
         return new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse(
-            randomList(5,
+            randomList(
+                5,
                 () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
                     randomAlphaOfLengthBetween(3, 20),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
-                    randomList(4,
+                    randomList(
+                        4,
                         () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion(
                             randomAlphaOfLengthBetween(3, 20),
-                            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())))
-                )),
+                            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())
+                        )
+                    )
+                )
+            ),
             randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values())
         );
     }
@@ -57,7 +64,8 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
     @Override
     protected void assertInstances(
         org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse serverTestInstance,
-        GetFeatureUpgradeStatusResponse clientInstance) {
+        GetFeatureUpgradeStatusResponse clientInstance
+    ) {
 
         assertThat(clientInstance.getUpgradeStatus(), equalTo(serverTestInstance.getUpgradeStatus().toString()));
 
@@ -67,8 +75,8 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
         assertThat(clientInstance.getFeatureUpgradeStatuses(), hasSize(serverTestInstance.getFeatureUpgradeStatuses().size()));
 
         for (int i = 0; i < clientInstance.getFeatureUpgradeStatuses().size(); i++) {
-            org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus serverTestStatus
-                = serverTestInstance.getFeatureUpgradeStatuses().get(i);
+            org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus serverTestStatus =
+                serverTestInstance.getFeatureUpgradeStatuses().get(i);
             GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus clientStatus = clientInstance.getFeatureUpgradeStatuses().get(i);
 
             assertThat(clientStatus.getFeatureName(), equalTo(serverTestStatus.getFeatureName()));
@@ -78,8 +86,8 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
             assertThat(clientStatus.getIndexVersions(), hasSize(serverTestStatus.getIndexVersions().size()));
 
             for (int j = 0; i < clientStatus.getIndexVersions().size(); i++) {
-                org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion serverIndexVersion
-                    = serverTestStatus.getIndexVersions().get(j);
+                org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion serverIndexVersion =
+                    serverTestStatus.getIndexVersions().get(j);
                 GetFeatureUpgradeStatusResponse.IndexVersion clientIndexVersion = clientStatus.getIndexVersions().get(j);
 
                 assertThat(clientIndexVersion.getIndexName(), equalTo(serverIndexVersion.getIndexName()));

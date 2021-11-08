@@ -41,20 +41,26 @@ public class DlsFlsLicenseComplianceRequestInterceptor implements RequestInterce
         AuthorizationEngine.RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
         AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener) {
+        ActionListener<Void> listener
+    ) {
 
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             if (false == licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_DLS_FLS)) {
                 final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
                 if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
-                    logger.trace("Role has DLS or FLS and license is incompatible. " +
-                        "Checking for whether the request touches any indices that have DLS or FLS configured");
+                    logger.trace(
+                        "Role has DLS or FLS and license is incompatible. "
+                            + "Checking for whether the request touches any indices that have DLS or FLS configured"
+                    );
                     final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
                     if (indicesAccessControl != null && indicesAccessControl.hasFieldOrDocumentLevelSecurity()) {
-                        final ElasticsearchSecurityException licenseException =
-                            LicenseUtils.newComplianceException("field and document level security");
+                        final ElasticsearchSecurityException licenseException = LicenseUtils.newComplianceException(
+                            "field and document level security"
+                        );
                         licenseException.addMetadata(
-                            "es.indices_with_dls_or_fls", indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity());
+                            "es.indices_with_dls_or_fls",
+                            indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
+                        );
                         listener.onFailure(licenseException);
                         return;
                     }

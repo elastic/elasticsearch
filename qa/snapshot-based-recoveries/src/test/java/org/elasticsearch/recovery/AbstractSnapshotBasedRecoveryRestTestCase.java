@@ -44,7 +44,8 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
 
     public void testRecoveryUsingSnapshots() throws Exception {
         final String repositoryType = repositoryType();
-        Settings repositorySettings = Settings.builder().put(repositorySettings())
+        Settings repositorySettings = Settings.builder()
+            .put(repositorySettings())
             .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
             .build();
 
@@ -54,10 +55,7 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
 
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
         ensureGreen(indexName);
 
@@ -184,10 +182,7 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
         assertOK(response);
 
         final Map<String, Object> responseAsMap = responseAsMap(response);
-        assertThat(
-            extractValue(responseAsMap, "_shards.failed"),
-            equalTo(0)
-        );
+        assertThat(extractValue(responseAsMap, "_shards.failed"), equalTo(0));
         return responseAsMap;
     }
 

@@ -11,23 +11,23 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -172,9 +172,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("fetch size must be greater than 1", validationException);
         }
 
-        if (keepAlive != null  && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
-            validationException =
-                addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+        if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+            validationException = addValidationError(
+                "[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(),
+                validationException
+            );
         }
 
         if (runtimeMappings != null) {
@@ -184,8 +186,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return validationException;
     }
 
-    private static ActionRequestValidationException validateRuntimeMappings(Map<String, Object> runtimeMappings,
-        ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateRuntimeMappings(
+        Map<String, Object> runtimeMappings,
+        ActionRequestValidationException validationException
+    ) {
         for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
             // top level objects are fields
             String fieldName = entry.getKey();
@@ -196,8 +200,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                     return addValidationError("No type specified for runtime field [" + fieldName + "]", validationException);
                 }
             } else {
-                return addValidationError("Expected map for runtime field [" + fieldName + "] definition but got ["
-                    + fieldName.getClass().getSimpleName() + "]", validationException);
+                return addValidationError(
+                    "Expected map for runtime field [" + fieldName + "] definition but got [" + fieldName.getClass().getSimpleName() + "]",
+                    validationException
+                );
             }
         }
         return validationException;
@@ -240,19 +246,25 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     protected static <R extends EqlSearchRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
         ObjectParser<R, Void> parser = new ObjectParser<>("eql/search", false, supplier);
-        parser.declareObject(EqlSearchRequest::filter,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+        parser.declareObject(EqlSearchRequest::filter, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
         parser.declareString(EqlSearchRequest::tiebreakerField, TIEBREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
         parser.declareInt(EqlSearchRequest::size, SIZE);
         parser.declareInt(EqlSearchRequest::fetchSize, FETCH_SIZE);
         parser.declareString(EqlSearchRequest::query, QUERY);
-        parser.declareField(EqlSearchRequest::waitForCompletionTimeout,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT), WAIT_FOR_COMPLETION_TIMEOUT,
-            ObjectParser.ValueType.VALUE);
-        parser.declareField(EqlSearchRequest::keepAlive,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
+        parser.declareField(
+            EqlSearchRequest::waitForCompletionTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT),
+            WAIT_FOR_COMPLETION_TIMEOUT,
+            ObjectParser.ValueType.VALUE
+        );
+        parser.declareField(
+            EqlSearchRequest::keepAlive,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE),
+            KEEP_ALIVE,
+            ObjectParser.ValueType.VALUE
+        );
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
         parser.declareField(EqlSearchRequest::fetchFields, EqlSearchRequest::parseFetchFields, FETCH_FIELDS_FIELD, ValueType.VALUE_ARRAY);
@@ -266,35 +278,45 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public QueryBuilder filter() { return this.filter; }
+    public QueryBuilder filter() {
+        return this.filter;
+    }
 
     public EqlSearchRequest filter(QueryBuilder filter) {
         this.filter = filter;
         return this;
     }
 
-    public Map<String, Object> runtimeMappings() { return this.runtimeMappings; }
+    public Map<String, Object> runtimeMappings() {
+        return this.runtimeMappings;
+    }
 
     public EqlSearchRequest runtimeMappings(Map<String, Object> runtimeMappings) {
         this.runtimeMappings = runtimeMappings;
         return this;
     }
 
-    public String timestampField() { return this.timestampField; }
+    public String timestampField() {
+        return this.timestampField;
+    }
 
     public EqlSearchRequest timestampField(String timestampField) {
         this.timestampField = timestampField;
         return this;
     }
 
-    public String tiebreakerField() { return this.tiebreakerField; }
+    public String tiebreakerField() {
+        return this.tiebreakerField;
+    }
 
     public EqlSearchRequest tiebreakerField(String tiebreakerField) {
         this.tiebreakerField = tiebreakerField;
         return this;
     }
 
-    public String eventCategoryField() { return this.eventCategoryField; }
+    public String eventCategoryField() {
+        return this.eventCategoryField;
+    }
 
     public EqlSearchRequest eventCategoryField(String eventCategoryField) {
         this.eventCategoryField = eventCategoryField;
@@ -319,7 +341,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public String query() { return this.query; }
+    public String query() {
+        return this.query;
+    }
 
     public EqlSearchRequest query(String query) {
         this.query = query;
@@ -438,23 +462,22 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return size == that.size &&
-                fetchSize == that.fetchSize &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(filter, that.filter) &&
-                Objects.equals(timestampField, that.timestampField) &&
-                Objects.equals(tiebreakerField, that.tiebreakerField) &&
-                Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(query, that.query) &&
-                Objects.equals(ccsMinimizeRoundtrips, that.ccsMinimizeRoundtrips) &&
-                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-                Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(resultPosition, that.resultPosition) &&
-                Objects.equals(fetchFields, that.fetchFields) &&
-                Objects.equals(runtimeMappings, that.runtimeMappings);
+        return size == that.size
+            && fetchSize == that.fetchSize
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(filter, that.filter)
+            && Objects.equals(timestampField, that.timestampField)
+            && Objects.equals(tiebreakerField, that.tiebreakerField)
+            && Objects.equals(eventCategoryField, that.eventCategoryField)
+            && Objects.equals(query, that.query)
+            && Objects.equals(ccsMinimizeRoundtrips, that.ccsMinimizeRoundtrips)
+            && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
+            && Objects.equals(keepAlive, that.keepAlive)
+            && Objects.equals(resultPosition, that.resultPosition)
+            && Objects.equals(fetchFields, that.fetchFields)
+            && Objects.equals(runtimeMappings, that.runtimeMappings);
     }
-
 
     @Override
     public int hashCode() {
@@ -473,7 +496,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             keepAlive,
             resultPosition,
             fetchFields,
-            runtimeMappings);
+            runtimeMappings
+        );
     }
 
     @Override

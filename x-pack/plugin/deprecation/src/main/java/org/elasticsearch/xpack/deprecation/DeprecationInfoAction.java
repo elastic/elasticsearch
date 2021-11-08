@@ -21,9 +21,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
@@ -69,14 +69,18 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             }
         }
 
-        return issueListMap.entrySet().stream()
-            .map(entry -> {
-                DeprecationIssue issue = entry.getKey();
-                String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
-                return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
-                    details + "(nodes impacted: " + entry.getValue() + ")", issue.isResolveDuringRollingUpgrade(),
-                    issue.getMeta());
-            }).collect(Collectors.toList());
+        return issueListMap.entrySet().stream().map(entry -> {
+            DeprecationIssue issue = entry.getKey();
+            String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
+            return new DeprecationIssue(
+                issue.getLevel(),
+                issue.getMessage(),
+                issue.getUrl(),
+                details + "(nodes impacted: " + entry.getValue() + ")",
+                issue.isResolveDuringRollingUpgrade(),
+                issue.getMeta()
+            );
+        }).collect(Collectors.toList());
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -100,10 +104,12 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             }
         }
 
-        public Response(List<DeprecationIssue> clusterSettingsIssues,
-                        List<DeprecationIssue> nodeSettingsIssues,
-                        Map<String, List<DeprecationIssue>> indexSettingsIssues,
-                        Map<String, List<DeprecationIssue>> pluginSettingsIssues) {
+        public Response(
+            List<DeprecationIssue> clusterSettingsIssues,
+            List<DeprecationIssue> nodeSettingsIssues,
+            Map<String, List<DeprecationIssue>> indexSettingsIssues,
+            Map<String, List<DeprecationIssue>> pluginSettingsIssues
+        ) {
             this.clusterSettingsIssues = clusterSettingsIssues;
             this.nodeSettingsIssues = nodeSettingsIssues;
             this.indexSettingsIssues = indexSettingsIssues;
@@ -162,10 +168,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues) &&
-                Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues) &&
-                Objects.equals(indexSettingsIssues, response.indexSettingsIssues) &&
-                Objects.equals(pluginSettingsIssues, response.pluginSettingsIssues);
+            return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues)
+                && Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues)
+                && Objects.equals(indexSettingsIssues, response.indexSettingsIssues)
+                && Objects.equals(pluginSettingsIssues, response.pluginSettingsIssues);
         }
 
         @Override
@@ -188,15 +194,16 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param clusterSettingsChecks The list of cluster-level checks
          * @return The list of deprecation issues found in the cluster
          */
-        public static DeprecationInfoAction.Response from(ClusterState state,
-                                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                                          Request request,
-                                                          NodesDeprecationCheckResponse nodeDeprecationResponse,
-                                                          List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
-                                                          List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
-                                                          Map<String, List<DeprecationIssue>> pluginSettingIssues) {
-            List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
-                (c) -> c.apply(state));
+        public static DeprecationInfoAction.Response from(
+            ClusterState state,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Request request,
+            NodesDeprecationCheckResponse nodeDeprecationResponse,
+            List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
+            List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
+            Map<String, List<DeprecationIssue>> pluginSettingIssues
+        ) {
+            List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks, (c) -> c.apply(state));
             List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
 
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
@@ -204,8 +211,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
                 IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
-                List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(indexMetadata));
+                List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks, c -> c.apply(indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }

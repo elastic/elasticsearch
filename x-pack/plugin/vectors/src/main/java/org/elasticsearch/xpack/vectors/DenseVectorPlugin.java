@@ -19,7 +19,7 @@ import java.util.Map;
 
 public class DenseVectorPlugin extends Plugin implements MapperPlugin {
 
-    public DenseVectorPlugin() { }
+    public DenseVectorPlugin() {}
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

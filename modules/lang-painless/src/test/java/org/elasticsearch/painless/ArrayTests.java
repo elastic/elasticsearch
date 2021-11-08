@@ -33,7 +33,7 @@ public class ArrayTests extends ArrayLikeObjectTestCase {
     protected Matcher<String> outOfBoundsExceptionMessageMatcher(int index, int size) {
         if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
             return equalTo(Integer.toString(index));
-        } else{
+        } else {
             return equalTo("Index " + Integer.toString(index) + " out of bounds for length " + Integer.toString(size));
         }
     }
@@ -55,8 +55,7 @@ public class ArrayTests extends ArrayLikeObjectTestCase {
     private void assertArrayLength(int length, Object array) throws Throwable {
         final MethodHandle mh = Def.arrayLengthGetter(array.getClass());
         assertSame(array.getClass(), mh.type().parameterType(0));
-        assertEquals(length, (int) mh.asType(MethodType.methodType(int.class, Object.class))
-                .invokeExact(array));
+        assertEquals(length, (int) mh.asType(MethodType.methodType(int.class, Object.class)).invokeExact(array));
     }
 
     public void testJacksCrazyExpression1() {
@@ -72,8 +71,13 @@ public class ArrayTests extends ArrayLikeObjectTestCase {
     }
 
     public void testForLoop() {
-        assertEquals(999*1000/2, exec("def a = new int[1000]; for (int x = 0; x < a.length; x++) { a[x] = x; } "+
-            "int total = 0; for (int x = 0; x < a.length; x++) { total += a[x]; } return total;"));
+        assertEquals(
+            999 * 1000 / 2,
+            exec(
+                "def a = new int[1000]; for (int x = 0; x < a.length; x++) { a[x] = x; } "
+                    + "int total = 0; for (int x = 0; x < a.length; x++) { total += a[x]; } return total;"
+            )
+        );
     }
 
     /**

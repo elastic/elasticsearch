@@ -39,7 +39,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         if (execute(sql) == false) {
-            throw new SQLException("Invalid sql query [" +  sql + "]");
+            throw new SQLException("Invalid sql query [" + sql + "]");
         }
         return rs;
     }
@@ -80,7 +80,6 @@ class JdbcStatement implements Statement, JdbcWrapper {
         }
         return Math.toIntExact(result);
     }
-
 
     @Override
     public long getLargeMaxRows() throws SQLException {
@@ -190,9 +189,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkOpen();
-        if (ResultSet.FETCH_REVERSE != direction
-                || ResultSet.FETCH_FORWARD != direction
-                || ResultSet.FETCH_UNKNOWN != direction) {
+        if (ResultSet.FETCH_REVERSE != direction || ResultSet.FETCH_FORWARD != direction || ResultSet.FETCH_UNKNOWN != direction) {
             throw new SQLException("Invalid direction specified");
         }
     }

@@ -24,15 +24,19 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
 
     public void testHistoryDurationMinimum24Hours() {
         // hit the minimum
-        assertEquals(MonitoringField.HISTORY_DURATION_MINIMUM,
-                MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), "24h")));
+        assertEquals(
+            MonitoringField.HISTORY_DURATION_MINIMUM,
+            MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), "24h"))
+        );
     }
 
     public void testHistoryDurationMinimum24HoursBlocksLower() {
         // 1 ms early!
         final String oneSecondEarly = (MonitoringField.HISTORY_DURATION_MINIMUM.millis() - 1) + "ms";
-        expectThrows(IllegalArgumentException.class,
-                () -> MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), oneSecondEarly)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), oneSecondEarly))
+        );
     }
 
     private Settings buildSettings(String key, String value) {

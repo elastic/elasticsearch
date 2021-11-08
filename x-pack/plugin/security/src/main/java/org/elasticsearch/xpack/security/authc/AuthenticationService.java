@@ -52,12 +52,21 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  */
 public class AuthenticationService {
 
-    static final Setting<Boolean> SUCCESS_AUTH_CACHE_ENABLED =
-        Setting.boolSetting("xpack.security.authc.success_cache.enabled", true, Property.NodeScope);
-    private static final Setting<Integer> SUCCESS_AUTH_CACHE_MAX_SIZE =
-        Setting.intSetting("xpack.security.authc.success_cache.size", 10000, Property.NodeScope);
-    private static final Setting<TimeValue> SUCCESS_AUTH_CACHE_EXPIRE_AFTER_ACCESS =
-        Setting.timeSetting("xpack.security.authc.success_cache.expire_after_access", TimeValue.timeValueHours(1L), Property.NodeScope);
+    static final Setting<Boolean> SUCCESS_AUTH_CACHE_ENABLED = Setting.boolSetting(
+        "xpack.security.authc.success_cache.enabled",
+        true,
+        Property.NodeScope
+    );
+    private static final Setting<Integer> SUCCESS_AUTH_CACHE_MAX_SIZE = Setting.intSetting(
+        "xpack.security.authc.success_cache.size",
+        10000,
+        Property.NodeScope
+    );
+    private static final Setting<TimeValue> SUCCESS_AUTH_CACHE_EXPIRE_AFTER_ACCESS = Setting.timeSetting(
+        "xpack.security.authc.success_cache.expire_after_access",
+        TimeValue.timeValueHours(1L),
+        Property.NodeScope
+    );
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
@@ -68,11 +77,18 @@ public class AuthenticationService {
     private final AtomicLong numInvalidation = new AtomicLong();
     private final AuthenticatorChain authenticatorChain;
 
-    public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
-                                 AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
-                                 AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService,
-                                 ServiceAccountService serviceAccountService,
-                                 OperatorPrivilegesService operatorPrivilegesService) {
+    public AuthenticationService(
+        Settings settings,
+        Realms realms,
+        AuditTrailService auditTrailService,
+        AuthenticationFailureHandler failureHandler,
+        ThreadPool threadPool,
+        AnonymousUser anonymousUser,
+        TokenService tokenService,
+        ApiKeyService apiKeyService,
+        ServiceAccountService serviceAccountService,
+        OperatorPrivilegesService operatorPrivilegesService
+    ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;
         this.failureHandler = failureHandler;
@@ -128,7 +144,8 @@ public class AuthenticationService {
             new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
             null,
             allowAnonymous,
-            realms);
+            realms
+        );
         authenticatorChain.authenticateAsync(context, authenticationListener);
     }
 
@@ -140,7 +157,7 @@ public class AuthenticationService {
      * @param action       The action of the message
      * @param transportRequest      The request to be authenticated
      * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not
- *                      be {@code null}.
+    *                      be {@code null}.
      */
     public void authenticate(String action, TransportRequest transportRequest, User fallbackUser, ActionListener<Authentication> listener) {
         Objects.requireNonNull(fallbackUser, "fallback user may not be null");
@@ -149,7 +166,8 @@ public class AuthenticationService {
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
             fallbackUser,
             false,
-            realms);
+            realms
+        );
         authenticatorChain.authenticateAsync(context, listener);
     }
 
@@ -165,14 +183,19 @@ public class AuthenticationService {
      * @param allowAnonymous Whether to permit anonymous access for this request (this only relevant if the service is
      *                       configured for anonymous access).
      */
-    public void authenticate(String action, TransportRequest transportRequest, boolean allowAnonymous,
-                             ActionListener<Authentication> listener) {
+    public void authenticate(
+        String action,
+        TransportRequest transportRequest,
+        boolean allowAnonymous,
+        ActionListener<Authentication> listener
+    ) {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
             null,
             allowAnonymous,
-            realms);
+            realms
+        );
         authenticatorChain.authenticateAsync(context, listener);
     }
 
@@ -183,14 +206,19 @@ public class AuthenticationService {
      * @param transportRequest The message that resulted in this authenticate call
      * @param token   The token (credentials) to be authenticated
      */
-    public void authenticate(String action, TransportRequest transportRequest,
-                             AuthenticationToken token, ActionListener<Authentication> listener) {
+    public void authenticate(
+        String action,
+        TransportRequest transportRequest,
+        AuthenticationToken token,
+        ActionListener<Authentication> listener
+    ) {
         final Authenticator.Context context = new Authenticator.Context(
-                threadContext,
-                new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
-                null,
-                true,
-                realms);
+            threadContext,
+            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
+            null,
+            true,
+            realms
+        );
         context.addAuthenticationToken(token);
         authenticatorChain.authenticateAsyncWithExistingCredentials(context, listener);
     }
@@ -258,12 +286,17 @@ public class AuthenticationService {
         private final TransportRequest transportRequest;
         private final String requestId;
 
-        AuditableTransportRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
-                                  String action, TransportRequest transportRequest) {
+        AuditableTransportRequest(
+            AuditTrail auditTrail,
+            AuthenticationFailureHandler failureHandler,
+            ThreadContext threadContext,
+            String action,
+            TransportRequest transportRequest
+        ) {
             super(auditTrail, failureHandler, threadContext);
             this.action = action;
             this.transportRequest = transportRequest;
-            // There might be an existing audit-id (e.g. generated by the  rest request) but there might not be (e.g. an internal action)
+            // There might be an existing audit-id (e.g. generated by the rest request) but there might not be (e.g. an internal action)
             this.requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         }
 
@@ -323,8 +356,12 @@ public class AuthenticationService {
         private final RestRequest request;
         private final String requestId;
 
-        AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
-                             RestRequest request) {
+        AuditableRestRequest(
+            AuditTrail auditTrail,
+            AuthenticationFailureHandler failureHandler,
+            ThreadContext threadContext,
+            RestRequest request
+        ) {
             super(auditTrail, failureHandler, threadContext);
             this.request = request;
             // There should never be an existing audit-id when processing a rest request.

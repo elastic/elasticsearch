@@ -50,13 +50,17 @@ public class SqlSession implements Session {
 
     private final SqlConfiguration configuration;
 
-    public SqlSession(SqlConfiguration configuration, Client client, FunctionRegistry functionRegistry,
-            IndexResolver indexResolver,
-            PreAnalyzer preAnalyzer,
-            Verifier verifier,
-            Optimizer optimizer,
-            Planner planner,
-            PlanExecutor planExecutor) {
+    public SqlSession(
+        SqlConfiguration configuration,
+        Client client,
+        FunctionRegistry functionRegistry,
+        IndexResolver indexResolver,
+        PreAnalyzer preAnalyzer,
+        Verifier verifier,
+        Optimizer optimizer,
+        Planner planner,
+        PlanExecutor planExecutor
+    ) {
         this.client = configuration.taskId() != null ? new ParentTaskAssigningClient(client, configuration.taskId()) : client;
         this.functionRegistry = functionRegistry;
 
@@ -148,8 +152,13 @@ public class SqlSession implements Session {
             }
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.runtimeMappings(),
-                    wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
+            indexResolver.resolveAsMergedMapping(
+                table.index(),
+                null,
+                includeFrozen,
+                configuration.runtimeMappings(),
+                wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure)
+            );
         } else {
             try {
                 // occurs when dealing with local relations (SELECT 5+2)

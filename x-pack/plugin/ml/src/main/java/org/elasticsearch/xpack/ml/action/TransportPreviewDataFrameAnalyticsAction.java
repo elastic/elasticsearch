@@ -106,13 +106,10 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
                 config,
                 extractedFieldsDetector.detect().v1()
             ).newExtractor(false);
-            extractor.preview(ActionListener.wrap(
-                rows -> {
-                    List<String> fieldNames = extractor.getFieldNames();
-                    listener.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
-                },
-                listener::onFailure
-            ));
+            extractor.preview(ActionListener.wrap(rows -> {
+                List<String> fieldNames = extractor.getFieldNames();
+                listener.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
+            }, listener::onFailure));
         }, listener::onFailure));
     }
 

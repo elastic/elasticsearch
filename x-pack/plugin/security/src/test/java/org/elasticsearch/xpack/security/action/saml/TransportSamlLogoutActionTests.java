@@ -33,9 +33,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -64,7 +65,6 @@ import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -132,8 +132,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         when(client.settings()).thenReturn(settings);
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setId((String) invocationOnMock.getArguments()[1]);
+            builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareGet(anyString(), anyString());
         doAnswer(invocationOnMock -> {
@@ -143,8 +142,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         }).when(client).prepareIndex(anyString());
         doAnswer(invocationOnMock -> {
             UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setId((String) invocationOnMock.getArguments()[1]);
+            builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareUpdate(anyString(), anyString());
         doAnswer(invocationOnMock -> {
@@ -172,8 +170,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             IndexRequest indexRequest = (IndexRequest) invocationOnMock.getArguments()[0];
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
-            final IndexResponse response = new IndexResponse(
-                new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
+            final IndexResponse response = new IndexResponse(new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
@@ -181,8 +178,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             IndexRequest indexRequest = (IndexRequest) invocationOnMock.getArguments()[1];
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             indexRequests.add(indexRequest);
-            final IndexResponse response = new IndexResponse(
-                new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
+            final IndexResponse response = new IndexResponse(new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
@@ -211,11 +207,26 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
-            clusterService);
+        tokenService = new TokenService(
+            settings,
+            Clock.systemUTC(),
+            client,
+            licenseState,
+            securityContext,
+            securityIndex,
+            securityIndex,
+            clusterService
+        );
 
-        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         final Realms realms = mock(Realms.class);
         action = new TransportSamlLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 
@@ -235,16 +246,23 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final String session = randomAlphaOfLengthBetween(12, 18);
         final String nameId = randomAlphaOfLengthBetween(6, 16);
         final Map<String, Object> userMetadata = MapBuilder.<String, Object>newMapBuilder()
-                .put(SamlRealm.USER_METADATA_NAMEID_FORMAT, NameID.TRANSIENT)
-                .put(SamlRealm.USER_METADATA_NAMEID_VALUE, nameId)
-                .map();
-        final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetadata, true);
+            .put(SamlRealm.USER_METADATA_NAMEID_FORMAT, NameID.TRANSIENT)
+            .put(SamlRealm.USER_METADATA_NAMEID_VALUE, nameId)
+            .map();
+        final User user = new User("punisher", new String[] { "superuser" }, null, null, userMetadata, true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(
-            new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
-        final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
-            tokenMetadata);
-
+            new SamlNameId(NameID.TRANSIENT, nameId, null, null, null),
+            session
+        );
+        final Authentication authentication = new Authentication(
+            user,
+            realmRef,
+            null,
+            null,
+            Authentication.AuthenticationType.REALM,
+            tokenMetadata
+        );
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();

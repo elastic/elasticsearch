@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,10 +15,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.licensor.LicenseSigner;
@@ -29,6 +24,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -77,8 +76,10 @@ public class LicenseServiceTests extends ESTestCase {
      * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES_SETTING} is on its default value (all license types)
      */
     public void testRegisterLicenseWithoutTypeRestrictions() throws Exception {
-        assertRegisterValidLicense(Settings.EMPTY,
-            randomValueOtherThan(License.LicenseType.BASIC, () -> randomFrom(License.LicenseType.values())));
+        assertRegisterValidLicense(
+            Settings.EMPTY,
+            randomValueOtherThan(License.LicenseType.BASIC, () -> randomFrom(License.LicenseType.values()))
+        );
     }
 
     /**
@@ -87,11 +88,11 @@ public class LicenseServiceTests extends ESTestCase {
      */
     public void testSuccessfullyRegisterLicenseMatchingTypeRestrictions() throws Exception {
         final List<License.LicenseType> allowed = randomSubsetOf(
-            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 1), LicenseService.ALLOWABLE_UPLOAD_TYPES);
+            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 1),
+            LicenseService.ALLOWABLE_UPLOAD_TYPES
+        );
         final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList());
-        final Settings settings = Settings.builder()
-            .putList("xpack.license.upload.types", allowedNames)
-            .build();
+        final Settings settings = Settings.builder().putList("xpack.license.upload.types", allowedNames).build();
         assertRegisterValidLicense(settings, randomFrom(allowed));
     }
 
@@ -101,32 +102,39 @@ public class LicenseServiceTests extends ESTestCase {
      */
     public void testFailToRegisterLicenseNotMatchingTypeRestrictions() throws Exception {
         final List<License.LicenseType> allowed = randomSubsetOf(
-            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 2), LicenseService.ALLOWABLE_UPLOAD_TYPES);
+            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 2),
+            LicenseService.ALLOWABLE_UPLOAD_TYPES
+        );
         final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList());
-        final Settings settings = Settings.builder()
-            .putList("xpack.license.upload.types", allowedNames)
-            .build();
+        final Settings settings = Settings.builder().putList("xpack.license.upload.types", allowedNames).build();
         final License.LicenseType notAllowed = randomValueOtherThanMany(
             test -> allowed.contains(test),
-            () -> randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES));
+            () -> randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES)
+        );
         assertRegisterDisallowedLicenseType(settings, notAllowed);
     }
 
     private void assertRegisterValidLicense(Settings baseSettings, License.LicenseType licenseType) throws IOException {
-        tryRegisterLicense(baseSettings, licenseType,
-            future -> assertThat(future.actionGet().status(), equalTo(LicensesStatus.VALID)));
+        tryRegisterLicense(baseSettings, licenseType, future -> assertThat(future.actionGet().status(), equalTo(LicensesStatus.VALID)));
     }
 
     private void assertRegisterDisallowedLicenseType(Settings baseSettings, License.LicenseType licenseType) throws IOException {
         tryRegisterLicense(baseSettings, licenseType, future -> {
             final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
-            assertThat(exception, TestMatchers.throwableWithMessage(
-                "Registering [" + licenseType.getTypeName() + "] licenses is not allowed on " + "this cluster"));
+            assertThat(
+                exception,
+                TestMatchers.throwableWithMessage(
+                    "Registering [" + licenseType.getTypeName() + "] licenses is not allowed on " + "this cluster"
+                )
+            );
         });
     }
 
-    private void tryRegisterLicense(Settings baseSettings, License.LicenseType licenseType,
-                                    Consumer<PlainActionFuture<PutLicenseResponse>> assertion) throws IOException {
+    private void tryRegisterLicense(
+        Settings baseSettings,
+        License.LicenseType licenseType,
+        Consumer<PlainActionFuture<PutLicenseResponse>> assertion
+    ) throws IOException {
         final Settings settings = Settings.builder()
             .put(baseSettings)
             .put("path.home", createTempDir())
@@ -144,8 +152,15 @@ public class LicenseServiceTests extends ESTestCase {
         final ResourceWatcherService resourceWatcherService = mock(ResourceWatcherService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final LicenseService service =
-            new LicenseService(settings, threadPool, clusterService, clock, env, resourceWatcherService, licenseState);
+        final LicenseService service = new LicenseService(
+            settings,
+            threadPool,
+            clusterService,
+            clock,
+            env,
+            resourceWatcherService,
+            licenseState
+        );
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.license(spec(licenseType, TimeValue.timeValueDays(randomLongBetween(1, 1000))), XContentType.JSON);

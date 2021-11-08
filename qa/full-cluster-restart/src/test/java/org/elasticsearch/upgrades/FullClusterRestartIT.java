@@ -19,9 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
@@ -32,6 +29,9 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.transport.Compression;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -54,8 +54,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -125,18 +125,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             byte[] randomByteArray = new byte[16];
             random().nextBytes(randomByteArray);
             indexRandomDocuments(
-                    count,
-                    true,
-                    true,
-                    i -> JsonXContent.contentBuilder().startObject()
-                            .field("string", randomAlphaOfLength(10))
-                            .field("int", randomInt(100))
-                            .field("float", randomFloat())
-                            // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
-                            .field("bool", i > 0 && randomBoolean())
-                            .field("field.with.dots", randomAlphaOfLength(10))
-                            .field("binary", Base64.getEncoder().encodeToString(randomByteArray))
-                            .endObject()
+                count,
+                true,
+                true,
+                i -> JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("string", randomAlphaOfLength(10))
+                    .field("int", randomInt(100))
+                    .field("float", randomFloat())
+                    // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
+                    .field("bool", i > 0 && randomBoolean())
+                    .field("field.with.dots", randomAlphaOfLength(10))
+                    .field("binary", Base64.getEncoder().encodeToString(randomByteArray))
+                    .endObject()
             );
             refreshAllIndices();
         } else {
@@ -180,7 +181,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             int numDocs = randomIntBetween(2000, 3000);
             indexRandomDocuments(
-                    numDocs, true, false, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
+                numDocs,
+                true,
+                false,
+                i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject()
+            );
             logger.info("Refreshing [{}]", index);
             client().performRequest(new Request("POST", "/" + index + "/_refresh"));
         } else {
@@ -235,21 +240,32 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Check some global properties:
         String numberOfShards = (String) XContentMapValues.extractValue(
-            "metadata.templates.template_1.settings.index.number_of_shards", clusterState);
+            "metadata.templates.template_1.settings.index.number_of_shards",
+            clusterState
+        );
         assertEquals("1", numberOfShards);
         String numberOfReplicas = (String) XContentMapValues.extractValue(
-            "metadata.templates.template_1.settings.index.number_of_replicas", clusterState);
+            "metadata.templates.template_1.settings.index.number_of_replicas",
+            clusterState
+        );
         assertEquals("0", numberOfReplicas);
 
         // Check some index properties:
-        numberOfShards = (String) XContentMapValues.extractValue("metadata.indices." + index +
-            ".settings.index.number_of_shards", clusterState);
+        numberOfShards = (String) XContentMapValues.extractValue(
+            "metadata.indices." + index + ".settings.index.number_of_shards",
+            clusterState
+        );
         assertEquals("1", numberOfShards);
-        numberOfReplicas = (String) XContentMapValues.extractValue("metadata.indices." + index +
-                ".settings.index.number_of_replicas", clusterState);
+        numberOfReplicas = (String) XContentMapValues.extractValue(
+            "metadata.indices." + index + ".settings.index.number_of_replicas",
+            clusterState
+        );
         assertEquals("0", numberOfReplicas);
-        Version version = Version.fromId(Integer.valueOf((String) XContentMapValues.extractValue("metadata.indices." + index +
-            ".settings.index.version.created", clusterState)));
+        Version version = Version.fromId(
+            Integer.valueOf(
+                (String) XContentMapValues.extractValue("metadata.indices." + index + ".settings.index.version.created", clusterState)
+            )
+        );
         assertEquals(getOldClusterVersion(), version);
 
     }
@@ -288,8 +304,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
-            indexRandomDocuments(
-                    numDocs, true, true, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
+            indexRandomDocuments(numDocs, true, true, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
 
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
@@ -316,7 +331,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         int totalHits = extractTotalHits(response);
         assertEquals(numDocs, totalHits);
 
-        response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex+ "/_search")));
+        response = entityAsMap(client().performRequest(new Request("GET", "/" + shrunkenIndex + "/_search")));
         assertNoFailures(response);
         totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
         assertEquals(1, totalShards);
@@ -358,12 +373,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
-            indexRandomDocuments(
-                    numDocs,
-                    true,
-                    true,
-                    i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject()
-            );
+            indexRandomDocuments(numDocs, true, true, i -> JsonXContent.contentBuilder().startObject().field("field", "value").endObject());
         } else {
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
@@ -416,11 +426,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testRollover() throws IOException {
         if (isRunningAgainstOldCluster()) {
             Request createIndex = new Request("PUT", "/" + index + "-000001");
-            createIndex.setJsonEntity("{"
-                    + "  \"aliases\": {"
-                    + "    \"" + index + "_write\": {}"
-                    + "  }"
-                    + "}");
+            createIndex.setJsonEntity("{" + "  \"aliases\": {" + "    \"" + index + "_write\": {}" + "  }" + "}");
             client().performRequest(createIndex);
         }
 
@@ -439,15 +445,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             Request rolloverRequest = new Request("POST", "/" + index + "_write/_rollover");
-            rolloverRequest.setJsonEntity("{"
-                    + "  \"conditions\": {"
-                    + "    \"max_docs\": 5"
-                    + "  }"
-                    + "}");
+            rolloverRequest.setJsonEntity("{" + "  \"conditions\": {" + "    \"max_docs\": 5" + "  }" + "}");
             client().performRequest(rolloverRequest);
 
-            assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v")).getEntity()),
-                    containsString("testrollover-000002"));
+            assertThat(
+                EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v")).getEntity()),
+                containsString("testrollover-000002")
+            );
         }
 
         Request countRequest = new Request("POST", "/" + index + "-*/_search");
@@ -559,7 +563,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request searchRequest = new Request("GET", "/" + index + "/_search");
         searchRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
         Map<?, ?> searchResponse = entityAsMap(client().performRequest(searchRequest));
-        Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
+        Map<?, ?> hit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
         String docId = (String) hit.get("_id");
 
         Request updateRequest = new Request("POST", "/" + index + "/_update/" + docId);
@@ -626,7 +630,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createDoc);
         }
 
-
         Request request = new Request("GET", docLocation);
         assertThat(toStr(client().performRequest(request)), containsString(doc));
     }
@@ -651,7 +654,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
         ensureGreen(index);
     }
-
 
     /**
      * Tests recovery of an index with or without a translog and the
@@ -686,10 +688,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
                 indexRandomDocuments(
-                        count / 10,
-                        false, // flushing here would invalidate the whole thing
-                        false,
-                        i -> jsonBuilder().startObject().field("field", "value").endObject()
+                    count / 10,
+                    false, // flushing here would invalidate the whole thing
+                    false,
+                    i -> jsonBuilder().startObject().field("field", "value").endObject()
                 );
             }
             saveInfoDocument(index + "_should_have_translog", Boolean.toString(shouldHaveTranslog));
@@ -756,8 +758,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
                     }
                 }
-                assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
-                    0, numCurrentVersion);
+                assertNotEquals(
+                    "expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
+                    0,
+                    numCurrentVersion
+                );
                 assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);
             }
         }
@@ -799,17 +804,20 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
         addRoutingSettings.setJsonEntity(
-                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + getOldClusterVersion() + "\"}}");
+            "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + getOldClusterVersion() + "\"}}"
+        );
         client().performRequest(addRoutingSettings);
 
         // Stick a template into the cluster so we can see it after the restore
         XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
         templateBuilder.field("index_patterns", "evil_*"); // Don't confuse other tests by applying the template
-        templateBuilder.startObject("settings"); {
+        templateBuilder.startObject("settings");
+        {
             templateBuilder.field("number_of_shards", 1);
         }
         templateBuilder.endObject();
-        templateBuilder.startObject("mappings"); {
+        templateBuilder.startObject("mappings");
+        {
             {
                 templateBuilder.startObject("_source");
                 {
@@ -819,11 +827,15 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
         }
         templateBuilder.endObject();
-        templateBuilder.startObject("aliases"); {
+        templateBuilder.startObject("aliases");
+        {
             templateBuilder.startObject("alias1").endObject();
-            templateBuilder.startObject("alias2"); {
-                templateBuilder.startObject("filter"); {
-                    templateBuilder.startObject("term"); {
+            templateBuilder.startObject("alias2");
+            {
+                templateBuilder.startObject("filter");
+                {
+                    templateBuilder.startObject("term");
+                    {
                         templateBuilder.field("version", isRunningAgainstOldCluster() ? getOldClusterVersion() : Version.CURRENT);
                     }
                     templateBuilder.endObject();
@@ -841,9 +853,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             // Create the repo
-            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject();
+            {
                 repoConfig.field("type", "fs");
-                repoConfig.startObject("settings"); {
+                repoConfig.startObject("settings");
+                {
                     repoConfig.field("compress", randomBoolean());
                     repoConfig.field("location", System.getProperty("tests.path.repo"));
                 }
@@ -899,8 +913,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 if (globalHistoryUUID == null) {
                     globalHistoryUUID = historyUUID;
                 } else {
-                    assertThat("history uuid mismatch on " + nodeId + " (primary: " + primary + ")", historyUUID,
-                        equalTo(globalHistoryUUID));
+                    assertThat(
+                        "history uuid mismatch on " + nodeId + " (primary: " + primary + ")",
+                        historyUUID,
+                        equalTo(globalHistoryUUID)
+                    );
                 }
             }
         }
@@ -960,9 +977,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testClosedIndices() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            createIndex(index, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build());
+            createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
             ensureGreen(index);
 
             int numDocs = 0;
@@ -1029,8 +1044,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(nbShards, greaterThanOrEqualTo(1));
 
             for (int i = 0; i < nbShards; i++) {
-                final Collection<Map<String, ?>> shards =
-                    (Collection<Map<String, ?>>) XContentMapValues.extractValue("shards." + i, routingTable);
+                final Collection<Map<String, ?>> shards = (Collection<Map<String, ?>>) XContentMapValues.extractValue(
+                    "shards." + i,
+                    routingTable
+                );
                 assertThat(shards, notNullValue());
                 assertThat(shards.size(), equalTo(2));
                 for (Map<String, ?> shard : shards) {
@@ -1098,7 +1115,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request countAfterWriteRequest = new Request("GET", "/restored_" + index + "/_search");
         countAfterWriteRequest.addParameter("size", "0");
         Map<String, Object> countAfterResponse = entityAsMap(client().performRequest(countRequest));
-        assertTotalHits(count+extras, countAfterResponse);
+        assertTotalHits(count + extras, countAfterResponse);
 
         // Clean up the index for the next iteration
         client().performRequest(new Request("DELETE", "/restored_*"));
@@ -1107,8 +1124,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request clusterSettingsRequest = new Request("GET", "/_cluster/settings");
         clusterSettingsRequest.addParameter("flat_settings", "true");
         Map<String, Object> clusterSettingsResponse = entityAsMap(client().performRequest(clusterSettingsRequest));
-        @SuppressWarnings("unchecked") final Map<String, Object> persistentSettings =
-                (Map<String, Object>)clusterSettingsResponse.get("persistent");
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> persistentSettings = (Map<String, Object>) clusterSettingsResponse.get("persistent");
         assertThat(persistentSettings.get("cluster.routing.allocation.exclude.test_attr"), equalTo(getOldClusterVersion().toString()));
 
         // Check that the template was restored successfully
@@ -1120,7 +1137,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
         expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
-
 
         expectedTemplate.put("order", 0);
         Map<String, Object> aliases = new HashMap<>();
@@ -1139,11 +1155,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
 
     private void indexRandomDocuments(
-            final int count,
-            final boolean flushAllowed,
-            final boolean saveInfo,
-            final CheckedFunction<Integer, XContentBuilder, IOException> docSupplier)
-            throws IOException {
+        final int count,
+        final boolean flushAllowed,
+        final boolean saveInfo,
+        final CheckedFunction<Integer, XContentBuilder, IOException> docSupplier
+    ) throws IOException {
         logger.info("Indexing {} random documents", count);
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
@@ -1251,7 +1267,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
@@ -1286,10 +1303,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            createIndex(index, Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+            createIndex(
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
+            );
             ensureGreen(index);
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1374,8 +1395,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
-        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
-            "access to system indices will be prevented by default";
+        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
+            + "access to system indices will be prevented by default";
         if (isRunningAgainstOldCluster()) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");
@@ -1384,21 +1405,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" +
-                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             client().performRequest(bulk);
 
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
             reindex.setJsonEntity(
-                "{\n" +
-                    "  \"source\":{\n" +
-                    "    \"index\":\"test_index_old\"\n" +
-                    "  },\n" +
-                    "  \"dest\":{\n" +
-                    "    \"index\":\"test_index_reindex\"\n" +
-                    "  }\n" +
-                    "}");
+                "{\n"
+                    + "  \"source\":{\n"
+                    + "    \"index\":\"test_index_old\"\n"
+                    + "  },\n"
+                    + "  \"dest\":{\n"
+                    + "    \"index\":\"test_index_reindex\"\n"
+                    + "  }\n"
+                    + "}"
+            );
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
@@ -1433,12 +1454,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity("{\n" +
-                    "  \"actions\": [\n" +
-                    "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
-                    "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
-                    "  ]\n" +
-                    "}");
+                putAliasRequest.setJsonEntity(
+                    "{\n"
+                        + "  \"actions\": [\n"
+                        + "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n"
+                        + "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n"
+                        + "  ]\n"
+                        + "}"
+                );
                 putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
                     v.current(systemIndexWarning);
                     v.compatible(systemIndexWarning);
@@ -1591,8 +1614,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testTransportCompressionSetting() throws IOException {
         assumeTrue("the old transport.compress setting existed before 7.14", getOldClusterVersion().before(Version.V_7_14_0));
-        assumeTrue("Early versions of 6.x do not have cluster.remote* prefixed settings",
-            getOldClusterVersion().onOrAfter(Version.V_7_14_0.minimumCompatibilityVersion()));
+        assumeTrue(
+            "Early versions of 6.x do not have cluster.remote* prefixed settings",
+            getOldClusterVersion().onOrAfter(Version.V_7_14_0.minimumCompatibilityVersion())
+        );
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {
@@ -1615,9 +1640,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
                 final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
                 final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
-                assertThat(
-                    REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("foo").get(settings),
-                    equalTo(Compression.Enabled.TRUE));
+                assertThat(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("foo").get(settings), equalTo(Compression.Enabled.TRUE));
             }
         }
     }

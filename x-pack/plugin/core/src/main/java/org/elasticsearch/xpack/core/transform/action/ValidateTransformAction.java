@@ -82,8 +82,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
                 return false;
             }
             Request that = (Request) obj;
-            return Objects.equals(config, that.config)
-                && deferValidation == that.deferValidation;
+            return Objects.equals(config, that.config) && deferValidation == that.deferValidation;
         }
 
         @Override

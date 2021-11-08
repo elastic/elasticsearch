@@ -104,7 +104,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityStandardExpired() {
-        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
@@ -114,7 +114,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityBasic() {
-        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));

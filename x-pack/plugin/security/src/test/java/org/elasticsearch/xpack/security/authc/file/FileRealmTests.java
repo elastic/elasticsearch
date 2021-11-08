@@ -66,15 +66,17 @@ public class FileRealmTests extends ESTestCase {
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
             .put("xpack.security.authc.password_hashing.algorithm", getFastStoredHashAlgoForTests().name())
-            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "order", 0).build();
+            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "order", 0)
+            .build();
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(globalSettings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
 
     public void testAuthenticate() throws Exception {
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
-                .thenAnswer(VERIFY_PASSWORD_ANSWER);
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier())).thenAnswer(
+            VERIFY_PASSWORD_ANSWER
+        );
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
         RealmConfig config = getRealmConfig(globalSettings);
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
@@ -96,14 +98,14 @@ public class FileRealmTests extends ESTestCase {
 
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
-            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo",
-                randomFrom(Hasher.getAvailableAlgoCacheHash()))
+            .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo", randomFrom(Hasher.getAvailableAlgoCacheHash()))
             .put(globalSettings)
             .build();
         RealmConfig config = getRealmConfig(settings);
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
-                .thenAnswer(VERIFY_PASSWORD_ANSWER);
-        when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier())).thenAnswer(
+            VERIFY_PASSWORD_ANSWER
+        );
+        when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user1", new SecureString("longtestpassword")), future);
@@ -118,8 +120,9 @@ public class FileRealmTests extends ESTestCase {
         RealmConfig config = getRealmConfig(globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
-                .thenAnswer(VERIFY_PASSWORD_ANSWER);
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier())).thenAnswer(
+            VERIFY_PASSWORD_ANSWER
+        );
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -155,14 +158,14 @@ public class FileRealmTests extends ESTestCase {
 
     public void testToken() throws Exception {
         RealmConfig config = getRealmConfig(globalSettings);
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
-            .thenAnswer(VERIFY_PASSWORD_ANSWER);
-        when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier())).thenAnswer(
+            VERIFY_PASSWORD_ANSWER
+        );
+        when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        UsernamePasswordToken.putTokenHeader(threadContext,
-            new UsernamePasswordToken("user1", new SecureString("longtestpassword")));
+        UsernamePasswordToken.putTokenHeader(threadContext, new UsernamePasswordToken("user1", new SecureString("longtestpassword")));
 
         UsernamePasswordToken token = realm.token(threadContext);
         assertThat(token, notNullValue());

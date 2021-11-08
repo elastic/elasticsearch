@@ -13,15 +13,15 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -88,9 +88,13 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             out.writeBoolean(allowNoMatch);
         }
 
-        public List<String> getExpandedJobsIds() { return expandedJobsIds; }
+        public List<String> getExpandedJobsIds() {
+            return expandedJobsIds;
+        }
 
-        public void setExpandedJobsIds(List<String> expandedJobsIds) { this.expandedJobsIds = expandedJobsIds; }
+        public void setExpandedJobsIds(List<String> expandedJobsIds) {
+            this.expandedJobsIds = expandedJobsIds;
+        }
 
         public void setAllowNoMatch(boolean allowNoMatch) {
             this.allowNoMatch = allowNoMatch;
@@ -129,8 +133,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId)
-                    && Objects.equals(allowNoMatch, other.allowNoMatch)
-                    && Objects.equals(getTimeout(), other.getTimeout());
+                && Objects.equals(allowNoMatch, other.allowNoMatch)
+                && Objects.equals(getTimeout(), other.getTimeout());
         }
     }
 
@@ -153,9 +157,17 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             @Nullable
             private final TimingStats timingStats;
 
-            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
-                            @Nullable ForecastStats forecastStats, JobState state, @Nullable DiscoveryNode node,
-                            @Nullable String assignmentExplanation, @Nullable TimeValue openTime, @Nullable TimingStats timingStats) {
+            public JobStats(
+                String jobId,
+                DataCounts dataCounts,
+                @Nullable ModelSizeStats modelSizeStats,
+                @Nullable ForecastStats forecastStats,
+                JobState state,
+                @Nullable DiscoveryNode node,
+                @Nullable String assignmentExplanation,
+                @Nullable TimeValue openTime,
+                @Nullable TimingStats timingStats
+            ) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
@@ -260,7 +272,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                     builder.field(
                         TIMING_STATS,
                         timingStats,
-                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true"))
+                    );
                 }
                 return builder;
             }
@@ -281,7 +294,16 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             @Override
             public int hashCode() {
                 return Objects.hash(
-                    jobId, dataCounts, modelSizeStats, forecastStats, state, node, assignmentExplanation, openTime, timingStats);
+                    jobId,
+                    dataCounts,
+                    modelSizeStats,
+                    forecastStats,
+                    state,
+                    node,
+                    assignmentExplanation,
+                    openTime,
+                    timingStats
+                );
             }
 
             @Override
@@ -312,8 +334,11 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             this.jobsStats = jobsStats;
         }
 
-        public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
-                 QueryPage<JobStats> jobsStats) {
+        public Response(
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures,
+            QueryPage<JobStats> jobsStats
+        ) {
             super(taskFailures, nodeFailures);
             this.jobsStats = jobsStats;
         }

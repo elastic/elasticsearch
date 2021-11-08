@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -16,7 +15,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -32,6 +30,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
@@ -50,7 +49,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
     private static final byte INT_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -58,21 +57,37 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<Integer> dims
-            = new Parameter<>("dims", false, () -> null, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), m -> toType(m).dims)
-            .addValidator(dims -> {
-                if (dims == null) {
-                    throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
-                }
-                if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
-                    throw new MapperParsingException("The number of dimensions for field [" + name +
-                        "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims + "]");
-                }
-            });
+        private final Parameter<Integer> dims = new Parameter<>(
+            "dims",
+            false,
+            () -> null,
+            (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
+            m -> toType(m).dims
+        ).addValidator(dims -> {
+            if (dims == null) {
+                throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
+            }
+            if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
+                throw new MapperParsingException(
+                    "The number of dimensions for field ["
+                        + name
+                        + "] should be in the range [1, "
+                        + MAX_DIMS_COUNT
+                        + "] but was ["
+                        + dims
+                        + "]"
+                );
+            }
+        });
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
         private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
-                "similarity", false, m -> toType(m).similarity, null, VectorSimilarity.class);
+            "similarity",
+            false,
+            m -> toType(m).similarity,
+            null,
+            VectorSimilarity.class
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final Version indexVersionCreated;
@@ -95,14 +110,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(context.buildFullName(name), indexVersionCreated,
-                    dims.getValue(), indexed.getValue(), meta.getValue()),
+                new DenseVectorFieldType(
+                    context.buildFullName(name),
+                    indexVersionCreated,
+                    dims.getValue(),
+                    indexed.getValue(),
+                    meta.getValue()
+                ),
                 dims.getValue(),
                 indexed.getValue(),
                 similarity.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build());
+                copyTo.build()
+            );
         }
     }
 
@@ -111,13 +132,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         dot_product(VectorSimilarityFunction.DOT_PRODUCT);
 
         public final VectorSimilarityFunction function;
+
         VectorSimilarity(VectorSimilarityFunction function) {
             this.function = function;
         }
     }
 
-    public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()), notInMultiFields(CONTENT_TYPE));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated()),
+        notInMultiFields(CONTENT_TYPE)
+    );
 
     public static final class DenseVectorFieldType extends SimpleMappedFieldType {
         private final int dims;
@@ -152,7 +176,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
+                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations"
+            );
         }
 
         @Override
@@ -177,8 +202,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
         }
     }
 
@@ -187,9 +211,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final VectorSimilarity similarity;
     private final Version indexCreatedVersion;
 
-    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims,
-                                   boolean indexed, VectorSimilarity similarity,
-                                   Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
+    private DenseVectorFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        int dims,
+        boolean indexed,
+        VectorSimilarity similarity,
+        Version indexCreatedVersion,
+        MultiFields multiFields,
+        CopyTo copyTo
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.dims = dims;
         this.indexed = indexed;
@@ -210,13 +241,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public void parse(DocumentParserContext context) throws IOException {
         if (context.doc().getByKey(fieldType().name()) != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                "] doesn't not support indexing multiple values for the same field in the same document");
+            throw new IllegalArgumentException(
+                "Field ["
+                    + name()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't not support indexing multiple values for the same field in the same document"
+            );
         }
 
-        Field field = fieldType().indexed
-            ? parseKnnVector(context)
-            : parseBinaryDocValuesVector(context);
+        Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);
         context.doc().addWithKey(fieldType().name(), field);
     }
 
@@ -261,17 +295,37 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {
         if (index >= dims) {
-            throw new IllegalArgumentException("The [" + typeName() + "] field [" + name() +
-                "] in doc [" + context.sourceToParse().id() + "] has more dimensions " +
-                "than defined in the mapping [" + dims + "]");
+            throw new IllegalArgumentException(
+                "The ["
+                    + typeName()
+                    + "] field ["
+                    + name()
+                    + "] in doc ["
+                    + context.sourceToParse().id()
+                    + "] has more dimensions "
+                    + "than defined in the mapping ["
+                    + dims
+                    + "]"
+            );
         }
     }
 
     private void checkDimensionMatches(int index, DocumentParserContext context) {
         if (index != dims) {
-            throw new IllegalArgumentException("The [" + typeName() + "] field [" + name() +
-                "] in doc [" + context.sourceToParse().id() + "] has a different number of dimensions " +
-                "[" + index + "] than defined in the mapping [" + dims + "]");
+            throw new IllegalArgumentException(
+                "The ["
+                    + typeName()
+                    + "] field ["
+                    + name()
+                    + "] in doc ["
+                    + context.sourceToParse().id()
+                    + "] has a different number of dimensions "
+                    + "["
+                    + index
+                    + "] than defined in the mapping ["
+                    + dims
+                    + "]"
+            );
         }
     }
 

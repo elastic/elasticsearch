@@ -29,17 +29,22 @@ public class UserFunctionTests extends ESTestCase {
     public void testNoUsernameFunctionOutput() {
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-basic.json", true));
-        SqlConfiguration sqlConfig = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                Protocol.PAGE_TIMEOUT, null, null,
-                randomFrom(Mode.values()), randomAlphaOfLength(10),
-                null, null, randomAlphaOfLengthBetween(1, 15),
-                randomBoolean(), randomBoolean());
-        Analyzer analyzer = new Analyzer(
-                sqlConfig,
-                new SqlFunctionRegistry(),
-                IndexResolution.valid(test),
-                new Verifier(new Metrics())
+        SqlConfiguration sqlConfig = new SqlConfiguration(
+            DateUtils.UTC,
+            Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT,
+            null,
+            null,
+            randomFrom(Mode.values()),
+            randomAlphaOfLength(10),
+            null,
+            null,
+            randomAlphaOfLengthBetween(1, 15),
+            randomBoolean(),
+            randomBoolean()
         );
+        Analyzer analyzer = new Analyzer(sqlConfig, new SqlFunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
 
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT USER()"), true);
         NamedExpression ne = result.projections().get(0);

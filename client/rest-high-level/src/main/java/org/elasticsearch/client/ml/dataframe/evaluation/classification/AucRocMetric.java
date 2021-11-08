@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,8 +33,11 @@ public class AucRocMetric implements EvaluationMetric {
     public static final ParseField CLASS_NAME = new ParseField("class_name");
     public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
 
-    public static final ConstructingObjectParser<AucRocMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new AucRocMetric((String) args[0], (Boolean) args[1]));
+    public static final ConstructingObjectParser<AucRocMetric, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new AucRocMetric((String) args[0], (Boolean) args[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), CLASS_NAME);
@@ -82,8 +85,7 @@ public class AucRocMetric implements EvaluationMetric {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AucRocMetric that = (AucRocMetric) o;
-        return Objects.equals(className, that.className)
-            && Objects.equals(includeCurve, that.includeCurve);
+        return Objects.equals(className, that.className) && Objects.equals(includeCurve, that.includeCurve);
     }
 
     @Override

@@ -12,8 +12,8 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -113,7 +113,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final List<JobStats> jobStats = mockJobStats();
 
         @SuppressWarnings("unchecked")
-        final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
+        final ActionFuture<Response> future = (ActionFuture<Response>) mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
         when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
@@ -128,7 +128,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(monitoringDocs, hasSize(jobStats.size()));
 
         for (int i = 0; i < monitoringDocs.size(); ++i) {
-            final JobStatsMonitoringDoc jobStatsMonitoringDoc = (JobStatsMonitoringDoc)monitoringDocs.get(i);
+            final JobStatsMonitoringDoc jobStatsMonitoringDoc = (JobStatsMonitoringDoc) monitoringDocs.get(i);
             final JobStats jobStat = jobStats.get(i);
 
             assertThat(jobStatsMonitoringDoc.getCluster(), is(clusterUuid));
@@ -160,9 +160,12 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final List<JobStats> jobStats = mockJobStats();
 
         @SuppressWarnings("unchecked")
-        final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
-        final Response response = new Response(List.of(), List.of(new FailedNodeException("node", "msg",
-                new ElasticsearchTimeoutException("test timeout"))), new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
+        final ActionFuture<Response> future = (ActionFuture<Response>) mock(ActionFuture.class);
+        final Response response = new Response(
+            List.of(),
+            List.of(new FailedNodeException("node", "msg", new ElasticsearchTimeoutException("test timeout"))),
+            new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD)
+        );
 
         when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
         when(future.actionGet()).thenReturn(response);

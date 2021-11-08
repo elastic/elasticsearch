@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 public class NerResults implements InferenceResults {
 
     public static final String NAME = "ner_result";
@@ -120,13 +119,7 @@ public class NerResults implements InferenceResults {
         private final int startPos;
         private final int endPos;
 
-        public EntityGroup(
-            String entity,
-            String className,
-            double classProbability,
-            int startPos,
-            int endPos
-        ) {
+        public EntityGroup(String entity, String className, double classProbability, int startPos, int endPos) {
             this.entity = entity;
             this.className = className;
             this.classProbability = classProbability;

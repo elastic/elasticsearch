@@ -126,17 +126,16 @@ public class TickerScheduleEngineTests extends ESTestCase {
         });
 
         int randomMinute = randomIntBetween(0, 59);
-        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
+        ZonedDateTime testNowTime = clock.instant()
+            .atZone(ZoneOffset.UTC)
             .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
             .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
-        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
-                scheduledTime);
+        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
 
         clock.setTime(testNowTime);
-        engine.add(createWatch(name, daily().at(scheduledTime.getHour(),
-                scheduledTime.getMinute()).build()));
+        engine.add(createWatch(name, daily().at(scheduledTime.getHour(), scheduledTime.getMinute()).build()));
         advanceClockIfNeeded(scheduledTime);
 
         if (latch.await(5, TimeUnit.SECONDS) == false) {
@@ -163,17 +162,17 @@ public class TickerScheduleEngineTests extends ESTestCase {
         int randomHour = randomIntBetween(0, 23);
         int randomMinute = randomIntBetween(0, 59);
 
-        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
-            .with(ChronoField.HOUR_OF_DAY, randomHour).with(ChronoField.MINUTE_OF_HOUR, randomMinute)
+        ZonedDateTime testNowTime = clock.instant()
+            .atZone(ZoneOffset.UTC)
+            .with(ChronoField.HOUR_OF_DAY, randomHour)
+            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
             .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
-        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
-                scheduledTime);
+        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
 
         clock.setTime(testNowTime);
-        engine.add(createWatch(name, daily().at(scheduledTime.getHour(),
-                scheduledTime.getMinute()).build()));
+        engine.add(createWatch(name, daily().at(scheduledTime.getHour(), scheduledTime.getMinute()).build()));
         advanceClockIfNeeded(scheduledTime);
 
         if (latch.await(5, TimeUnit.SECONDS) == false) {
@@ -200,25 +199,29 @@ public class TickerScheduleEngineTests extends ESTestCase {
         int randomMinute = randomIntBetween(0, 59);
         int randomDay = randomIntBetween(1, 7);
 
-        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
-                .with(ChronoField.DAY_OF_WEEK, randomDay)
-                .with(ChronoField.HOUR_OF_DAY, randomHour)
-                .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-                .with(ChronoField.SECOND_OF_MINUTE, 59);
+        ZonedDateTime testNowTime = clock.instant()
+            .atZone(ZoneOffset.UTC)
+            .with(ChronoField.DAY_OF_WEEK, randomDay)
+            .with(ChronoField.HOUR_OF_DAY, randomHour)
+            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
+            .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
 
-        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
-                scheduledTime);
+        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
         clock.setTime(testNowTime);
 
         // fun part here (aka WTF): DayOfWeek with Joda is MON-SUN, starting at 1
-        //                          DayOfWeek with Watcher is SUN-SAT, starting at 1
+        // DayOfWeek with Watcher is SUN-SAT, starting at 1
         int watcherDay = (scheduledTime.getDayOfWeek().getValue() % 7) + 1;
-        engine.add(createWatch(name, weekly().time(WeekTimes.builder()
-                .on(DayOfWeek.resolve(watcherDay))
-                .at(scheduledTime.getHour(), scheduledTime.getMinute()).build())
-                .build()));
+        engine.add(
+            createWatch(
+                name,
+                weekly().time(
+                    WeekTimes.builder().on(DayOfWeek.resolve(watcherDay)).at(scheduledTime.getHour(), scheduledTime.getMinute()).build()
+                ).build()
+            )
+        );
         advanceClockIfNeeded(scheduledTime);
 
         if (latch.await(5, TimeUnit.SECONDS) == false) {
@@ -281,8 +284,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     private Watch createWatch(String name, Schedule schedule) {
-        return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(),
-                InternalAlwaysCondition.INSTANCE, null, null,
-                Collections.emptyList(), null, null, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        return new Watch(
+            name,
+            new ScheduleTrigger(schedule),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            Collections.emptyList(),
+            null,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
     }
 }

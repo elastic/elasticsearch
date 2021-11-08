@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-
 public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
 
     private static final String CURRENT_INDEX = TransformInternalIndexConstants.LATEST_INDEX_NAME;
@@ -57,7 +56,8 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
             TransformInternalIndex.addTransformsConfigMappings(builder);
             builder.endObject();
             builder.endObject();
-            client().admin().indices()
+            client().admin()
+                .indices()
                 .create(new CreateIndexRequest(OLD_INDEX).mapping(builder).origin(ClientHelper.TRANSFORM_ORIGIN))
                 .actionGet();
         }
@@ -65,8 +65,12 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
         createSourceIndex(transformIndex);
         String transformId = "transform-update-deletes-old-transform-config";
         String config = "{\"dest\": {\"index\":\"bar\"},"
-            + " \"source\": {\"index\":\"" + transformIndex + "\", \"query\": {\"match_all\":{}}},"
-            + " \"id\": \""+transformId+"\","
+            + " \"source\": {\"index\":\""
+            + transformIndex
+            + "\", \"query\": {\"match_all\":{}}},"
+            + " \"id\": \""
+            + transformId
+            + "\","
             + " \"doc_type\": \"data_frame_transform_config\","
             + " \"pivot\": {"
             + "   \"group_by\": {"
@@ -81,8 +85,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
             + " } } } },"
             + "\"frequency\":\"1s\""
             + "}";
-        IndexRequest indexRequest = new IndexRequest(OLD_INDEX)
-            .id(TransformConfig.documentId(transformId))
+        IndexRequest indexRequest = new IndexRequest(OLD_INDEX).id(TransformConfig.documentId(transformId))
             .source(config, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
@@ -94,9 +97,13 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
 
         UpdateTransformAction.Request updateTransformActionRequest = new UpdateTransformAction.Request(
             new TransformConfigUpdate(null, null, null, null, "updated", null, null),
-            transformId, false);
-        UpdateTransformAction.Response updateTransformActionResponse =
-            client().execute(UpdateTransformAction.INSTANCE, updateTransformActionRequest).actionGet();
+            transformId,
+            false
+        );
+        UpdateTransformAction.Response updateTransformActionResponse = client().execute(
+            UpdateTransformAction.INSTANCE,
+            updateTransformActionRequest
+        ).actionGet();
         assertThat(updateTransformActionResponse.getConfig().getId(), equalTo(transformId));
         assertThat(updateTransformActionResponse.getConfig().getDescription(), equalTo("updated"));
 

@@ -20,13 +20,19 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 
-abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse>
-        extends HandledTransportAction<Request, Response> {
+abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends HandledTransportAction<
+    Request,
+    Response> {
 
     protected final XPackLicenseState licenseState;
 
-    WatcherTransportAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                           XPackLicenseState licenseState, Writeable.Reader<Request> request) {
+    WatcherTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        Writeable.Reader<Request> request
+    ) {
         super(actionName, transportService, actionFilters, request);
         this.licenseState = licenseState;
     }

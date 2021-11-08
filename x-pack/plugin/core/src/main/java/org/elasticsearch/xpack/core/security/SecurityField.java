@@ -15,8 +15,12 @@ public final class SecurityField {
 
     public static final String NAME4 = XPackField.SECURITY + "4";
     public static final String NIO = XPackField.SECURITY + "-nio";
-    public static final Setting<Optional<String>> USER_SETTING =
-            new Setting<>(setting("user"), (String) null, Optional::ofNullable, Setting.Property.NodeScope);
+    public static final Setting<Optional<String>> USER_SETTING = new Setting<>(
+        setting("user"),
+        (String) null,
+        Optional::ofNullable,
+        Setting.Property.NodeScope
+    );
 
     private SecurityField() {}
 

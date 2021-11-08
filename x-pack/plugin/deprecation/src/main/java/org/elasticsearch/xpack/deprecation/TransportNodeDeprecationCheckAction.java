@@ -24,7 +24,8 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportNodeDeprecationCheckAction extends TransportNodesAction<NodesDeprecationCheckRequest,
+public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
+    NodesDeprecationCheckRequest,
     NodesDeprecationCheckResponse,
     NodesDeprecationCheckAction.NodeRequest,
     NodesDeprecationCheckAction.NodeResponse> {
@@ -33,22 +34,35 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     private final PluginsService pluginsService;
 
     @Inject
-    public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool,
-                                               ClusterService clusterService, TransportService transportService,
-                                               PluginsService pluginsService, ActionFilters actionFilters) {
-        super(NodesDeprecationCheckAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportNodeDeprecationCheckAction(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        PluginsService pluginsService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            NodesDeprecationCheckAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
             NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
             ThreadPool.Names.GENERIC,
-            NodesDeprecationCheckAction.NodeResponse.class);
+            NodesDeprecationCheckAction.NodeResponse.class
+        );
         this.settings = settings;
         this.pluginsService = pluginsService;
     }
 
     @Override
-    protected NodesDeprecationCheckResponse newResponse(NodesDeprecationCheckRequest request,
-                                                        List<NodesDeprecationCheckAction.NodeResponse> nodeResponses,
-                                                        List<FailedNodeException> failures) {
+    protected NodesDeprecationCheckResponse newResponse(
+        NodesDeprecationCheckRequest request,
+        List<NodesDeprecationCheckAction.NodeResponse> nodeResponses,
+        List<FailedNodeException> failures
+    ) {
         return new NodesDeprecationCheckResponse(clusterService.getClusterName(), nodeResponses, failures);
     }
 
@@ -64,11 +78,12 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
 
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request, Task task) {
-        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-            (c) -> c.apply(settings, pluginsService.info()));
+        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            (c) -> c.apply(settings, pluginsService.info())
+        );
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }
-
 
 }

@@ -27,11 +27,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -48,8 +48,8 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.transform.TransformField.TRANSFORM_ID;
@@ -126,28 +126,27 @@ public final class TransformInternalIndex {
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.field(DYNAMIC, "false");
-        builder
-            .startObject(PROPERTIES)
-                .startObject(TRANSFORM_ID)
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
-                    .field(TYPE, TEXT)
-                .startObject(FIELDS)
-                    .startObject(RAW)
-                        .field(TYPE, KEYWORD)
-                        .field(IGNORE_ABOVE, 1024)
-                    .endObject()
-                .endObject()
+        builder.startObject(PROPERTIES)
+            .startObject(TRANSFORM_ID)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
+            .field(TYPE, TEXT)
+            .startObject(FIELDS)
+            .startObject(RAW)
+            .field(TYPE, KEYWORD)
+            .field(IGNORE_ABOVE, 1024)
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(AbstractAuditMessage.TIMESTAMP.getPreferredName())
-                .field(TYPE, DATE)
+            .field(TYPE, DATE)
             .endObject()
             .startObject(AbstractAuditMessage.NODE_NAME.getPreferredName())
-                .field(TYPE, KEYWORD)
+            .field(TYPE, KEYWORD)
             .endObject()
             .endObject()
             .endObject()
@@ -197,160 +196,157 @@ public final class TransformInternalIndex {
     }
 
     private static XContentBuilder addTransformStoredDocMappings(XContentBuilder builder) throws IOException {
-        return builder
-            .startObject(TransformStoredDoc.STATE_FIELD.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(TransformState.TASK_STATE.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(TransformState.INDEXER_STATE.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(TransformState.SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName())
-                        .field(TYPE, BOOLEAN)
-                    .endObject()
-                    .startObject(TransformState.CURRENT_POSITION.getPreferredName())
-                        .field(ENABLED, false)
-                    .endObject()
-                    .startObject(TransformState.CHECKPOINT.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformState.REASON.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(TransformState.PROGRESS.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(TransformProgress.TOTAL_DOCS.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(TransformProgress.DOCS_REMAINING.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(TransformProgress.PERCENT_COMPLETE)
-                                .field(TYPE, FLOAT)
-                            .endObject()
-                            .startObject(TransformProgress.DOCS_INDEXED.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(TransformProgress.DOCS_PROCESSED.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
+        return builder.startObject(TransformStoredDoc.STATE_FIELD.getPreferredName())
+            .startObject(PROPERTIES)
+            .startObject(TransformState.TASK_STATE.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformState.INDEXER_STATE.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformState.SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName())
+            .field(TYPE, BOOLEAN)
+            .endObject()
+            .startObject(TransformState.CURRENT_POSITION.getPreferredName())
+            .field(ENABLED, false)
+            .endObject()
+            .startObject(TransformState.CHECKPOINT.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformState.REASON.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformState.PROGRESS.getPreferredName())
+            .startObject(PROPERTIES)
+            .startObject(TransformProgress.TOTAL_DOCS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformProgress.DOCS_REMAINING.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformProgress.PERCENT_COMPLETE)
+            .field(TYPE, FLOAT)
+            .endObject()
+            .startObject(TransformProgress.DOCS_INDEXED.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformProgress.DOCS_PROCESSED.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(TransformField.STATS_FIELD.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(TransformIndexerStats.NUM_PAGES.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.NUM_DELETED_DOCUMENTS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName())
-                        .field(TYPE, LONG)
-                     .endObject()
-                     .startObject(TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName())
-                         .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.INDEX_TOTAL.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.SEARCH_TOTAL.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformIndexerStats.PROCESSING_TOTAL.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.SEARCH_FAILURES.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.INDEX_FAILURES.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                .endObject()
+            .startObject(PROPERTIES)
+            .startObject(TransformIndexerStats.NUM_PAGES.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_DELETED_DOCUMENTS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.INDEX_TOTAL.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.SEARCH_TOTAL.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.PROCESSING_TOTAL.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.SEARCH_FAILURES.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.INDEX_FAILURES.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName())
+            .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName())
+            .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName())
+            .field(TYPE, DOUBLE)
+            .endObject()
+            .endObject()
             .endObject();
     }
 
     public static XContentBuilder addTransformsConfigMappings(XContentBuilder builder) throws IOException {
-        return builder
-            .startObject(TransformField.ID.getPreferredName())
-                .field(TYPE, KEYWORD)
+        return builder.startObject(TransformField.ID.getPreferredName())
+            .field(TYPE, KEYWORD)
             .endObject()
             .startObject(TransformField.SOURCE.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(SourceConfig.INDEX.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(SourceConfig.QUERY.getPreferredName())
-                        .field(ENABLED, false)
-                    .endObject()
-                .endObject()
+            .startObject(PROPERTIES)
+            .startObject(SourceConfig.INDEX.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(SourceConfig.QUERY.getPreferredName())
+            .field(ENABLED, false)
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(TransformField.DESTINATION.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(DestConfig.INDEX.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                .endObject()
+            .startObject(PROPERTIES)
+            .startObject(DestConfig.INDEX.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(TransformField.DESCRIPTION.getPreferredName())
-                .field(TYPE, TEXT)
+            .field(TYPE, TEXT)
             .endObject()
             .startObject(TransformField.VERSION.getPreferredName())
-                .field(TYPE, KEYWORD)
+            .field(TYPE, KEYWORD)
             .endObject()
             .startObject(TransformField.CREATE_TIME.getPreferredName())
-                .field(TYPE, DATE)
+            .field(TYPE, DATE)
             .endObject()
             .startObject(TransformConfig.Function.PIVOT.getParseField().getPreferredName())
-                .field(TYPE, FLATTENED)
+            .field(TYPE, FLATTENED)
             .endObject()
             .startObject(TransformConfig.Function.LATEST.getParseField().getPreferredName())
-                .field(TYPE, FLATTENED)
+            .field(TYPE, FLATTENED)
             .endObject()
             .startObject(TransformField.RETENTION_POLICY.getPreferredName())
-                .field(TYPE, FLATTENED)
+            .field(TYPE, FLATTENED)
             .endObject()
             .startObject(TransformField.SYNC.getPreferredName())
-                .field(TYPE, FLATTENED)
+            .field(TYPE, FLATTENED)
             .endObject();
     }
 
     private static XContentBuilder addTransformCheckpointMappings(XContentBuilder builder) throws IOException {
-        return builder
-            .startObject(TransformField.TIMESTAMP_MILLIS.getPreferredName())
-                .field(TYPE, DATE)
+        return builder.startObject(TransformField.TIMESTAMP_MILLIS.getPreferredName())
+            .field(TYPE, DATE)
             .endObject()
             .startObject(TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName())
-                .field(TYPE, DATE)
+            .field(TYPE, DATE)
             .endObject()
             .startObject(TransformCheckpoint.CHECKPOINT.getPreferredName())
-                .field(TYPE, LONG)
+            .field(TYPE, LONG)
             .endObject();
     }
 
@@ -439,30 +435,28 @@ public final class TransformInternalIndex {
 
         // Creating the index involves communication with the master node, so it's more expensive but much rarer
         try {
-            CreateIndexRequest request = new CreateIndexRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-                .settings(settings())
+            CreateIndexRequest request = new CreateIndexRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
+                settings()
+            )
                 .mapping(mappings())
                 .origin(TRANSFORM_ORIGIN)
                 // explicitly wait for the primary shard (although this might be default)
                 .waitForActiveShards(ActiveShardCount.ONE);
-            ActionListener<CreateIndexResponse> innerListener = ActionListener.wrap(
-                r -> listener.onResponse(null),
-                e -> {
-                    // It's not a problem if the index already exists - another node could be running
-                    // this method at the same time as this one, and also have created the index
-                    // check if shards are active
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        if (allPrimaryShardsActiveForLatestVersionedIndex(clusterService.state())) {
-                            listener.onResponse(null);
-                            return;
-                        }
-                        // the index exists but is not ready yet
-                        waitForLatestVersionedIndexShardsActive(client, listener);
-                    } else {
-                        listener.onFailure(e);
+            ActionListener<CreateIndexResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), e -> {
+                // It's not a problem if the index already exists - another node could be running
+                // this method at the same time as this one, and also have created the index
+                // check if shards are active
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    if (allPrimaryShardsActiveForLatestVersionedIndex(clusterService.state())) {
+                        listener.onResponse(null);
+                        return;
                     }
+                    // the index exists but is not ready yet
+                    waitForLatestVersionedIndexShardsActive(client, listener);
+                } else {
+                    listener.onFailure(e);
                 }
-            );
+            });
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 TRANSFORM_ORIGIN,

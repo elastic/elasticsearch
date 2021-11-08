@@ -55,7 +55,10 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         out = new BytesStreamOutput();
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         differentiator = new DlsFlsRequestCacheDifferentiator(
-            licenseState, new SetOnce<>(securityContext), new SetOnce<>(mock(ScriptService.class)));
+            licenseState,
+            new SetOnce<>(securityContext),
+            new SetOnce<>(mock(ScriptService.class))
+        );
         shardSearchRequest = mock(ShardSearchRequest.class);
         indexName = randomAlphaOfLengthBetween(3, 8);
         dlsIndexName = "dls-" + randomAlphaOfLengthBetween(3, 8);
@@ -63,29 +66,37 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         dlsFlsIndexName = "dls-fls-" + randomAlphaOfLengthBetween(3, 8);
 
         final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(
-            Set.of(new BytesArray("{\"term\":{\"number\":1}}")));
+            Set.of(new BytesArray("{\"term\":{\"number\":1}}"))
+        );
 
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-            new IndicesAccessControl(true,
+        threadContext.putTransient(
+            AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+            new IndicesAccessControl(
+                true,
                 Map.of(
                     flsIndexName,
-                    new IndicesAccessControl.IndexAccessControl(true,
-                        new FieldPermissions(new FieldPermissionsDefinition(new String[]{"*"}, new String[]{"private"})),
-                        DocumentPermissions.allowAll()),
+                    new IndicesAccessControl.IndexAccessControl(
+                        true,
+                        new FieldPermissions(new FieldPermissionsDefinition(new String[] { "*" }, new String[] { "private" })),
+                        DocumentPermissions.allowAll()
+                    ),
                     dlsIndexName,
-                    new IndicesAccessControl.IndexAccessControl(true,
-                        FieldPermissions.DEFAULT, documentPermissions1),
+                    new IndicesAccessControl.IndexAccessControl(true, FieldPermissions.DEFAULT, documentPermissions1),
                     dlsFlsIndexName,
-                    new IndicesAccessControl.IndexAccessControl(true,
-                        new FieldPermissions(new FieldPermissionsDefinition(new String[]{"*"}, new String[]{"private"})),
-                        documentPermissions1)
+                    new IndicesAccessControl.IndexAccessControl(
+                        true,
+                        new FieldPermissions(new FieldPermissionsDefinition(new String[] { "*" }, new String[] { "private" })),
+                        documentPermissions1
+                    )
                 )
-            ));
+            )
+        );
     }
 
     public void testWillWriteCacheKeyForAnyDlsOrFls() throws IOException {
         when(shardSearchRequest.shardId()).thenReturn(
-            new ShardId(randomFrom(dlsIndexName, flsIndexName, dlsFlsIndexName), randomAlphaOfLength(10), randomIntBetween(0, 3)));
+            new ShardId(randomFrom(dlsIndexName, flsIndexName, dlsFlsIndexName), randomAlphaOfLength(10), randomIntBetween(0, 3))
+        );
         differentiator.accept(shardSearchRequest, out);
         assertThat(out.position(), greaterThan(0L));
     }

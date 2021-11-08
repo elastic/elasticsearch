@@ -76,15 +76,25 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
+        MlInitializationService initializationService = new MlInitializationService(
+            Settings.EMPTY,
+            threadPool,
+            clusterService,
+            client,
+            mlAssignmentNotifier
+        );
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 
     public void testInitialize_noMasterNode() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
+        MlInitializationService initializationService = new MlInitializationService(
+            Settings.EMPTY,
+            threadPool,
+            clusterService,
+            client,
+            mlAssignmentNotifier
+        );
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));
     }
@@ -92,8 +102,12 @@ public class MlInitializationServiceTests extends ESTestCase {
     public void testNodeGoesFromMasterToNonMasterAndBack() {
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
 
-        MlInitializationService initializationService =
-            new MlInitializationService(client, threadPool, initialDailyMaintenanceService, clusterService);
+        MlInitializationService initializationService = new MlInitializationService(
+            client,
+            threadPool,
+            initialDailyMaintenanceService,
+            clusterService
+        );
         initializationService.offMaster();
         verify(initialDailyMaintenanceService).stop();
 

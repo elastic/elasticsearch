@@ -57,9 +57,11 @@ public class ShowColumns extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(source(), "column", new KeywordEsField("column")),
-                new FieldAttribute(source(), "type", new KeywordEsField("type")),
-                new FieldAttribute(source(), "mapping", new KeywordEsField("mapping")));
+        return asList(
+            new FieldAttribute(source(), "column", new KeywordEsField("column")),
+            new FieldAttribute(source(), "type", new KeywordEsField("type")),
+            new FieldAttribute(source(), "mapping", new KeywordEsField("mapping"))
+        );
     }
 
     @Override
@@ -68,16 +70,14 @@ public class ShowColumns extends Command {
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
-        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, emptyMap(), ActionListener.wrap(
-                indexResult -> {
-                    List<List<?>> rows = emptyList();
-                    if (indexResult.isValid()) {
-                        rows = new ArrayList<>();
-                        fillInRows(indexResult.get().mapping(), null, rows);
-                    }
-                    listener.onResponse(of(session, rows));
-                },
-                listener::onFailure));
+        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, emptyMap(), ActionListener.wrap(indexResult -> {
+            List<List<?>> rows = emptyList();
+            if (indexResult.isValid()) {
+                rows = new ArrayList<>();
+                fillInRows(indexResult.get().mapping(), null, rows);
+            }
+            listener.onResponse(of(session, rows));
+        }, listener::onFailure));
     }
 
     private void fillInRows(Map<String, EsField> mapping, String prefix, List<List<?>> rows) {
@@ -112,8 +112,6 @@ public class ShowColumns extends Command {
         }
 
         ShowColumns other = (ShowColumns) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern)
-                && includeFrozen == other.includeFrozen;
+        return Objects.equals(index, other.index) && Objects.equals(pattern, other.pattern) && includeFrozen == other.includeFrozen;
     }
 }

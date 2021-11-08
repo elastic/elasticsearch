@@ -10,11 +10,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
@@ -38,8 +38,17 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(randomAlphaOfLength(10), emptyList(), randomFilterOrNull(random()),
-                randomRuntimeMappings(),randomZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
+        return new SqlTranslateRequest(
+            randomAlphaOfLength(10),
+            emptyList(),
+            randomFilterOrNull(random()),
+            randomRuntimeMappings(),
+            randomZone(),
+            between(1, Integer.MAX_VALUE),
+            randomTV(),
+            randomTV(),
+            new RequestInfo(testMode)
+        );
     }
 
     @Override
@@ -72,17 +81,29 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     protected SqlTranslateRequest mutateInstance(SqlTranslateRequest instance) throws IOException {
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
-                request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
-                request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
-                request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
-                request -> request.filter(randomValueOtherThan(request.filter(),
-                        () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
-                request -> request.runtimeMappings(randomValueOtherThan(request.runtimeMappings(), () -> randomRuntimeMappings()))
+            request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
+            request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+            request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
+            request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
+            request -> request.filter(
+                randomValueOtherThan(
+                    request.filter(),
+                    () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())
+                )
+            ),
+            request -> request.runtimeMappings(randomValueOtherThan(request.runtimeMappings(), () -> randomRuntimeMappings()))
         );
-        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.query(), instance.params(), instance.filter(),
-                instance.runtimeMappings(), instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(),
-                instance.requestInfo());
+        SqlTranslateRequest newRequest = new SqlTranslateRequest(
+            instance.query(),
+            instance.params(),
+            instance.filter(),
+            instance.runtimeMappings(),
+            instance.zoneId(),
+            instance.fetchSize(),
+            instance.requestTimeout(),
+            instance.pageTimeout(),
+            instance.requestInfo()
+        );
         mutator.accept(newRequest);
         return newRequest;
     }

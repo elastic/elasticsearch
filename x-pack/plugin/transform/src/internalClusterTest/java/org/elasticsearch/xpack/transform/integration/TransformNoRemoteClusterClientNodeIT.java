@@ -41,15 +41,17 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         String transformId = "transform-with-remote-index";
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
         PreviewTransformAction.Request request = new PreviewTransformAction.Request(config);
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet()
+        );
         assertThat(
             e.getMessage(),
             allOf(
                 containsString("No appropriate node to run on"),
-                containsString("transform requires a remote connection but remote is disabled")));
+                containsString("transform requires a remote connection but remote is disabled")
+            )
+        );
     }
 
     public void testPutTransformWithRemoteIndex_DeferValidation() {
@@ -63,15 +65,17 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         String transformId = "transform-with-remote-index";
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
         PutTransformAction.Request request = new PutTransformAction.Request(config, false);
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> client().execute(PutTransformAction.INSTANCE, request).actionGet());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(PutTransformAction.INSTANCE, request).actionGet()
+        );
         assertThat(
             e.getMessage(),
             allOf(
                 containsString("No appropriate node to run on"),
-                containsString("transform requires a remote connection but remote is disabled")));
+                containsString("transform requires a remote connection but remote is disabled")
+            )
+        );
     }
 
     public void testUpdateTransformWithRemoteIndex_DeferValidation() {
@@ -83,8 +87,15 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             assertThat(response.isAcknowledged(), is(true));
         }
 
-        TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
+        TransformConfigUpdate update = new TransformConfigUpdate(
+            new SourceConfig("remote_cluster:my-index"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, true);
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
     }
@@ -98,23 +109,31 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             assertThat(response.isAcknowledged(), is(true));
         }
 
-        TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
+        TransformConfigUpdate update = new TransformConfigUpdate(
+            new SourceConfig("remote_cluster:my-index"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, false);
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet()
+        );
         assertThat(
             e.getMessage(),
             allOf(
                 containsString("No appropriate node to run on"),
-                containsString("transform requires a remote connection but remote is disabled")));
+                containsString("transform requires a remote connection but remote is disabled")
+            )
+        );
     }
 
     private static TransformConfig randomConfig(String transformId, String sourceIndex) {
-        return new TransformConfig.Builder()
-            .setId(transformId)
+        return new TransformConfig.Builder().setId(transformId)
             .setSource(new SourceConfig(sourceIndex))
             .setDest(new DestConfig("my-dest-index", null))
             .setPivotConfig(PivotConfigTests.randomPivotConfig())

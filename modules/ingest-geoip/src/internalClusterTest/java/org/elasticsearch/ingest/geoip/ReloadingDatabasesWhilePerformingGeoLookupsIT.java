@@ -62,17 +62,19 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, clusterService);
-        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
-        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
+        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         databaseRegistry.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         databaseRegistry.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(databaseRegistry);
 
         final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
-        final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(null, "_tag", null,
-            new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb")));
+        final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(
+            null,
+            "_tag",
+            null,
+            new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb"))
+        );
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         final int numberOfDatabaseUpdates = randomIntBetween(2, 4);
@@ -85,12 +87,24 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             ingestThreads[id] = new Thread(() -> {
                 while (completed.get() == false) {
                     try {
-                        IngestDocument document1 =
-                            new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, Map.of("_field", "89.160.20.128"));
+                        IngestDocument document1 = new IngestDocument(
+                            "index",
+                            "id",
+                            "routing",
+                            1L,
+                            VersionType.EXTERNAL,
+                            Map.of("_field", "89.160.20.128")
+                        );
                         processor1.execute(document1);
                         assertThat(document1.getSourceAndMetadata().get("geoip"), notNullValue());
-                        IngestDocument document2 =
-                            new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, Map.of("_field", "89.160.20.128"));
+                        IngestDocument document2 = new IngestDocument(
+                            "index",
+                            "id",
+                            "routing",
+                            1L,
+                            VersionType.EXTERNAL,
+                            Map.of("_field", "89.160.20.128")
+                        );
                         processor2.execute(document2);
                         assertThat(document2.getSourceAndMetadata().get("geoip"), notNullValue());
                         numberOfIngestRuns.incrementAndGet();
@@ -118,13 +132,17 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             assertThat(previous1.current(), equalTo(-1));
                         });
                     } else {
-                        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-                            geoIpTmpDir.resolve("GeoLite2-City.mmdb"), StandardCopyOption.REPLACE_EXISTING);
+                        Files.copy(
+                            LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
+                            geoIpTmpDir.resolve("GeoLite2-City.mmdb"),
+                            StandardCopyOption.REPLACE_EXISTING
+                        );
                         databaseRegistry.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
                     }
                     DatabaseReaderLazyLoader previous2 = databaseRegistry.get("GeoLite2-City-Test.mmdb");
-                    InputStream source = LocalDatabases.class.getResourceAsStream(i % 2 == 0 ? "/GeoIP2-City-Test.mmdb" :
-                        "/GeoLite2-City-Test.mmdb");
+                    InputStream source = LocalDatabases.class.getResourceAsStream(
+                        i % 2 == 0 ? "/GeoIP2-City-Test.mmdb" : "/GeoLite2-City-Test.mmdb"
+                    );
                     Files.copy(source, geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"), StandardCopyOption.REPLACE_EXISTING);
                     databaseRegistry.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
 
@@ -170,8 +188,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(0);
         LocalDatabases localDatabases = new LocalDatabases(geoIpConfigDir, cache);
         copyDatabaseFiles(geoIpConfigDir, localDatabases);
-        DatabaseRegistry databaseRegistry =
-            new DatabaseRegistry(geoIpTmpDir, mock(Client.class), cache, localDatabases, Runnable::run);
+        DatabaseRegistry databaseRegistry = new DatabaseRegistry(geoIpTmpDir, mock(Client.class), cache, localDatabases, Runnable::run);
         databaseRegistry.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
         return databaseRegistry;
     }

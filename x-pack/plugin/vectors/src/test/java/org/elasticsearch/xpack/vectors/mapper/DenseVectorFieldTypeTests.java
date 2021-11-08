@@ -42,9 +42,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFielddataBuilder() {
         DenseVectorFieldMapper.DenseVectorFieldType ft = createFieldType();
-        assertNotNull(ft.fielddataBuilder("index", () -> {
-            throw new UnsupportedOperationException();
-        }));
+        assertNotNull(ft.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); }));
     }
 
     public void testDocValueFormat() {

@@ -6,20 +6,21 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;

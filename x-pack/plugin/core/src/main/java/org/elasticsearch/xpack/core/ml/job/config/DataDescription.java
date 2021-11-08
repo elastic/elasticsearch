@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -109,8 +109,11 @@ public class DataDescription implements ToXContentObject, Writeable {
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, Void> parser =
-            new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), ignoreUnknownFields, Builder::new);
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(
+            DATA_DESCRIPTION_FIELD.getPreferredName(),
+            ignoreUnknownFields,
+            Builder::new
+        );
 
         if (ignoreUnknownFields == false) {
             // The strict parser needs to tolerate this field as it's documented, but there's only one value so we don't need to store it
@@ -254,7 +257,9 @@ public class DataDescription implements ToXContentObject, Writeable {
                         DateTimeFormatterTimestampConverter.ofPattern(format, ZoneOffset.UTC);
                     } catch (IllegalArgumentException e) {
                         throw ExceptionsHelper.badRequestException(
-                                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format), e.getCause());
+                            Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format),
+                            e.getCause()
+                        );
                     }
             }
             timeFormat = format;

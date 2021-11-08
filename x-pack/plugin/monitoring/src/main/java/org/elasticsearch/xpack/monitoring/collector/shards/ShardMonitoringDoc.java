@@ -27,12 +27,14 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
     private final ShardRouting shardRouting;
     private final String clusterStateUUID;
 
-    ShardMonitoringDoc(final String cluster,
-                       final long timestamp,
-                       final long interval,
-                       final MonitoringDoc.Node node,
-                       final ShardRouting shardRouting,
-                       final String clusterStateUUID) {
+    ShardMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long interval,
+        final MonitoringDoc.Node node,
+        final ShardRouting shardRouting,
+        final String clusterStateUUID
+    ) {
 
         super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting), XCONTENT_FILTERS);
         this.shardRouting = Objects.requireNonNull(shardRouting);
@@ -84,12 +86,13 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         return builder.toString();
     }
 
-    public static final Set<String> XCONTENT_FILTERS =
-        Sets.newHashSet("state_uuid",
-                        "shard.state",
-                        "shard.primary",
-                        "shard.node",
-                        "shard.relocating_node",
-                        "shard.shard",
-                        "shard.index");
+    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+        "state_uuid",
+        "shard.state",
+        "shard.primary",
+        "shard.node",
+        "shard.relocating_node",
+        "shard.shard",
+        "shard.index"
+    );
 }

@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 class IndicesAndAliasesResolver {
 
-    //`*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
+    // `*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
     static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
     static final List<String> NO_INDICES_OR_ALIASES_LIST = Arrays.asList(NO_INDICES_OR_ALIASES_ARRAY);
 
@@ -171,10 +171,10 @@ class IndicesAndAliasesResolver {
             );
         }
 
-        //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
+        // NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
         // replacing their indices.
-        //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
-        //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
+        // That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
+        // corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
         // shard level requests.
         final List<String> localIndices = new ArrayList<>(indices.length);
         for (String name : indices) {
@@ -183,8 +183,12 @@ class IndicesAndAliasesResolver {
         return new ResolvedIndices(localIndices, List.of());
     }
 
-    ResolvedIndices resolveIndicesAndAliases(String action, IndicesRequest indicesRequest, Metadata metadata,
-                                             Set<String> authorizedIndices) {
+    ResolvedIndices resolveIndicesAndAliases(
+        String action,
+        IndicesRequest indicesRequest,
+        Metadata metadata,
+        Set<String> authorizedIndices
+    ) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
@@ -194,7 +198,7 @@ class IndicesAndAliasesResolver {
              * the list of indices in there, if we do so it will result in an invalid request and the update will fail.
              */
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
-                    : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
+                : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metadata));
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
             final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
@@ -205,8 +209,14 @@ class IndicesAndAliasesResolver {
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
-                        if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata, nameExpressionResolver,
-                            indicesRequest.includeDataStreams())) {
+                        if (IndexAbstractionResolver.isIndexVisible(
+                            "*",
+                            authorizedIndex,
+                            indicesOptions,
+                            metadata,
+                            nameExpressionResolver,
+                            indicesRequest.includeDataStreams()
+                        )) {
                             resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }
                     }
@@ -220,11 +230,17 @@ class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
-                        authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
+                List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
+                    split.getLocal(),
+                    indicesOptions,
+                    metadata,
+                    authorizedIndices,
+                    replaceWildcards,
+                    indicesRequest.includeDataStreams()
+                );
                 if (indicesOptions.ignoreUnavailable()) {
-                    //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
-                    //remove all the ones that the current user is not authorized for and ignore them
+                    // out of all the explicit names (expanded from wildcards and original ones that were left untouched)
+                    // remove all the ones that the current user is not authorized for and ignore them
                     replaced = replaced.stream().filter(authorizedIndices::contains).collect(Collectors.toList());
                 }
                 resolvedIndicesBuilder.addLocal(replaced);
@@ -233,9 +249,9 @@ class IndicesAndAliasesResolver {
 
             if (resolvedIndicesBuilder.isEmpty()) {
                 if (indicesOptions.allowNoIndices()) {
-                    //this is how we tell es core to return an empty response, we can let the request through being sure
-                    //that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
-                    //as that would be resolved to _all by es core.
+                    // this is how we tell es core to return an empty response, we can let the request through being sure
+                    // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
+                    // as that would be resolved to _all by es core.
                     replaceable.indices(NO_INDICES_OR_ALIASES_ARRAY);
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
@@ -255,22 +271,30 @@ class IndicesAndAliasesResolver {
         }
 
         if (indicesRequest instanceof AliasesRequest) {
-            //special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.
-            //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
+            // special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.
+            // AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
             AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
             if (aliasesRequest.expandAliasesWildcards()) {
-                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
-                        loadAuthorizedAliases(authorizedIndices, metadata));
+                List<String> aliases = replaceWildcardsWithAuthorizedAliases(
+                    aliasesRequest.aliases(),
+                    loadAuthorizedAliases(authorizedIndices, metadata)
+                );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
                 if (indicesRequest instanceof GetAliasesRequest == false) {
-                    throw new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only known " +
-                            "request implementing " + AliasesRequest.class.getSimpleName() + " that may allow no indices. Found [" +
-                            indicesRequest.getClass().getName() + "] which ended up with an empty set of indices.");
+                    throw new IllegalStateException(
+                        GetAliasesRequest.class.getSimpleName()
+                            + " is the only known "
+                            + "request implementing "
+                            + AliasesRequest.class.getSimpleName()
+                            + " that may allow no indices. Found ["
+                            + indicesRequest.getClass().getName()
+                            + "] which ended up with an empty set of indices."
+                    );
                 }
-                //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
-                //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
+                // if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
+                // not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
             } else {
                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
             }
@@ -304,8 +328,13 @@ class IndicesAndAliasesResolver {
         if (indexAbstraction == null) {
             resolvedAliasOrIndex = concreteIndexName;
         } else if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
-            throw new IllegalStateException("concrete index [" + concreteIndexName + "] is a [" +
-                indexAbstraction.getType().getDisplayName() + "], but a concrete index is expected");
+            throw new IllegalStateException(
+                "concrete index ["
+                    + concreteIndexName
+                    + "] is a ["
+                    + indexAbstraction.getType().getDisplayName()
+                    + "], but a concrete index is expected"
+            );
         } else if (authorizedIndicesList.contains(concreteIndexName)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;
@@ -414,9 +443,10 @@ class IndicesAndAliasesResolver {
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
             final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
-            final List<String> remote = map.entrySet().stream()
-                    .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
-                    .collect(Collectors.toList());
+            final List<String> remote = map.entrySet()
+                .stream()
+                .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
+                .collect(Collectors.toList());
             return new ResolvedIndices(local == null ? Collections.emptyList() : local, remote);
         }
     }

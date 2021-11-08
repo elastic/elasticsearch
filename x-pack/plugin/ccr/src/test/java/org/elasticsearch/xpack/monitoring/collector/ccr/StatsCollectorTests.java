@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
@@ -165,10 +165,12 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         return statuses;
     }
 
-    private StatsCollector createCollector(Settings settings,
-                                           ClusterService clusterService,
-                                           XPackLicenseState licenseState,
-                                           Client client) {
+    private StatsCollector createCollector(
+        Settings settings,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        Client client
+    ) {
         return new StatsCollector(settings, clusterService, licenseState, client);
     }
 

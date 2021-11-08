@@ -6,31 +6,27 @@
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -53,6 +49,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
@@ -98,9 +99,14 @@ public class CommandLineHttpClient {
      *            handler of the response Input Stream.
      * @return HTTP protocol response code.
      */
-    public HttpResponse execute(String method, URL url, String user, SecureString password,
-                                CheckedSupplier<String, Exception> requestBodySupplier,
-                                CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
+    public HttpResponse execute(
+        String method,
+        URL url,
+        String user,
+        SecureString password,
+        CheckedSupplier<String, Exception> requestBodySupplier,
+        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler
+    ) throws Exception {
 
         final String authorizationHeader = UsernamePasswordToken.basicAuthHeaderValue(user, password);
         return execute(method, url, authorizationHeader, requestBodySupplier, responseHandler);
@@ -118,17 +124,25 @@ public class CommandLineHttpClient {
      *            handler of the response Input Stream.
      * @return HTTP protocol response code.
      */
-    public HttpResponse execute(String method, URL url, SecureString apiKey,
+    public HttpResponse execute(
+        String method,
+        URL url,
+        SecureString apiKey,
         CheckedSupplier<String, Exception> requestBodySupplier,
-        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
+        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler
+    ) throws Exception {
         final String authorizationHeaderValue = apiKeyHeaderValue(apiKey);
         return execute(method, url, authorizationHeaderValue, requestBodySupplier, responseHandler);
     }
 
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
-    private HttpResponse execute(String method, URL url, String authorizationHeader,
+    private HttpResponse execute(
+        String method,
+        URL url,
+        String authorizationHeader,
         CheckedSupplier<String, Exception> requestBodySupplier,
-        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
+        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler
+    ) throws Exception {
         final HttpURLConnection conn;
         // If using SSL, need a custom service because it's likely a self-signed certificate
         if ("https".equalsIgnoreCase(url.getProtocol())) {
@@ -214,8 +228,10 @@ public class CommandLineHttpClient {
             }
             return scheme + "://" + InetAddresses.toUriString(publishAddress) + ":" + port;
         } catch (Exception e) {
-            throw new IllegalStateException("unable to determine default URL from settings, please use the -u option to explicitly " +
-                "provide the url", e);
+            throw new IllegalStateException(
+                "unable to determine default URL from settings, please use the -u option to explicitly " + "provide the url",
+                e
+            );
         }
     }
 
@@ -249,8 +265,7 @@ public class CommandLineHttpClient {
      * If cluster is not up yet (connection refused or master is unavailable), we will retry @retries number of times
      * If status is 'Red', we will wait for 'Yellow' for 30s (default timeout)
      */
-    public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries)
-        throws Exception {
+    public void checkClusterHealthWithRetriesWaitingForCluster(String username, SecureString password, int retries) throws Exception {
         final URL clusterHealthUrl = createURL(new URL(getDefaultURL()), "_cluster/health", "?wait_for_status=yellow&pretty");
         HttpResponse response;
         try {
@@ -274,12 +289,14 @@ public class CommandLineHttpClient {
                     checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                     return;
                 } else {
-                    throw new IllegalStateException("Failed to determine the health of the cluster. Unexpected http status ["
-                        + responseStatus + "]");
+                    throw new IllegalStateException(
+                        "Failed to determine the health of the cluster. Unexpected http status [" + responseStatus + "]"
+                    );
                 }
             }
-            throw new IllegalStateException("Failed to determine the health of the cluster. Unexpected http status ["
-                + responseStatus + "]");
+            throw new IllegalStateException(
+                "Failed to determine the health of the cluster. Unexpected http status [" + responseStatus + "]"
+            );
         } else {
             final String clusterStatus = Objects.toString(response.getResponseBody().get("status"), "");
             if (clusterStatus.isEmpty()) {
@@ -287,8 +304,7 @@ public class CommandLineHttpClient {
                     "Failed to determine the health of the cluster. Cluster health API did not return a status value."
                 );
             } else if ("red".equalsIgnoreCase(clusterStatus)) {
-                throw new IllegalStateException(
-                    "Failed to determine the health of the cluster. Cluster health is currently RED.");
+                throw new IllegalStateException("Failed to determine the health of the cluster. Cluster health is currently RED.");
             }
             // else it is yellow or green so we can continue
         }
@@ -312,7 +328,7 @@ public class CommandLineHttpClient {
             chars.put(apiKey.getChars());
             charBytes = CharArrays.toUtf8Bytes(chars.array());
 
-            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
+            // TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
             String apiKeyToken = Base64.getEncoder().encodeToString(charBytes);
             return "ApiKey " + apiKeyToken;
         } finally {
@@ -329,19 +345,19 @@ public class CommandLineHttpClient {
      */
     private TrustManager fingerprintTrustingTrustManager(String pinnedCaCertFingerprint) {
         final TrustManager trustManager = new X509TrustManager() {
-            public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-            }
+            public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
 
             public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
                 final Certificate caCertFromChain = chain[1];
                 MessageDigest sha256 = MessageDigests.sha256();
                 sha256.update(caCertFromChain.getEncoded());
-                if (MessageDigests.toHexString(sha256.digest()).equals(pinnedCaCertFingerprint) == false ) {
+                if (MessageDigests.toHexString(sha256.digest()).equals(pinnedCaCertFingerprint) == false) {
                     throw new CertificateException();
                 }
             }
 
-            @Override public X509Certificate[] getAcceptedIssuers() {
+            @Override
+            public X509Certificate[] getAcceptedIssuers() {
                 return new X509Certificate[0];
             }
         };

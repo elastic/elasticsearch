@@ -31,41 +31,54 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testRemovedSettingNotSet() {
         final Settings settings = Settings.EMPTY;
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
-        final DeprecationIssue issue =
-            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "http://removed-setting.example.com");
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            settings,
+            removedSetting,
+            "http://removed-setting.example.com"
+        );
         assertThat(issue, nullValue());
     }
 
     public void testRemovedSetting() {
         final Settings settings = Settings.builder().put("node.removed_setting", "value").build();
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
-        final DeprecationIssue issue =
-            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "https://removed-setting.example.com");
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            settings,
+            removedSetting,
+            "https://removed-setting.example.com"
+        );
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
             issue.getMessage(),
-            equalTo("setting [node.removed_setting] is deprecated and will be removed in the next major version"));
-        assertThat(
-            issue.getDetails(),
-            equalTo("the setting [node.removed_setting] is currently set to [value], remove this setting"));
+            equalTo("setting [node.removed_setting] is deprecated and will be removed in the next major version")
+        );
+        assertThat(issue.getDetails(), equalTo("the setting [node.removed_setting] is currently set to [value], remove this setting"));
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
 
     public void testSharedDataPathSetting() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir())
+            .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
-        assertThat(issues, contains(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "setting [path.shared_data] is deprecated and will be removed in a future version",
-                expectedUrl,
-                "Found shared data path configured. Discontinue use of this setting.",
-                false, null)));
+        assertThat(
+            issues,
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "setting [path.shared_data] is deprecated and will be removed in a future version",
+                    expectedUrl,
+                    "Found shared data path configured. Discontinue use of this setting.",
+                    false,
+                    null
+                )
+            )
+        );
     }
 
     public void testCheckReservedPrefixedRealmNames() {
@@ -110,32 +123,40 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals("Realm that start with [_] will not be permitted in a future major release.", deprecationIssue.getMessage());
         assertEquals(
             "https://www.elastic.co/guide/en/elasticsearch/reference" + "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
-            deprecationIssue.getUrl());
+            deprecationIssue.getUrl()
+        );
         assertEquals(
-            "Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
+            "Found realm "
+                + (invalidRealmNames.size() == 1 ? "name" : "names")
                 + " with reserved prefix [_]: ["
                 + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ")
-                + "]. " + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
-            deprecationIssue.getDetails());
+                + "]. "
+                + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+            deprecationIssue.getDetails()
+        );
     }
 
     public void testSingleDataNodeWatermarkSetting() {
-        Settings settings = Settings.builder()
-            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true)
-            .build();
+        Settings settings = Settings.builder().put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true).build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
 
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
-                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        assertThat(issues, hasItem(
-            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and" +
-                    " will not be available in a future version",
-                expectedUrl,
-                "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured." +
-                    " Discontinue use of this setting.",
-                false, null)));
+        final String expectedUrl = "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/"
+            + "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+        assertThat(
+            issues,
+            hasItem(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and"
+                        + " will not be available in a future version",
+                    expectedUrl,
+                    "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured."
+                        + " Discontinue use of this setting.",
+                    false,
+                    null
+                )
+            )
+        );
     }
 }

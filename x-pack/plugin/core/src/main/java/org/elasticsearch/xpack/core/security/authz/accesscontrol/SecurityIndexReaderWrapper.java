@@ -12,9 +12,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -51,9 +51,13 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
     private final SecurityContext securityContext;
     private final ScriptService scriptService;
 
-    public SecurityIndexReaderWrapper(Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
-                                      DocumentSubsetBitsetCache bitsetCache, SecurityContext securityContext,
-                                      XPackLicenseState licenseState, ScriptService scriptService) {
+    public SecurityIndexReaderWrapper(
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
+        DocumentSubsetBitsetCache bitsetCache,
+        SecurityContext securityContext,
+        XPackLicenseState licenseState,
+        ScriptService scriptService
+    ) {
         this.scriptService = scriptService;
         this.searchExecutionContextProvider = searchExecutionContextProvider;
         this.bitsetCache = bitsetCache;

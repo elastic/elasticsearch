@@ -352,8 +352,10 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             .getAllNodes()
             .stream()
             // TODO: Change when we update `mayAllocateToNode`
-            .filter(node -> shuttingDownNodes.contains(node.getId()) == false
-                && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node))
+            .filter(
+                node -> shuttingDownNodes.contains(node.getId()) == false
+                    && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
+            )
             .collect(Collectors.toMap(DiscoveryNode::getId, Function.identity()));
         // TODO: make more efficient, we iterate every entry, sorting by nodes routed (fewest to most)
         previousState.modelAllocations()
@@ -367,9 +369,9 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 for (DiscoveryNode node : currentEligibleNodes.values()) {
                     if (modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
                         Optional<String> failure = builder.isChanged() ?
-                            // We use the builder only if we have changed, there is no point in creating a new object if we haven't changed
-                            nodeHasCapacity(currentState, builder, modelAllocationEntry.getValue().getTaskParams(), node) :
-                            nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
+                        // We use the builder only if we have changed, there is no point in creating a new object if we haven't changed
+                        nodeHasCapacity(currentState, builder, modelAllocationEntry.getValue().getTaskParams(), node)
+                            : nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
                         if (failure.isPresent()) {
                             nodeToReason.put(node.getName(), failure.get());
                         } else {

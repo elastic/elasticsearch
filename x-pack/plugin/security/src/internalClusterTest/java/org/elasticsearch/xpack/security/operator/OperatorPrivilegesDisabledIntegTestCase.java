@@ -9,5 +9,4 @@ package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 
-public class OperatorPrivilegesDisabledIntegTestCase extends AbstractSnapshotIntegTestCase {
-}
+public class OperatorPrivilegesDisabledIntegTestCase extends AbstractSnapshotIntegTestCase {}

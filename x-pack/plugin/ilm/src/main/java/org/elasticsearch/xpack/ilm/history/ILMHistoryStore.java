@@ -124,7 +124,7 @@ public class ILMHistoryStore implements Closeable {
             }
         }, "ilm-history-store")
             .setBulkActions(100)
-            .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB))
+            .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB)) // note: each ILMHistoryItem is approximately 512 bytes
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))

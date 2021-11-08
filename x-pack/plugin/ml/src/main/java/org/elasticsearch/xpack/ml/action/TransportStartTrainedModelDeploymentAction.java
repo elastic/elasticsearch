@@ -75,7 +75,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider.MAX_NUM_DEFINITION_DOCS;
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.MAX_NUM_NATIVE_DEFINITION_PARTS;
 
 public class TransportStartTrainedModelDeploymentAction extends TransportMasterNodeAction<
     StartTrainedModelDeploymentAction.Request,
@@ -185,8 +185,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 listener.onFailure(ExceptionsHelper.serverError("model [{}] does not have location", trainedModelConfig.getModelId()));
                 return;
             }
-            validateModelDefinition(trainedModelConfig, ActionListener.wrap(validate -> {
-                getModelBytes(trainedModelConfig, ActionListener.wrap(modelBytes -> {
+            validateModelDefinition(
+                trainedModelConfig,
+                ActionListener.wrap(validate -> getModelBytes(trainedModelConfig, ActionListener.wrap(modelBytes -> {
                     TaskParams taskParams = new TaskParams(
                         trainedModelConfig.getModelId(),
                         modelBytes,
@@ -204,8 +205,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                             listener::onFailure
                         )
                     );
-                }, listener::onFailure));
-            }, listener::onFailure));
+                }, listener::onFailure)), listener::onFailure)
+            );
 
         }, listener::onFailure);
 
@@ -290,8 +291,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         final String modelId = config.getModelId();
         final String[] requiredSourceFields = new String[] {
             TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName(),
+            TrainedModelDefinitionDoc.DOC_NUM.getPreferredName(),
             TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName(),
             TrainedModelDefinitionDoc.EOS.getPreferredName() };
+        final Set<String> requiredSet = Set.of(requiredSourceFields);
         String index = ((IndexLocation) config.getLocation()).getIndexName();
         client.prepareSearch(index)
             .setQuery(
@@ -304,7 +307,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 )
             )
             .setFetchSource(requiredSourceFields, new String[0])
-            .setSize(MAX_NUM_DEFINITION_DOCS)
+            .setSize(MAX_NUM_NATIVE_DEFINITION_PARTS)
             .setTrackTotalHits(true)
             .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long"))
             .execute(ActionListener.wrap(response -> {
@@ -319,19 +322,21 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     if (fields == null) {
                         listener.onFailure(
                             ExceptionsHelper.badRequestException(
-                                "[{}] model definition is missing required fields {}, unable to be deployed",
+                                "[{}] model definition [{}] is missing required fields {}, unable to be deployed",
                                 modelId,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
                                 List.of(requiredSourceFields)
                             )
                         );
                         return;
                     }
-                    Set<String> diff = Sets.difference(fields.keySet(), Set.of(requiredSourceFields));
+                    Set<String> diff = Sets.difference(fields.keySet(), requiredSet);
                     if (diff.isEmpty() == false) {
                         listener.onFailure(
                             ExceptionsHelper.badRequestException(
-                                "[{}] model definition is missing required fields {}, unable to be deployed",
+                                "[{}] model definition [{}] is missing required fields {}, unable to be deployed",
                                 modelId,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
                                 diff
                             )
                         );

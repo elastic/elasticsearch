@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -265,7 +266,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         ).actionGet();
         client().execute(
             PutTrainedModelDefinitionPartAction.INSTANCE,
-            new PutTrainedModelDefinitionPartAction.Request(modelId, BASE_64_ENCODED_MODEL, 0, memoryUse, 1)
+            new PutTrainedModelDefinitionPartAction.Request(modelId, new BytesArray(BASE_64_ENCODED_MODEL), 0, memoryUse, 1)
         ).actionGet();
         client().execute(
             PutTrainedModelVocabularyAction.INSTANCE,

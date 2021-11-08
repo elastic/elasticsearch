@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -20,11 +22,13 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutTrainedModelDefinitionPartAction extends ActionType<AcknowledgedResponse> {
+    public static final int MAX_NUM_NATIVE_DEFINITION_PARTS = 10_000;
 
     public static final PutTrainedModelDefinitionPartAction INSTANCE = new PutTrainedModelDefinitionPartAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/part/put";
@@ -45,7 +49,12 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             Request.Builder::new
         );
         static {
-            PARSER.declareString(Builder::setDefinition, DEFINITION);
+            PARSER.declareField(
+                Builder::setDefinition,
+                p -> p.text().getBytes(StandardCharsets.UTF_8),
+                DEFINITION,
+                ObjectParser.ValueType.STRING
+            );
             PARSER.declareLong(Builder::setTotalDefinitionLength, TOTAL_DEFINITION_LENGTH);
             PARSER.declareInt(Builder::setTotalParts, TOTAL_PARTS);
         }
@@ -55,12 +64,12 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         }
 
         private final String modelId;
-        private final String definition;
+        private final BytesReference definition;
         private final int part;
         private final long totalDefinitionLength;
         private final int totalParts;
 
-        public Request(String modelId, String definition, int part, long totalDefinitionLength, int totalParts) {
+        public Request(String modelId, BytesReference definition, int part, long totalDefinitionLength, int totalParts) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.definition = ExceptionsHelper.requireNonNull(definition, DEFINITION);
             this.part = part;
@@ -71,7 +80,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
-            this.definition = in.readString();
+            this.definition = in.readBytesReference();
             this.part = in.readVInt();
             this.totalDefinitionLength = in.readVLong();
             this.totalParts = in.readVInt();
@@ -85,6 +94,12 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             }
             if (totalParts <= 0) {
                 validationException = addValidationError("[total_parts] must be greater than 0", validationException);
+            }
+            if (totalParts > MAX_NUM_NATIVE_DEFINITION_PARTS) {
+                validationException = addValidationError(
+                    "[total_parts] must be less than or equal to " + MAX_NUM_NATIVE_DEFINITION_PARTS,
+                    validationException
+                );
             }
             if (totalDefinitionLength <= 0) {
                 validationException = addValidationError("[total_definition_length] must be greater than 0", validationException);
@@ -116,7 +131,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
-            out.writeString(definition);
+            out.writeBytesReference(definition);
             out.writeVInt(part);
             out.writeVLong(totalDefinitionLength);
             out.writeVInt(totalParts);
@@ -126,7 +141,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             return modelId;
         }
 
-        public String getDefinition() {
+        public BytesReference getDefinition() {
             return definition;
         }
 
@@ -143,12 +158,12 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         }
 
         public static class Builder {
-            private String definition;
+            private BytesReference definition;
             private long totalDefinitionLength;
             private int totalParts;
 
-            public Builder setDefinition(String definition) {
-                this.definition = definition;
+            public Builder setDefinition(byte[] definition) {
+                this.definition = new BytesArray(definition);
                 return this;
             }
 

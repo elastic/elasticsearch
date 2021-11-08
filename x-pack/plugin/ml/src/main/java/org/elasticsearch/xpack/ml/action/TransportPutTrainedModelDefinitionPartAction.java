@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import com.unboundid.util.Base64;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -22,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -40,6 +37,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+
+import java.util.Base64;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -99,10 +98,10 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
                     .setDocNum(request.getPart())
                     .setEos(isEos)
                     // We need definition length, not base64 encoded, that is what the total definition length is
-                    .setDefinitionLength(new BytesArray(Base64.decode(request.getDefinition())).length())
+                    .setDefinitionLength(Base64.getDecoder().decode(request.getDefinition().array()).length)
                     .setTotalDefinitionLength(request.getTotalDefinitionLength())
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                    .setBinaryData(new BytesArray(request.getDefinition()))
+                    .setBinaryData(request.getDefinition())
                     .build(),
                 indexName,
                 ActionListener.wrap(stored -> {

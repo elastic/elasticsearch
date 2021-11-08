@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
@@ -84,7 +85,7 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
         assertThat(((IndexLocation) config.getLocation()).getIndexName(), equalTo(InferenceIndexConstants.nativeDefinitionStore()));
         client().execute(
             PutTrainedModelDefinitionPartAction.INSTANCE,
-            new PutTrainedModelDefinitionPartAction.Request(modelId, BASE_64_ENCODED_MODEL, 0, RAW_MODEL_SIZE, 1)
+            new PutTrainedModelDefinitionPartAction.Request(modelId, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
         ).actionGet();
 
         assertThat(

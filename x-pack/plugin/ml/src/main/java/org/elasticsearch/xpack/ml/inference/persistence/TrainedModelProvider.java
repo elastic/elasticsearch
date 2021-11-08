@@ -115,7 +115,7 @@ public class TrainedModelProvider {
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
     private static final int COMPRESSED_MODEL_CHUNK_SIZE = 16 * 1024 * 1024;
-    public static final int MAX_NUM_DEFINITION_DOCS = 100;
+    private static final int MAX_NUM_DEFINITION_DOCS = 100;
     private static final int MAX_COMPRESSED_MODEL_SIZE = COMPRESSED_MODEL_CHUNK_SIZE * MAX_NUM_DEFINITION_DOCS;
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);

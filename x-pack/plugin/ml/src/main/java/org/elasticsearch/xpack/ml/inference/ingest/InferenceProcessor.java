@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -54,7 +55,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -328,7 +328,7 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, String> fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAP);
             if (fieldMap == null) {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
-                // TODO Remove in 8.x
+                // TODO Remove in 9?.x
                 if (fieldMap != null) {
                     LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
@@ -382,33 +382,53 @@ public class InferenceProcessor extends AbstractProcessor {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 return ClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(FillMaskConfig.NAME)) {
-                checkSupportedVersion(new FillMaskConfig(null, null, null, null));
+                checkNlpSupported(FillMaskConfig.NAME);
                 return FillMaskConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(NerConfig.NAME)) {
-                checkSupportedVersion(new NerConfig(null, null, null, null));
+                checkNlpSupported(NerConfig.NAME);
                 return NerConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(PassThroughConfig.NAME)) {
-                checkSupportedVersion(new PassThroughConfig(null, null, null));
+                checkNlpSupported(PassThroughConfig.NAME);
                 return PassThroughConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
-                checkSupportedVersion(new TextClassificationConfig(null, null, List.of("meeting", "requirements"), null, null));
+                checkNlpSupported(TextClassificationConfig.NAME);
                 return TextClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
-                checkSupportedVersion(new TextEmbeddingConfig(null, null, null));
+                checkNlpSupported(TextEmbeddingConfig.NAME);
                 return TextEmbeddingConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
-                checkSupportedVersion(new ZeroShotClassificationConfig(List.of("unused"), null, null, null, null, null, null));
+                checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
-            }
-            // TODO missing update types
-            else {
+            } else {
                 throw ExceptionsHelper.badRequestException(
                     "unrecognized inference configuration type {}. Supported types {}",
                     configMap.keySet(),
-                    Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName())
+                    List.of(
+                        ClassificationConfig.NAME.getPreferredName(),
+                        RegressionConfig.NAME.getPreferredName(),
+                        FillMaskConfig.NAME,
+                        NerConfig.NAME,
+                        PassThroughConfig.NAME,
+                        TextClassificationConfig.NAME,
+                        TextEmbeddingConfig.NAME,
+                        ZeroShotClassificationConfig.NAME
+                    )
+                );
+            }
+        }
+
+        void checkNlpSupported(String taskType) {
+            if (NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION.after(minNodeVersion)) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(
+                        Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
+                        taskType,
+                        NlpConfig.MINIMUM_NLP_SUPPORTED_VERSION,
+                        minNodeVersion
+                    )
                 );
             }
         }

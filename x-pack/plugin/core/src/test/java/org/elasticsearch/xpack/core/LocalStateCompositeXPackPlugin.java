@@ -6,12 +6,16 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -691,10 +695,30 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     }
 
+    @Override
+    public void cleanUpFeature(
+        ClusterService clusterService,
+        Client client,
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
+    ) {
+        List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
+
+        GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
+            ActionListener.wrap(
+                listenerResults -> finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName())),
+                finalListener::onFailure
+            ),
+            systemPlugins.size()
+        );
+        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
+    }
+
+    @Override
     public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
         return filterPlugins(ShutdownAwarePlugin.class).stream().allMatch(plugin -> plugin.safeToShutdown(nodeId, shutdownType));
     }
 
+    @Override
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         filterPlugins(ShutdownAwarePlugin.class).forEach(plugin -> plugin.signalShutdown(shutdownNodeIds));
     }

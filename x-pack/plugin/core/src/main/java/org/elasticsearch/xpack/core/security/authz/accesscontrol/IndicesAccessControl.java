@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
  */
 public class IndicesAccessControl {
 
-    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(
         true,
         Collections.singletonMap(
@@ -45,7 +44,7 @@ public class IndicesAccessControl {
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
         this.granted = granted;
-        this.indexPermissions = indexPermissions;
+        this.indexPermissions = Objects.requireNonNull(indexPermissions);
     }
 
     /**
@@ -72,13 +71,27 @@ public class IndicesAccessControl {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    public boolean hasFieldOrDocumentLevelSecurity() {
-        return indexPermissions.values()
-            .stream()
-            .anyMatch(
-                indexAccessControl -> indexAccessControl.fieldPermissions.hasFieldLevelSecurity()
-                    || indexAccessControl.documentPermissions.hasDocumentLevelPermissions()
-            );
+    public DlsFlsUsage getFieldAndDocumentLevelSecurityUsage() {
+        boolean hasFls = false;
+        boolean hasDls = false;
+        for (IndexAccessControl iac : indexPermissions.values()) {
+            if (iac.fieldPermissions.hasFieldLevelSecurity()) {
+                hasFls = true;
+            }
+            if (iac.documentPermissions.hasDocumentLevelPermissions()) {
+                hasDls = true;
+            }
+            if (hasFls && hasDls) {
+                return DlsFlsUsage.BOTH;
+            }
+        }
+        if (hasFls) {
+            return DlsFlsUsage.FLS;
+        } else if (hasDls) {
+            return DlsFlsUsage.DLS;
+        } else {
+            return DlsFlsUsage.NONE;
+        }
     }
 
     public List<String> getIndicesWithFieldOrDocumentLevelSecurity() {
@@ -90,6 +103,44 @@ public class IndicesAccessControl {
             )
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableList());
+    }
+
+    public enum DlsFlsUsage {
+        NONE,
+
+        DLS() {
+            @Override
+            public boolean hasDocumentLevelSecurity() {
+                return true;
+            }
+        },
+
+        FLS() {
+            @Override
+            public boolean hasFieldLevelSecurity() {
+                return true;
+            }
+        },
+
+        BOTH() {
+            @Override
+            public boolean hasFieldLevelSecurity() {
+                return true;
+            }
+
+            @Override
+            public boolean hasDocumentLevelSecurity() {
+                return true;
+            }
+        };
+
+        public boolean hasFieldLevelSecurity() {
+            return false;
+        }
+
+        public boolean hasDocumentLevelSecurity() {
+            return false;
+        }
     }
 
     /**
@@ -207,6 +258,12 @@ public class IndicesAccessControl {
      * @return {@link IndicesAccessControl}
      */
     public IndicesAccessControl limitIndicesAccessControl(IndicesAccessControl limitedByIndicesAccessControl) {
+        if (this instanceof AllowAllIndicesAccessControl) {
+            return limitedByIndicesAccessControl;
+        } else if (limitedByIndicesAccessControl instanceof AllowAllIndicesAccessControl) {
+            return this;
+        }
+
         final boolean granted;
         if (this.granted == limitedByIndicesAccessControl.granted) {
             granted = this.granted;
@@ -230,4 +287,30 @@ public class IndicesAccessControl {
     public String toString() {
         return "IndicesAccessControl{" + "granted=" + granted + ", indexPermissions=" + indexPermissions + '}';
     }
+
+    public static IndicesAccessControl allowAll() {
+        return AllowAllIndicesAccessControl.INSTANCE;
+    }
+
+    private static class AllowAllIndicesAccessControl extends IndicesAccessControl {
+
+        private static final IndicesAccessControl INSTANCE = new AllowAllIndicesAccessControl();
+
+        private final IndexAccessControl allowAllIndexAccessControl = new IndexAccessControl(true, null, null);
+
+        private AllowAllIndicesAccessControl() {
+            super(true, Map.of());
+        }
+
+        @Override
+        public IndexAccessControl getIndexPermissions(String index) {
+            return allowAllIndexAccessControl;
+        }
+
+        @Override
+        public String toString() {
+            return "AllowAllIndicesAccessControl{}";
+        }
+    }
+
 }

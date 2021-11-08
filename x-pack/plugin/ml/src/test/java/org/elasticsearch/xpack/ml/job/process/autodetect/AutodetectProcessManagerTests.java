@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -22,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -72,6 +76,8 @@ import org.mockito.ArgumentCaptor;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
@@ -92,28 +98,29 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.elasticsearch.mock.orig.Mockito.doAnswer;
-import static org.elasticsearch.mock.orig.Mockito.doReturn;
-import static org.elasticsearch.mock.orig.Mockito.doThrow;
-import static org.elasticsearch.mock.orig.Mockito.times;
-import static org.elasticsearch.mock.orig.Mockito.verify;
-import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * Calling the
@@ -145,13 +152,36 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         client = mock(Client.class);
-
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            if (invocationOnMock.getArguments()[0] instanceof ActionType<?>) {
+                ActionType<?> v = (ActionType<?>) invocationOnMock.getArguments()[0];
+                ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
+                ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
+                Type t = parameterizedType.getActualTypeArguments()[0];
+                if (t.getTypeName().contains("AcknowledgedResponse")) {
+                    ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) l;
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                    return null;
+                }
+                if (t.getTypeName().contains("ClusterHealthResponse")) {
+                    ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
+                    listener.onResponse(
+                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO, false)
+                    );
+                    return null;
+                }
+                fail("Mock not configured to handle generic type " + t.getTypeName());
+            }
+            return null;
+        }).when(client).execute(any(), any(), any());
 
         analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
         jobManager = mock(JobManager.class);
@@ -185,24 +215,26 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                 Settings.builder()
                                     .put(SETTING_NUMBER_OF_SHARDS, 1)
                                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(SETTING_INDEX_HIDDEN, true)
                                     .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                     .build()
                             )
-                            .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                            .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
                             .build()
                     )
                     .fPut(
-                        AnnotationIndex.INDEX_NAME,
-                        IndexMetadata.builder(AnnotationIndex.INDEX_NAME)
+                        AnnotationIndex.LATEST_INDEX_NAME,
+                        IndexMetadata.builder(AnnotationIndex.LATEST_INDEX_NAME)
                             .settings(
                                 Settings.builder()
                                     .put(SETTING_NUMBER_OF_SHARDS, 1)
                                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(SETTING_INDEX_HIDDEN, true)
                                     .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                     .build()
                             )
-                            .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).build())
-                            .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).build())
+                            .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
+                            .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true).build())
                             .build()
                     )
                     .build()
@@ -547,7 +579,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // let the communicator throw, simulating a problem with the underlying
         // autodetect, e.g. a crash
-        doThrow(Exception.class).when(autodetectCommunicator).close();
+        doThrow(RuntimeException.class).when(autodetectCommunicator).close();
 
         // create a jobtask
         JobTask jobTask = mock(JobTask.class);

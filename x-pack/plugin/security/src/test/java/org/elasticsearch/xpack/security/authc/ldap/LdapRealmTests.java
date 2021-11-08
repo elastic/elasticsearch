@@ -21,8 +21,7 @@ import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -78,8 +78,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -96,7 +96,7 @@ public class LdapRealmTests extends LdapTestCase {
     private ResourceWatcherService resourceWatcherService;
     private Settings defaultGlobalSettings;
     private SSLService sslService;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
 
     @Before
     public void init() throws Exception {
@@ -104,8 +104,8 @@ public class LdapRealmTests extends LdapTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(defaultGlobalSettings));
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     @After
@@ -127,11 +127,11 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
         assertThat(user.metadata(), notNullValue());
@@ -159,11 +159,11 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat("For roles " + Arrays.toString(user.roles()), user.roles(), arrayContaining("HMS Victory"));
         assertThat(user.metadata(), notNullValue());
@@ -187,7 +187,7 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         assertThat(future.actionGet().getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
@@ -215,7 +215,7 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper, threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
         future = new PlainActionFuture<>();
@@ -251,7 +251,7 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
         future.actionGet();
         future = new PlainActionFuture<>();
@@ -299,9 +299,9 @@ public class LdapRealmTests extends LdapTestCase {
         ldap.initialize(Arrays.asList(ldap, mockLookup), licenseState);
         mockLookup.initialize(Arrays.asList(ldap, mockLookup), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result1 = future.actionGet();
+        final AuthenticationResult<User> result1 = future.actionGet();
         assertThat(result1.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(
             result1.getMessage(),
@@ -312,9 +312,9 @@ public class LdapRealmTests extends LdapTestCase {
         final User fakeUser = new User(VALID_USERNAME, "fake_role");
         mockLookup.registerUser(fakeUser);
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result2 = future.actionGet();
+        final AuthenticationResult<User> result2 = future.actionGet();
         assertThat(result2.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result2.getUser(), sameInstance(fakeUser));
+        assertThat(result2.getValue(), sameInstance(fakeUser));
     }
 
     public void testLdapRealmSelectsLdapSessionFactory() throws Exception {
@@ -432,13 +432,14 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, new DnRoleMapper(config, resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        final AuthenticationResult<User> result = future.actionGet();
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        User user = result.getValue();
         assertThat(user, notNullValue());
-        assertThat(user.roles(), arrayContaining("avenger"));
+        assertThat(user.toString(), user.roles(), arrayContaining("avenger"));
     }
 
     /**
@@ -472,7 +473,8 @@ public class LdapRealmTests extends LdapTestCase {
         final ScriptService scriptService = new ScriptService(
             defaultGlobalSettings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
             defaultGlobalSettings,
@@ -527,11 +529,12 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper, threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
+        final AuthenticationResult<User> result = future.actionGet();
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContainingInAnyOrder("_user_hhornblo", "sales_admin"));
     }
@@ -557,11 +560,12 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
         ldap.initialize(Collections.singleton(ldap), licenseState);
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        final AuthenticationResult<User> result = future.actionGet();
+        assertThat(result, notNullValue());
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), is("authenticate failed"));
         assertThat(result.getException(), notNullValue());
         assertThat(result.getException().getMessage(), containsString("UnknownHostException"));

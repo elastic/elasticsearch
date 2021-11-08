@@ -118,6 +118,17 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
      * {@link #visitChildren} on {@code ctx}.</p>
      */
     @Override
+    public T visitShowCatalogs(SqlBaseParser.ShowCatalogsContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override
     public T visitSysTables(SqlBaseParser.SysTablesContext ctx) {
         return visitChildren(ctx);
     }

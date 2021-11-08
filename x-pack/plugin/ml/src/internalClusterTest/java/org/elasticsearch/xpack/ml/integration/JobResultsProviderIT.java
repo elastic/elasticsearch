@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -336,9 +335,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     public void testUpdateCalendar() throws Exception {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
-        mlBuilder.putJob(createJob("foo").build(), false);
-        mlBuilder.putJob(createJob("bar").build(), false);
 
         String calendarId = "empty calendar";
         Calendar emptyCal = new Calendar(calendarId, Collections.emptyList(), null);
@@ -347,13 +343,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Set<String> addedIds = new HashSet<>();
         addedIds.add("foo");
         addedIds.add("bar");
-        updateCalendar(calendarId, addedIds, Collections.emptySet(), mlBuilder.build());
+        updateCalendar(calendarId, addedIds, Collections.emptySet());
 
         Calendar updated = getCalendar(calendarId);
         assertEquals(calendarId, updated.getId());
         assertEquals(addedIds, new HashSet<>(updated.getJobIds()));
 
-        updateCalendar(calendarId, Collections.emptySet(), Collections.singleton("foo"), mlBuilder.build());
+        updateCalendar(calendarId, Collections.emptySet(), Collections.singleton("foo"));
 
         updated = getCalendar(calendarId);
         assertEquals(calendarId, updated.getId());
@@ -465,7 +461,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         return result.get().results();
     }
 
-    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove, MlMetadata mlMetadata) throws Exception {
+    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove, r -> latch.countDown(), e -> {
@@ -646,7 +642,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     public void testGetSnapshots() {
         String jobId = "test_get_snapshots";
-        Job.Builder job = createJob(jobId);
+        createJob(jobId);
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("snap_2")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(10)))

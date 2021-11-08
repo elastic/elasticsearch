@@ -70,6 +70,7 @@ public class HttpClient {
             query,
             emptyList(),
             Protocol.TIME_ZONE,
+            null,
             fetchSize,
             TimeValue.timeValueMillis(cfg.queryTimeout()),
             TimeValue.timeValueMillis(cfg.pageTimeout()),

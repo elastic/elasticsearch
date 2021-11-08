@@ -165,7 +165,7 @@ public class NioTransport extends TcpTransport {
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
-            TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, pageCacheRecycler, NioTransport.this);
+            TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, recycler, NioTransport.this);
             BytesChannelContext context = new BytesChannelContext(
                 nioChannel,
                 selector,

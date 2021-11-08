@@ -47,6 +47,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
+    private volatile List<String> skipTheseDeprecations;
 
     @Inject
     public TransportDeprecationInfoAction(
@@ -74,6 +75,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        // Safe to register this here because it happens synchronously before the cluster service is started:
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
+    }
+
+    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
+        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
 
     @Override
@@ -112,24 +121,20 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     settings,
                     new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
                 );
-                pluginSettingIssues(
-                    PLUGIN_CHECKERS,
-                    components,
-                    ActionListener.wrap(
-                        deprecationIssues -> listener.onResponse(
-                            DeprecationInfoAction.Response.from(
-                                state,
-                                indexNameExpressionResolver,
-                                request,
-                                response,
-                                INDEX_SETTINGS_CHECKS,
-                                CLUSTER_SETTINGS_CHECKS,
-                                deprecationIssues
-                            )
-                        ),
-                        listener::onFailure
-                    )
-                );
+                pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(deprecationIssues -> {
+                    listener.onResponse(
+                        DeprecationInfoAction.Response.from(
+                            state,
+                            indexNameExpressionResolver,
+                            request,
+                            response,
+                            INDEX_SETTINGS_CHECKS,
+                            CLUSTER_SETTINGS_CHECKS,
+                            deprecationIssues,
+                            skipTheseDeprecations
+                        )
+                    );
+                }, listener::onFailure));
 
             }, listener::onFailure)
         );

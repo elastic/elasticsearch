@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -124,7 +125,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) throws Exception {
         logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -179,7 +180,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     trainedModelConfig.getModelId(),
                     modelBytes,
                     request.getInferenceThreads(),
-                    request.getModelThreads()
+                    request.getModelThreads(),
+                    request.getQueueCapacity()
                 );
                 PersistentTasksCustomMetadata persistentTasks = clusterService.state()
                     .getMetadata()

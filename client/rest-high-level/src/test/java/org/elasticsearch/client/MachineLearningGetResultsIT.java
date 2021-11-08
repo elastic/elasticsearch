@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     private static final String RESULTS_INDEX = ".ml-anomalies-shared";

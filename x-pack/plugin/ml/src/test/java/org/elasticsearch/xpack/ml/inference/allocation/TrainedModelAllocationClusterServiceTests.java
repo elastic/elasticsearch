@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReaso
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
+import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -45,6 +47,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -65,7 +68,11 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Sets.newHashSet(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
+            Sets.newHashSet(
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MlMemoryTracker memoryTracker = mock(MlMemoryTracker.class);
@@ -417,6 +424,64 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         assertThat(
             trainedModelAllocationMetadata.modelAllocations().get("model-3").getAllocationState(),
             equalTo(AllocationState.STARTING)
+        );
+    }
+
+    public void testAddRemoveAllocationNodes_GivenNodeThatReachedMaxOpenJobs() {
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        for (int i = 0; i < MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE; i++) {
+            OpenJobPersistentTasksExecutorTests.addJobTask("job_id_" + i, "ml-node-full-load", null, tasksBuilder);
+        }
+        PersistentTasksCustomMetadata persistentTasks = tasksBuilder.build();
+
+        ClusterState currentState = ClusterState.builder(new ClusterName("testAddRemoveAllocationNodes"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(buildNode("ml-node-full-load", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildNode("ml-node-no-load", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .build()
+            )
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAllocationMetadata.NAME,
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(
+                                "model-1",
+                                TrainedModelAllocation.Builder.empty(newParams("model-1", 10_000))
+                                    .addNewRoutingEntry("ml-node-no-load")
+                                    .updateExistingRoutingEntry("ml-node-no-load", started())
+                            )
+                            .build()
+                    )
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks)
+            )
+            .build();
+        TrainedModelAllocationClusterService trainedModelAllocationClusterService = createClusterService();
+
+        ClusterState modified = trainedModelAllocationClusterService.addRemoveAllocationNodes(currentState);
+        TrainedModelAllocationMetadata trainedModelAllocationMetadata = TrainedModelAllocationMetadata.fromState(modified);
+        assertThat(trainedModelAllocationMetadata.modelAllocations().keySet(), contains("model-1"));
+
+        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().keySet(), hasSize(1));
+        assertThat(
+            trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().keySet(),
+            contains("ml-node-no-load")
+        );
+        assertThat(
+            trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().get("ml-node-no-load").getState(),
+            equalTo(RoutingState.STARTED)
+        );
+
+        TrainedModelAllocation allocation = trainedModelAllocationMetadata.getModelAllocation("model-1");
+        assertThat(
+            allocation.getReason().get(),
+            equalTo(
+                "Not allocating on node [ml-node-full-load]."
+                    + " Reason: This node is full. Number of opened jobs and allocated native inference processes [512], "
+                    + "xpack.ml.max_open_jobs [512]."
+            )
         );
     }
 
@@ -839,7 +904,6 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
             MapBuilder.<String, String>newMapBuilder()
                 .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory))
                 .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
-                .put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, String.valueOf(10))
                 .map(),
             isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
             version
@@ -855,7 +919,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, modelSize, 1, 1);
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, modelSize, 1, 1, 1024);
     }
 
     private static void assertNodeState(TrainedModelAllocationMetadata metadata, String modelId, String nodeId, RoutingState routingState) {

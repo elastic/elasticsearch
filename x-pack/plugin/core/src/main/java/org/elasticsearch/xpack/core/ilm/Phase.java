@@ -23,12 +23,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Represents set of {@link LifecycleAction}s which should be executed at a
@@ -41,15 +40,16 @@ public class Phase implements ToXContentObject, Writeable {
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>(
-        "phase",
-        false,
-        (a, name) -> new Phase(
-            name,
-            (TimeValue) a[0],
-            ((List<LifecycleAction>) a[1]).stream().collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))
-        )
-    );
+    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false, (a, name) -> {
+        final List<LifecycleAction> lifecycleActions = (List<LifecycleAction>) a[1];
+        Map<String, LifecycleAction> map = new HashMap<>(lifecycleActions.size());
+        for (LifecycleAction lifecycleAction : lifecycleActions) {
+            if (map.put(lifecycleAction.getWriteableName(), lifecycleAction) != null) {
+                throw new IllegalStateException("Duplicate key");
+            }
+        }
+        return new Phase(name, (TimeValue) a[0], map);
+    });
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (ContextParser<String, Object>) (p, c) -> {
             // In earlier versions it was possible to create a Phase with a negative `min_age` which would then cause errors

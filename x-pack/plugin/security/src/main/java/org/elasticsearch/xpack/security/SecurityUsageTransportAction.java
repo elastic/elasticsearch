@@ -98,7 +98,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         Map<String, Object> fips140Usage = fips140Usage(settings);
         Map<String, Object> operatorPrivilegesUsage = Map.of(
             "available",
-            licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES),
+            Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
             "enabled",
             OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
         );

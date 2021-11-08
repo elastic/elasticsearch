@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -36,8 +39,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -49,6 +52,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,7 +113,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction()))
+            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(
@@ -138,19 +142,24 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), rolloverOnlyPolicyName, "hot", new RolloverAction(null, null, null, 1L));
 
         String rolloverIndexPrefix = "rolloverpolicytest_index";
-        for (int i = 1; i < randomIntBetween(2, 5); i++) {
-            // assign the rollover-only policy to a few other indices - these indices and the rollover-only policy should not be migrated
-            // in any way
+        for (int i = 1; i <= 2; i++) {
+            // assign the rollover-only policy to a few other indices - these indices will end up getting caught by the catch-all
+            // tier preference migration
+            String rolloverIndex = rolloverIndexPrefix + "-00000" + i;
             createIndexWithSettings(
                 client(),
-                rolloverIndexPrefix + "-00000" + i,
+                rolloverIndex,
                 alias + i,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .putNull(DataTier.TIER_PREFERENCE)
+                    .putNull(DataTier.TIER_PREFERENCE) // since we always enforce a tier preference, this will be ignored (i.e.
+                                                       // data_content)
                     .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i)
             );
+
+            // the tier preference will have defaulted to data_content, set it back to null
+            updateIndexSettings(rolloverIndex, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
         }
 
         // let's stop ILM so we can perform the migration
@@ -167,6 +176,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data", "warm");
         createIndex(indexWithDataWarmRouting, settings.build());
 
+        // the tier preference will have defaulted to data_content, set it back to null
+        updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
         migrateRequest.setJsonEntity("{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}");
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
@@ -174,12 +186,12 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
         assertThat(
-            (ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
-            containsInAnyOrder(policy)
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+            contains(policy)
         );
         assertThat(
-            (ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
-            containsInAnyOrder(index, indexWithDataWarmRouting)
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+            containsInAnyOrder(index, indexWithDataWarmRouting, rolloverIndexPrefix + "-000001", rolloverIndexPrefix + "-000002")
         );
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()), is(templateName));
 
@@ -221,6 +233,14 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertThat(cachedPhaseDefinition, containsString(ShrinkAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(SetPriorityAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(ForceMergeAction.NAME));
+
+        // ENFORCE_DEFAULT_TIER_PREFERENCE is not mentioned (and defaults to true)
+        Request getSettingsRequest = new Request("GET", "_cluster/settings?include_defaults");
+        Response getSettingsResponse = client().performRequest(getSettingsRequest);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
+        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").isMissingNode());
+        assertTrue(json.at("/defaults/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
     }
 
     @SuppressWarnings("unchecked")
@@ -246,7 +266,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction()))
+            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(
@@ -257,7 +277,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .putNull(DataTier.TIER_PREFERENCE)
+                .putNull(DataTier.TIER_PREFERENCE) // since we always enforce a tier preference, this will be ignored (i.e. data_content)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -284,6 +304,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data", "warm");
         createIndex(indexWithDataWarmRouting, settings.build());
 
+        // the tier preference will have defaulted to data_content, set it back to null
+        updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
         migrateRequest.addParameter("dry_run", "true");
         migrateRequest.setJsonEntity("{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}");
@@ -293,11 +316,11 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // response should contain the correct "to migrate" entities
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
         assertThat(
-            (ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
             containsInAnyOrder(policy)
         );
         assertThat(
-            (ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+            (List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
             containsInAnyOrder(index, indexWithDataWarmRouting)
         );
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()), is(templateName));

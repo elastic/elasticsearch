@@ -13,8 +13,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
@@ -45,11 +45,10 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.a
 import static org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener.ensureAuthenticatedUserIsSame;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
@@ -90,7 +89,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             assertEquals(authentication, contextAuth);
             assertThat(readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
 
-            verifyZeroInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrailService);
         }
     }
 
@@ -113,8 +112,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             );
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
             readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
-            XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+            MockLicenseState licenseState = mock(MockLicenseState.class);
+            when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
@@ -126,7 +125,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
-                verifyZeroInteractions(auditTrail);
+                verifyNoMoreInteractions(auditTrail);
             }
 
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -140,7 +139,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
-                verifyZeroInteractions(auditTrail);
+                verifyNoMoreInteractions(auditTrail);
             }
 
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -231,8 +230,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         final String action = randomAlphaOfLength(4);
         TransportRequest request = Empty.INSTANCE;
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         AuditTrail auditTrail = mock(AuditTrail.class);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
@@ -247,7 +246,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // original user being run as
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
@@ -266,7 +265,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // both user are run as
         current = new Authentication(
@@ -285,7 +284,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // different authenticated by type
         Authentication differentRealmType = new Authentication(

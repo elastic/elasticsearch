@@ -197,7 +197,7 @@ public class SamlServiceProviderIndex implements Closeable {
                 Strings.collectionToCommaDelimitedString(aliasInfo.getIndices())
             );
         } else {
-            logger.info("service provider alias [{}] refers to [{}]", ALIAS_NAME, aliasInfo.getIndices().get(0).getIndex());
+            logger.info("service provider alias [{}] refers to [{}]", ALIAS_NAME, aliasInfo.getIndices().get(0));
         }
     }
 

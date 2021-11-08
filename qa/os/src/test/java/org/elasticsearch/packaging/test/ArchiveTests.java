@@ -234,7 +234,7 @@ public class ArchiveTests extends PackagingTestCase {
             tempDir.resolve("bcprov-jdk15on-1.64.jar")
         );
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
-        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/asn1/x509/GeneralName", null);
+        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
         Files.move(
             tempDir.resolve("bcprov-jdk15on-1.64.jar"),
             installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk15on-1.64.jar")
@@ -508,6 +508,27 @@ public class ArchiveTests extends PackagingTestCase {
             stopElasticsearch();
         } finally {
             rm(jvmOptionsIgnored);
+        }
+    }
+
+    public void test74CustomJvmOptionsTotalMemoryOverride() throws Exception {
+        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "total_memory.options"));
+        try {
+            setHeap(null); // delete default options
+            // Work as though total system memory is 850MB
+            append(heapOptions, "-Des.total_memory_bytes=891289600\n");
+
+            startElasticsearch();
+
+            final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
+            assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
+            // 40% of 850MB
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":356515840"));
+
+            stopElasticsearch();
+        } finally {
+            rm(heapOptions);
         }
     }
 

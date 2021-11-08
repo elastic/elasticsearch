@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -73,10 +72,10 @@ import static org.elasticsearch.xpack.core.ilm.AbstractStepTestCase.randomStepKe
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -380,18 +379,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 Priority actualPriority = null;
 
                 @Override
-                public boolean matches(Object argument) {
-                    if (argument instanceof OperationModeUpdateTask == false) {
-                        return false;
-                    }
-                    actualPriority = ((OperationModeUpdateTask) argument).priority();
+                public boolean matches(OperationModeUpdateTask other) {
+                    actualPriority = other.priority();
                     return actualPriority == expectedPriority;
-                }
-
-                @Override
-                public void describeTo(Description description) {
-                    description.appendText("the cluster state update task priority must be " + expectedPriority + " but got: ")
-                        .appendText(actualPriority.name());
                 }
             })
         );
@@ -540,7 +530,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Mockito.reset(clusterService);
         SchedulerEngine.Event schedulerEvent = new SchedulerEngine.Event("foo", randomLong(), randomLong());
         indexLifecycleService.triggered(schedulerEvent);
-        Mockito.verifyZeroInteractions(indicesClient, clusterService);
+        Mockito.verifyNoMoreInteractions(indicesClient, clusterService);
     }
 
     public void testParsingOriginationDateBeforeIndexCreation() {

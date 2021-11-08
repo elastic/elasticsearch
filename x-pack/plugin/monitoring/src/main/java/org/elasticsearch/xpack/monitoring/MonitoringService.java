@@ -60,7 +60,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
         "xpack.monitoring.elasticsearch.collection.enabled",
         true,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -71,7 +72,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
         "xpack.monitoring.collection.enabled",
         false,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -82,7 +84,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
         TimeValue.timeValueSeconds(10),
         MIN_INTERVAL,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     /** State of the monitoring service, either started or stopped **/

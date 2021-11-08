@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_API_FEATURE;
 import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
@@ -73,7 +74,7 @@ public class JobStatsCollector extends Collector {
         return isElectedMaster
             && super.shouldCollect(isElectedMaster)
             && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
-            && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
+            && ML_API_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

@@ -48,9 +48,6 @@ public class CertGenCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
-        // Enable security for this test only where it is necessary, until we can enable it for all
-        // Only needed until https://github.com/elastic/elasticsearch/pull/75144 is merged
-        ServerUtils.enableSecurityFeatures(installation);
         // Disable security auto-configuration as we want to generate keys/certificates manually here
         ServerUtils.disableSecurityAutoConfiguration(installation);
     }
@@ -100,7 +97,10 @@ public class CertGenCliTests extends PackagingTestCase {
         final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
 
-        final List<String> tlsConfig = List.of(
+        // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
+        // (we do disable auto-configuration above but for packaged installations TLS auto-config happens on installation time and is
+        // not affected by this setting
+        final List<String> newTlsConfig = List.of(
             "node.name: mynode",
             "xpack.security.transport.ssl.key: " + keyPath,
             "xpack.security.transport.ssl.certificate: " + certPath,
@@ -111,16 +111,16 @@ public class CertGenCliTests extends PackagingTestCase {
             "xpack.security.transport.ssl.enabled: true",
             "xpack.security.http.ssl.enabled: true"
         );
-
-        // TODO: Simplify this when https://github.com/elastic/elasticsearch/pull/75144 is merged. We only need to
-        // filter settings from the existing config as they are explicitly set to false on package installation
         List<String> existingConfig = Files.readAllLines(installation.config("elasticsearch.yml"));
         List<String> newConfig = existingConfig.stream()
             .filter(l -> l.startsWith("node.name:") == false)
             .filter(l -> l.startsWith("xpack.security.transport.ssl.") == false)
             .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
+            .filter(l -> l.startsWith("xpack.security.enabled") == false)
+            .filter(l -> l.startsWith("http.host") == false)
+            .filter(l -> l.startsWith("cluster.initial_master_nodes") == false)
             .collect(Collectors.toList());
-        newConfig.addAll(tlsConfig);
+        newConfig.addAll(newTlsConfig);
 
         Files.write(installation.config("elasticsearch.yml"), newConfig, TRUNCATE_EXISTING);
 
@@ -132,7 +132,7 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     private String setElasticPassword() {
-        Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
+        Shell.Result result = installation.executables().resetPasswordTool.run("--auto --batch --silent --username elastic", null);
         return result.stdout;
     }
 

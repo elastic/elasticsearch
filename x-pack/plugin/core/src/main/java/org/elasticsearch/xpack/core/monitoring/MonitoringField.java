@@ -33,7 +33,8 @@ public final class MonitoringField {
         TimeValue.timeValueHours(7 * 24), // default value (7 days)
         HISTORY_DURATION_MINIMUM,         // minimum value
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     private MonitoringField() {}

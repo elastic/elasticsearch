@@ -10,11 +10,24 @@ package org.elasticsearch.search.fieldcaps;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -24,11 +37,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -41,17 +58,28 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        final Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
+    }
 
     @Override
     @Before
@@ -60,64 +88,64 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         XContentBuilder oldIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("distance")
-                            .field("type", "double")
-                        .endObject()
-                        .startObject("route_length_miles")
-                            .field("type", "alias")
-                            .field("path", "distance")
-                        .endObject()
-                        .startObject("playlist")
-                            .field("type", "text")
-                        .endObject()
-                        .startObject("some_dimension")
-                            .field("type", "keyword")
-                            .field("time_series_dimension", true)
-                        .endObject()
-                        .startObject("some_metric")
-                            .field("type", "long")
-                            .field("time_series_metric", TimeSeriesParams.MetricType.counter)
-                        .endObject()
-                        .startObject("secret_soundtrack")
-                            .field("type", "alias")
-                            .field("path", "playlist")
-                        .endObject()
-                        .startObject("old_field")
-                            .field("type", "long")
-                        .endObject()
-                        .startObject("new_field")
-                            .field("type", "alias")
-                            .field("path", "old_field")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("distance")
+            .field("type", "double")
+            .endObject()
+            .startObject("route_length_miles")
+            .field("type", "alias")
+            .field("path", "distance")
+            .endObject()
+            .startObject("playlist")
+            .field("type", "text")
+            .endObject()
+            .startObject("some_dimension")
+            .field("type", "keyword")
+            .field("time_series_dimension", true)
+            .endObject()
+            .startObject("some_metric")
+            .field("type", "long")
+            .field("time_series_metric", TimeSeriesParams.MetricType.counter)
+            .endObject()
+            .startObject("secret_soundtrack")
+            .field("type", "alias")
+            .field("path", "playlist")
+            .endObject()
+            .startObject("old_field")
+            .field("type", "long")
+            .endObject()
+            .startObject("new_field")
+            .field("type", "alias")
+            .field("path", "old_field")
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
         assertAcked(prepareCreate("old_index").setMapping(oldIndexMapping));
 
         XContentBuilder newIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("distance")
-                            .field("type", "text")
-                        .endObject()
-                        .startObject("route_length_miles")
-                            .field("type", "double")
-                        .endObject()
-                        .startObject("new_field")
-                            .field("type", "long")
-                        .endObject()
-                        .startObject("some_dimension")
-                            .field("type", "keyword")
-                        .endObject()
-                        .startObject("some_metric")
-                            .field("type", "long")
-                            .field("time_series_metric", TimeSeriesParams.MetricType.gauge)
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("distance")
+            .field("type", "text")
+            .endObject()
+            .startObject("route_length_miles")
+            .field("type", "double")
+            .endObject()
+            .startObject("new_field")
+            .field("type", "long")
+            .endObject()
+            .startObject("some_dimension")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("some_metric")
+            .field("type", "long")
+            .field("time_series_metric", TimeSeriesParams.MetricType.gauge)
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject();
         assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
         assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
@@ -142,15 +170,25 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", false, true, true, new String[] {"old_index"}, null, null,
-                    Collections.emptyMap()),
-            distance.get("double"));
+            new FieldCapabilities(
+                "distance",
+                "double",
+                false,
+                true,
+                true,
+                new String[] { "old_index" },
+                null,
+                null,
+                Collections.emptyMap()
+            ),
+            distance.get("double")
+        );
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", false, true, false, new String[] {"new_index"}, null, null,
-                    Collections.emptyMap()),
-            distance.get("text"));
+            new FieldCapabilities("distance", "text", false, true, false, new String[] { "new_index" }, null, null, Collections.emptyMap()),
+            distance.get("text")
+        );
 
         // Check the capabilities for the 'route_length_miles' alias.
         Map<String, FieldCapabilities> routeLength = response.getField("route_length_miles");
@@ -159,7 +197,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
             new FieldCapabilities("route_length_miles", "double", false, true, true, null, null, null, Collections.emptyMap()),
-            routeLength.get("double"));
+            routeLength.get("double")
+        );
     }
 
     public void testFieldAliasWithWildcard() {
@@ -185,10 +224,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testWithUnmapped() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps()
-            .setFields("new_field", "old_field")
-            .setIncludeUnmapped(true)
-            .get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("new_field", "old_field").setIncludeUnmapped(true).get();
         assertIndices(response, "old_index", "new_index");
 
         assertEquals(2, response.get().size());
@@ -199,15 +235,25 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(oldField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("old_field", "long", false, true, true, new String[] {"old_index"}, null, null,
-                    Collections.emptyMap()),
-            oldField.get("long"));
+            new FieldCapabilities("old_field", "long", false, true, true, new String[] { "old_index" }, null, null, Collections.emptyMap()),
+            oldField.get("long")
+        );
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
-            new FieldCapabilities("old_field", "unmapped", false, false, false, new String[] {"new_index"}, null, null,
-                    Collections.emptyMap()),
-            oldField.get("unmapped"));
+            new FieldCapabilities(
+                "old_field",
+                "unmapped",
+                false,
+                false,
+                false,
+                new String[] { "new_index" },
+                null,
+                null,
+                Collections.emptyMap()
+            ),
+            oldField.get("unmapped")
+        );
 
         Map<String, FieldCapabilities> newField = response.getField("new_field");
         assertEquals(1, newField.size());
@@ -215,7 +261,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(newField.containsKey("long"));
         assertEquals(
             new FieldCapabilities("new_field", "long", false, true, true, null, null, null, Collections.emptyMap()),
-            newField.get("long"));
+            newField.get("long")
+        );
     }
 
     public void testWithIndexAlias() {
@@ -268,10 +315,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public void testMetadataFields() {
         for (int i = 0; i < 2; i++) {
             String[] fields = i == 0 ? new String[] { "*" } : new String[] { "_id", "_test" };
-            FieldCapabilitiesResponse response = client()
-                .prepareFieldCaps()
-                .setFields(fields)
-                .get();
+            FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields(fields).get();
 
             Map<String, FieldCapabilities> idField = response.getField("_id");
             assertEquals(1, idField.size());
@@ -279,7 +323,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertTrue(idField.containsKey("_id"));
             assertEquals(
                 new FieldCapabilities("_id", "_id", true, true, false, null, null, null, Collections.emptyMap()),
-                idField.get("_id"));
+                idField.get("_id")
+            );
 
             Map<String, FieldCapabilities> testField = response.getField("_test");
             assertEquals(1, testField.size());
@@ -287,7 +332,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertTrue(testField.containsKey("keyword"));
             assertEquals(
                 new FieldCapabilities("_test", "keyword", true, true, true, null, null, null, Collections.emptyMap()),
-                testField.get("keyword"));
+                testField.get("keyword")
+            );
         }
     }
 
@@ -335,9 +381,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(2, response.getFailedIndices().length);
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
-        assertEquals(RemoteTransportException.class, failure.getClass());
-        assertEquals(IllegalArgumentException.class, failure.getCause().getClass());
-        assertEquals("I throw because I choose to.", failure.getCause().getMessage());
+        assertEquals(IllegalArgumentException.class, failure.getClass());
+        assertEquals("I throw because I choose to.", failure.getMessage());
 
         // the "indices" section should not include failed ones
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
@@ -346,10 +391,182 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> client().prepareFieldCaps("index1-error", "index2-error")
-            .setFields("*")
-            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
-            .get());
+                .setFields("*")
+                .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+                .get()
+        );
         assertEquals("I throw because I choose to.", ex.getMessage());
+    }
+
+    private void populateTimeRangeIndices() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        assertAcked(
+            prepareCreate("log-index-1").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            ).setMapping("timestamp", "type=date", "field1", "type=keyword")
+        );
+        assertAcked(
+            prepareCreate("log-index-2").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            ).setMapping("timestamp", "type=date", "field1", "type=long")
+        );
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2020-03-03"));
+        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2020-09-09"));
+        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2020-02-02"));
+        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2020-10-10"));
+        indexRandom(true, reqs);
+        ensureGreen("log-index-1", "log-index-2");
+        client().admin().indices().prepareRefresh("log-index-1", "log-index-2").get();
+    }
+
+    public void testTargetNodeFails() throws Exception {
+        populateTimeRangeIndices();
+        try {
+            final AtomicBoolean failedRequest = new AtomicBoolean();
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.addRequestHandlingBehavior(
+                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
+                    (handler, request, channel, task) -> {
+                        if (failedRequest.compareAndSet(false, true)) {
+                            channel.sendResponse(new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT));
+                        } else {
+                            handler.messageReceived(request, channel, task);
+                        }
+                    }
+                );
+            }
+            FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+            request.indices("log-index-*");
+            request.fields("*");
+            if (randomBoolean()) {
+                request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
+            }
+            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            assertTrue(failedRequest.get());
+            assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
+            assertThat(response.getField("field1"), aMapWithSize(2));
+            assertThat(response.getField("field1"), hasKey("long"));
+            assertThat(response.getField("field1"), hasKey("keyword"));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.clearAllRules();
+            }
+        }
+    }
+
+    public void testNoActiveCopy() throws Exception {
+        assertAcked(
+            prepareCreate("log-index-inactive").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put("index.routing.allocation.require._id", "unknown")
+            ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "field1", "type=keyword")
+        );
+        {
+            final ElasticsearchException ex = expectThrows(
+                ElasticsearchException.class,
+                () -> client().prepareFieldCaps("log-index-*").setFields("*").get()
+            );
+            assertThat(ex.getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
+        }
+        {
+            populateTimeRangeIndices();
+            FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+            request.indices("log-index-*");
+            request.fields("*");
+            if (randomBoolean()) {
+                request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
+            }
+            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
+            assertThat(response.getField("field1"), aMapWithSize(2));
+            assertThat(response.getField("field1"), hasKey("long"));
+            assertThat(response.getField("field1"), hasKey("long"));
+
+            assertThat(response.getFailures(), hasSize(1));
+            final FieldCapabilitiesFailure failure = response.getFailures().get(0);
+            assertThat(failure.getIndices(), arrayContainingInAnyOrder("log-index-inactive"));
+            assertThat(failure.getException().getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
+        }
+    }
+
+    private void moveOrCloseShardsOnNodes(String nodeName) throws Exception {
+        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                if (randomBoolean()) {
+                    indexShard.close("test", randomBoolean());
+                } else if (randomBoolean()) {
+                    final ShardId shardId = indexShard.shardId();
+                    final String[] nodeNames = internalCluster().getNodeNames();
+                    final String newNodeName = randomValueOtherThanMany(n -> nodeName.equals(n) == false, () -> randomFrom(nodeNames));
+                    DiscoveryNode fromNode = null;
+                    DiscoveryNode toNode = null;
+                    for (DiscoveryNode node : clusterService().state().nodes()) {
+                        if (node.getName().equals(nodeName)) {
+                            fromNode = node;
+                        }
+                        if (node.getName().equals(newNodeName)) {
+                            toNode = node;
+                        }
+                    }
+                    assertNotNull(fromNode);
+                    assertNotNull(toNode);
+                    client().admin()
+                        .cluster()
+                        .prepareReroute()
+                        .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
+                        .execute()
+                        .actionGet();
+                }
+            }
+        }
+    }
+
+    public void testRelocation() throws Exception {
+        populateTimeRangeIndices();
+        try {
+            final AtomicBoolean relocated = new AtomicBoolean();
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.addRequestHandlingBehavior(
+                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
+                    (handler, request, channel, task) -> {
+                        if (relocated.compareAndSet(false, true)) {
+                            moveOrCloseShardsOnNodes(node);
+                        }
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
+            }
+            FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+            request.indices("log-index-*");
+            request.fields("*");
+            if (randomBoolean()) {
+                request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
+            }
+            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
+            assertThat(response.getField("field1"), aMapWithSize(2));
+            assertThat(response.getField("field1"), hasKey("long"));
+            assertThat(response.getField("field1"), hasKey("long"));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.clearAllRules();
+            }
+        }
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
@@ -390,7 +607,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (searchExecutionContext != null) {
                 if (searchExecutionContext.indexMatches("*error*")) {
                     throw new IllegalArgumentException("I throw because I choose to.");
-                };
+                }
+                ;
             }
             return this;
         }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -82,6 +83,19 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         throws IOException {
         if (fieldType == null) {
             return createUnmapped(parent, metadata);
+        }
+        // TODO add support for Keyword && KeywordScriptFieldType
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE
+            || fieldType.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS) {
+            throw new IllegalArgumentException(
+                "categorize_text agg ["
+                    + name
+                    + "] only works on analyzable text fields. Cannot aggregate field type ["
+                    + fieldType.name()
+                    + "] via ["
+                    + fieldType.getClass().getSimpleName()
+                    + "]"
+            );
         }
         TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {

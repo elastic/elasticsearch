@@ -44,6 +44,7 @@ public final class SqlTestUtils {
 
     public static final SqlConfiguration TEST_CFG = new SqlConfiguration(
         DateUtils.UTC,
+        null,
         Protocol.FETCH_SIZE,
         Protocol.REQUEST_TIMEOUT,
         Protocol.PAGE_TIMEOUT,
@@ -55,7 +56,9 @@ public final class SqlTestUtils {
         null,
         null,
         false,
-        false
+        false,
+        null,
+        null
     );
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
@@ -63,6 +66,7 @@ public final class SqlTestUtils {
         long taskId = randomNonNegativeLong();
         return new SqlConfiguration(
             providedZoneId != null ? providedZoneId : randomZone(),
+            null,
             randomIntBetween(0, 1000),
             new TimeValue(randomNonNegativeLong()),
             new TimeValue(randomNonNegativeLong()),
@@ -76,10 +80,7 @@ public final class SqlTestUtils {
             false,
             randomBoolean(),
             new TaskId(randomAlphaOfLength(10), taskId),
-            randomTask(taskId, mode, sqlVersion),
-            new TimeValue(randomNonNegativeLong()),
-            randomBoolean(),
-            new TimeValue(randomNonNegativeLong())
+            randomTask(taskId, mode, sqlVersion)
         );
     }
 

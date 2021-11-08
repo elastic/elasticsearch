@@ -20,6 +20,10 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         assertEquals(sevenDays, MonitoringField.HISTORY_DURATION.get(Settings.EMPTY));
         // Note: this verifies the semantics because this is taken for granted that it never returns null!
         assertEquals(sevenDays, MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), null)));
+        assertWarnings(
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testHistoryDurationMinimum24Hours() {
@@ -27,6 +31,10 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         assertEquals(
             MonitoringField.HISTORY_DURATION_MINIMUM,
             MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), "24h"))
+        );
+        assertWarnings(
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
         );
     }
 
@@ -36,6 +44,10 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), oneSecondEarly))
+        );
+        assertWarnings(
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
         );
     }
 

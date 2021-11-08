@@ -44,6 +44,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
+    private final boolean removeBinary;
     private final String indexedCharsField;
     private final String resourceName;
 
@@ -56,7 +57,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
         int indexedChars,
         boolean ignoreMissing,
         String indexedCharsField,
-        String resourceName
+        String resourceName,
+        boolean removeBinary
     ) {
         super(tag, description);
         this.field = field;
@@ -66,10 +68,16 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.ignoreMissing = ignoreMissing;
         this.indexedCharsField = indexedCharsField;
         this.resourceName = resourceName;
+        this.removeBinary = removeBinary;
     }
 
     boolean isIgnoreMissing() {
         return ignoreMissing;
+    }
+
+    // For tests only
+    boolean isRemoveBinary() {
+        return removeBinary;
     }
 
     @Override
@@ -171,6 +179,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);
+
+        if (removeBinary) {
+            ingestDocument.removeField(field);
+        }
         return ingestDocument;
     }
 
@@ -213,6 +225,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
+            boolean removeBinary = readBooleanProperty(TYPE, processorTag, config, "remove_binary", false);
 
             final Set<Property> properties;
             if (propertyNames != null) {
@@ -242,7 +255,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 indexedChars,
                 ignoreMissing,
                 indexedCharsField,
-                resourceName
+                resourceName,
+                removeBinary
             );
         }
     }

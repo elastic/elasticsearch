@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -238,11 +238,6 @@ class IndicesAndAliasesResolver {
                     replaceWildcards,
                     indicesRequest.includeDataStreams()
                 );
-                if (indicesOptions.ignoreUnavailable()) {
-                    // out of all the explicit names (expanded from wildcards and original ones that were left untouched)
-                    // remove all the ones that the current user is not authorized for and ignore them
-                    replaced = replaced.stream().filter(authorizedIndices::contains).collect(Collectors.toList());
-                }
                 resolvedIndicesBuilder.addLocal(replaced);
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }
@@ -349,13 +344,13 @@ class IndicesAndAliasesResolver {
                     .filter(authorizedIndicesList::contains)
                     .filter(aliasName -> {
                         IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
-                        List<IndexMetadata> indexMetadata = alias.getIndices();
-                        if (indexMetadata.size() == 1) {
+                        List<Index> indices = alias.getIndices();
+                        if (indices.size() == 1) {
                             return true;
                         } else {
                             assert alias.getType() == IndexAbstraction.Type.ALIAS;
-                            IndexMetadata idxMeta = alias.getWriteIndex();
-                            return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
+                            Index writeIndex = alias.getWriteIndex();
+                            return writeIndex != null && writeIndex.getName().equals(concreteIndexName);
                         }
                     })
                     .findFirst();

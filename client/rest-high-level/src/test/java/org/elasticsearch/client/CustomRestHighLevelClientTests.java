@@ -44,8 +44,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -53,6 +53,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test and demonstrates how {@link RestHighLevelClient} can be extended to support custom endpoints.
  */
+@SuppressWarnings("removal")
 public class CustomRestHighLevelClientTests extends ESTestCase {
 
     private static final String ENDPOINT = "/_custom";
@@ -67,11 +68,11 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             restHighLevelClient = new CustomRestClient(restClient);
 
             doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0])).when(restClient)
-                .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)));
+                .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)::matches));
 
             doAnswer(inv -> mockPerformRequestAsync(((Request) inv.getArguments()[0]), (ResponseListener) inv.getArguments()[1])).when(
                 restClient
-            ).performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)), any(ResponseListener.class));
+            ).performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)::matches), any(ResponseListener.class));
         }
     }
 

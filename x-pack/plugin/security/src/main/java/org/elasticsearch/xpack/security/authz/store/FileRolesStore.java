@@ -16,11 +16,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -56,6 +54,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
@@ -198,7 +197,8 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
-                var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {
@@ -207,7 +207,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                                 "role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                 descriptor.getName()
                             );
-                        } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && licenseChecker.get() == false) {
+                        } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && isDlsLicensed == false) {
                             logger.warn(
                                 "role [{}] uses document and/or field level security, which is not enabled by the current license"
                                     + ". this role will be ignored",

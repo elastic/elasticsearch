@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
@@ -49,7 +50,7 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
                 ),
                 randomAlphaOfLength(10)
             ),
-            new BertTokenization(null, true, 512)
+            new BertTokenization(null, true, 512, Tokenization.Truncate.NONE)
         );
 
         ZeroShotClassificationConfig config = new ZeroShotClassificationConfig(
@@ -65,7 +66,7 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
 
         NlpTask.Request request = processor.getRequestBuilder(
             (NlpConfig) new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("new", "stuff")).build().apply(config)
-        ).buildRequest(List.of("Elasticsearch fun"), "request1");
+        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 

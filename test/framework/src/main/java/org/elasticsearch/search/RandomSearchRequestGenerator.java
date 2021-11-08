@@ -22,6 +22,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -175,7 +176,18 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             int numFields = randomInt(5);
             for (int i = 0; i < numFields; i++) {
-                builder.fetchField(randomAlphaOfLengthBetween(5, 10));
+                String field = randomAlphaOfLengthBetween(5, 10);
+                String format = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
+                builder.fetchField(new FieldAndFormat(field, format));
+            }
+        }
+
+        if (randomBoolean()) {
+            int numFields = randomInt(5);
+            for (int i = 0; i < numFields; i++) {
+                String field = randomAlphaOfLengthBetween(5, 10);
+                String format = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
+                builder.docValueField(field, format);
             }
         }
 

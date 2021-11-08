@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.cluster.RemoteConnectionInfo;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -60,6 +62,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Documentation for Cluster APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testClusterPutSettings() throws IOException {
@@ -70,38 +73,48 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request
 
         // tag::put-settings-create-settings
-        String persistentSettingKey =
+        String transientSettingKey =
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
-        int persistentSettingValue = 10;
+        int transientSettingValue = 10;
+        Settings transientSettings =
+                Settings.builder()
+                .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES)
+                .build(); // <1>
+
+        String persistentSettingKey =
+                EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
+        String persistentSettingValue =
+                EnableAllocationDecider.Allocation.NONE.name();
         Settings persistentSettings =
                 Settings.builder()
-                .put(persistentSettingKey, persistentSettingValue, ByteSizeUnit.BYTES)
-                .build(); // <1>
+                .put(persistentSettingKey, persistentSettingValue)
+                .build(); // <2>
         // end::put-settings-create-settings
 
         // tag::put-settings-request-cluster-settings
-        request.persistentSettings(persistentSettings); // <1>
+        request.transientSettings(transientSettings); // <1>
+        request.persistentSettings(persistentSettings); // <2>
         // end::put-settings-request-cluster-settings
 
         {
             // tag::put-settings-settings-builder
-            Settings.Builder persistentSettingsBuilder =
+            Settings.Builder transientSettingsBuilder =
                     Settings.builder()
-                    .put(persistentSettingKey, persistentSettingValue, ByteSizeUnit.BYTES);
-            request.persistentSettings(persistentSettingsBuilder); // <1>
+                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES);
+            request.transientSettings(transientSettingsBuilder); // <1>
             // end::put-settings-settings-builder
         }
         {
             // tag::put-settings-settings-map
             Map<String, Object> map = new HashMap<>();
-            map.put(persistentSettingKey
-                    , persistentSettingValue + ByteSizeUnit.BYTES.getSuffix());
-            request.persistentSettings(map); // <1>
+            map.put(transientSettingKey
+                    , transientSettingValue + ByteSizeUnit.BYTES.getSuffix());
+            request.transientSettings(map); // <1>
             // end::put-settings-settings-map
         }
         {
             // tag::put-settings-settings-source
-            request.persistentSettings(
+            request.transientSettings(
                     "{\"indices.recovery.max_bytes_per_sec\": \"10b\"}"
                     , XContentType.JSON); // <1>
             // end::put-settings-settings-source
@@ -116,21 +129,25 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.masterNodeTimeout("1m"); // <2>
         // end::put-settings-request-masterTimeout
 
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         // tag::put-settings-execute
-        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, options);
         // end::put-settings-execute
 
         // tag::put-settings-response
         boolean acknowledged = response.isAcknowledged(); // <1>
-        Settings persistentSettingsResponse = response.getPersistentSettings(); // <2>
+        Settings transientSettingsResponse = response.getTransientSettings(); // <2>
+        Settings persistentSettingsResponse = response.getPersistentSettings(); // <3>
         // end::put-settings-response
         assertTrue(acknowledged);
-        assertThat(persistentSettingsResponse.get(persistentSettingKey), equalTo(persistentSettingValue + ByteSizeUnit.BYTES.getSuffix()));
+        assertThat(transientSettingsResponse.get(transientSettingKey), equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
+        assertThat(persistentSettingsResponse.get(persistentSettingKey), equalTo(persistentSettingValue));
 
-        // tag::put-settings-request-reset-persistent
-        request.persistentSettings(Settings.builder().putNull(persistentSettingKey).build()); // <1>
-        // tag::put-settings-request-reset-persistent
-        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, RequestOptions.DEFAULT);
+        // tag::put-settings-request-reset-transient
+        request.transientSettings(Settings.builder().putNull(transientSettingKey).build()); // <1>
+        // tag::put-settings-request-reset-transient
+        request.persistentSettings(Settings.builder().putNull(persistentSettingKey));
+        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, options);
 
         assertTrue(resetResponse.isAcknowledged());
     }

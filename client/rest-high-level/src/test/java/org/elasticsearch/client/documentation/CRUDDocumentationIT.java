@@ -95,6 +95,7 @@ import static org.hamcrest.Matchers.not;
  * Documentation for CRUD APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unused")

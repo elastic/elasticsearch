@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -49,11 +50,14 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -107,6 +111,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1231,6 +1236,32 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         });
     }
 
+    /**
+     * This test verifies that data tier preference is copied over to follower. This may not be desired, but demonstrates current
+     * behavior and ensures we keep this until we decide to break it.
+     */
+    public void testReplicateDataTierPreference() throws Exception {
+        String tier = randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
+        assertAcked(
+            leaderClient().admin()
+                .indices()
+                .prepareCreate("leader")
+                .setSource(getIndexSettings(1, 0, Map.of(DataTier.TIER_PREFERENCE, tier)), XContentType.JSON)
+        );
+        ensureLeaderGreen("leader");
+        if (randomBoolean()) {
+            String templateTier = randomValueOtherThan(tier, () -> randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD));
+            putFollowerTemplate(DataTier.TIER_PREFERENCE, templateTier);
+        } else if (randomBoolean()) {
+            putFollowerTemplate(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".attr", "ignore");
+        }
+
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+        assertThat(resp.getSetting("follower", DataTier.TIER_PREFERENCE), equalTo(tier));
+    }
+
     public void testReplicatePrivateSettingsOnly() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(getIndexSettings(1, 0), XContentType.JSON));
         ensureLeaderGreen("leader");
@@ -1719,6 +1750,17 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             settings = BytesReference.bytes(builder).utf8ToString();
         }
         return settings;
+    }
+
+    private void putFollowerTemplate(String setting, String settingValue) throws InterruptedException, ExecutionException {
+        Template template = new Template(Settings.builder().put(setting, settingValue).build(), null, null);
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(List.of("follower"), template, null, null, null, null);
+        assertAcked(
+            followerClient().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
+            ).get()
+        );
     }
 
     public static class PrivateSettingPlugin extends Plugin {

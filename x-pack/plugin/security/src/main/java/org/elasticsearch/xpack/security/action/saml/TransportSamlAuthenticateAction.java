@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequest
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
@@ -63,9 +64,9 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         Authentication originatingAuthentication = securityContext.getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml, ActionListener.wrap(authentication -> {
-                AuthenticationResult result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
+                AuthenticationResult<User> result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
                 if (result == null) {
-                    listener.onFailure(new IllegalStateException("Cannot find AuthenticationResult on thread context"));
+                    listener.onFailure(new IllegalStateException("Cannot find User AuthenticationResult on thread context"));
                     return;
                 }
                 assert authentication != null : "authentication should never be null at this point";

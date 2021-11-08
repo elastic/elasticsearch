@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
@@ -88,6 +89,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             SqlTestUtils.randomFilterOrNull(random()),
             randomRuntimeMappings(),
             randomZone(),
+            randomAlphaOfLength(10),
             between(1, Integer.MAX_VALUE),
             randomTV(),
             randomTV(),
@@ -115,6 +117,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
             request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
             request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+            request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
             request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
             request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
             request -> request.filter(
@@ -135,6 +138,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             instance.filter(),
             instance.runtimeMappings(),
             instance.zoneId(),
+            instance.catalog(),
             instance.fetchSize(),
             instance.requestTimeout(),
             instance.pageTimeout(),
@@ -262,6 +266,9 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
         if (request.zoneId() != null) {
             builder.field(TIME_ZONE_NAME, request.zoneId().getId());
+        }
+        if (request.catalog() != null) {
+            builder.field(CATALOG_NAME, request.catalog());
         }
         if (request.fetchSize() != Protocol.FETCH_SIZE) {
             builder.field(FETCH_SIZE_NAME, request.fetchSize());

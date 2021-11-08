@@ -11,14 +11,14 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -29,14 +29,13 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public static ShardSearchFailure createTestItem(String indexUuid) {
         String randomMessage = randomAlphaOfLengthBetween(3, 20);
-        Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
+        Exception ex = new ParsingException(0, 0, randomMessage, new IllegalArgumentException("some bad argument"));
         SearchShardTarget searchShardTarget = null;
         if (randomBoolean()) {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
             String indexName = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
-            searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, indexUuid), randomInt()), clusterAlias);
+            searchShardTarget = new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), randomInt()), clusterAlias);
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -84,31 +83,38 @@ public class ShardSearchFailureTests extends ESTestCase {
         String originalMsg = response.getCause().getMessage();
         assertEquals(parsed.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]");
         String nestedMsg = response.getCause().getCause().getMessage();
-        assertEquals(parsed.getCause().getCause().getMessage(),
-                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+        assertEquals(
+            parsed.getCause().getCause().getMessage(),
+            "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+        );
     }
 
     public void testToXContent() throws IOException {
-        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null));
+        ShardSearchFailure failure = new ShardSearchFailure(
+            new ParsingException(0, 0, "some message", null),
+            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null)
+        );
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
-                "{\"shard\":123,"
-                        + "\"index\":\"indexName\","
-                        + "\"node\":\"nodeId\","
-                        + "\"reason\":{"
-                            + "\"type\":\"parsing_exception\","
-                            + "\"reason\":\"some message\","
-                            + "\"line\":0,"
-                            + "\"col\":0"
-                        + "}"
+            "{\"shard\":123,"
+                + "\"index\":\"indexName\","
+                + "\"node\":\"nodeId\","
+                + "\"reason\":{"
+                + "\"type\":\"parsing_exception\","
+                + "\"reason\":\"some message\","
+                + "\"line\":0,"
+                + "\"col\":0"
+                + "}"
                 + "}",
-                xContent.utf8ToString());
+            xContent.utf8ToString()
+        );
     }
 
     public void testToXContentWithClusterAlias() throws IOException {
-        ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1"));
+        ShardSearchFailure failure = new ShardSearchFailure(
+            new ParsingException(0, 0, "some message", null),
+            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1")
+        );
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"shard\":123,"
@@ -121,13 +127,18 @@ public class ShardSearchFailureTests extends ESTestCase {
                 + "\"col\":0"
                 + "}"
                 + "}",
-            xContent.utf8ToString());
+            xContent.utf8ToString()
+        );
     }
 
     public void testSerialization() throws IOException {
         ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12));
-        ShardSearchFailure deserializedInstance = copyWriteable(testItem, writableRegistry(),
-            ShardSearchFailure::new, VersionUtils.randomVersion(random()));
+        ShardSearchFailure deserializedInstance = copyWriteable(
+            testItem,
+            writableRegistry(),
+            ShardSearchFailure::new,
+            VersionUtils.randomVersion(random())
+        );
         assertEquals(testItem.index(), deserializedInstance.index());
         assertEquals(testItem.shard(), deserializedInstance.shard());
         assertEquals(testItem.shardId(), deserializedInstance.shardId());

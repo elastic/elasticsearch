@@ -11,6 +11,8 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -36,9 +38,15 @@ import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.SSLException;
+
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -319,17 +327,37 @@ public class LdapSessionFactoryTests extends LdapTestCase {
                 UncategorizedExecutionException.class,
                 () -> session(sessionFactory, user, userPass)
             );
-            assertThat(e.getCause(), instanceOf(ExecutionException.class));
-            assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
-            assertThat(e.getCause().getCause().getMessage(), containsString("SSLPeerUnverifiedException"));
+            final Throwable immediateCause = e.getCause();
+            assertThat(immediateCause, instanceOf(ExecutionException.class));
+            final Throwable sdkCause = immediateCause.getCause();
+            assertThat(sdkCause, instanceOf(LDAPException.class));
+
+            @SuppressWarnings(value = { "unchecked", "rawtypes" })
+            final Class<? extends Exception>[] expectedCause = new Class[] { SSLException.class, GeneralSecurityException.class };
+            final Throwable underlyingCause = ExceptionsHelper.unwrap(sdkCause, expectedCause);
+            if (underlyingCause == null) {
+                // This is the easiest way to have a JUnit test failure with a clear exception chain
+                throw new AssertionError(
+                    "Unexpected root cause - expected one of " + Strings.arrayToCommaDelimitedString(expectedCause),
+                    sdkCause
+                );
+            }
+            // It's ok if an upgrade to the LDAP-SDK or JDK causes this message to change (and we need to update the test)
+            // but we want to check that we failed for a reason we're expecting and not some unexpected network error.
+            assertThat(
+                underlyingCause,
+                throwableWithMessage(anyOf(containsString("PKIX path validation failed"), containsString("peer not authenticated")))
+            );
 
             Files.copy(realCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
-            final LdapSession session = session(sessionFactory, user, userPass);
-            assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
-
-            session.close();
+            // Occasionally the reload doesn't take immediate effect so the next connection fails.
+            assertBusy(() -> {
+                final LdapSession session = session(sessionFactory, user, userPass);
+                assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
+                session.close();
+            }, 3, TimeUnit.SECONDS);
         }
     }
 }

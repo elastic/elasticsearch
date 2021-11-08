@@ -135,14 +135,14 @@ public class Response {
 
     /**
      * Tests if a string matches the RFC 7234 specification for warning headers.
-     * This assumes that the warn code is always 299 and the warn agent is always
-     * Elasticsearch.
+     * This assumes that the warn code is always 299 or 300 and the warn agent is
+     * always Elasticsearch.
      *
      * @param s the value of a warning header formatted according to RFC 7234
      * @return {@code true} if the input string matches the specification
      */
     private static boolean matchWarningHeaderPatternByPrefix(final String s) {
-        return s.startsWith("299 Elasticsearch-");
+        return s.startsWith("299 Elasticsearch-") || s.startsWith("300 Elasticsearch-");
     }
 
     /**

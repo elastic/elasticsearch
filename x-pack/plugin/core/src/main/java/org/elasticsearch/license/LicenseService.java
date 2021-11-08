@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -272,21 +270,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             // because the defaults there mean that security can be "off", even if the setting is "on"
             // BUT basic licenses are explicitly excluded earlier in this method, so we don't need to worry
             if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-                // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
-                // should happen on a different level and not in this code
-                if (XPackLicenseState.isTransportTlsRequired(newLicense, settings)
-                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
-                    && isProductionMode(settings, clusterService.localNode())) {
-                    // security is on but TLS is not configured we gonna fail the entire request and throw an exception
-                    throw new IllegalStateException(
-                        "Cannot install a [" + newLicense.operationMode() + "] license unless TLS is configured or security is disabled"
-                    );
-                } else if (XPackSettings.FIPS_MODE_ENABLED.get(settings)
+                if (XPackSettings.FIPS_MODE_ENABLED.get(settings)
                     && false == XPackLicenseState.isFipsAllowedForOperationMode(newLicense.operationMode())) {
-                        throw new IllegalStateException(
-                            "Cannot install a [" + newLicense.operationMode() + "] license unless FIPS mode is disabled"
-                        );
-                    }
+                    throw new IllegalStateException(
+                        "Cannot install a [" + newLicense.operationMode() + "] license unless FIPS mode is disabled"
+                    );
+                }
             }
 
             clusterService.submitStateUpdateTask(
@@ -634,15 +623,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             }
         }
         return null;
-    }
-
-    private static boolean isProductionMode(Settings settings, DiscoveryNode localNode) {
-        final boolean singleNodeDisco = "single-node".equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings));
-        return singleNodeDisco == false && isBoundToLoopback(localNode) == false;
-    }
-
-    private static boolean isBoundToLoopback(DiscoveryNode localNode) {
-        return localNode.getAddress().address().getAddress().isLoopbackAddress();
     }
 
     private static List<License.LicenseType> getAllowableUploadTypes() {

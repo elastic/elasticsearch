@@ -31,6 +31,7 @@ public class UserFunctionTests extends ESTestCase {
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-basic.json", true));
         SqlConfiguration sqlConfig = new SqlConfiguration(
             DateUtils.UTC,
+            null,
             Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT,
             Protocol.PAGE_TIMEOUT,
@@ -42,7 +43,9 @@ public class UserFunctionTests extends ESTestCase {
             null,
             randomAlphaOfLengthBetween(1, 15),
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            null,
+            null
         );
         Analyzer analyzer = new Analyzer(sqlConfig, new SqlFunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
 

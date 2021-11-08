@@ -172,7 +172,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     }
 
     public <T> void declareObject(BiConsumer<Value, T> consumer, ContextParser<Context, T> objectParser, ParseField field) {
-        declareField(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT);
+        declareField(consumer, objectParser, field, ValueType.OBJECT);
     }
 
     /**
@@ -284,7 +284,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     }
 
     public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> objectParser, ParseField field) {
-        declareFieldArray(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT_ARRAY);
+        declareFieldArray(consumer, objectParser, field, ValueType.OBJECT_ARRAY);
     }
 
     /**

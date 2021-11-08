@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -136,5 +138,20 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().getQueries(), is(nullValue()));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().getLimitedByQueries(), equalTo(queries));
+    }
+
+    public void testAllowAllIndicesAccessControl() {
+        final IndicesAccessControl allowAll = IndicesAccessControl.allowAll();
+        final IndexAccessControl indexAccessControl = allowAll.getIndexPermissions(randomAlphaOfLengthBetween(3, 8));
+        assertThat(indexAccessControl.isGranted(), is(true));
+        assertThat(indexAccessControl.getDocumentPermissions(), is(DocumentPermissions.allowAll()));
+        assertThat(indexAccessControl.getFieldPermissions(), is(FieldPermissions.DEFAULT));
+        assertThat(allowAll.getDeniedIndices(), emptyIterable());
+        assertThat(allowAll.getFieldAndDocumentLevelSecurityUsage(), is(IndicesAccessControl.DlsFlsUsage.NONE));
+        assertThat(allowAll.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+
+        final IndicesAccessControl indicesAccessControl = new IndicesAccessControl(randomBoolean(), Map.of());
+        assertThat(allowAll.limitIndicesAccessControl(indicesAccessControl), is(indicesAccessControl));
+        assertThat(indicesAccessControl.limitIndicesAccessControl(allowAll), is(indicesAccessControl));
     }
 }

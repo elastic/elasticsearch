@@ -76,6 +76,7 @@ final class AsyncSearchRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new RequestConverters.Params();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (asyncSearchRequest.getKeepAlive() != null) {
             params.putParam("keep_alive", asyncSearchRequest.getKeepAlive().getStringRep());
         }

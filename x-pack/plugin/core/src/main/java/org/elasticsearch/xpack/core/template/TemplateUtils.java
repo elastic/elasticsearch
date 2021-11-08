@@ -127,29 +127,14 @@ public class TemplateUtils {
      * Checks if a versioned template exists, and if it exists checks if the version is greater than or equal to the current version.
      * @param templateName Name of the index template
      * @param state Cluster state
-     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
-     *                                          <code>null</code> means the template hasn't been switched yet.
      */
-    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(
-        String templateName,
-        ClusterState state,
-        Version versionComposableTemplateExpected
-    ) {
-        if (versionComposableTemplateExpected != null && state.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
-            ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
-            if (templateMetadata == null) {
-                return false;
-            }
-
-            return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
-        } else {
-            IndexTemplateMetadata templateMetadata = state.metadata().templates().get(templateName);
-            if (templateMetadata == null) {
-                return false;
-            }
-
-            return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
+    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
+        ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
+        if (templateMetadata == null) {
+            return false;
         }
+
+        return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
     }
 
     /**

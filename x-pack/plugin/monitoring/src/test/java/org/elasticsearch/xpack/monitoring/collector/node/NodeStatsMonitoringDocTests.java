@@ -388,7 +388,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             "1000000000"
         );
 
-        final OsStats.Mem osMem = new OsStats.Mem(0, 0);
+        final OsStats.Mem osMem = new OsStats.Mem(0, 0, 0);
         final OsStats.Swap osSwap = new OsStats.Swap(0, 0);
         final OsStats os = new OsStats(no, osCpu, osMem, osSwap, osCgroup);
 
@@ -429,6 +429,24 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             Version.CURRENT
         );
 
-        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null, null);
+        return new NodeStats(
+            discoveryNode,
+            no,
+            indices,
+            os,
+            process,
+            jvm,
+            threadPool,
+            fs,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

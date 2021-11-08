@@ -65,7 +65,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     private final int capacity;
     private final double fpp;
     private Consumer<Long> breaker = aLong -> {
-        //noop
+        // noop
     };
 
     // cached here for performance reasons
@@ -89,7 +89,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         }
 
         // We have to ensure that, in the worst case, two full sets can be converted into
-        // one cuckoo filter without overflowing.  This keeps merging logic simpler
+        // one cuckoo filter without overflowing. This keeps merging logic simpler
         if (threshold * 2 > FILTER_CAPACITY) {
             throw new IllegalArgumentException("[threshold] must be smaller than [" + (FILTER_CAPACITY / 2) + "]");
         }
@@ -265,8 +265,9 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      */
     void convert() {
         if (isSetMode == false) {
-            throw new IllegalStateException("Cannot convert SetBackedScalingCuckooFilter to approximate " +
-                "when it has already been converted.");
+            throw new IllegalStateException(
+                "Cannot convert SetBackedScalingCuckooFilter to approximate " + "when it has already been converted."
+            );
         }
         long oldSize = getSizeInBytes();
 
@@ -303,7 +304,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         return bytes;
     }
 
-
     /**
      * Merge `other` cuckoo filter into this cuckoo.  After merging, this filter's state will
      * be the union of the two.  During the merging process, the internal Set may be upgraded
@@ -312,16 +312,19 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     public void merge(SetBackedScalingCuckooFilter other) {
         // Some basic sanity checks to make sure we can merge
         if (this.threshold != other.threshold) {
-            throw new IllegalStateException("Cannot merge other CuckooFilter because thresholds do not match: ["
-                + this.threshold + "] vs [" + other.threshold + "]");
+            throw new IllegalStateException(
+                "Cannot merge other CuckooFilter because thresholds do not match: [" + this.threshold + "] vs [" + other.threshold + "]"
+            );
         }
         if (this.capacity != other.capacity) {
-            throw new IllegalStateException("Cannot merge other CuckooFilter because capacities do not match: ["
-                + this.capacity + "] vs [" + other.capacity + "]");
+            throw new IllegalStateException(
+                "Cannot merge other CuckooFilter because capacities do not match: [" + this.capacity + "] vs [" + other.capacity + "]"
+            );
         }
         if (this.fpp != other.fpp) {
-            throw new IllegalStateException("Cannot merge other CuckooFilter because precisions do not match: ["
-                + this.fpp + "] vs [" + other.fpp + "]");
+            throw new IllegalStateException(
+                "Cannot merge other CuckooFilter because precisions do not match: [" + this.fpp + "] vs [" + other.fpp + "]"
+            );
         }
 
         if (isSetMode && other.isSetMode) {
@@ -330,7 +333,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             maybeConvert();
         } else if (isSetMode && other.isSetMode == false) {
             // Other is in cuckoo mode, so we convert our set to a cuckoo, then
-            // call the merge function again.  Since both are now in set-mode
+            // call the merge function again. Since both are now in set-mode
             // this will fall through to the last conditional and do a cuckoo-cuckoo merge
             convert();
             merge(other);
@@ -353,7 +356,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
                     long[] fingerprints = iter.next();
 
                     // We check to see if the fingerprint is present in any of the existing filters
-                    // (in the same bucket/alternate bucket), or if the fingerprint is empty.  In these cases
+                    // (in the same bucket/alternate bucket), or if the fingerprint is empty. In these cases
                     // we can skip the fingerprint
                     for (long fingerprint : fingerprints) {
                         if (fingerprint == CuckooFilter.EMPTY || mightContainFingerprint(bucket, (int) fingerprint)) {
@@ -374,7 +377,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             }
         }
     }
-
 
     @Override
     public int hashCode() {

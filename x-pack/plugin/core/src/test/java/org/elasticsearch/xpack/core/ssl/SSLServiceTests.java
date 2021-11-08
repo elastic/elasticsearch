@@ -90,8 +90,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyListOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -569,7 +569,7 @@ public class SSLServiceTests extends ESTestCase {
 
         when(sslService.sslConfiguration(settings)).thenReturn(sslConfig);
         when(sslService.sslContext(sslConfig)).thenReturn(sslContext);
-        when(sslService.supportedCiphers(any(String[].class), anyListOf(String.class), any(Boolean.TYPE))).thenAnswer(inv -> {
+        when(sslService.supportedCiphers(any(String[].class), anyList(), any(Boolean.TYPE))).thenAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args[0], is(supportedCiphers));
             assertThat(args[1], is(requestedCiphers));

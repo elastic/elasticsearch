@@ -41,8 +41,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
 
     private static final String JOB_ID = "ml-hidden-indices-old-cluster-job";
     private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS = List.of(
-        Tuple.tuple(List.of(".ml-annotations-6"), ".ml-annotations-read"),
-        Tuple.tuple(List.of(".ml-annotations-6"), ".ml-annotations-write"),
+        Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-read"),
+        Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-write"),
         Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
         Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
         Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
@@ -64,7 +64,6 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78913")
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
             // trigger ML indices creation

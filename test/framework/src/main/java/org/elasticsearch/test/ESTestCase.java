@@ -35,6 +35,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
+import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -100,6 +102,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -109,13 +112,11 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -465,72 +466,107 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected List<String> filteredWarnings() {
+        List<String> filtered = new ArrayList<>();
+        filtered.add(
+            "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing"
+                + " multiple disks. This feature will be removed in a future release."
+        );
+        filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
+        filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            return List.of(
-                "setting [path.shared_data] is deprecated and will be removed in a future release",
-                "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
-            );
-        } else {
-            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release");
+            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         }
+        return filtered;
     }
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
-     *
      * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
-        assertSettingDeprecationsAndWarnings(Arrays.stream(settings).map(Setting::getKey).toArray(String[]::new), warnings);
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
+        assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
+            String warningMessage = String.format(
+                Locale.ROOT,
+                "[%s] setting was deprecated in Elasticsearch and will be "
+                    + "removed in a future release! See the breaking changes documentation for the next major version.",
+                setting.getKey()
+            );
+            return new DeprecationWarning(
+                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN,
+                warningMessage
+            );
+        }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
     }
 
-    protected final void assertSettingDeprecationsAndWarnings(final String[] settings, final String... warnings) {
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
+     * are assumed to be at WARNING level.
+     * @param expectedWarnings expected general deprecation warnings.
+     */
+    protected final void assertWarnings(String... expectedWarnings) {
         assertWarnings(
-            Stream.concat(
-                Arrays.stream(settings)
-                    .map(
-                        k -> "["
-                            + k
-                            + "] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version."
-                    ),
-                Arrays.stream(warnings)
-            ).toArray(String[]::new)
+            true,
+            Arrays.stream(expectedWarnings)
+                .map(expectedWarning -> new DeprecationWarning(Level.WARN, expectedWarning))
+                .toArray(DeprecationWarning[]::new)
         );
     }
 
-    protected final void assertWarnings(String... expectedWarnings) {
-        assertWarnings(true, expectedWarnings);
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
+     * are assumed to be at CRITICAL level.
+     * @param expectedWarnings expected general deprecation warnings.
+     */
+    protected final void assertCriticalWarnings(String... expectedWarnings) {
+        assertWarnings(
+            true,
+            Arrays.stream(expectedWarnings)
+                .map(expectedWarning -> new DeprecationWarning(DeprecationLogger.CRITICAL, expectedWarning))
+                .toArray(DeprecationWarning[]::new)
+        );
     }
 
-    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
+    protected final void assertWarnings(boolean stripXContentPosition, DeprecationWarning... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
             if (expectedWarnings == null || expectedWarnings.length == 0) {
-                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
+                assertNull("expected 0 warnings, actual: " + actualWarningStrings, actualWarningStrings);
             } else {
-                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-                final Set<String> actualWarningValues = actualWarnings.stream()
-                    .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
-                    .collect(Collectors.toSet());
-                for (String msg : expectedWarnings) {
-                    assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
+                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
+                final Set<DeprecationWarning> actualDeprecationWarnings = actualWarningStrings.stream().map(warningString -> {
+                    String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
+                    final Level level;
+                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
+                        level = DeprecationLogger.CRITICAL;
+                    } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
+                        level = Level.WARN;
+                    } else {
+                        throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
+                    }
+                    return new DeprecationWarning(level, warningText);
+                }).collect(Collectors.toSet());
+                for (DeprecationWarning expectedWarning : expectedWarnings) {
+                    DeprecationWarning escapedExpectedWarning = new DeprecationWarning(
+                        expectedWarning.level,
+                        HeaderWarning.escapeAndEncode(expectedWarning.message)
+                    );
+                    assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
                 }
                 assertEquals(
                     "Expected "
                         + expectedWarnings.length
                         + " warnings but found "
-                        + actualWarnings.size()
+                        + actualWarningStrings.size()
                         + "\nExpected: "
                         + Arrays.asList(expectedWarnings)
                         + "\nActual: "
-                        + actualWarnings,
+                        + actualWarningStrings,
                     expectedWarnings.length,
-                    actualWarnings.size()
+                    actualWarningStrings.size()
                 );
             }
         } finally {
@@ -1101,7 +1137,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Returns a random number of temporary paths. */
     public String[] tmpPaths() {
-        return new String[] { createTempDir().toAbsolutePath().toString() };
+        final int numPaths = TestUtil.nextInt(random(), 1, 3);
+        final String[] absPaths = new String[numPaths];
+        for (int i = 0; i < numPaths; i++) {
+            absPaths[i] = createTempDir().toAbsolutePath().toString();
+        }
+        return absPaths;
     }
 
     public NodeEnvironment newNodeEnvironment() throws IOException {
@@ -1112,7 +1153,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Settings.builder()
             .put(settings)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .build();
     }
 
@@ -1389,6 +1430,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    protected final XContentParserConfiguration parserConfig() {
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry())
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        return randomBoolean() ? config : config.withRestApiVersion(RestApiVersion.minimumSupported());
+    }
+
     /**
      * Create a new {@link XContentParser}.
      */
@@ -1400,59 +1447,44 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        if (randomBoolean()) {
-            return createParserWithCompatibilityFor(xContent, data, RestApiVersion.minimumSupported());
-        } else {
-            return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
-        }
+        return xContent.createParser(parserConfig(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        return xContent.createParser(parserConfig(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
-        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
+        return xContent.createParser(parserConfig(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return createParser(xContentRegistry(), xContent, data);
+        return createParser(parserConfig(), xContent, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(NamedXContentRegistry namedXContentRegistry, XContent xContent, BytesReference data)
+    protected final XContentParser createParser(XContentParserConfiguration config, XContent xContent, BytesReference data)
         throws IOException {
         if (data.hasArray()) {
-            return xContent.createParser(
-                namedXContentRegistry,
-                LoggingDeprecationHandler.INSTANCE,
-                data.array(),
-                data.arrayOffset(),
-                data.length()
-            );
+            return xContent.createParser(config, data.array(), data.arrayOffset(), data.length());
         }
-        return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
+        return xContent.createParser(config, data.streamInput());
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)
         throws IOException {
-        return xContent.createParserForCompatibility(
-            xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)),
-            restApiVersion
-        );
+        return xContent.createParser(parserConfig().withRestApiVersion(restApiVersion), data);
     }
 
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(
@@ -1648,6 +1680,34 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         } catch (UnknownHostException e) {
             throw new AssertionError();
+        }
+    }
+
+    public static final class DeprecationWarning {
+        private final Level level;
+        private final String message;
+
+        public DeprecationWarning(Level level, String message) {
+            this.level = level;
+            this.message = message;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(level, message);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DeprecationWarning that = (DeprecationWarning) o;
+            return Objects.equals(level, that.level) && Objects.equals(message, that.message);
+        }
+
+        @Override
+        public String toString() {
+            return String.format(Locale.ROOT, "%s (%s): %s", level.name(), level.intLevel(), message);
         }
     }
 }

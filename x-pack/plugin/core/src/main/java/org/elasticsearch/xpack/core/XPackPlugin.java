@@ -406,7 +406,7 @@ public class XPackPlugin extends XPackClientPlugin
         if (Files.exists(config) == false) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.OTHER,
                     "config_file_path",
                     "Config file ["

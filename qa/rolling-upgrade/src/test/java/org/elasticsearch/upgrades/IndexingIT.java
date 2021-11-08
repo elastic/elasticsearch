@@ -307,7 +307,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity(entity.toString());
-        client().performRequest(bulk);
+        assertThat(EntityUtils.toString(client().performRequest(bulk).getEntity()), containsString("\"errors\":false"));
     }
 
     private void createTsdbIndex() throws IOException {
@@ -319,7 +319,10 @@ public class IndexingIT extends AbstractRollingTestCase {
             indexSpec.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
         }
         indexSpec.endObject().endObject();
-        indexSpec.startObject("settings").field("mode", "time_series").endObject();
+        indexSpec.startObject("settings").startObject("index");
+        indexSpec.field("mode", "time_series");
+        indexSpec.array("routing_path", new String[] { "dim" });
+        indexSpec.endObject().endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);
     }

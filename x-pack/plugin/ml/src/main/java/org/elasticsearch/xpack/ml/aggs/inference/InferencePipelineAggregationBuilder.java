@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -28,6 +29,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -265,8 +267,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             .getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
                 loadedModel.set(model);
 
-                boolean isLicensed = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)
-                    || licenseState.isAllowedByLicense(model.getLicenseLevel());
+                boolean isLicensed = model.getLicenseLevel() == License.OperationMode.BASIC
+                    || MachineLearningField.ML_API_FEATURE.check(licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {

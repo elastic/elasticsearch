@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -73,7 +74,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
                 ),
                 randomAlphaOfLength(10)
             ),
-            new BertTokenization(null, null, 512)
+            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
         );
 
         TextClassificationConfig config = new TextClassificationConfig(
@@ -86,7 +87,8 @@ public class TextClassificationProcessorTests extends ESTestCase {
 
         TextClassificationProcessor processor = new TextClassificationProcessor(tokenizer, config);
 
-        NlpTask.Request request = processor.getRequestBuilder(config).buildRequest(List.of("Elasticsearch fun"), "request1");
+        NlpTask.Request request = processor.getRequestBuilder(config)
+            .buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 

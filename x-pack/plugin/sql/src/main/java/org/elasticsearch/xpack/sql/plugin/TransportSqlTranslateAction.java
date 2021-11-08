@@ -62,6 +62,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
 
         SqlConfiguration cfg = new SqlConfiguration(
             request.zoneId(),
+            request.catalog(),
             request.fetchSize(),
             request.requestTimeout(),
             request.pageTimeout(),
@@ -73,7 +74,9 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             username(securityContext),
             clusterName(clusterService),
             Protocol.FIELD_MULTI_VALUE_LENIENCY,
-            Protocol.INDEX_INCLUDE_FROZEN
+            Protocol.INDEX_INCLUDE_FROZEN,
+            null,
+            null
         );
 
         planExecutor.searchSource(

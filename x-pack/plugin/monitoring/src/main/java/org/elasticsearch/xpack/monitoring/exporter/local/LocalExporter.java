@@ -91,7 +91,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     public static final Setting.AffixSetting<TimeValue> WAIT_MASTER_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "wait_master.timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope),
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
         TYPE_DEPENDENCY
     );
 
@@ -416,7 +416,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
         } else {
             logger.trace(
-                "watches can't be used, because xpack.watcher.enabled=[{}] and "
+                "watches will not be installed because xpack.watcher.enabled=[{}] and "
                     + "xpack.monitoring.exporters._local.cluster_alerts.management.enabled=[{}]",
                 XPackSettings.WATCHER_ENABLED.get(config.settings()),
                 CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())
@@ -498,7 +498,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final List<Runnable> asyncActions,
         final AtomicInteger pendingResponses
     ) {
-        final boolean canAddWatches = licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
+        final boolean canAddWatches = Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE.check(licenseState);
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);

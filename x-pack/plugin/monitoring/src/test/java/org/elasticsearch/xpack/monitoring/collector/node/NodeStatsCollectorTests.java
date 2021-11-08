@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,6 +67,11 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
             () -> collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), clusterState)
         );
         assertEquals(exception, e);
+
+        assertWarnings(
+            "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoCollect() throws Exception {
@@ -120,6 +125,11 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getNodeId(), equalTo(node.getUUID()));
         assertThat(document.getNodeStats(), is(nodeStats));
         assertThat(document.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
+
+        assertWarnings(
+            "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoCollectThrowsTimeout() throws Exception {
@@ -149,6 +159,11 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings(
+            "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private void thenReturnNodeStats(final Client client, final TimeValue timeout, final NodesStatsResponse nodesStatsResponse) {

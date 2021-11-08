@@ -95,10 +95,13 @@ public abstract class AllocationDecider {
         Decision decision = canAllocate(shardRouting, node, allocation);
         if (decision.type() == Type.NO) {
             // On a NO decision, by default, we allow force allocating the primary.
-            return allocation.decision(Decision.YES,
-                                       decision.label(),
-                                       "primary shard [%s] allowed to force allocate on node [%s]",
-                                       shardRouting.shardId(), node.nodeId());
+            return allocation.decision(
+                Decision.YES,
+                decision.label(),
+                "primary shard [%s] allowed to force allocate on node [%s]",
+                shardRouting.shardId(),
+                node.nodeId()
+            );
         } else {
             // On a THROTTLE/YES decision, we use the same decision instead of forcing allocation
             return decision;
@@ -121,5 +124,19 @@ public abstract class AllocationDecider {
      */
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return Decision.YES;
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given replica shard can be
+     * allocated to the given node when there is an existing retention lease
+     * already existing on the node (meaning it has been allocated there previously)
+     *
+     * This method does not actually check whether there is a retention lease,
+     * that is the responsibility of the caller.
+     *
+     * It defaults to the same value as {@code canAllocate}.
+     */
+    public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
     }
 }

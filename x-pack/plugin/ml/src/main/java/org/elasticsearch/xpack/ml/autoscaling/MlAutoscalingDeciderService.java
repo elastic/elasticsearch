@@ -431,7 +431,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         List<NodeLoad> nodeLoads = new ArrayList<>(nodes.size());
         boolean nodeIsMemoryAccurate = true;
         for (DiscoveryNode node : nodes) {
-            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState, true, node, maxOpenJobs, maxMachineMemoryPercent, useAuto);
+            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState, node, maxOpenJobs, maxMachineMemoryPercent, useAuto);
             if (nodeLoad.getError() != null) {
                 logger.warn("[{}] failed to gather node load limits, failure [{}]. Returning no scale", node.getId(), nodeLoad.getError());
                 return noScaleResultOrRefresh(
@@ -906,7 +906,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // what is the future freed capacity, knowing the current capacity and what could be freed up in the future
         Map<String, Long> freeMemoryByNodeId = new HashMap<>();
         for (DiscoveryNode node : mlNodes) {
-            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState, true, node, maxOpenJobs, maxMachineMemoryPercent, useAuto);
+            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState, node, maxOpenJobs, maxMachineMemoryPercent, useAuto);
             if (nodeLoad.getError() != null || nodeLoad.isUseMemory() == false) {
                 return Optional.empty();
             }

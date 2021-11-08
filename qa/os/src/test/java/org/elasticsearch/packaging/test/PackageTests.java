@@ -59,6 +59,7 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
@@ -123,7 +124,7 @@ public class PackageTests extends PackagingTestCase {
 
         startElasticsearch();
 
-        final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
+        final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
         stopElasticsearch();
@@ -174,11 +175,13 @@ public class PackageTests extends PackagingTestCase {
             // Before version 231 systemctl returned exit code 3 for both services that were stopped, and nonexistent
             // services [1]. In version 231 and later it returns exit code 4 for non-existent services.
             //
-            // The exception is Centos 7 and oel 7 where it returns exit code 4 for non-existent services from a systemd reporting a version
-            // earlier than 231. Centos 6 does not have an /etc/os-release, but that's fine because it also doesn't use systemd.
+            // The exception is Centos, OEL or RHEL 7 where it returns exit code 4 for non-existent services from a systemd reporting a
+            // version earlier than 231. Centos 6 does not have an /etc/os-release, but that's fine because it also doesn't use systemd.
             //
             // [1] https://github.com/systemd/systemd/pull/3385
-            if (getOsRelease().contains("ID=\"centos\"") || getOsRelease().contains("ID=\"ol\"")) {
+            if (getOsRelease().contains("ID=\"centos\"")
+                || getOsRelease().contains("ID=\"ol\"")
+                || getOsRelease().contains("ID=\"rhel\"")) {
                 statusExitCode = 4;
             } else {
 
@@ -208,23 +211,57 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test60Reinstall() throws Exception {
-        install();
-        assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), sh);
+        try {
+            install();
+            assertInstalled(distribution());
+            verifyPackageInstallation(installation, distribution(), sh);
 
-        remove(distribution());
-        assertRemoved(distribution());
+            remove(distribution());
+            assertRemoved(distribution());
+        } finally {
+            cleanup();
+        }
     }
 
     public void test70RestartServer() throws Exception {
         try {
             install();
             assertInstalled(distribution());
+            // Recreate file realm users that have been deleted in earlier tests
+            setFileSuperuser("test_superuser", "test_superuser_password");
 
             startElasticsearch();
             restartElasticsearch(sh, installation);
             runElasticsearchTests();
             stopElasticsearch();
+        } finally {
+            cleanup();
+        }
+    }
+
+    public void test71JvmOptionsTotalMemoryOverride() throws Exception {
+        try {
+            install();
+            assertPathsExist(installation.envFile);
+            setHeap(null);
+
+            // Recreate file realm users that have been deleted in earlier tests
+            setFileSuperuser("test_superuser", "test_superuser_password");
+
+            withCustomConfig(tempConf -> {
+                // Work as though total system memory is 850MB
+                append(installation.envFile, "ES_JAVA_OPTS=\"-Des.total_memory_bytes=891289600\"");
+
+                startElasticsearch();
+
+                final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
+                assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
+
+                // 40% of 850MB
+                assertThat(sh.run("ps auwwx").stdout, containsString("-Xms340m -Xmx340m"));
+
+                stopElasticsearch();
+            });
         } finally {
             cleanup();
         }
@@ -279,13 +316,15 @@ public class PackageTests extends PackagingTestCase {
 
         assertPathsExist(installation.envFile);
         stopElasticsearch();
+        // Recreate file realm users that have been deleted in earlier tests
+        setFileSuperuser("test_superuser", "test_superuser_password");
 
         withCustomConfig(tempConf -> {
             append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 

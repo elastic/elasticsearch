@@ -38,13 +38,16 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -809,6 +812,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());
     }
 
+    /**
+     * updates the settings for an index
+     */
+    public void updateIndexSettings(String index, Settings.Builder settingsBuilder) {
+        UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
+        settingsRequest.setSettings(settingsBuilder);
+        assertAcked(settingsRequest.execute().actionGet());
+    }
+
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
@@ -1135,7 +1147,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final Metadata loadedMetadata;
                 try (
                     XContentParser parser = createParser(
-                        ElasticsearchNodeCommand.namedXContentRegistry,
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
                         SmileXContent.smileXContent,
                         originalBytes
                     )
@@ -1176,7 +1188,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 final IndexMetadata loadedIndexMetadata;
                 try (
                     XContentParser parser = createParser(
-                        ElasticsearchNodeCommand.namedXContentRegistry,
+                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
                         SmileXContent.smileXContent,
                         originalBytes
                     )
@@ -1853,7 +1865,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // randomly enable low-level search cancellation to make sure it does not alter results
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
+            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            .put(
+                TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE.getKey(),
+                randomFrom(1, 2, SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
+            );
         return builder.build();
     }
 
@@ -1954,7 +1970,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             nodePrefix,
             mockPlugins,
             getClientWrapper(),
-            forbidPrivateIndexSettings()
+            forbidPrivateIndexSettings(),
+            forceSingleDataPath()
         );
     }
 
@@ -2265,6 +2282,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected boolean forbidPrivateIndexSettings() {
         return true;
+    }
+
+    /**
+     * Override to return true in tests that cannot handle multiple data paths.
+     */
+    protected boolean forceSingleDataPath() {
+        return false;
     }
 
     /**

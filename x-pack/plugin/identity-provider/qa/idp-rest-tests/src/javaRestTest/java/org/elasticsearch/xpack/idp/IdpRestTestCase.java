@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@SuppressWarnings("removal")
 public abstract class IdpRestTestCase extends ESRestTestCase {
 
     private RestHighLevelClient highLevelAdminClient;

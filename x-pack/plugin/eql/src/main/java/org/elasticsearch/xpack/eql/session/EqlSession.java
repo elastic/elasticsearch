@@ -118,7 +118,6 @@ public class EqlSession {
         }
         indexResolver.resolveAsMergedMapping(
             indexWildcard,
-            null,
             configuration.indicesOptions(),
             configuration.runtimeMappings(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))

@@ -18,6 +18,7 @@ import spock.lang.Unroll
  * Test is ignored on ARM since this test case tests the ability to build certain older BWC branches that we don't support on ARM
  */
 
+//@Ignore("https://github.com/elastic/elasticsearch/issues/79929")
 @IgnoreIf({ Architecture.current() == Architecture.AARCH64 })
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
@@ -26,121 +27,56 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
-        execute("git branch origin/7.x", file("cloned"))
-        execute("git branch origin/7.10", file("cloned"))
-    }
-
-    def "builds distribution from branches via archives assemble"() {
-        given:
-        buildFile.text = ""
-        internalBuild(buildFile, "7.10.1", "7.11.0", "7.12.0")
-        buildFile << """
-            apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
-        """
-        when:
-        def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
-                ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
-                "-DtestRemoteRepo=" + remoteGitRepo,
-                "-Dbwc.remote=origin",
-                "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
-                .build()
-        then:
-        result.task(":distribution:bwc:${bwcProject}:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
-
-        and: "assemble task triggered"
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}")
-
-        where:
-        bwcDistVersion | bwcProject | expectedAssembleTaskName
-        "7.10.1"       | "bugfix"   | "assemble"
+        execute("git branch origin/8.0", file("cloned"))
+        execute("git branch origin/7.16", file("cloned"))
+        execute("git branch origin/7.15", file("cloned"))
     }
 
     def "builds distribution from branches via archives extractedAssemble"() {
         given:
         buildFile.text = ""
-        internalBuild(buildFile, "7.12.1", "7.13.0", "7.14.0")
+        internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
         when:
         def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
-                ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
+                ":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin",
                 "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
                 .build()
         then:
         result.task(":distribution:bwc:${bwcProject}:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
         assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}")
 
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName
-        "7.14.0"       | "minor"    | "extractedAssemble"
+        "8.0.0"        | "minor"    | "extractedAssemble"
+        "7.16.0"       | "staged"   | "extractedAssemble"
+        "7.15.2"       | "bugfix"   | "extractedAssemble"
     }
 
     @Unroll
     def "supports #platform aarch distributions"() {
         when:
         def result = gradleRunner(":distribution:bwc:minor:buildBwc${platform.capitalize()}Aarch64Tar",
-                ":distribution:bwc:minor:buildBwcOss${platform.capitalize()}Aarch64Tar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin",
                 "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
                 .build()
         then:
         result.task(":distribution:bwc:minor:buildBwc${platform.capitalize()}Aarch64Tar").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:minor:buildBwcOss${platform.capitalize()}Aarch64Tar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble tasks triggered"
         assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:${platform}-aarch64-tar:extractedAssemble")
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-${platform}-aarch64-tar:extractedAssemble")
 
         where:
         bwcDistVersion | platform
-        "7.12.0"       | "darwin"
-        "7.12.0"       | "linux"
-    }
-
-    def "bwc distribution archives can be resolved as bwc project artifact"() {
-        setup:
-        buildFile << """
-
-        configurations {
-            dists
-        }
-
-        dependencies {
-            dists project(path: ":distribution:bwc:bugfix", configuration:"darwin-tar")
-        }
-
-        tasks.register("resolveDistributionArchive") {
-            inputs.files(configurations.dists)
-            doLast {
-                configurations.dists.files.each {
-                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
-                }
-            }
-        }
-        """
-        when:
-        def result = gradleRunner(":resolveDistributionArchive",
-                "-DtestRemoteRepo=" + remoteGitRepo,
-                "-Dbwc.remote=origin")
-                .build()
-        then:
-        result.task(":resolveDistributionArchive").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-
-        and: "assemble task triggered"
-        result.output.contains("[7.10.1] > Task :distribution:archives:darwin-tar:assemble")
-        result.output.contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.10/distribution/archives/darwin-tar/" +
-                "build/distributions/elasticsearch-7.10.1-SNAPSHOT-darwin-x86_64.tar.gz")
+        "8.0.0"       | "darwin"
+        "8.0.0"       | "linux"
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
@@ -176,10 +112,10 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":resolveExpandedDistribution").outcome == TaskOutcome.SUCCESS
         result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
-        result.output.contains("[7.12.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+        result.output.contains("[8.0.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-8.0/" +
                         "distribution/archives/darwin-tar/build/install")
-        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-7.x/" +
-                        "distribution/archives/darwin-tar/build/install/elasticsearch-7.12.0-SNAPSHOT")
+        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.0/" +
+                        "distribution/archives/darwin-tar/build/install/elasticsearch-8.0.0-SNAPSHOT")
     }
 }

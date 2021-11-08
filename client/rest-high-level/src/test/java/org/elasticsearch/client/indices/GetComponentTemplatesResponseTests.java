@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -79,7 +80,7 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
             builder.startObject();
             builder.field("name", e.getKey());
             builder.field("component_template");
-            e.getValue().toXContent(builder, null);
+            e.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
         }
         builder.endArray();

@@ -39,6 +39,8 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -525,8 +527,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ScriptDocValues.Doubles getScriptValues() {
-            return new ScriptDocValues.Doubles(getDoubleValues());
+        public DocValuesField<?> getScriptField(String name) {
+            return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
         }
 
         @Override

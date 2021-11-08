@@ -96,6 +96,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         internalCluster().startMasterOnlyNode();
         // Use a single thread pool for writes so we can enforce a consistent ordering
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
     }
 
     public void testUpdateByQuery() throws Exception {
@@ -219,7 +220,12 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         }
 
         // The bulk request is enqueued before the update by query
-        final ActionFuture<BulkResponse> bulkFuture = client().bulk(conflictingUpdatesBulkRequest);
+        // Since #77731 TransportBulkAction is dispatched into the Write thread pool,
+        // this test makes use of a deterministic task order in the data node write
+        // thread pool. To ensure that ordering, execute the TransportBulkAction
+        // in a coordinator node preventing that additional tasks are scheduled into
+        // the data node write thread pool.
+        final ActionFuture<BulkResponse> bulkFuture = internalCluster().coordOnlyNodeClient().bulk(conflictingUpdatesBulkRequest);
 
         // Ensure that the concurrent writes are enqueued before the update by query request is sent
         assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));

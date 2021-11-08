@@ -118,7 +118,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess(boolean rewrite) {}
+    public void preProcess() {}
 
     @Override
     public Query buildFilteredQuery(Query query) {

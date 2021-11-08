@@ -70,34 +70,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         Client client,
         IngestService ingestService
     ) {
-        this(
-            PutTransformAction.NAME,
-            settings,
-            transportService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver,
-            clusterService,
-            transformServices,
-            client,
-            ingestService
-        );
-    }
-
-    protected TransportPutTransformAction(
-        String name,
-        Settings settings,
-        TransportService transportService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        TransformServices transformServices,
-        Client client,
-        IngestService ingestService
-    ) {
         super(
-            name,
+            PutTransformAction.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -143,7 +117,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {
             client.execute(
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, request.isDeferValidation()),
+                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
                 validateTransformListener
             );
         }, listener::onFailure);

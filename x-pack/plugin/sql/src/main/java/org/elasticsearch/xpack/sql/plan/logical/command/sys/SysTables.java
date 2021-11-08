@@ -15,19 +15,19 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
-import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 import static org.elasticsearch.xpack.ql.util.StringUtils.SQL_WILDCARD;
 
@@ -79,10 +79,17 @@ public class SysTables extends Command {
         if (clusterPattern == null || clusterPattern.pattern().equals(SQL_WILDCARD)) {
             // enumerate only if pattern is "" and no types are specified (types is null)
             if (pattern != null && pattern.pattern().isEmpty() && index == null && types == null) {
-                Object[] enumeration = new Object[10];
-                // send only the cluster, everything else null
-                enumeration[0] = cluster;
-                listener.onResponse(Page.last(Rows.singleton(output(), enumeration)));
+                // include remote and local cluster
+                Set<String> clusters = session.indexResolver().remoteClusters();
+                clusters.add(cluster);
+
+                List<List<?>> rows = new ArrayList<>(clusters.size());
+                for (String name : clusters) {
+                    List<String> row = new ArrayList<>(10);
+                    row.addAll(Arrays.asList(name, null, null, null, null, null, null, null, null, null));
+                    rows.add(row);
+                }
+                listener.onResponse(of(session, rows));
                 return;
             }
         }
@@ -116,15 +123,8 @@ public class SysTables extends Command {
         }
 
         // no enumeration pattern found, list actual tables
-        String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
-
-        // if the catalog doesn't match, don't return any results
-        if (cRegex != null && Pattern.matches(cRegex, cluster) == false) {
-            listener.onResponse(Page.last(Rows.empty(output())));
-            return;
-        }
-
-        String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
+        String cRegex = clusterPattern != null ? clusterPattern.asIndexNameWildcard() : null;
+        String idx = hasText(index) ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         EnumSet<IndexType> tableTypes = types;
@@ -140,6 +140,7 @@ public class SysTables extends Command {
 
         session.indexResolver()
             .resolveNames(
+                cRegex,
                 idx,
                 regex,
                 tableTypes,
@@ -148,12 +149,13 @@ public class SysTables extends Command {
                         of(
                             session,
                             result.stream()
-                                // sort by type, then by name
+                                // sort by type, then by cluster and name
                                 .sorted(
                                     Comparator.<IndexInfo, String>comparing(i -> i.type().toSql())
-                                        .thenComparing(Comparator.comparing(i -> i.name()))
+                                        .thenComparing(IndexInfo::cluster)
+                                        .thenComparing(IndexInfo::name)
                                 )
-                                .map(t -> asList(cluster, null, t.name(), t.type().toSql(), EMPTY, null, null, null, null, null))
+                                .map(t -> asList(t.cluster(), null, t.name(), t.type().toSql(), EMPTY, null, null, null, null, null))
                                 .collect(toList())
                         )
                     ),

@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.watcher.WatcherConstants;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -560,7 +560,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void ensureLicenseEnabled() throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                assertThat(WatcherConstants.WATCHER_FEATURE.check(licenseState), is(true));
+                assertThat(WatcherField.WATCHER_FEATURE.check(licenseState), is(true));
             }
         });
     }

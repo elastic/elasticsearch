@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -48,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -170,7 +172,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
         logger.debug(() -> new ParameterizedMessage("[{}] received start request", request.getId()));
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -239,7 +241,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 );
                 auditor.warning(jobId, warning);
                 logger.warn("[{}] {}", jobId, warning);
-                HeaderWarning.addWarning(warning);
+                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
             }
             // Refresh memory requirement for jobs
             memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
@@ -790,7 +792,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             MlIndexAndAlias.createSystemIndexIfNecessary(
                 client,
                 clusterState,
-                MachineLearning.getInferenceIndexSecurityDescriptor(),
+                MachineLearning.getInferenceIndexSystemIndexDescriptor(),
                 MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
                 indexCheckListener
             );

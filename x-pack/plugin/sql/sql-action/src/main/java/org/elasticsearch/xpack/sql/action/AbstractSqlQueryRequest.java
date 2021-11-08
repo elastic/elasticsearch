@@ -43,6 +43,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
@@ -62,6 +63,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     private String query = "";
     private ZoneId zoneId = Protocol.TIME_ZONE;
+    private String catalog = null;
     private int fetchSize = Protocol.FETCH_SIZE;
     private TimeValue requestTimeout = Protocol.REQUEST_TIMEOUT;
     private TimeValue pageTimeout = Protocol.PAGE_TIMEOUT;
@@ -74,6 +76,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     static final ParseField CURSOR = new ParseField(CURSOR_NAME);
     static final ParseField PARAMS = new ParseField(PARAMS_NAME);
     static final ParseField TIME_ZONE = new ParseField(TIME_ZONE_NAME);
+    static final ParseField CATALOG = new ParseField(CATALOG_NAME);
     static final ParseField FETCH_SIZE = new ParseField(FETCH_SIZE_NAME);
     static final ParseField REQUEST_TIMEOUT = new ParseField(REQUEST_TIMEOUT_NAME);
     static final ParseField PAGE_TIMEOUT = new ParseField(PAGE_TIMEOUT_NAME);
@@ -92,6 +95,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         QueryBuilder filter,
         Map<String, Object> runtimeMappings,
         ZoneId zoneId,
+        String catalog,
         int fetchSize,
         TimeValue requestTimeout,
         TimeValue pageTimeout,
@@ -101,6 +105,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         this.query = query;
         this.params = params;
         this.zoneId = zoneId;
+        this.catalog = catalog;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -118,6 +123,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         parser.declareString(AbstractSqlRequest::version, VERSION);
         parser.declareField(AbstractSqlQueryRequest::params, AbstractSqlQueryRequest::parseParams, PARAMS, ValueType.VALUE_ARRAY);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE);
+        parser.declareString(AbstractSqlQueryRequest::catalog, CATALOG);
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
         parser.declareString(
             (request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT, REQUEST_TIMEOUT_NAME)),
@@ -319,6 +325,15 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         return this;
     }
 
+    public String catalog() {
+        return catalog;
+    }
+
+    public AbstractSqlQueryRequest catalog(String catalog) {
+        this.catalog = catalog;
+        return this;
+    }
+
     /**
      * Hint about how many results to fetch at once.
      */
@@ -393,6 +408,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         query = in.readString();
         params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         zoneId = in.readZoneId();
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            catalog = in.readOptionalString();
+        }
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
@@ -421,6 +439,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             writeSqlTypedParamValue(out, param);
         }
         out.writeZoneId(zoneId);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeOptionalString(catalog);
+        }
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);
@@ -446,6 +467,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             && Objects.equals(query, that.query)
             && Objects.equals(params, that.params)
             && Objects.equals(zoneId, that.zoneId)
+            && Objects.equals(catalog, that.catalog)
             && Objects.equals(requestTimeout, that.requestTimeout)
             && Objects.equals(pageTimeout, that.pageTimeout)
             && Objects.equals(filter, that.filter)
@@ -454,6 +476,17 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, params, zoneId, fetchSize, requestTimeout, pageTimeout, filter, runtimeMappings);
+        return Objects.hash(
+            super.hashCode(),
+            query,
+            params,
+            zoneId,
+            catalog,
+            fetchSize,
+            requestTimeout,
+            pageTimeout,
+            filter,
+            runtimeMappings
+        );
     }
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 public class SecurityInfoTransportActionTests extends ESTestCase {
 
     private Settings settings;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private Realms realms;
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
@@ -61,7 +61,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
@@ -96,7 +96,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false;
         final boolean operatorPrivilegesAvailable = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(operatorPrivilegesAvailable);
+        when(licenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(operatorPrivilegesAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 

@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -138,9 +137,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        if (clientsSettings.isEmpty()) {
-            throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
-        }
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
         storageService.refreshSettings(clientsSettings);

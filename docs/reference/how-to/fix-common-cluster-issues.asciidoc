@@ -48,8 +48,8 @@ watermarks and remove the write block.
 [source,console]
 ----
 PUT _cluster/settings
-{ 
-  "transient": {
+{
+  "persistent": {
     "cluster.routing.allocation.disk.watermark.low": "90%",
     "cluster.routing.allocation.disk.watermark.high": "95%",
     "cluster.routing.allocation.disk.watermark.flood_stage": "97%"
@@ -57,7 +57,7 @@ PUT _cluster/settings
 }
 
 PUT */_settings?expand_wildcards=all
-{ 
+{
   "index.blocks.read_only_allow_delete": null
 }
 ----
@@ -79,8 +79,8 @@ When a long-term solution is in place, reset or reconfigure the disk watermarks.
 [source,console]
 ----
 PUT _cluster/settings
-{ 
-  "transient": {
+{
+  "persistent": {
     "cluster.routing.allocation.disk.watermark.low": null,
     "cluster.routing.allocation.disk.watermark.high": null,
     "cluster.routing.allocation.disk.watermark.flood_stage": null
@@ -208,7 +208,7 @@ include::{es-repo-dir}/tab-widgets/cpu-usage-widget.asciidoc[]
 **Check hot threads**
 
 If a node has high CPU usage, use the <<cluster-nodes-hot-threads,nodes hot
-threads API>> to check for resource-intensive threads running on the node. 
+threads API>> to check for resource-intensive threads running on the node.
 
 [source,console]
 ----
@@ -493,7 +493,7 @@ These settings include:
 * <<shard-allocation-awareness,Allocation awareness>> cluster settings
 
 To review your allocation settings, use the <<indices-get-settings,get index
-settings>> and <<cluster-get-settings,get cluster settings>> APIs.
+settings>> and <<cluster-get-settings,cluster get settings>> APIs.
 
 [source,console]
 ----
@@ -504,7 +504,7 @@ GET _cluster/settings?flat_settings=true&include_defaults=true
 // TEST[s/^/PUT my-index\n/]
 
 You can change the settings using the <<indices-update-settings,update index
-settings>> and <<cluster-update-settings,update cluster settings>> APIs.
+settings>> and <<cluster-update-settings,cluster update settings>> APIs.
 
 **Allocate or reduce replicas**
 

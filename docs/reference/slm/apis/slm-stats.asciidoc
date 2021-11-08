@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[slm-api-get-stats]]
 === Get snapshot lifecycle stats API
 ++++

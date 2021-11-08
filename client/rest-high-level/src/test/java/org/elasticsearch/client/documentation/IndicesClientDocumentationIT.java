@@ -55,7 +55,6 @@ import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DetailAnalyzeResponse;
-import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
@@ -108,7 +107,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.IndicesClientIT.FROZEN_INDICES_DEPRECATION_WARNING;
-import static org.elasticsearch.client.IndicesClientIT.IGNORE_THROTTLED_DEPRECATION_WARNING;
 import static org.elasticsearch.client.IndicesClientIT.LEGACY_TEMPLATE_OPTIONS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -135,6 +133,7 @@ import static org.hamcrest.Matchers.nullValue;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testIndicesExist() throws IOException {
@@ -2878,90 +2877,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::analyze-field-request
         }
 
-    }
-
-    public void testFreezeIndex() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
-            assertTrue(createIndexResponse.isAcknowledged());
-        }
-
-        {
-            // tag::freeze-index-request
-            FreezeIndexRequest request = new FreezeIndexRequest("index"); // <1>
-            // end::freeze-index-request
-
-            // tag::freeze-index-request-timeout
-            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
-            // end::freeze-index-request-timeout
-            // tag::freeze-index-request-masterTimeout
-            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            // end::freeze-index-request-masterTimeout
-            // tag::freeze-index-request-waitForActiveShards
-            request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <1>
-            // end::freeze-index-request-waitForActiveShards
-
-            // tag::freeze-index-request-indicesOptions
-            request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
-            // end::freeze-index-request-indicesOptions
-
-            final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(
-                    warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING, IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
-                )
-                .build();
-
-            // tag::freeze-index-execute
-            ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, freezeIndexOptions);
-            // end::freeze-index-execute
-
-            // tag::freeze-index-response
-            boolean acknowledged = openIndexResponse.isAcknowledged(); // <1>
-            boolean shardsAcked = openIndexResponse.isShardsAcknowledged(); // <2>
-            // end::freeze-index-response
-            assertTrue(acknowledged);
-            assertTrue(shardsAcked);
-
-            // tag::freeze-index-execute-listener
-            ActionListener<ShardsAcknowledgedResponse> listener =
-                new ActionListener<ShardsAcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(ShardsAcknowledgedResponse freezeIndexResponse) {
-                        // <1>
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
-            // end::freeze-index-execute-listener
-
-            // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::freeze-index-execute-async
-            client.indices().freezeAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::freeze-index-execute-async
-
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-
-        {
-            // tag::freeze-index-notfound
-            try {
-                FreezeIndexRequest request = new FreezeIndexRequest("does_not_exist");
-                client.indices().freeze(request, RequestOptions.DEFAULT);
-            } catch (ElasticsearchException exception) {
-                if (exception.status() == RestStatus.BAD_REQUEST) {
-                    // <1>
-                }
-            }
-            // end::freeze-index-notfound
-        }
     }
 
     public void testUnfreezeIndex() throws Exception {

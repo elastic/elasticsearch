@@ -23,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.client.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.client.transform.transforms.SettingsConfigTests.randomSettingsConfig;
 import static org.elasticsearch.client.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomMetadata;
 import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomRetentionPolicyConfig;
 import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomSyncConfig;
 
@@ -36,6 +37,7 @@ public class TransformConfigUpdateTests extends AbstractXContentTestCase<Transfo
             randomBoolean() ? null : randomSyncConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig()
         );
     }

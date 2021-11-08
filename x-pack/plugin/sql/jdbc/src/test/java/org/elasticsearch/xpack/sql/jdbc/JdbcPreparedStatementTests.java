@@ -587,7 +587,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     }
 
     private JdbcPreparedStatement createJdbcPreparedStatement() throws SQLException {
-        return new JdbcPreparedStatement(null, JdbcConfiguration.create("jdbc:es://l:1", null, 0), "?");
+        return new JdbcPreparedStatement(new JdbcConnection(JdbcConfiguration.create("jdbc:es://l:1", null, 0), false), "?");
     }
 
     private EsType jdbcType(JdbcPreparedStatement jps) throws SQLException {

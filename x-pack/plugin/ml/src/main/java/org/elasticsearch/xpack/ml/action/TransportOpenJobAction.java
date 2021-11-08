@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,6 +34,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -75,12 +74,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
     private final MlMemoryTracker memoryTracker;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final Client client;
 
     @Inject
     public TransportOpenJobAction(
-        Settings settings,
         TransportService transportService,
         ThreadPool threadPool,
         XPackLicenseState licenseState,
@@ -107,7 +104,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;
         this.memoryTracker = memoryTracker;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.client = new OriginSettingClient(client, ML_ORIGIN);
     }
 
@@ -126,13 +122,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         ClusterState state,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobParams().getJobId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("open job", request.getJobParams().getJobId()));
-            return;
-        }
-
         OpenJobAction.JobParams jobParams = request.getJobParams();
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
 
             // Clear job finished time once the job is started and respond
             ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(response -> {
@@ -144,26 +135,26 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }, listener::onFailure);
 
             // Wait for job to be started
-            ActionListener<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart = new ActionListener<
-                PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> task) {
-                    waitForJobStarted(task.getId(), jobParams, clearJobFinishTime);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException(
-                            "Cannot open job [{}] because it has already been opened",
-                            RestStatus.CONFLICT,
-                            e,
-                            jobParams.getJobId()
-                        );
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> task) {
+                        waitForJobStarted(task.getId(), jobParams, clearJobFinishTime);
                     }
-                    listener.onFailure(e);
-                }
-            };
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                            e = new ElasticsearchStatusException(
+                                "Cannot open job [{}] because it has already been opened",
+                                RestStatus.CONFLICT,
+                                e,
+                                jobParams.getJobId()
+                            );
+                        }
+                        listener.onFailure(e);
+                    }
+                };
 
             // Start job task
             ActionListener<Long> memoryRequirementRefreshListener = ActionListener.wrap(
@@ -304,30 +295,27 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(
-            persistentTask.getId(),
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                    // We succeeded in cancelling the persistent task, but the
-                    // problem that caused us to cancel it is the overall result
-                    listener.onFailure(exception);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        () -> new ParameterizedMessage(
-                            "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
-                            persistentTask.getParams().getJobId(),
-                            exception.getMessage()
-                        ),
-                        e
-                    );
-                    listener.onFailure(exception);
-                }
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+            @Override
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                // We succeeded in cancelling the persistent task, but the
+                // problem that caused us to cancel it is the overall result
+                listener.onFailure(exception);
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                        persistentTask.getParams().getJobId(),
+                        exception.getMessage()
+                    ),
+                    e
+                );
+                listener.onFailure(exception);
+            }
+        });
     }
 
     /**

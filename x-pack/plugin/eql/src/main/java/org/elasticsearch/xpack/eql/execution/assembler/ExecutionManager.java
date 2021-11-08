@@ -19,20 +19,25 @@ import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreaker
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
+import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -76,18 +81,31 @@ public class ExecutionManager {
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
             List<String> keyFields = new ArrayList<>(keyExtractors.size());
 
+            Set<String> optionalKeys = new LinkedHashSet<>(CollectionUtils.mapSize(keyExtractors.size()));
+
             // extract top-level fields used as keys to optimize query lookups
             // this process gets skipped for nested fields
-            for (HitExtractor extractor : keyExtractors) {
+            for (int j = 0; j < keyExtractors.size(); j++) {
+                HitExtractor extractor = keyExtractors.get(j);
+
                 if (extractor instanceof AbstractFieldHitExtractor) {
                     AbstractFieldHitExtractor hitExtractor = (AbstractFieldHitExtractor) extractor;
+                    // remember if the field is optional
+                    boolean isOptional = keys.get(j) instanceof OptionalResolvedAttribute;
                     // no nested fields
                     if (hitExtractor.hitName() == null) {
-                        keyFields.add(hitExtractor.fieldName());
+                        String fieldName = hitExtractor.fieldName();
+                        keyFields.add(fieldName);
+                        if (isOptional) {
+                            optionalKeys.add(fieldName);
+                        }
                     } else {
                         keyFields = emptyList();
                         break;
                     }
+                    // optional field
+                } else if (extractor instanceof ComputingExtractor) {
+                    keyFields.add(((ComputingExtractor) extractor).hitName());
                 }
             }
 
@@ -96,7 +114,7 @@ public class ExecutionManager {
             if (query instanceof EsQueryExec) {
                 SearchSourceBuilder source = ((EsQueryExec) query).source(session, false);
                 QueryRequest original = () -> source;
-                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields);
+                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields, optionalKeys);
                 Criterion<BoxedQueryRequest> criterion = new Criterion<>(
                     i,
                     boxedRequest,

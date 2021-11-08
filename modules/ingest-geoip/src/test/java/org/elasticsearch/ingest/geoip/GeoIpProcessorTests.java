@@ -45,7 +45,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -78,7 +79,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             true,
-            false
+            false,
+            "filename"
         );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(
             random(),
@@ -99,7 +101,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             true,
-            false
+            false,
+            "filename"
         );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
@@ -117,7 +120,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(
             random(),
@@ -138,7 +142,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
@@ -156,7 +161,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         String address = "2602:306:33d3:8000::3257:9652";
@@ -193,7 +199,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -218,7 +225,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -246,7 +254,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -272,7 +281,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -300,7 +310,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -323,7 +334,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -343,7 +355,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -372,7 +385,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -401,7 +415,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            false
+            false,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -422,7 +437,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            true
+            true,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -449,7 +465,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            true
+            true,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();
@@ -470,7 +487,8 @@ public class GeoIpProcessorTests extends ESTestCase {
             "target_field",
             EnumSet.allOf(GeoIpProcessor.Property.class),
             false,
-            true
+            true,
+            "filename"
         );
 
         Map<String, Object> document = new HashMap<>();

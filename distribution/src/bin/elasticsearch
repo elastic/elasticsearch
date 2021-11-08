@@ -18,16 +18,29 @@ source "`dirname "$0"`"/elasticsearch-env
 CHECK_KEYSTORE=true
 ATTEMPT_SECURITY_AUTO_CONFIG=true
 DAEMONIZE=false
-for option in "$@"; do
-  case "$option" in
-    -h|--help|-V|--version)
-      CHECK_KEYSTORE=false
-      ATTEMPT_SECURITY_AUTO_CONFIG=false
-      ;;
-    -d|--daemonize)
-      DAEMONIZE=true
-      ;;
-  esac
+ENROLL_TO_CLUSTER=false
+# Store original arg array as we will be shifting through it below
+ARG_LIST=("$@")
+
+while [ $# -gt 0 ]; do
+   if [[ $1 == "--enrollment-token" ]]; then
+     if [ $ENROLL_TO_CLUSTER = true ]; then
+       echo "Multiple --enrollment-token parameters are not allowed" 1>&2
+       exit 1
+     fi
+     ENROLL_TO_CLUSTER=true
+     ATTEMPT_SECURITY_AUTO_CONFIG=false
+     ENROLLMENT_TOKEN="$2"
+     shift
+   elif [[ $1 == "-h" || $1 == "--help" || $1 == "-V" || $1 == "--version" ]]; then
+     CHECK_KEYSTORE=false
+     ATTEMPT_SECURITY_AUTO_CONFIG=false
+   elif [[ $1 == "-d" || $1 == "--daemonize" ]]; then
+     DAEMONIZE=true
+   fi
+   if [[ $# -gt 0 ]]; then
+     shift
+   fi
 done
 
 if [ -z "$ES_TMPDIR" ]; then
@@ -47,16 +60,21 @@ then
   fi
 fi
 
-if [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
+if [[ $ENROLL_TO_CLUSTER = true ]]; then
+  ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigureNode \
+  ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+  ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+  bin/elasticsearch-cli "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"
+elif [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
   # It is possible that an auto-conf failure prevents the node from starting, but this is only the exceptional case (exit code 1).
   # Most likely an auto-conf failure will leave the configuration untouched (exit codes 73, 78 and 80), optionally printing a message
   # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
   # It is passed in all the command line options in order to read the node settings ones (-E), while the other parameters are ignored
   # (a small caveat is that it also inspects the -v option in order to provide more information on how auto config went)
-  if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
+  if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigureNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    "`dirname "$0"`"/elasticsearch-cli "$@" <<<"$KEYSTORE_PASSWORD"; then
+    bin/elasticsearch-cli "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"; then
       :
   else
     retval=$?
@@ -77,6 +95,13 @@ fi
 #   - fourth, ergonomic JVM options are applied
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
 
+# Remove enrollment related parameters before passing the arg list to Elasticsearch
+for i in "${!ARG_LIST[@]}"; do
+  if [[ ${ARG_LIST[i]} = "--enrollment-token" || ${ARG_LIST[i]} = "$ENROLLMENT_TOKEN" ]]; then
+    unset 'ARG_LIST[i]'
+  fi
+done
+
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   exec \
@@ -90,7 +115,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$@" <<<"$KEYSTORE_PASSWORD"
+    "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
     "$JAVA" \
@@ -103,7 +128,7 @@ else
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
-    "$@" \
+    "${ARG_LIST[@]}" \
     <<<"$KEYSTORE_PASSWORD" &
   retval=$?
   pid=$!

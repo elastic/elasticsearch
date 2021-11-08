@@ -46,7 +46,8 @@ public class IndexRecoveryCollector extends Collector {
         collectionSetting("index.recovery.active_only"),
         false,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     private final Client client;

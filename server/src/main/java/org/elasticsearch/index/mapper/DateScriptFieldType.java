@@ -22,8 +22,8 @@ import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -119,8 +119,13 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         Script script,
         Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
-            script, meta);
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
         this.dateTimeFormatter = dateTimeFormatter;
         this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }
@@ -158,7 +163,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return DateFieldType.handleNow(context, now -> {
             long originLong = DateFieldType.parseToLong(
                 origin,
@@ -181,7 +186,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
 
@@ -196,7 +201,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         SearchExecutionContext context
     ) {
         parser = parser == null ? this.dateMathParser : parser;
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return DateFieldType.dateRangeQuery(
             lowerTerm,
             upperTerm,
@@ -214,7 +219,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     public Query termQuery(Object value, SearchExecutionContext context) {
         return DateFieldType.handleNow(context, now -> {
             long l = DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
         });
     }
@@ -229,7 +234,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             for (Object value : values) {
                 terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
         });
     }

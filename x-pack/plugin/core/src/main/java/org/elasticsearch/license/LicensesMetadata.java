@@ -60,7 +60,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     @Nullable
     private Version trialVersion;
 
-    LicensesMetadata(License license, Version trialVersion) {
+    public LicensesMetadata(License license, Version trialVersion) {
         this.license = license;
         this.trialVersion = trialVersion;
     }

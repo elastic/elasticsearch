@@ -11,6 +11,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +43,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.LeakTracker;
@@ -77,6 +79,7 @@ public class MockNioTransport extends TcpTransport {
 
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final TransportThreadWatchdog transportThreadWatchdog;
+    private final BytesRefRecycler bytesRefRecycler;
     private volatile NioSelectorGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
@@ -91,6 +94,7 @@ public class MockNioTransport extends TcpTransport {
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         this.transportThreadWatchdog = new TransportThreadWatchdog(threadPool, settings);
+        this.bytesRefRecycler = new BytesRefRecycler(pageCacheRecycler);
     }
 
     @Override
@@ -224,11 +228,13 @@ public class MockNioTransport extends TcpTransport {
                 if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
                     return new Page(ByteBuffer.allocate(length), () -> {});
                 } else {
-                    Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes);
+                    Recycler.V<BytesRef> bytes = recycler.obtain();
+                    BytesRef v = bytes.v();
+                    assert v.length == length;
+                    return new Page(ByteBuffer.wrap(v.bytes, v.offset, length), bytes);
                 }
             };
-            MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, pageCacheRecycler, MockNioTransport.this);
+            MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, bytesRefRecycler, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(
                 nioChannel,
                 selector,
@@ -310,7 +316,7 @@ public class MockNioTransport extends TcpTransport {
         private final MockSocketChannel channel;
         private final InboundPipeline pipeline;
 
-        private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
+        private MockTcpReadWriteHandler(MockSocketChannel channel, BytesRefRecycler recycler, TcpTransport transport) {
             this.channel = channel;
             final ThreadPool threadPool = transport.getThreadPool();
             final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();

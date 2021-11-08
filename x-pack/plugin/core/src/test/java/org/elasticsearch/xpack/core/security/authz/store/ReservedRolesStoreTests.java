@@ -166,7 +166,7 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -189,14 +189,6 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
-import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -214,7 +206,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
@@ -555,11 +546,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+
+            // Privileges needed for Fleet package upgrades
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(mockIndexAbstraction(index)), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(index)), is(true));
         });
 
         Arrays.asList(
@@ -573,15 +568,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         // Data telemetry reads mappings, metadata and stats of indices
-        Arrays.asList(
-            randomAlphaOfLengthBetween(8, 24),
-            "packetbeat-*",
-            // check system indices other than .security* and .async-search*
-            ".watches",
-            ".triggered-watches",
-            ".tasks",
-            ".enrich"
-        ).forEach((index) -> {
+        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*").forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertViewIndexMetadata(kibanaRole, index);
@@ -596,6 +583,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // Data telemetry does not have access to system indices that aren't specified
+        List.of(".watches", ".geoip_databases", ".logstash", ".snapshot-blob-cache").forEach((index) -> {
+            logger.info("index name [{}]", index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
         });
 
@@ -692,7 +690,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-" + randomAlphaOfLengthBetween(3, 8),
             "metrics-" + randomAlphaOfLengthBetween(3, 8),
             "synthetics-" + randomAlphaOfLengthBetween(3, 8),
-            "traces-" + randomAlphaOfLengthBetween(3, 8)
+            "traces-" + randomAlphaOfLengthBetween(3, 8),
+            // Hidden data indices for endpoint package
+            ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(3, 8),
+            ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
+            ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -713,9 +715,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(false));
+
+            // Endpoint diagnostic data stream also has read access, all others should not.
+            final boolean isAlsoReadIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-");
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
         });
 
         // 4. Transform for endpoint package
@@ -729,31 +734,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
             StopTransformAction.NAME,
             UpdateTransformAction.NAME,
             ValidateTransformAction.NAME,
-            DeleteTransformActionDeprecated.NAME,
-            GetTransformActionDeprecated.NAME,
-            GetTransformStatsActionDeprecated.NAME,
-            PreviewTransformActionDeprecated.NAME,
-            PutTransformActionDeprecated.NAME,
-            StartTransformActionDeprecated.NAME,
-            StopTransformActionDeprecated.NAME,
-            UpdateTransformActionDeprecated.NAME,
             "cluster:admin/data_frame/" + randomAlphaOfLengthBetween(3, 8),
             "cluster:monitor/data_frame/" + randomAlphaOfLengthBetween(3, 8),
             "cluster:admin/transform/" + randomAlphaOfLengthBetween(3, 8),
             "cluster:monitor/transform/" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(action -> assertThat(kibanaRole.cluster().check(action, request, authentication), is(true)));
 
-        Arrays.asList("metrics-endpoint.metadata" + randomAlphaOfLengthBetween(3, 8)).forEach(indexName -> {
-            assertOnlyReadAllowed(kibanaRole, indexName);
-            assertViewIndexMetadata(kibanaRole, indexName);
-
-            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
-        });
-
-        Arrays.asList("metrics-endpoint.metadata_current_default", "metrics-endpoint.metadata_united_default").forEach(indexName -> {
+        Arrays.asList(
+            "metrics-endpoint.metadata_current_default",
+            ".metrics-endpoint.metadata_current_default",
+            ".metrics-endpoint.metadata_united_default"
+        ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow indexing
@@ -1380,16 +1371,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
         for (final String indexMonitoringActionName : indexMonitoringActionNamesList) {
             String asyncSearchIndex = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
-            final Map<String, IndexAccessControl> authzMap = role.indices()
+            final IndicesAccessControl iac = role.indices()
                 .authorize(
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS, asyncSearchIndex),
                     metadata.getIndicesLookup(),
                     fieldPermissionsCache
                 );
-            assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
-            assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-            assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(asyncSearchIndex).isGranted(), is(true));
         }
     }
 
@@ -1495,29 +1486,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
-        Map<String, IndexAccessControl> authzMap = superuserRole.indices()
+        IndicesAccessControl iac = superuserRole.indices()
             .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a1").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a1").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a2").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices()
-            .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices()
+        assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("a2").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("aaaaaa").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices()
             .authorize(
                 randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
                 Sets.newHashSet(RestrictedIndicesNames.SECURITY_MAIN_ALIAS),
                 lookup,
                 fieldPermissionsCache
             );
-        assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
+        assertThat(iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
+        assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
 
@@ -1776,7 +1766,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -1933,7 +1923,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));

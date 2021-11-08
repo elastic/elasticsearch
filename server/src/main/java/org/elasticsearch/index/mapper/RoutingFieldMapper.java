@@ -64,10 +64,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> RoutingFieldMapper.get(Defaults.REQUIRED),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
 
     static final class RoutingFieldType extends StringFieldType {
 
@@ -88,6 +85,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    /**
+     * Should we require {@code routing} on CRUD operations?
+     */
     private final boolean required;
 
     private static final RoutingFieldMapper REQUIRED = new RoutingFieldMapper(true);
@@ -102,6 +102,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         this.required = required;
     }
 
+    /**
+     * Should we require {@code routing} on CRUD operations?
+     */
     public boolean required() {
         return this.required;
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
@@ -119,7 +120,7 @@ public class TransportUpdateDataFrameAnalyticsAction extends TransportMasterNode
         UpdateDataFrameAnalyticsAction.Request request,
         ActionListener<PutDataFrameAnalyticsAction.Response> listener
     ) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

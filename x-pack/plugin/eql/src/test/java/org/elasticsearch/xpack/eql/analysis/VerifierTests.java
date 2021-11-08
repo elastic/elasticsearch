@@ -23,20 +23,18 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.startsWith;
 
 public class VerifierTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
-
-    private final EqlParser parser = new EqlParser();
 
     private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
@@ -49,9 +47,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
+        EqlParser parser = new EqlParser();
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
-        return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
+
+        LogicalPlan plan = parser.createStatement(eql);
+        return analyzer.analyze(preAnalyzer.preAnalyze(plan, resolution));
     }
 
     private LogicalPlan accept(String eql) {
@@ -155,6 +156,10 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testOptionalFieldsUnsupported() {
+        assertEquals("1:1: extraneous input '?' expecting {'any', 'join', 'sequence', STRING, IDENTIFIER}", errorParsing("?x where true"));
+    }
+
     // Test valid/supported queries
     public void testQueryOk() {
         // Mismatched type, still ok
@@ -189,6 +194,14 @@ public class VerifierTests extends ESTestCase {
         accept("file where serial_event_id * 2 == 164");
         accept("file where serial_event_id / 2 == 41");
         accept("file where serial_event_id % 40 == 2");
+
+        // optional fields
+        accept("file where ?foo == 123");
+        accept("file where ?foo == null");
+        accept("file where ?`?foo` == null");
+        accept("file where ?`f?oo` == null");
+        accept("file where serial_event_id == 82 and (true == (?bar in (\"abc\", \"xyz\")))");
+        accept("file where concat(?foo, \"test\", ?bar) == \"onetest!\"");
     }
 
     // Test mapping that doesn\"t have property event.category defined
@@ -452,11 +465,11 @@ public class VerifierTests extends ESTestCase {
         );
         Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
-        return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement("any where true"), resolution));
+        return analyzer.analyze(preAnalyzer.preAnalyze(new EqlParser().createStatement("any where true"), resolution));
     }
 
     public void testRemoteClusterVersionCheck() {
-        assertNotNull(analyzeWithVerifierFunction(x -> Collections.emptySet()));
+        assertNotNull(analyzeWithVerifierFunction(x -> emptySet()));
 
         Set<String> clusters = new TreeSet<>() {
             {

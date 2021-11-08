@@ -68,8 +68,10 @@ public class PyTorchStateStreamer {
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
         restorer.setSearchIndex(index);
         restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), listener::onResponse, listener::onFailure);
-        logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+        restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), success -> {
+            logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+            listener.onResponse(success);
+        }, listener::onFailure);
     }
 
     private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {

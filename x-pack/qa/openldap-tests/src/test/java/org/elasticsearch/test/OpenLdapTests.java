@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -55,7 +56,18 @@ import static org.hamcrest.Matchers.startsWith;
 public class OpenLdapTests extends ESTestCase {
 
     public static final String OPEN_LDAP_DNS_URL = "ldaps://localhost:" + getFromProperty("636");
-    public static final String OPEN_LDAP_IP_URL = "ldaps://127.0.0.1:" + getFromProperty("636");
+
+    /**
+     *
+     * ip.es.io is magic that will resolve any IP-like DNS name into the embedded IP
+     * This allows us to have an extra DNS name to our local container.
+     * This is needed because as of v5.1.2 the LDAP-SDK always trusts
+     * connections to loopback addresses if they were made using an IP address,
+     * (See {@link com.unboundid.util.ssl.HostNameSSLSocketVerifier}.certificateIncludesHostname)
+     * so in order to have a "not-valid-hostname" failure, we need a second
+     * hostname that isn't in the certificate's Subj Alt Name list
+     */
+    private static final String OPEN_LDAP_ES_IO_URL = "ldaps://127.0.0.1.ip.es.io:" + getFromProperty("636");
 
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -174,14 +186,15 @@ public class OpenLdapTests extends ESTestCase {
         }
     }
 
+    @Network
     public void testStandardLdapConnectionHostnameVerificationFailure() throws Exception {
         // openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "vmode_full");
         Settings settings = Settings.builder()
-            // The certificate used in the vagrant box is valid for "localhost", but not for "127.0.0.1"
-            .put(buildLdapSettings(realmId, OPEN_LDAP_IP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+            // The certificate used in the vagrant box is valid for "localhost", but not for "*.ip.es.io"
+            .put(buildLdapSettings(realmId, OPEN_LDAP_ES_IO_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
             .build();
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         RealmConfig config = new RealmConfig(realmId, settings, env, new ThreadContext(Settings.EMPTY));
@@ -206,7 +219,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "vmode_full");
         Settings settings = Settings.builder()
-            // The certificate used in the vagrant box is valid for "localhost" (but not for "127.0.0.1")
+            // The certificate used in the vagrant box is valid for "localhost" (but not for "*.ip.es.io")
             .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
             .build();
 

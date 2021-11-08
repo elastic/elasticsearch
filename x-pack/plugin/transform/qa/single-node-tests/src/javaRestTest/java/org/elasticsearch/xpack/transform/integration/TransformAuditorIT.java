@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -114,14 +113,9 @@ public class TransformAuditorIT extends TransformRestTestCase {
         client().performRequest(request);
 
         assertBusy(
-            () -> {
-                assertTrue(
-                    aliasExists(
-                        TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED,
-                        TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS
-                    )
-                );
-            }
+            () -> assertTrue(
+                aliasExists(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED, TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
+            )
         );
     }
 }

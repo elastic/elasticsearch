@@ -116,7 +116,7 @@ public class JobNodeSelector {
             useAutoMemoryPercentage
         );
         long mostAvailableMemory = capableNodes.stream()
-            .map(n -> nodeLoadDetector.detectNodeLoad(clusterState, true, n, maxOpenJobs, maxMachineMemoryPercent, useAutoMemoryPercentage))
+            .map(n -> nodeLoadDetector.detectNodeLoad(clusterState, n, maxOpenJobs, maxMachineMemoryPercent, useAutoMemoryPercentage))
             .filter(nl -> nl.remainingJobs() > 0)
             .mapToLong(NodeLoad::getFreeMemory)
             .max()
@@ -171,7 +171,6 @@ public class JobNodeSelector {
             }
             NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
                 clusterState,
-                true, // Remove in 8.0.0
                 node,
                 dynamicMaxOpenJobs,
                 maxMachineMemoryPercent,
@@ -204,7 +203,7 @@ public class JobNodeSelector {
                 reason = createReason(
                     jobId,
                     nodeNameAndMlAttributes(node),
-                    "This node is full. Number of opened jobs [{}], {} [{}].",
+                    "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
                     currentLoad.getNumAssignedJobs(),
                     MAX_OPEN_JOBS_PER_NODE.getKey(),
                     maxNumberOfOpenJobs

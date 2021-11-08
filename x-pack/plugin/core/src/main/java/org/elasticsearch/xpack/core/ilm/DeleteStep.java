@@ -40,7 +40,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
 
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getIndices().size() == 1 && dataStream.getIndices().get(0).equals(indexMetadata)) {
+            if (dataStream.getIndices().size() == 1 && dataStream.getIndices().get(0).equals(indexMetadata.getIndex())) {
                 // This is the last index in the data stream, the entire stream
                 // needs to be deleted, because we can't have an empty data stream
                 DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
@@ -50,7 +50,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                     ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
                 );
                 return;
-            } else if (dataStream.getWriteIndex().getIndex().getName().equals(indexName)) {
+            } else if (dataStream.getWriteIndex().getName().equals(indexName)) {
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "index [%s] is the write index for data stream [%s]. "

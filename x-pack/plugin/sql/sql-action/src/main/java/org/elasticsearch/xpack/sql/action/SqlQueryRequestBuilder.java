@@ -36,6 +36,7 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
             null,
             emptyMap(),
             Protocol.TIME_ZONE,
+            null,
             Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT,
             Protocol.PAGE_TIMEOUT,
@@ -58,6 +59,7 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         QueryBuilder filter,
         Map<String, Object> runtimeMappings,
         ZoneId zoneId,
+        String catalog,
         int fetchSize,
         TimeValue requestTimeout,
         TimeValue pageTimeout,
@@ -79,6 +81,7 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
                 filter,
                 runtimeMappings,
                 zoneId,
+                catalog,
                 fetchSize,
                 requestTimeout,
                 pageTimeout,
@@ -131,6 +134,11 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder zoneId(ZoneId zoneId) {
         request.zoneId(zoneId);
+        return this;
+    }
+
+    public SqlQueryRequestBuilder catalog(String catalog) {
+        request.catalog(catalog);
         return this;
     }
 

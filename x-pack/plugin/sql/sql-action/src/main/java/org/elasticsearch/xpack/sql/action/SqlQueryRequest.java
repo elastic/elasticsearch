@@ -103,6 +103,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         QueryBuilder filter,
         Map<String, Object> runtimeMappings,
         ZoneId zoneId,
+        String catalog,
         int fetchSize,
         TimeValue requestTimeout,
         TimeValue pageTimeout,
@@ -115,7 +116,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         boolean keepOnCompletion,
         TimeValue keepAlive
     ) {
-        super(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
+        super(query, params, filter, runtimeMappings, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
         this.columnar = columnar;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
@@ -250,7 +251,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         fieldMultiValueLeniency = in.readBoolean();
         indexIncludeFrozen = in.readBoolean();
         binaryCommunication = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_14_0
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
             this.waitForCompletionTimeout = in.readOptionalTimeValue();
             this.keepOnCompletion = in.readBoolean();
             this.keepAlive = in.readOptionalTimeValue();
@@ -265,7 +266,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeBoolean(fieldMultiValueLeniency);
         out.writeBoolean(indexIncludeFrozen);
         out.writeOptionalBoolean(binaryCommunication);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: V_7_14_0
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
             out.writeOptionalTimeValue(waitForCompletionTimeout);
             out.writeBoolean(keepOnCompletion);
             out.writeOptionalTimeValue(keepAlive);
@@ -312,6 +313,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             query(),
             params(),
             zoneId(),
+            catalog(),
             fetchSize(),
             requestTimeout(),
             pageTimeout(),

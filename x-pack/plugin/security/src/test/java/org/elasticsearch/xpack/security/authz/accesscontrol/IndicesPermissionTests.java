@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
@@ -271,16 +270,11 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a1"
             )
             .build();
-        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = core.authorize(
-            SearchAction.NAME,
-            Sets.newHashSet("a1", "ba"),
-            lookup,
-            fieldPermissionsCache
-        );
-        assertTrue(authzMap.get("a1").getFieldPermissions().grantsAccessTo("denied_field"));
-        assertTrue(authzMap.get("a1").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5)));
+        IndicesAccessControl iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo("denied_field"));
+        assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5)));
         // did not define anything for ba so we allow all
-        assertFalse(authzMap.get("ba").getFieldPermissions().hasFieldLevelSecurity());
+        assertFalse(iac.getIndexPermissions("ba").getFieldPermissions().hasFieldLevelSecurity());
 
         assertTrue(core.check(SearchAction.NAME));
         assertTrue(core.check(PutMappingAction.NAME));
@@ -317,13 +311,13 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a2"
             )
             .build();
-        authzMap = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
-        assertFalse(authzMap.get("a1").getFieldPermissions().hasFieldLevelSecurity());
-        assertFalse(authzMap.get("a2").getFieldPermissions().grantsAccessTo("denied_field2"));
-        assertFalse(authzMap.get("a2").getFieldPermissions().grantsAccessTo("denied_field"));
-        assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field"));
-        assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field2"));
-        assertTrue(authzMap.get("a2").getFieldPermissions().hasFieldLevelSecurity());
+        iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
+        assertFalse(iac.getIndexPermissions("a1").getFieldPermissions().hasFieldLevelSecurity());
+        assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field2"));
+        assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field"));
+        assertTrue(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field"));
+        assertTrue(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field2"));
+        assertTrue(iac.getIndexPermissions("a2").getFieldPermissions().hasFieldLevelSecurity());
 
         assertTrue(core.check(SearchAction.NAME));
         assertTrue(core.check(PutMappingAction.NAME));
@@ -378,14 +372,14 @@ public class IndicesPermissionTests extends ESTestCase {
             false,
             "*"
         ).build();
-        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = indicesPermission.authorize(
+        IndicesAccessControl iac = indicesPermission.authorize(
             SearchAction.NAME,
             Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS),
             lookup,
             fieldPermissionsCache
         );
-        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(false));
-        assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(false));
+        assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(false));
+        assertThat(iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(false));
 
         // allow_restricted_indices: true
         indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON).addGroup(
@@ -395,14 +389,14 @@ public class IndicesPermissionTests extends ESTestCase {
             true,
             "*"
         ).build();
-        authzMap = indicesPermission.authorize(
+        iac = indicesPermission.authorize(
             SearchAction.NAME,
             Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS),
             lookup,
             fieldPermissionsCache
         );
-        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
-        assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
+        assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
+        assertThat(iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
     }
 
     public void testAsyncSearchIndicesPermissions() {
@@ -423,13 +417,13 @@ public class IndicesPermissionTests extends ESTestCase {
             false,
             "*"
         ).build();
-        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = indicesPermission.authorize(
+        IndicesAccessControl iac = indicesPermission.authorize(
             SearchAction.NAME,
             Sets.newHashSet(asyncSearchIndex),
             lookup,
             fieldPermissionsCache
         );
-        assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(false));
+        assertThat(iac.getIndexPermissions(asyncSearchIndex).isGranted(), is(false));
 
         // allow_restricted_indices: true
         indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON).addGroup(
@@ -439,8 +433,8 @@ public class IndicesPermissionTests extends ESTestCase {
             true,
             "*"
         ).build();
-        authzMap = indicesPermission.authorize(SearchAction.NAME, Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
+        iac = indicesPermission.authorize(SearchAction.NAME, Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions(asyncSearchIndex).isGranted(), is(true));
     }
 
     public void testAuthorizationForBackingIndices() {
@@ -471,7 +465,7 @@ public class IndicesPermissionTests extends ESTestCase {
             false,
             dataStreamName
         ).build();
-        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = indicesPermission.authorize(
+        IndicesAccessControl iac = indicesPermission.authorize(
             SearchAction.NAME,
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
@@ -479,7 +473,7 @@ public class IndicesPermissionTests extends ESTestCase {
         );
 
         for (IndexMetadata im : backingIndices) {
-            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(im.getIndex().getName()).isGranted(), is(true));
         }
 
         indicesPermission = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON).addGroup(
@@ -489,7 +483,7 @@ public class IndicesPermissionTests extends ESTestCase {
             false,
             dataStreamName
         ).build();
-        authzMap = indicesPermission.authorize(
+        iac = indicesPermission.authorize(
             randomFrom(PutMappingAction.NAME, AutoPutMappingAction.NAME),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
@@ -497,7 +491,7 @@ public class IndicesPermissionTests extends ESTestCase {
         );
 
         for (IndexMetadata im : backingIndices) {
-            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(false));
+            assertThat(iac.getIndexPermissions(im.getIndex().getName()).isGranted(), is(false));
         }
     }
 
@@ -541,14 +535,14 @@ public class IndicesPermissionTests extends ESTestCase {
                 "test_write*"
             )
             .build();
-        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = core.authorize(
+        IndicesAccessControl iac = core.authorize(
             PutMappingAction.NAME,
             Sets.newHashSet("test1", "test_write1"),
             lookup,
             fieldPermissionsCache
         );
-        assertThat(authzMap.get("test1").isGranted(), is(true));
-        assertThat(authzMap.get("test_write1").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("test1").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("test_write1").isGranted(), is(true));
         assertWarnings(
             "the index privilege [index] allowed the update mapping action ["
                 + PutMappingAction.NAME
@@ -566,9 +560,9 @@ public class IndicesPermissionTests extends ESTestCase {
                 + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
-        authzMap = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("test1").isGranted(), is(true));
-        assertThat(authzMap.get("test_write1").isGranted(), is(true));
+        iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("test1").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("test_write1").isGranted(), is(true));
         assertWarnings(
             "the index privilege [index] allowed the update mapping action ["
                 + AutoPutMappingAction.NAME
@@ -577,28 +571,70 @@ public class IndicesPermissionTests extends ESTestCase {
                 + "users who require access to update mappings must be granted explicit privileges"
         );
 
-        authzMap = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("test_write2").isGranted(), is(true));
-        authzMap = core.authorize(PutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("test_write2").isGranted(), is(false));
-        authzMap = core.authorize(
+        iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("test_write2").isGranted(), is(true));
+        iac = core.authorize(PutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("test_write2").isGranted(), is(false));
+        iac = core.authorize(
             AutoPutMappingAction.NAME,
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
             fieldPermissionsCache
         );
         for (IndexMetadata im : backingIndices) {
-            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(im.getIndex().getName()).isGranted(), is(true));
         }
-        authzMap = core.authorize(
+        iac = core.authorize(
             PutMappingAction.NAME,
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
             fieldPermissionsCache
         );
         for (IndexMetadata im : backingIndices) {
-            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(false));
+            assertThat(iac.getIndexPermissions(im.getIndex().getName()).isGranted(), is(false));
         }
+    }
+
+    public void testIndicesPermissionHasFieldOrDocumentLevelSecurity() {
+        // Make sure we have at least one of fieldPermissions and documentPermission
+        final FieldPermissions fieldPermissions = randomBoolean()
+            ? new FieldPermissions(new FieldPermissionsDefinition(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY))
+            : FieldPermissions.DEFAULT;
+        final Set<BytesReference> queries;
+        if (fieldPermissions == FieldPermissions.DEFAULT) {
+            queries = Set.of(new BytesArray("a query"));
+        } else {
+            queries = randomBoolean() ? Set.of(new BytesArray("a query")) : null;
+        }
+
+        final IndicesPermission indicesPermission1 = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON).addGroup(
+            IndexPrivilege.ALL,
+            fieldPermissions,
+            queries,
+            randomBoolean(),
+            "*"
+        ).build();
+        assertThat(indicesPermission1.hasFieldOrDocumentLevelSecurity(), is(true));
+
+        // IsTotal means no DLS/FLS
+        final IndicesPermission indicesPermission2 = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            true,
+            "*"
+        ).build();
+        assertThat(indicesPermission2.hasFieldOrDocumentLevelSecurity(), is(false));
+
+        // IsTotal means NO DLS/FLS even when there is another group that has DLS/FLS
+        final IndicesPermission indicesPermission3 = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            true,
+            "*"
+        ).addGroup(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), "*").build();
+        assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));
     }
 
     private static IndexMetadata createIndexMetadata(String name) {

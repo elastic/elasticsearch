@@ -114,12 +114,22 @@ public class ClusterAlertsUtilTests extends ESTestCase {
                     + "]"
             )
         );
+
+        assertWarnings(
+            "[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testGetClusterAlertsBlacklist() {
         final List<String> blacklist = randomSubsetOf(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
 
         assertThat(blacklist, equalTo(ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("any", blacklist))));
+
+        assertWarnings(
+            "[xpack.monitoring.exporters.any.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private Exporter.Config createConfigWithBlacklist(final String name, final List<String> blacklist) {

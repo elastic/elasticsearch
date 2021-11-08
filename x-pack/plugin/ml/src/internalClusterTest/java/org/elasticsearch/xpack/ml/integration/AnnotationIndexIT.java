@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.ml.integration;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -15,6 +18,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -27,11 +31,12 @@ import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
 public class AnnotationIndexIT extends MlSingleNodeTestCase {
@@ -43,11 +48,6 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         return newSettings.build();
-    }
-
-    @Before
-    public void createComponents() throws Exception {
-        waitForMlTemplates();
     }
 
     public void testNotCreatedWhenNoOtherMlIndices() {
@@ -69,6 +69,53 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         assertBusy(() -> {
             assertTrue(annotationsIndexExists());
             assertEquals(2, numberOfAnnotationsAliases());
+        });
+    }
+
+    public void testAliasesMovedFromOldToNew() throws Exception {
+
+        // Create an old annotations index with both read and write aliases pointing at it.
+        String oldIndex = randomFrom(AnnotationIndex.OLD_INDEX_NAMES);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(oldIndex).mapping(AnnotationIndex.annotationsMapping())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            )
+            .alias(new Alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true))
+            .alias(new Alias(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true));
+        client().execute(CreateIndexAction.INSTANCE, createIndexRequest).actionGet();
+
+        // Because the old annotations index name began with .ml, it will trigger the new annotations index to be created.
+        // When this happens the read alias should be changed to cover both indices, and the write alias should be
+        // switched to only point at the new index.
+        assertBusy(() -> {
+            assertTrue(annotationsIndexExists());
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin()
+                .indices()
+                .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .get()
+                .getAliases();
+            assertNotNull(aliases);
+            List<String> indicesWithReadAlias = new ArrayList<>();
+            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : aliases) {
+                for (AliasMetadata aliasMetadata : entry.value) {
+                    switch (aliasMetadata.getAlias()) {
+                        case AnnotationIndex.WRITE_ALIAS_NAME:
+                            assertThat(entry.key, is(AnnotationIndex.LATEST_INDEX_NAME));
+                            break;
+                        case AnnotationIndex.READ_ALIAS_NAME:
+                            indicesWithReadAlias.add(entry.key);
+                            break;
+                        default:
+                            fail("Found unexpected alias " + aliasMetadata.getAlias() + " on index " + entry.key);
+                            break;
+                    }
+                }
+            }
+            assertThat(indicesWithReadAlias, containsInAnyOrder(oldIndex, AnnotationIndex.LATEST_INDEX_NAME));
         });
     }
 
@@ -124,7 +171,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     private boolean annotationsIndexExists() {
-        return ESIntegTestCase.indexExists(AnnotationIndex.INDEX_NAME, client());
+        return ESIntegTestCase.indexExists(AnnotationIndex.LATEST_INDEX_NAME, client());
     }
 
     private int numberOfAnnotationsAliases() {

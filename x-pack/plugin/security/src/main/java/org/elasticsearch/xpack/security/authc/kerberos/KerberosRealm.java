@@ -155,7 +155,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     }
 
     @Override
-    public void authenticate(final AuthenticationToken token, final ActionListener<AuthenticationResult> listener) {
+    public void authenticate(final AuthenticationToken token, final ActionListener<AuthenticationResult<User>> listener) {
         assert delegatedRealms != null : "Realm has not been initialized correctly";
         assert token instanceof KerberosAuthenticationToken;
         final KerberosAuthenticationToken kerbAuthnToken = (KerberosAuthenticationToken) token;
@@ -189,7 +189,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         return userPrincipalName.split("@");
     }
 
-    private void handleException(Exception e, final ActionListener<AuthenticationResult> listener) {
+    private void handleException(Exception e, final ActionListener<AuthenticationResult<User>> listener) {
         if (e instanceof LoginException) {
             logger.debug("failed to authenticate user, service login failure", e);
             listener.onResponse(
@@ -212,7 +212,11 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void resolveUser(final String userPrincipalName, final String outToken, final ActionListener<AuthenticationResult> listener) {
+    private void resolveUser(
+        final String userPrincipalName,
+        final String outToken,
+        final ActionListener<AuthenticationResult<User>> listener
+    ) {
         // if outToken is present then it needs to be communicated with peer, add it to
         // response header in thread context.
         if (Strings.hasText(outToken)) {
@@ -242,7 +246,11 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void buildUser(final String username, final Map<String, Object> metadata, final ActionListener<AuthenticationResult> listener) {
+    private void buildUser(
+        final String username,
+        final Map<String, Object> metadata,
+        final ActionListener<AuthenticationResult<User>> listener
+    ) {
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Set.of(), metadata, this.config);
         userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User computedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, userData.getMetadata(), true);

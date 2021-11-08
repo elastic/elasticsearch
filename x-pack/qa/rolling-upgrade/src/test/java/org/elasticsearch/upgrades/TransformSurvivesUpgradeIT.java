@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -24,7 +25,6 @@ import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
@@ -36,15 +36,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -53,9 +50,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED;
-import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX;
-import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_TASK_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -73,30 +69,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         .map(TimeValue::timeValueMinutes)
         .collect(Collectors.toList());
 
-    @Before
-    public void waitForTemplates() throws Exception {
-        assertBusy(() -> {
-            final Request catRequest = new Request("GET", "_cat/templates?h=n&s=n");
-            final Response catResponse = adminClient().performRequest(catRequest);
-
-            final SortedSet<String> templates = new TreeSet<>(Streams.readAllLines(catResponse.getEntity().getContent()));
-
-            // match notifications index templates, independent of the version, at least 1 should exist
-            SortedSet<String> notificationsDeprecated = templates.tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED);
-            SortedSet<String> notifications = templates.tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX);
-
-            int foundTemplates = 0;
-            foundTemplates += notificationsDeprecated.isEmpty() ? 0
-                : notificationsDeprecated.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED) ? 1
-                : 0;
-            foundTemplates += notifications.isEmpty() ? 0 : notifications.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX) ? 1 : 0;
-
-            if (foundTemplates < 1) {
-                fail("Transform index templates not found. The templates that exist are: " + templates);
-            }
-        });
-    }
-
     protected static void waitForPendingTransformTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TRANSFORM_TASK_NAME) == false);
     }
@@ -110,8 +82,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     /**
-     * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
-     * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
+     * The purpose of this test is to ensure that when a transform is running through a rolling upgrade it
+     * keeps working and does not fail
      */
     public void testTransformRollingUpgrade() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
@@ -138,10 +110,12 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                     lastCheckpoint = 2;
                 }
                 verifyContinuousTransformHandlesData(lastCheckpoint);
+                verifyUpgradeFailsIfMixedCluster();
                 break;
             case UPGRADED:
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
+                verifyUpgrade();
                 cleanUpTransforms();
                 break;
             default:
@@ -244,6 +218,23 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsProcessed()).intValue())
             );
         });
+    }
+
+    private void verifyUpgradeFailsIfMixedCluster() {
+        // upgrade tests by design are also executed with the same version, this check must be skipped in this case, see gh#39102.
+        if (UPGRADE_FROM_VERSION.equals(Version.CURRENT)) {
+            return;
+        }
+        final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
+
+        Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
+        assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
+    }
+
+    private void verifyUpgrade() throws IOException {
+        final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
+        Response response = client().performRequest(upgradeTransformRequest);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void awaitWrittenIndexerState(String id, Consumer<Map<?, ?>> responseAssertion) throws Exception {

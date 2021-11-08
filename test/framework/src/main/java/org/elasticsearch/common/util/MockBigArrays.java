@@ -442,6 +442,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
+        }
+
+        @Override
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
@@ -484,6 +489,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void fill(long fromIndex, long toIndex, long value) {
             in.fill(fromIndex, toIndex, value);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
         }
 
         @Override
@@ -533,6 +543,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
+        }
+
+        @Override
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
@@ -575,6 +590,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void fill(long fromIndex, long toIndex, double value) {
             in.fill(fromIndex, toIndex, value);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            in.set(index, buf, offset, len);
         }
 
         @Override

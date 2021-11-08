@@ -105,7 +105,6 @@ public final class LimitedRole extends Role {
             aliasAndIndexLookup,
             fieldPermissionsCache
         );
-
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 

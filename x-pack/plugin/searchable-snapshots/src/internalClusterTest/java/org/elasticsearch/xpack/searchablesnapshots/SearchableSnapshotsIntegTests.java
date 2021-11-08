@@ -254,7 +254,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         ensureGreen(restoredIndexName);
-        assertShardFolders(restoredIndexName, true);
+        assertBusy(() -> assertShardFolders(restoredIndexName, true));
 
         assertThat(
             client().admin()

@@ -141,6 +141,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         // the rest having default values (since the query is already created)
         SqlConfiguration cfg = new SqlConfiguration(
             request.zoneId(),
+            request.catalog(),
             request.fetchSize(),
             request.requestTimeout(),
             request.pageTimeout(),
@@ -154,10 +155,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             request.fieldMultiValueLeniency(),
             request.indexIncludeFrozen(),
             new TaskId(clusterService.localNode().getId(), task.getId()),
-            task,
-            request.waitForCompletionTimeout(),
-            request.keepOnCompletion(),
-            request.keepAlive()
+            task
         );
 
         if (Strings.hasText(request.cursor()) == false) {

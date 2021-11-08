@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class TransformIT extends TransformIntegTestCase {
 
     private static final int NUM_USERS = 28;

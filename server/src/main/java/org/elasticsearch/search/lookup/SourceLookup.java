@@ -11,15 +11,15 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -103,10 +103,7 @@ public class SourceLookup implements Map<String, Object> {
         return sourceAsMapAndType(source).v2();
     }
 
-    public void setSegmentAndDocument(
-        LeafReaderContext context,
-        int docId
-    ) {
+    public void setSegmentAndDocument(LeafReaderContext context, int docId) {
         if (this.reader == context.reader() && this.docId == docId) {
             // if we are called with the same document, don't invalidate source
             return;
@@ -155,6 +152,40 @@ public class SourceLookup implements Map<String, Object> {
      */
     public List<Object> extractRawValues(String path) {
         return XContentMapValues.extractRawValues(path, source());
+    }
+
+    /**
+     * Returns the values associated with the path. Those are "low" level values, and it can
+     * handle path expression where an array/list is navigated within.
+     *
+     * The major difference with {@link SourceLookup#extractRawValues(String)} is that this version will:
+     *
+     *  - not cache source if it's not already parsed
+     *  - will only extract the desired values from the compressed source instead of deserializing the whole object
+     *
+     * This is useful when the caller only wants a single value from source and does not care of source is fully parsed and cached
+     * for later use.
+     * @param path The path from which to extract the values from source
+     * @return The list of found values or an empty list if none are found
+     */
+    public List<Object> extractRawValuesWithoutCaching(String path) {
+        if (source != null) {
+            return XContentMapValues.extractRawValues(path, source);
+        }
+        if (sourceAsBytes != null) {
+            return XContentMapValues.extractRawValues(
+                path,
+                XContentHelper.convertToMap(sourceAsBytes, false, null, Set.of(path), null).v2()
+            );
+        }
+        try {
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            fieldReader.accept(docId, sourceFieldVisitor);
+            BytesReference source = sourceFieldVisitor.source();
+            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2());
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("failed to parse / load source", e);
+        }
     }
 
     /**

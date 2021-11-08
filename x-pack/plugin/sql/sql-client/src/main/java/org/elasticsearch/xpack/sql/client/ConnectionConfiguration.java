@@ -65,6 +65,10 @@ public class ConnectionConfiguration {
     // NB: this is password instead of pass since that's what JDBC DriverManager/tools use
     public static final String AUTH_PASS = "password";
 
+    // Default catalog
+
+    private static final String CATALOG = "catalog";
+
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
         Arrays.asList(
             PROPERTIES_VALIDATION,
@@ -75,7 +79,8 @@ public class ConnectionConfiguration {
             PAGE_TIMEOUT,
             PAGE_SIZE,
             AUTH_USER,
-            AUTH_PASS
+            AUTH_PASS,
+            CATALOG
         )
     );
 

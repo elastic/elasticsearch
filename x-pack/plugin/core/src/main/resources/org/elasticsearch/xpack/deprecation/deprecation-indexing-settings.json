@@ -2,6 +2,7 @@
   "template": {
     "settings": {
       "index": {
+        "auto_expand_replicas" : "0-1",
         "hidden" : true,
         "lifecycle": {
           "name": ".deprecation-indexing-ilm-policy"

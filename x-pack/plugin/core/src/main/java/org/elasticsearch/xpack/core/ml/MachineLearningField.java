@@ -11,6 +11,8 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +21,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class MachineLearningField {
+
+    public static final String DEPRECATED_ALLOW_NO_JOBS_PARAM = "allow_no_jobs";
+    public static final String DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM = "allow_no_datafeeds";
+
     public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
         "xpack.ml.autodetect_process",
         true,
@@ -31,6 +37,12 @@ public final class MachineLearningField {
         Setting.Property.NodeScope
     );
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
+    public static final String ML_FEATURE_FAMILY = "machine-learning";
+    public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(
+        ML_FEATURE_FAMILY,
+        "api",
+        License.OperationMode.PLATINUM
+    );
 
     private MachineLearningField() {}
 
@@ -43,4 +55,5 @@ public final class MachineLearningField {
         System.arraycopy(Numbers.longToBytes(hash.h2), 0, hashedBytes, 8, 8);
         return new BigInteger(hashedBytes) + "_" + combined.length();
     }
+
 }

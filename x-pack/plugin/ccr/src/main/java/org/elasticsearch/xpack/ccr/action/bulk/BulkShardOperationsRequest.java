@@ -11,11 +11,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
 import java.util.List;
 
-public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest> {
+public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest>
+    implements
+        RawIndexingDataTransportRequest {
 
     private final String historyUUID;
     private final List<Translog.Operation> operations;

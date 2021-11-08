@@ -45,7 +45,8 @@ public abstract class Collector {
         emptyList(),
         Function.identity(),
         Property.Dynamic,
-        Property.NodeScope
+        Property.NodeScope,
+        Setting.Property.DeprecatedWarning
     );
 
     private final String name;
@@ -180,6 +181,6 @@ public abstract class Collector {
 
     protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {
         String name = collectionSetting(settingName);
-        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning);
     }
 }

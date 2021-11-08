@@ -347,7 +347,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         OsStats osStats = new OsStats(
             randomNonNegativeLong(),
             new OsStats.Cpu(randomShort(), null),
-            new OsStats.Mem(memory, randomLongBetween(0, memory)),
+            new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
             new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
             null
         );
@@ -356,6 +356,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             randomNonNegativeLong(),
             null,
             osStats,
+            null,
             null,
             null,
             null,

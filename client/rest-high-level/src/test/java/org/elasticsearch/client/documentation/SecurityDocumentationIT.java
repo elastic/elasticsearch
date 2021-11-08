@@ -159,6 +159,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Override

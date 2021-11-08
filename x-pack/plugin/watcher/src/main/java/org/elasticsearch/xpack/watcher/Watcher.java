@@ -49,7 +49,6 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -260,7 +259,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         TemplateScript.Factory.class,
         200,
         TimeValue.timeValueMillis(0),
-        ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(),
+        false,
         true
     );
 

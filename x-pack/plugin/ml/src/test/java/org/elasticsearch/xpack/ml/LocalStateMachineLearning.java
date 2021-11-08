@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +44,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     public LocalStateMachineLearning(final Settings settings, final Path configPath) {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
-        mlPlugin = new MachineLearning(settings, configPath) {
+        mlPlugin = new MachineLearning(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();
@@ -83,15 +80,6 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
         });
         plugins.add(new MockedRollupPlugin());
-    }
-
-    @Override
-    public void cleanUpFeature(
-        ClusterService clusterService,
-        Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
-    ) {
-        mlPlugin.cleanUpFeature(clusterService, client, finalListener);
     }
 
     @Override

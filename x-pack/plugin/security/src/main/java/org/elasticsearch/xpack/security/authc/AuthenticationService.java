@@ -220,7 +220,7 @@ public class AuthenticationService {
             realms
         );
         context.addAuthenticationToken(token);
-        authenticatorChain.authenticateAsyncWithExistingCredentials(context, listener);
+        authenticatorChain.authenticateAsync(context, listener);
     }
 
     public void expire(String principal) {

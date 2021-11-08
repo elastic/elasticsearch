@@ -34,6 +34,7 @@ import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
 
+@SuppressWarnings("removal")
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
@@ -44,6 +45,11 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private final String query;
     private final String name;
     private final long[] eventIds;
+    /**
+     * Join keys can be of multiple types, but toml is very restrictive and doesn't allow mixed types values in the same array of values
+     * For now, every value will be converted to a String.
+     */
+    private final String[] joinKeys;
 
     @Before
     public void setup() throws Exception {
@@ -78,18 +84,19 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 name = "" + (counter);
             }
 
-            results.add(new Object[] { spec.query(), name, spec.expectedEventIds() });
+            results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), spec.joinKeys() });
         }
 
         return results;
     }
 
-    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds) {
+    BaseEqlSpecTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
         this.index = index;
 
         this.query = query;
         this.name = name;
         this.eventIds = eventIds;
+        this.joinKeys = joinKeys;
     }
 
     public void test() throws Exception {
@@ -196,6 +203,52 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     protected void assertSequences(List<Sequence> sequences) {
         List<Event> events = sequences.stream().flatMap(s -> s.events().stream()).collect(toList());
         assertEvents(events);
+        List<Object> keys = sequences.stream().flatMap(s -> s.joinKeys().stream()).collect(toList());
+        assertEvents(events);
+        assertJoinKeys(keys);
+    }
+
+    private void assertJoinKeys(List<Object> keys) {
+        logger.debug("Join keys {}", new Object() {
+            public String toString() {
+                return keysToString(keys);
+            }
+        });
+
+        if (joinKeys == null || joinKeys.length == 0) {
+            return;
+        }
+        String[] actual = new String[keys.size()];
+        int i = 0;
+        for (Object key : keys) {
+            if (key == null) {
+                actual[i] = "null";
+            } else {
+                actual[i] = key.toString();
+            }
+            i++;
+        }
+        assertArrayEquals(
+            LoggerMessageFormat.format(
+                null,
+                "unexpected result for spec[{}] [{}] -> {} vs {}",
+                name,
+                query,
+                Arrays.toString(joinKeys),
+                Arrays.toString(actual)
+            ),
+            joinKeys,
+            actual
+        );
+    }
+
+    private String keysToString(List<Object> keys) {
+        StringJoiner sj = new StringJoiner(",", "[", "]");
+        for (Object key : keys) {
+            sj.add(key.toString());
+            sj.add("\n");
+        }
+        return sj.toString();
     }
 
     @Override

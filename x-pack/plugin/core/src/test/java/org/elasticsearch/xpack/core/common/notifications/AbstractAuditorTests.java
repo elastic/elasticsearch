@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexAction;
@@ -57,8 +55,8 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -98,10 +96,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(
-            client,
-            Version.CURRENT
-        );
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.info("foo", "Here is my info");
 
         verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
@@ -120,10 +115,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testWarning() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(
-            client,
-            Version.CURRENT
-        );
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.warning("bar", "Here is my warning");
 
         verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
@@ -142,10 +134,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testError() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(
-            client,
-            Version.CURRENT
-        );
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
         auditor.error("foobar", "Here is my error");
 
         verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
@@ -165,9 +154,10 @@ public class AbstractAuditorTests extends ESTestCase {
 
     public void testAuditingBeforeTemplateInstalled() throws Exception {
         CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor =
-            // TODO: Both this call and the called method can be simplified in versions that will never have to talk to 7.13
-            createTestAuditorWithoutTemplate(client, randomFrom(Version.CURRENT, Version.V_7_13_0), writeSomeDocsBeforeTemplateLatch);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(
+            client,
+            writeSomeDocsBeforeTemplateLatch
+        );
 
         auditor.error("foobar", "Here is my error to queue");
         auditor.warning("foobar", "Here is my warning to queue");
@@ -192,7 +182,6 @@ public class AbstractAuditorTests extends ESTestCase {
         CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(
             client,
-            Version.CURRENT,
             writeSomeDocsBeforeTemplateLatch
         );
 
@@ -218,7 +207,7 @@ public class AbstractAuditorTests extends ESTestCase {
         return AbstractAuditMessageTests.TestAuditMessage.PARSER.apply(parser, null);
     }
 
-    private TestAuditor createTestAuditorWithTemplateInstalled(Client client, Version minNodeVersion) {
+    private TestAuditor createTestAuditorWithTemplateInstalled(Client client) {
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
         templates.put(TEST_INDEX, mock(IndexTemplateMetadata.class));
         Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, mock(ComposableIndexTemplate.class));
@@ -226,7 +215,7 @@ public class AbstractAuditorTests extends ESTestCase {
         when(metadata.getTemplates()).thenReturn(templates.build());
         when(metadata.templatesV2()).thenReturn(templatesV2);
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+        when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         when(state.nodes()).thenReturn(nodes);
@@ -237,14 +226,10 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private TestAuditor createTestAuditorWithoutTemplate(Client client, Version minNodeVersion, CountDownLatch latch) {
+    private TestAuditor createTestAuditorWithoutTemplate(Client client, CountDownLatch latch) {
         if (Mockito.mockingDetails(client).isMock() == false) {
             throw new AssertionError("client should be a mock");
         }
-
-        ActionType<AcknowledgedResponse> expectedTemplateAction = minNodeVersion.before(Version.CURRENT)
-            ? PutIndexTemplateAction.INSTANCE
-            : PutComposableIndexTemplateAction.INSTANCE;
 
         doAnswer(invocationOnMock -> {
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
@@ -263,7 +248,7 @@ public class AbstractAuditorTests extends ESTestCase {
             threadPool.generic().submit(onPutTemplate);
 
             return null;
-        }).when(client).execute(eq(expectedTemplateAction), any(), any());
+        }).when(client).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), any());
 
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         AdminClient adminClient = mock(AdminClient.class);
@@ -274,7 +259,7 @@ public class AbstractAuditorTests extends ESTestCase {
         Metadata metadata = mock(Metadata.class);
         when(metadata.getTemplates()).thenReturn(templates.build());
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+        when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         when(state.nodes()).thenReturn(nodes);
@@ -290,19 +275,6 @@ public class AbstractAuditorTests extends ESTestCase {
             super(
                 new OriginSettingClient(client, TEST_ORIGIN),
                 TEST_INDEX,
-                Version.CURRENT,
-                new IndexTemplateConfig(
-                    TEST_INDEX,
-                    "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json",
-                    Version.CURRENT.id,
-                    "xpack.ml.version",
-                    Map.of(
-                        "xpack.ml.version.id",
-                        String.valueOf(Version.CURRENT.id),
-                        "xpack.ml.notifications.mappings",
-                        NotificationsIndex.mapping()
-                    )
-                ),
                 new IndexTemplateConfig(
                     TEST_INDEX,
                     "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",

@@ -302,10 +302,18 @@ public class NativeUsersStore {
     }
 
     /**
+     * Asynchronous method to create the elastic superuser with the given password hash. The cache for the user will be
+     * cleared after the document has been indexed.
+     */
+    public void createElasticUser(char[] passwordHash, ActionListener<Void> listener) {
+        updateReservedUser(ElasticUser.NAME, passwordHash, DocWriteRequest.OpType.CREATE, RefreshPolicy.IMMEDIATE, listener);
+    }
+
+    /**
      * Asynchronous method to create or update a reserved user with the given password hash. The cache for the user will be
      * cleared after the document has been indexed
      */
-    public void updateReservedUser(
+    private void updateReservedUser(
         String username,
         char[] passwordHash,
         DocWriteRequest.OpType opType,
@@ -333,10 +341,6 @@ public class NativeUsersStore {
                 client::index
             );
         });
-    }
-
-    void createElasticUser(char[] passwordHash, ActionListener<Void> listener) {
-        updateReservedUser(ElasticUser.NAME, passwordHash, DocWriteRequest.OpType.CREATE, RefreshPolicy.IMMEDIATE, listener);
     }
 
     /**
@@ -590,7 +594,7 @@ public class NativeUsersStore {
      * @param username username to lookup the user by
      * @param password the plaintext password to verify
      */
-    void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
+    void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult<User>> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null) {
                 logger.trace(

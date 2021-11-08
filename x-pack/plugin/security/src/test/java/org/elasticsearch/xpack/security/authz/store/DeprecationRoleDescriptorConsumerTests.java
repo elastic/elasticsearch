@@ -17,12 +17,12 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
@@ -368,7 +368,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
     }
 
     private void verifyLogger(DeprecationLogger deprecationLogger, String roleName, String aliasName, String indexNames) {
-        verify(deprecationLogger).critical(
+        verify(deprecationLogger).warn(
             DeprecationCategory.SECURITY,
             "index_permissions_on_alias",
             "Role ["

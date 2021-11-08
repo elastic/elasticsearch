@@ -11,9 +11,10 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.mockito.Mockito.when;
  */
 public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResourceTestCase {
 
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+    private final MockLicenseState licenseState = mock(MockLicenseState.class);
     private final String watchId = randomFrom(ClusterAlertsUtil.WATCH_IDS);
     private final String watchValue = "{\"totally-valid\":{}}";
     private final int minimumVersion = Math.min(ClusterAlertsUtil.LAST_UPDATED_VERSION, Version.CURRENT.id);
@@ -62,7 +63,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckGetWatchExists() throws IOException {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(true);
 
         final HttpEntity entity = entityForClusterAlert(true, minimumVersion);
 
@@ -70,7 +71,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckGetWatchDoesNotExist() throws IOException {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(true);
 
         if (randomBoolean()) {
             // it does not exist because it's literally not there
@@ -84,7 +85,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckWithExceptionGetWatchError() throws IOException {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(true);
 
         if (randomBoolean()) {
             // error because of a server error
@@ -102,7 +103,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         final boolean clusterAlertsAllowed = randomBoolean();
 
         // should not matter
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(clusterAlertsAllowed);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(clusterAlertsAllowed);
 
         assertCheckAsDeleteExists(noWatchResource, "/_watcher/watch", watchId);
     }
@@ -112,19 +113,19 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         final boolean clusterAlertsAllowed = randomBoolean();
 
         // should not matter
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(clusterAlertsAllowed);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(clusterAlertsAllowed);
 
         assertCheckAsDeleteWithException(noWatchResource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckAsDeleteWatchExists() throws IOException {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(false);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(false);
 
         assertCheckAsDeleteExists(resource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckWithExceptionAsDeleteWatchError() throws IOException {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(false);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(false);
 
         assertCheckAsDeleteWithException(resource, "/_watcher/watch", watchId);
     }

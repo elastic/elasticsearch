@@ -43,7 +43,6 @@ public class RestHealthAction extends AbstractCatAction {
         sb.append("/_cat/health\n");
     }
 
-
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();

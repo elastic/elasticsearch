@@ -260,7 +260,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 .collect(
                     Collectors.toMap(
                         SnapshotId::getUUID,
-                        s -> new RepositoryData.SnapshotDetails(repositoryData.getSnapshotState(s), null, -1, -1)
+                        s -> new RepositoryData.SnapshotDetails(repositoryData.getSnapshotState(s), null, -1, -1, null)
                     )
                 ),
             Collections.emptyMap(),

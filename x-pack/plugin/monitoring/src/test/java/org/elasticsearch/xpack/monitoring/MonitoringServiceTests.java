@@ -113,6 +113,10 @@ public class MonitoringServiceTests extends ESTestCase {
 
         // take down threads
         monitoringService.setMonitoringActive(false);
+        assertWarnings(
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in "
+                + "a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testSkipExecution() throws Exception {
@@ -135,6 +139,12 @@ public class MonitoringServiceTests extends ESTestCase {
         latch.countDown();
 
         assertThat(exporter.getExportsCount(), equalTo(1));
+        assertWarnings(
+            "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in "
+                + "a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in "
+                + "a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     class CountingExporter extends Exporters {

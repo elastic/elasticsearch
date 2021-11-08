@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -114,18 +114,23 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         // block until the templates are installed
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.allTemplatesInstalled(state));
+            assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         });
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
         throws InterruptedException {
+        blockingCall(function, response::set, error::set);
+    }
+
+    protected <T> void blockingCall(Consumer<ActionListener<T>> function, Consumer<T> response, Consumer<Exception> error)
+        throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<T> listener = ActionListener.wrap(r -> {
-            response.set(r);
+            response.accept(r);
             latch.countDown();
         }, e -> {
-            error.set(e);
+            error.accept(e);
             latch.countDown();
         });
 

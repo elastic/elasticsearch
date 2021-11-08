@@ -161,6 +161,22 @@ class SqlBaseBaseListener implements SqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override
+    public void enterShowCatalogs(SqlBaseParser.ShowCatalogsContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
+    public void exitShowCatalogs(SqlBaseParser.ShowCatalogsContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override
     public void enterSysTables(SqlBaseParser.SysTablesContext ctx) {}
 
     /**

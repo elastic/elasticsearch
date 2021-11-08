@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,7 +51,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
 
@@ -87,7 +87,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);
@@ -128,7 +128,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
         Map<String, String> headers = new HashMap<>(1);

@@ -52,9 +52,4 @@ public class TextStructureWithSecurityIT extends AbstractXPackRestTest {
         );
     }
 
-    @Override
-    protected boolean isMonitoringTest() {
-        return false;
-    }
-
 }

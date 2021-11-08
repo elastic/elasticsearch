@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -87,7 +88,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // if we should be adding, then we need to check for existence
-        if (isWatchDefined() && licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)) {
+        if (isWatchDefined() && Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE.check(licenseState)) {
             final CheckedFunction<Response, Boolean, IOException> watchChecker = (response) -> shouldReplaceClusterAlert(
                 response,
                 XContentType.JSON.xContent(),

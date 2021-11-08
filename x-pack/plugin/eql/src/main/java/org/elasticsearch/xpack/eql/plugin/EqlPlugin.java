@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.eql.EqlUsageTransportAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.util.Collection;
@@ -61,7 +62,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         "xpack.eql.enabled",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     public EqlPlugin() {}
@@ -80,11 +81,17 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return createComponents(client, clusterService.getClusterName().value());
+        return createComponents(client, environment.settings(), clusterService);
     }
 
-    private Collection<Object> createComponents(Client client, String clusterName) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
+    private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        IndexResolver indexResolver = new IndexResolver(
+            client,
+            clusterService.getClusterName().value(),
+            DefaultDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters
+        );
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, circuitBreaker.get());
         return Collections.singletonList(planExecutor);
     }

@@ -11,14 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
@@ -52,12 +50,10 @@ public class UnusedStateRemover implements MlDataRemover {
     private static final Logger LOGGER = LogManager.getLogger(UnusedStateRemover.class);
 
     private final OriginSettingClient client;
-    private final ClusterService clusterService;
     private final TaskId parentTaskId;
 
-    public UnusedStateRemover(OriginSettingClient client, ClusterService clusterService, TaskId parentTaskId) {
+    public UnusedStateRemover(OriginSettingClient client, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
-        this.clusterService = Objects.requireNonNull(clusterService);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
     }
 
@@ -111,10 +107,6 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private Set<String> getAnomalyDetectionJobIds() {
         Set<String> jobIds = new HashSet<>();
-
-        // TODO Once at 8.0, we can stop searching for jobs in cluster state
-        // and remove cluster service as a member all together.
-        jobIds.addAll(MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet());
 
         DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(
             client,

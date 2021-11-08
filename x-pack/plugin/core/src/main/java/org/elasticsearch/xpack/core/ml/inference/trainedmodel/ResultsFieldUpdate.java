@@ -49,11 +49,6 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
     }
 
     @Override
-    public InferenceConfig toConfig() {
-        return new RegressionConfig(resultsField);
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return true;
     }

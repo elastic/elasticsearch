@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -248,7 +249,10 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             logger.info("Running against leader cluster");
             createIndex(
                 leaderIndexName,
-                Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build(),
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                    .build(),
                 "\"properties\": {\"@timestamp\": {\"type\": \"date\"}, \"dim\": {\"type\": \"keyword\", \"time_series_dimension\": true}}"
             );
             for (int i = 0; i < numDocs; i++) {

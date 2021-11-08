@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -34,6 +33,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
@@ -66,12 +65,10 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
     private final MlMemoryTracker memoryTracker;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final Client client;
 
     @Inject
     public TransportUpgradeJobModelSnapshotAction(
-        Settings settings,
         TransportService transportService,
         ThreadPool threadPool,
         XPackLicenseState licenseState,
@@ -100,7 +97,6 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         this.jobConfigProvider = jobConfigProvider;
         this.jobResultsProvider = jobResultsProvider;
         this.memoryTracker = memoryTracker;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.client = client;
     }
 
@@ -111,12 +107,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("upgrade job snapshot", request.getJobId()));
-            return;
-        }
-
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }

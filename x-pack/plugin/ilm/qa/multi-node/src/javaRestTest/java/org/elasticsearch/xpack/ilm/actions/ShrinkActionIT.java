@@ -261,7 +261,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // assign the policy that'll attempt to shrink the index (disabling the migrate action as it'll otherwise wait for
         // all shards to be active and we want that to happen as part of the shrink action)
-        MigrateAction migrateAction = new MigrateAction(false);
+        MigrateAction migrateAction = MigrateAction.DISABLED;
         ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null);
         Phase phase = new Phase(
             "warm",
@@ -303,6 +303,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78460")
     public void testAutomaticRetryFailedShrinkAction() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);

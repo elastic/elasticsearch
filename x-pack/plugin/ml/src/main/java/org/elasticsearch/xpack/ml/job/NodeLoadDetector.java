@@ -43,7 +43,6 @@ public class NodeLoadDetector {
 
     public NodeLoad detectNodeLoad(
         ClusterState clusterState,
-        boolean allNodesHaveDynamicMaxWorkers,
         DiscoveryNode node,
         int dynamicMaxOpenJobs,
         int maxMachineMemoryPercent,
@@ -52,7 +51,6 @@ public class NodeLoadDetector {
         return detectNodeLoad(
             clusterState,
             TrainedModelAllocationMetadata.fromState(clusterState),
-            allNodesHaveDynamicMaxWorkers,
             node,
             dynamicMaxOpenJobs,
             maxMachineMemoryPercent,
@@ -63,26 +61,14 @@ public class NodeLoadDetector {
     public NodeLoad detectNodeLoad(
         ClusterState clusterState,
         TrainedModelAllocationMetadata allocationMetadata,
-        boolean allNodesHaveDynamicMaxWorkers,
         DiscoveryNode node,
-        int dynamicMaxOpenJobs,
+        int maxNumberOfOpenJobs,
         int maxMachineMemoryPercent,
         boolean useAutoMachineMemoryCalculation
     ) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Map<String, String> nodeAttributes = node.getAttributes();
         List<String> errors = new ArrayList<>();
-        int maxNumberOfOpenJobs = dynamicMaxOpenJobs;
-        // TODO: remove this in 8.0.0
-        if (allNodesHaveDynamicMaxWorkers == false) {
-            String maxNumberOfOpenJobsStr = nodeAttributes.get(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR);
-            try {
-                maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
-            } catch (NumberFormatException e) {
-                errors.add(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR + " attribute [" + maxNumberOfOpenJobsStr + "] is not an integer");
-                maxNumberOfOpenJobs = -1;
-            }
-        }
         OptionalLong maxMlMemory = NativeMemoryCalculator.allowedBytesForMl(node, maxMachineMemoryPercent, useAutoMachineMemoryCalculation);
         if (maxMlMemory.isEmpty()) {
             errors.add(
@@ -134,6 +120,7 @@ public class NodeLoadDetector {
                     .map(RoutingStateAndReason::getState)
                     .orElse(RoutingState.STOPPED)
                     .consumesMemory()) {
+                    nodeLoad.incNumAssignedJobs();
                     nodeLoad.incAssignedJobMemory(allocation.getTaskParams().estimateMemoryUsageBytes());
                 }
             }

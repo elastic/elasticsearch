@@ -273,7 +273,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         PutDataFrameAnalyticsAction.Request request,
         ActionListener<PutDataFrameAnalyticsAction.Response> listener
     ) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

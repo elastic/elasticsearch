@@ -8,6 +8,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -24,6 +25,7 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -35,14 +37,18 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
@@ -94,6 +100,8 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             + "  indices:\n"
             + "    - names: 'a'\n"
             + "      privileges: [all]\n"
+            + "    - names: 'alias1'\n"
+            + "      privileges: [read]\n"
             + "\n"
             + "role_monitor_all_unrestricted_indices:\n"
             + "  cluster: [monitor]\n"
@@ -292,5 +300,37 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
+    }
+
+    public void testMultiNamesWorkCorrectly() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index1")
+                .setMapping("field1", "type=text")
+                .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
+        );
+
+        client().prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
+
+        final Client userAClient = client().filterWithHeader(
+            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))
+        );
+
+        final SearchResponse searchResponse = userAClient.prepareSearch("alias1").setSize(0).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+
+        final ElasticsearchSecurityException e1 = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> userAClient.prepareSearch("index1").get()
+        );
+        assertThat(e1.getMessage(), containsString("is unauthorized for user [user_a]"));
+
+        // The request should fail because index1 is directly requested and is not authorized for user_a
+        final ElasticsearchSecurityException e2 = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> userAClient.prepareSearch("index1", "alias1").get()
+        );
+        assertThat(e2.getMessage(), containsString("is unauthorized for user [user_a]"));
     }
 }

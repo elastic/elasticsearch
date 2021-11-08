@@ -108,7 +108,7 @@ public class RealmUserLookupTests extends ESTestCase {
             }
 
             @Override
-            public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+            public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
 

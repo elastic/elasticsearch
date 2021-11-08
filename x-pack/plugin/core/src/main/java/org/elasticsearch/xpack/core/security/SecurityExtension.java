@@ -121,4 +121,8 @@ public interface SecurityExtension {
     default AuthorizationEngine getAuthorizationEngine(Settings settings) {
         return null;
     }
+
+    default String extensionName() {
+        return getClass().getName();
+    }
 }

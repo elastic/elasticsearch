@@ -64,15 +64,14 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class DestinationIndexTests extends ESTestCase {
@@ -380,7 +379,7 @@ public class DestinationIndexTests extends ESTestCase {
             equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
         );
 
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     public void testReadMetadata_GivenNoMeta() {

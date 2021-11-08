@@ -46,7 +46,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
         TimeValue pageTimeout,
         RequestInfo requestInfo
     ) {
-        super(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
+        super(query, params, filter, runtimeMappings, zoneId, null, fetchSize, requestTimeout, pageTimeout, requestInfo);
     }
 
     public SqlTranslateRequest(StreamInput in) throws IOException {
@@ -80,6 +80,7 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
             query(),
             params(),
             zoneId(),
+            null,
             fetchSize(),
             requestTimeout(),
             pageTimeout(),

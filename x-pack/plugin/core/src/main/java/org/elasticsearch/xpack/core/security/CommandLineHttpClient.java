@@ -348,6 +348,9 @@ public class CommandLineHttpClient {
             public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
 
             public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+                if (chain.length < 2) {
+                    throw new CertificateException("CA certificate not in chain, or self-signed certificate");
+                }
                 final Certificate caCertFromChain = chain[1];
                 MessageDigest sha256 = MessageDigests.sha256();
                 sha256.update(caCertFromChain.getEncoded());

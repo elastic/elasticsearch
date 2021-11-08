@@ -198,7 +198,8 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                     assertTrue(
                         detailedMessage,
                         detailedMessage.endsWith(
-                            "node is full. Number of opened jobs ["
+                            "node is full. Number of opened jobs and allocated native "
+                                + "inference processes ["
                                 + maxNumberOfJobsPerNode
                                 + "], xpack.ml.max_open_jobs ["
                                 + maxNumberOfJobsPerNode

@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
+@SuppressWarnings("removal")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -101,6 +102,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         return true;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
     public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
@@ -151,6 +153,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
     public void testReadOnlyRepo() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
@@ -197,6 +200,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         ElasticsearchStatusException.class
     );
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {

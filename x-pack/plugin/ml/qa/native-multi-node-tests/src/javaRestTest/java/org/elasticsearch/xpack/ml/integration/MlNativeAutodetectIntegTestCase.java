@@ -269,7 +269,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
         client().admin()
             .indices()
-            .prepareRefresh(AnnotationIndex.INDEX_NAME)
+            .prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .execute()
             .actionGet();

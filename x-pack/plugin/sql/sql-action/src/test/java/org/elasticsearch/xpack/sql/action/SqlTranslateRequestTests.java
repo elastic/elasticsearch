@@ -83,6 +83,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
         Consumer<SqlTranslateRequest> mutator = randomFrom(
             request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
             request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+            request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
             request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
             request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
             request -> request.filter(

@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -30,6 +29,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 /**
  * An IndexReader wrapper implementation that is used for field and document level security.
@@ -67,7 +68,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     @Override
     public DirectoryReader apply(final DirectoryReader reader) {
-        if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+        if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
             return reader;
         }
 

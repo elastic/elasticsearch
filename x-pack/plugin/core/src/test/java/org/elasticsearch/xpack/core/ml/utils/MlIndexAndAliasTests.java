@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -65,8 +66,8 @@ import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -109,7 +110,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse());
+            listener.onResponse(new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false));
             return null;
         }).when(clusterAdminClient).health(any(ClusterHealthRequest.class), any(ActionListener.class));
 
@@ -142,60 +143,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
         verifyNoMoreInteractions(indicesAdminClient, listener);
     }
 
-    public void testInstallIndexTemplateIfRequired_GivenTemplateLegacyTemplateExistsAndMixedCluster() throws UnknownHostException {
-        // TODO: this test can be removed from branches that will never need to talk to 7.13
-        ClusterState clusterState = createClusterState(
-            Version.V_7_13_0,
-            Collections.emptyMap(),
-            Collections.singletonMap(
-                NotificationsIndex.NOTIFICATIONS_INDEX,
-                createLegacyIndexTemplateMetaData(
-                    NotificationsIndex.NOTIFICATIONS_INDEX,
-                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX)
-                )
-            ),
-            Collections.emptyMap()
-        );
-
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(
-            NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json",
-            Version.CURRENT.id,
-            "xpack.ml.version",
-            Map.of(
-                "xpack.ml.version.id",
-                String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings",
-                NotificationsIndex.mapping()
-            )
-        );
-        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(
-            NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
-            Version.CURRENT.id,
-            "xpack.ml.version",
-            Map.of(
-                "xpack.ml.version.id",
-                String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings",
-                NotificationsIndex.mapping()
-            )
-        );
-
-        // ML didn't use composable templates in 7.13 and the legacy template exists, so nothing needs to be done
-        MlIndexAndAlias.installIndexTemplateIfRequired(
-            clusterState,
-            client,
-            Version.CURRENT,
-            legacyNotificationsTemplate,
-            notificationsTemplate,
-            TimeValue.timeValueMinutes(1),
-            listener
-        );
-        verify(listener).onResponse(true);
-        verifyNoMoreInteractions(client);
-    }
-
     public void testInstallIndexTemplateIfRequired_GivenLegacyTemplateExistsAndModernCluster() throws UnknownHostException {
         ClusterState clusterState = createClusterState(
             Version.CURRENT,
@@ -210,18 +157,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(
-            NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json",
-            Version.CURRENT.id,
-            "xpack.ml.version",
-            Map.of(
-                "xpack.ml.version.id",
-                String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings",
-                NotificationsIndex.mapping()
-            )
-        );
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(
             NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
@@ -238,8 +173,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
         MlIndexAndAlias.installIndexTemplateIfRequired(
             clusterState,
             client,
-            Version.CURRENT,
-            legacyNotificationsTemplate,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
             listener
@@ -263,18 +196,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
             )
         );
 
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(
-            NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json",
-            Version.CURRENT.id,
-            "xpack.ml.version",
-            Map.of(
-                "xpack.ml.version.id",
-                String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings",
-                NotificationsIndex.mapping()
-            )
-        );
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(
             NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
@@ -291,8 +212,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
         MlIndexAndAlias.installIndexTemplateIfRequired(
             clusterState,
             client,
-            Version.CURRENT,
-            legacyNotificationsTemplate,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
             listener
@@ -304,18 +223,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
     public void testInstallIndexTemplateIfRequired() throws UnknownHostException {
         ClusterState clusterState = createClusterState(Collections.emptyMap());
 
-        IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(
-            NotificationsIndex.NOTIFICATIONS_INDEX,
-            "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json",
-            Version.CURRENT.id,
-            "xpack.ml.version",
-            Map.of(
-                "xpack.ml.version.id",
-                String.valueOf(Version.CURRENT.id),
-                "xpack.ml.notifications.mappings",
-                NotificationsIndex.mapping()
-            )
-        );
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(
             NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
@@ -332,8 +239,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
         MlIndexAndAlias.installIndexTemplateIfRequired(
             clusterState,
             client,
-            Version.CURRENT,
-            legacyNotificationsTemplate,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
             listener

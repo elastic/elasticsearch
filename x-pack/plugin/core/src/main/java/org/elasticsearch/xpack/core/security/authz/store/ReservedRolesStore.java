@@ -285,7 +285,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -313,7 +319,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -646,12 +658,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // APM telemetry queries APM indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
-                // Data telemetry reads mappings, metadata and stats of indices (excluding security and async search indices)
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
-                    .allowRestrictedIndices(true)
-                    .privileges("view_index_metadata", "monitor")
-                    .build(),
+                // Data telemetry reads mappings, metadata and stats of indices
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.diagnostic.collection-*").privileges("read").build(),
                 // Fleet Server indices. Kibana create this indice before Fleet Server use them.
@@ -670,9 +678,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.policy-*").privileges("read").build(),
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metrics-*").privileges("read").build(),
-                // Fleet package upgrade
+                // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "synthetics-*", "traces-*", "/metrics-.*&~(metrics-endpoint\\.metadata.*)/")
+                    .indices(
+                        "logs-*",
+                        "synthetics-*",
+                        "traces-*",
+                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/",
+                        ".logs-endpoint.action.responses-*",
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.actions-*"
+                    )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
@@ -681,7 +697,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("metrics-endpoint.metadata_current_default", "metrics-endpoint.metadata_united_default")
+                    .indices(
+                        "metrics-endpoint.metadata_current_default",
+                        ".metrics-endpoint.metadata_current_default",
+                        ".metrics-endpoint.metadata_united_default"
+                    )
                     .privileges("create_index", "delete_index", "read", "index")
                     .build(), },
             null,

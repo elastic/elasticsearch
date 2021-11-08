@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -70,15 +69,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -230,12 +230,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), eq(false), any());
 
         // model 3 has been loaded and evicted exactly once
-        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats) o).getModelId().equals(model3);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, times(1)).queueStats(argThat(o -> o.getModelId().equals(model3)), anyBoolean());
 
         // Load model 3, should invalidate 1 and 2
         for (int i = 0; i < 10; i++) {
@@ -245,18 +240,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
         verify(trainedModelProvider, times(2)).getTrainedModelForInference(eq(model3), eq(false), any());
 
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats) o).getModelId().equals(model1);
-            }
-        }), anyBoolean());
-        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats) o).getModelId().equals(model2);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(o -> o.getModelId().equals(model1)), anyBoolean());
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(o -> o.getModelId().equals(model2)), anyBoolean());
 
         // Load model 1, should invalidate 3
         for (int i = 0; i < 10; i++) {
@@ -265,12 +250,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future1.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model1), eq(false), any());
-        verify(trainedModelStatsService, times(2)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(final Object o) {
-                return ((InferenceStats) o).getModelId().equals(model3);
-            }
-        }), anyBoolean());
+        verify(trainedModelStatsService, times(2)).queueStats(argThat(o -> o.getModelId().equals(model3)), anyBoolean());
 
         // Load model 2
         for (int i = 0; i < 10; i++) {
@@ -378,7 +358,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             future.get();
             fail("Should not have succeeded");
         } catch (Exception ex) {
-            assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
+            assertThat(ex.getCause().getMessage(), containsString(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
         assertFalse(modelLoadingService.isModelCached(model));
     }

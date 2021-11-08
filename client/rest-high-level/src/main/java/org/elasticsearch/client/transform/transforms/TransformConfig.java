@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -38,6 +39,7 @@ public class TransformConfig implements ToXContentObject {
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField SETTINGS = new ParseField("settings");
+    public static final ParseField METADATA = new ParseField("_meta");
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField RETENTION_POLICY = new ParseField("retention_policy");
@@ -51,6 +53,7 @@ public class TransformConfig implements ToXContentObject {
     private final TimeValue frequency;
     private final SyncConfig syncConfig;
     private final SettingsConfig settings;
+    private final Map<String, Object> metadata;
     private final PivotConfig pivotConfig;
     private final LatestConfig latestConfig;
     private final String description;
@@ -71,9 +74,11 @@ public class TransformConfig implements ToXContentObject {
             LatestConfig latestConfig = (LatestConfig) args[6];
             String description = (String) args[7];
             SettingsConfig settings = (SettingsConfig) args[8];
-            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[9];
-            Instant createTime = (Instant) args[10];
-            String transformVersion = (String) args[11];
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) args[9];
+            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[10];
+            Instant createTime = (Instant) args[11];
+            String transformVersion = (String) args[12];
             return new TransformConfig(
                 id,
                 source,
@@ -84,6 +89,7 @@ public class TransformConfig implements ToXContentObject {
                 latestConfig,
                 description,
                 settings,
+                metadata,
                 retentionPolicyConfig,
                 createTime,
                 transformVersion
@@ -106,6 +112,7 @@ public class TransformConfig implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p), LATEST_TRANSFORM);
         PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), SETTINGS);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), METADATA);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
@@ -136,7 +143,7 @@ public class TransformConfig implements ToXContentObject {
      * @return A TransformConfig to preview, NOTE it will have a {@code null} id, destination and index.
      */
     public static TransformConfig forPreview(final SourceConfig source, final PivotConfig pivotConfig) {
-        return new TransformConfig(null, source, null, null, null, pivotConfig, null, null, null, null, null, null);
+        return new TransformConfig(null, source, null, null, null, pivotConfig, null, null, null, null, null, null, null);
     }
 
     /**
@@ -151,7 +158,7 @@ public class TransformConfig implements ToXContentObject {
      * @return A TransformConfig to preview, NOTE it will have a {@code null} id, destination and index.
      */
     public static TransformConfig forPreview(final SourceConfig source, final LatestConfig latestConfig) {
-        return new TransformConfig(null, source, null, null, null, null, latestConfig, null, null, null, null, null);
+        return new TransformConfig(null, source, null, null, null, null, latestConfig, null, null, null, null, null, null);
     }
 
     TransformConfig(
@@ -164,6 +171,7 @@ public class TransformConfig implements ToXContentObject {
         final LatestConfig latestConfig,
         final String description,
         final SettingsConfig settings,
+        final Map<String, Object> metadata,
         final RetentionPolicyConfig retentionPolicyConfig,
         final Instant createTime,
         final String version
@@ -177,6 +185,7 @@ public class TransformConfig implements ToXContentObject {
         this.latestConfig = latestConfig;
         this.description = description;
         this.settings = settings;
+        this.metadata = metadata;
         this.retentionPolicyConfig = retentionPolicyConfig;
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.transformVersion = version == null ? null : Version.fromString(version);
@@ -229,6 +238,11 @@ public class TransformConfig implements ToXContentObject {
     }
 
     @Nullable
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    @Nullable
     public RetentionPolicyConfig getRetentionPolicyConfig() {
         return retentionPolicyConfig;
     }
@@ -265,6 +279,9 @@ public class TransformConfig implements ToXContentObject {
         if (settings != null) {
             builder.field(SETTINGS.getPreferredName(), settings);
         }
+        if (metadata != null) {
+            builder.field(METADATA.getPreferredName(), metadata);
+        }
         if (retentionPolicyConfig != null) {
             builder.startObject(RETENTION_POLICY.getPreferredName());
             builder.field(retentionPolicyConfig.getName(), retentionPolicyConfig);
@@ -300,6 +317,7 @@ public class TransformConfig implements ToXContentObject {
             && Objects.equals(this.syncConfig, that.syncConfig)
             && Objects.equals(this.transformVersion, that.transformVersion)
             && Objects.equals(this.settings, that.settings)
+            && Objects.equals(this.metadata, that.metadata)
             && Objects.equals(this.createTime, that.createTime)
             && Objects.equals(this.pivotConfig, that.pivotConfig)
             && Objects.equals(this.latestConfig, that.latestConfig)
@@ -315,6 +333,7 @@ public class TransformConfig implements ToXContentObject {
             frequency,
             syncConfig,
             settings,
+            metadata,
             createTime,
             transformVersion,
             pivotConfig,
@@ -343,6 +362,7 @@ public class TransformConfig implements ToXContentObject {
         private PivotConfig pivotConfig;
         private LatestConfig latestConfig;
         private SettingsConfig settings;
+        private Map<String, Object> metadata;
         private String description;
         private RetentionPolicyConfig retentionPolicyConfig;
 
@@ -391,6 +411,11 @@ public class TransformConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setMetadata(Map<String, Object> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
         public Builder setRetentionPolicyConfig(RetentionPolicyConfig retentionPolicyConfig) {
             this.retentionPolicyConfig = retentionPolicyConfig;
             return this;
@@ -407,6 +432,7 @@ public class TransformConfig implements ToXContentObject {
                 latestConfig,
                 description,
                 settings,
+                metadata,
                 retentionPolicyConfig,
                 null,
                 null

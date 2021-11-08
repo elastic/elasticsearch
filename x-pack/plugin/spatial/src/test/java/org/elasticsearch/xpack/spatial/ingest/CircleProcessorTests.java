@@ -53,7 +53,7 @@ import static org.elasticsearch.xpack.spatial.ingest.CircleProcessor.CircleShape
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -237,8 +237,8 @@ public class CircleProcessorTests extends ESTestCase {
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
-            for (IndexableField field : indexer.indexShape(indexer.prepareForIndexing(geometry))) {
+            GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, fieldName);
+            for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }
             w.addDocument(doc);

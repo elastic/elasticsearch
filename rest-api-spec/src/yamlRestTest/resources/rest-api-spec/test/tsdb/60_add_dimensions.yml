@@ -11,6 +11,7 @@ add dimensions with put_mapping:
             settings:
               index:
                 mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
             mappings:
               properties:
                 "@timestamp":
@@ -60,6 +61,7 @@ add dimensions to no dims with dynamic_template over index:
             settings:
               index:
                 mode: time_series
+                routing_path: [metricset]
             mappings:
               dynamic_templates:
                 - keywords:
@@ -104,6 +106,7 @@ add dimensions to no dims with dynamic_template over bulk:
             settings:
               index:
                 mode: time_series
+                routing_path: [metricset]
             mappings:
               dynamic_templates:
                 - keywords:
@@ -148,6 +151,7 @@ add dimensions to some dims with dynamic_template over index:
             settings:
               index:
                 mode: time_series
+                routing_path: [metricset]
             mappings:
               dynamic_templates:
                 - keywords:
@@ -196,6 +200,7 @@ add dimensions to some dims with dynamic_template over bulk:
             settings:
               index:
                 mode: time_series
+                routing_path: [metricset]
             mappings:
               dynamic_templates:
                 - keywords:

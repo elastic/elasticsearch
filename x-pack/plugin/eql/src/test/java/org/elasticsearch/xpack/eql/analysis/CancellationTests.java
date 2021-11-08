@@ -42,6 +42,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -50,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -151,7 +152,7 @@ public class CancellationTests extends ESTestCase {
             return null;
         }).when(client).fieldCaps(any(), any());
 
-        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(
@@ -271,6 +272,6 @@ public class CancellationTests extends ESTestCase {
     }
 
     private static IndexResolver indexResolver(Client client) {
-        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE, Collections::emptySet);
     }
 }

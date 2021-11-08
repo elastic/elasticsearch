@@ -45,9 +45,10 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
                     randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
                     randomList(
                         4,
-                        () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion(
+                        () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexInfo(
                             randomAlphaOfLengthBetween(3, 20),
-                            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())
+                            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                            null
                         )
                     )
                 )
@@ -86,12 +87,12 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
             assertThat(clientStatus.getIndexVersions(), hasSize(serverTestStatus.getIndexVersions().size()));
 
             for (int j = 0; i < clientStatus.getIndexVersions().size(); i++) {
-                org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion serverIndexVersion =
+                org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexInfo serverIndexInfo =
                     serverTestStatus.getIndexVersions().get(j);
                 GetFeatureUpgradeStatusResponse.IndexVersion clientIndexVersion = clientStatus.getIndexVersions().get(j);
 
-                assertThat(clientIndexVersion.getIndexName(), equalTo(serverIndexVersion.getIndexName()));
-                assertThat(clientIndexVersion.getVersion(), equalTo(serverIndexVersion.getVersion().toString()));
+                assertThat(clientIndexVersion.getIndexName(), equalTo(serverIndexInfo.getIndexName()));
+                assertThat(clientIndexVersion.getVersion(), equalTo(serverIndexInfo.getVersion().toString()));
             }
         }
     }

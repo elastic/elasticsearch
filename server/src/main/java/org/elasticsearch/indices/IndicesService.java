@@ -238,7 +238,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
 
-    private final IdFieldMapper idFieldMapper = new IdFieldMapper(this::isIdFieldDataEnabled);
+    private final IdFieldMapper idFieldMapper = new IdFieldMapper(() -> idFieldDataEnabled);
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -1740,13 +1740,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Set<String> getAllMetadataFields() {
         return mapperRegistry.getAllMetadataMapperParsers().keySet();
-    }
-
-    /**
-     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
-     */
-    public boolean isIdFieldDataEnabled() {
-        return idFieldDataEnabled;
     }
 
     private void setIdFieldDataEnabled(boolean value) {

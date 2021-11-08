@@ -852,6 +852,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return null;
         }
+
+        @Override
+        public void ensureNotCancelled() {
+
+        }
     }
 
 }

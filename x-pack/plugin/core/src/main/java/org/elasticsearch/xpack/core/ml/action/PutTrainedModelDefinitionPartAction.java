@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -49,12 +48,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             Request.Builder::new
         );
         static {
-            PARSER.declareField(
-                Builder::setDefinition,
-                p -> p.text().getBytes(StandardCharsets.UTF_8),
-                DEFINITION,
-                ObjectParser.ValueType.STRING
-            );
+            PARSER.declareField(Builder::setDefinition, XContentParser::binaryValue, DEFINITION, ObjectParser.ValueType.STRING);
             PARSER.declareLong(Builder::setTotalDefinitionLength, TOTAL_DEFINITION_LENGTH);
             PARSER.declareInt(Builder::setTotalParts, TOTAL_PARTS);
         }

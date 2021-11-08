@@ -95,8 +95,8 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
                 new TrainedModelDefinitionDoc.Builder().setModelId(request.getModelId())
                     .setDocNum(request.getPart())
                     .setEos(isEos)
-                    // We need definition length, not base64 encoded, that is what the total definition length is
-                    .setDefinitionLength(getBase64DecodedByteLength(request.getDefinition().array()))
+                    // XContentParser::binaryValue pulls out the raw, base64 decoded bytes automatically. So, we only need the length here
+                    .setDefinitionLength(request.getDefinition().array().length)
                     .setTotalDefinitionLength(request.getTotalDefinitionLength())
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
                     .setBinaryData(request.getDefinition())
@@ -122,20 +122,6 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
         }, listener::onFailure);
 
         trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
-    }
-
-    static int getBase64DecodedByteLength(byte[] base64EncodedBytes) {
-        final int len = base64EncodedBytes.length;
-        if (len == 0) {
-            return 0;
-        }
-        int padding = (base64EncodedBytes[base64EncodedBytes.length - 2] == '=') ? 2
-            : (base64EncodedBytes[base64EncodedBytes.length - 1] == '=') ? 1
-            : 0;
-        if (padding == 0 && len % 4 != 0) {
-            padding = 4 - len % 4;
-        }
-        return Math.multiplyExact(3, (Math.addExact(len, 3) / 4)) - padding;
     }
 
     @Override

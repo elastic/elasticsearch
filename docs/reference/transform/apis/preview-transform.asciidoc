@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[preview-transform]]
 = Preview {transform} API
 

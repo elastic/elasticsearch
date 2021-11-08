@@ -85,6 +85,8 @@ TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
+:os-dir:       %ES_HOME%
+
 include::check-running.asciidoc[]
 
 [[windows-service]]

@@ -38,8 +38,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocati
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
-import java.util.Base64;
-
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportPutTrainedModelDefinitionPartAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
@@ -98,7 +96,7 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
                     .setDocNum(request.getPart())
                     .setEos(isEos)
                     // We need definition length, not base64 encoded, that is what the total definition length is
-                    .setDefinitionLength(Base64.getDecoder().decode(request.getDefinition().array()).length)
+                    .setDefinitionLength(getBase64DecodedByteLength(request.getDefinition().array()))
                     .setTotalDefinitionLength(request.getTotalDefinitionLength())
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
                     .setBinaryData(request.getDefinition())
@@ -124,6 +122,20 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
         }, listener::onFailure);
 
         trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
+    }
+
+    static int getBase64DecodedByteLength(byte[] base64EncodedBytes) {
+        final int len = base64EncodedBytes.length;
+        if (len == 0) {
+            return 0;
+        }
+        int padding = (base64EncodedBytes[base64EncodedBytes.length - 2] == '=') ? 2
+            : (base64EncodedBytes[base64EncodedBytes.length - 1] == '=') ? 1
+            : 0;
+        if (padding == 0 && len % 4 != 0) {
+            padding = 4 - len % 4;
+        }
+        return Math.multiplyExact(3, (Math.addExact(len, 3) / 4)) - padding;
     }
 
     @Override

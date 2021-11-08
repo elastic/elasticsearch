@@ -35,40 +35,81 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
     /** st_blocks field indicates the number of blocks allocated to the file, 512-byte units **/
     private static final long ST_BLOCKS_UNIT = 512L;
 
+    private final Class<? extends BaseMethod> method;
+
     private LinuxFileSystemNatives() {
         assert Constants.LINUX : Constants.OS_NAME;
         assert Constants.JRE_IS_64BIT : Constants.OS_ARCH;
+
+        Class<? extends BaseMethod> method = null;
         try {
-            Native.register(LinuxFileSystemNatives.class, Platform.C_LIBRARY_NAME);
-            logger.debug("C library loaded");
-        } catch (LinkageError e) {
-            logger.warn("unable to link C library. native methods and handlers will be disabled.", e);
-            throw e;
+            logger.debug("trying to register Stat64Method...");
+            Native.register(Stat64Method.class, Platform.C_LIBRARY_NAME);
+            method = Stat64Method.class;
+        } catch (UnsatisfiedLinkError ue0) {
+            try {
+                logger.debug("trying to register XStat64Method...");
+                Native.register(XStat64Method.class, Platform.C_LIBRARY_NAME);
+                method = XStat64Method.class;
+            } catch (UnsatisfiedLinkError ue1) {
+                ue1.addSuppressed(ue0);
+                try {
+                    logger.debug("trying to register StatMethod...");
+                    Native.register(StatMethod.class, Platform.C_LIBRARY_NAME);
+                    method = StatMethod.class;
+                } catch (UnsatisfiedLinkError ue2) {
+                    ue2.addSuppressed(ue1);
+                    logger.warn("unable to load JNA native support library for stat() on Linux", ue2);
+                    throw ue2;
+                }
+            }
         }
+        logger.debug("library {} is registered", method.getSimpleName());
+        this.method = method;
     }
 
     static LinuxFileSystemNatives getInstance() {
         return INSTANCE;
     }
 
-    /**
-     * char *strerror(int errnum)
-     *
-     * https://linux.die.net/man/3/strerror
-     */
-    private native String strerror(int errno);
+    private abstract static class BaseMethod {
 
-    /**
-     * stat(const char *path, struct stat *buf)
-     *
-     * https://linux.die.net/man/2/stat64
-     */
-    private native int stat(String path, Stat64 stats);
+        /**
+         * char *strerror(int errnum)
+         *
+         * https://linux.die.net/man/3/strerror
+         */
+        private static native String strerror(int errno);
+    }
+
+    private static final class Stat64Method extends BaseMethod {
+
+        private Stat64Method() {}
+
+        /**
+         * stat(const char *path, struct stat *buf)
+         *
+         * https://linux.die.net/man/2/stat64
+         */
+        private static native int stat64(String path, Stat64 stats);
+    }
+
+    private static final class XStat64Method extends BaseMethod {
+
+        private XStat64Method() {}
+
+        private static native int __xstat64(int version, String path, Stat64 stats);
+    }
+
+    private static final class StatMethod extends BaseMethod {
+
+        private StatMethod() {}
+
+        private static native int stat(String path, Stat64 stats);
+    }
 
     /**
      * Retrieves the actual number of bytes of disk storage used to store a specified file.
-     *
-     * This method uses the native method {@link #stat(String, Stat64)}.
      *
      * @param path the path to the file
      * @return an {@link OptionalLong} that contains the number of allocated bytes on disk for the file, or empty if the size is invalid
@@ -78,7 +119,15 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
         assert Files.isRegularFile(path) : path;
         final Stat64 stats = new Stat64();
 
-        final int rc = stat(path.toString(), stats);
+        final int rc;
+        if (method == Stat64Method.class) {
+            rc = Stat64Method.stat64(path.toString(), stats);
+        } else if (method == XStat64Method.class) {
+            rc = XStat64Method.__xstat64(1, path.toString(), stats);
+        } else {
+            assert method == StatMethod.class;
+            rc = StatMethod.stat(path.toString(), stats);
+        }
         if (rc != 0) {
             final int err = Native.getLastError();
             logger.warn("error [{}] when executing native method stat(const char *path, struct stat *buf) for file [{}]", err, path);

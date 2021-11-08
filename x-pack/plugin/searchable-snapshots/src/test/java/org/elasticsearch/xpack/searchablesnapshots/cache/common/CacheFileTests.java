@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
@@ -17,10 +15,8 @@ import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
@@ -402,9 +398,6 @@ public class CacheFileTests extends ESTestCase {
         );
     }
 
-    @TestLogging(reason = "Show me what you have, CI", value = "org.elasticsearch.common.filesystem:TRACE")
-    @SuppressForbidden(reason = "Use of @Repeat")
-    @Repeat(iterations = 100)
     public void testCacheFileCreatedAsSparseFile() throws Exception {
         assumeLinux64bitsOrWindows();
         final long fourKb = 4096L;

@@ -103,7 +103,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testPut() throws Exception {
         String policyId = randomAlphaOfLength(5);
         final long timestamp = randomNonNegativeLong();

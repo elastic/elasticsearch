@@ -209,7 +209,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final String[] visibleClosedIndices;
 
     private SortedMap<String, IndexAbstraction> indicesLookup;
-    private final Map<String, Entry> cache;
+    private final Map<String, MappingMetadata> cache;
 
     private Metadata(
         String clusterUUID,
@@ -232,7 +232,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] allClosedIndices,
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
-        Map<String, Entry> cache
+        Map<String, MappingMetadata> cache
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -946,7 +946,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return builder;
     }
 
-    Map<String, Entry> getCache() {
+    Map<String, MappingMetadata> getCache() {
         return cache;
     }
 
@@ -1104,7 +1104,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
-        private final Map<String, Entry> cache;
+        private final Map<String, MappingMetadata> cache;
 
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
@@ -1140,9 +1140,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
-            if (shouldCleanup(previous, indexMetadata)) {
-                cleanupUnusedEntry(previous);
-            }
             return this;
         }
 
@@ -1158,9 +1155,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
-            }
-            if (shouldCleanup(previous, indexMetadata)) {
-                cleanupUnusedEntry(previous);
             }
             return this;
         }
@@ -1212,8 +1206,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder remove(String index) {
             previousIndicesLookup = null;
 
-            var indexMetadata = indices.remove(index);
-            cleanupUnusedEntry(indexMetadata);
+            indices.remove(index);
             return this;
         }
 
@@ -1675,6 +1668,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
+            purgeMappingCache(indices);
+
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
@@ -1942,15 +1937,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             String digest = indexMetadata.mapping().getDigest();
-            Entry entry = cache.get(digest);
+            MappingMetadata entry = cache.get(digest);
             if (entry != null) {
-                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
                 IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(indexMetadata);
-                imBuilder.putMapping(entry.mapping);
+                imBuilder.putMapping(entry);
                 return imBuilder.build();
             } else {
-                entry = new Entry(1, indexMetadata.mapping());
-                cache.put(digest, entry);
+                cache.put(digest, indexMetadata.mapping());
                 return indexMetadata;
             }
         }
@@ -1961,55 +1954,36 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             String digest = indexMetadataBuilder.mapping().getDigest();
-            Entry entry = cache.get(digest);
+            MappingMetadata entry = cache.get(digest);
             if (entry != null) {
-                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
-                indexMetadataBuilder.putMapping(entry.mapping);
+                indexMetadataBuilder.putMapping(entry);
             } else {
-                entry = new Entry(1, indexMetadataBuilder.mapping());
-                cache.put(digest, entry);
+                cache.put(digest, indexMetadataBuilder.mapping());
             }
         }
 
-        private void cleanupUnusedEntry(IndexMetadata previous) {
-            MappingMetadata mappingMetadata = previous.mapping();
-            if (mappingMetadata == null) {
-                return;
-            }
+        private void purgeMappingCache(ImmutableOpenMap<String, IndexMetadata> indices) {
+            final var iterator = cache.entrySet().iterator();
+            while (iterator.hasNext()) {
+                final var cacheKey = iterator.next().getKey();
+                boolean used = false;
+                for (var cursor : indices) {
+                    final var mapping = cursor.value.mapping();
+                    if (mapping == null) {
+                        continue;
+                    }
 
-            String digest = mappingMetadata.getDigest();
-            Entry entry = cache.get(mappingMetadata.getDigest());
-            if (entry == null) {
-                return;
-            }
-            if (entry.refCounter == 1) {
-                cache.remove(digest);
-            } else {
-                cache.put(digest, new Entry(entry.refCounter - 1, entry.mapping));
+                    if (cacheKey.equals(mapping.getDigest())) {
+                        used = true;
+                        break;
+                    }
+                }
+                if (used == false) {
+                    iterator.remove();
+                }
             }
         }
 
-        private boolean shouldCleanup(IndexMetadata previous, IndexMetadata current) {
-            if (previous == null) {
-                // There was nothing before, so no need to cleanup.
-                return false;
-            }
-            String previousDigest = previous.mapping() != null ? previous.mapping().getDigest() : null;
-            String currentDigest = current.mapping() != null ? current.mapping().getDigest() : null;
-            return Objects.equals(previousDigest, currentDigest) == false;
-        }
-
-    }
-
-    static class Entry {
-
-        final int refCounter;
-        final MappingMetadata mapping;
-
-        Entry(int refCounter, MappingMetadata mapping) {
-            this.refCounter = refCounter;
-            this.mapping = mapping;
-        }
     }
 
     private static final ToXContent.Params FORMAT_PARAMS;

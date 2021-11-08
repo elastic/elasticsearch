@@ -644,9 +644,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> docMapper.parse(source(
-                b -> b.startObject("geo").field("lat", 1.2).field("lon", 1.3).endObject()
-            ))
+            () -> docMapper.parse(source(b -> b.startObject("geo").field("lat", 1.2).field("lon", 1.3).endObject()))
         );
         assertEquals(
             "Cannot copy field [geo] to fields [geo_copy]. Copy-to currently only works for value-type fields, not objects.",

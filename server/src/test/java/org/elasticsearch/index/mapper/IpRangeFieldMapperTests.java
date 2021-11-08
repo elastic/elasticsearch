@@ -58,11 +58,6 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
-    protected void writeField(XContentBuilder builder) throws IOException {
-        super.writeField(builder);
-    }
-
-    @Override
     protected boolean supportsDecimalCoerce() {
         return false;
     }

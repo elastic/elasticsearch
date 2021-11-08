@@ -120,12 +120,7 @@ public class HistogramFieldMapper extends FieldMapper {
     /** The metric type (gauge, counter, summary) if  field is a time series metric */
     private final TimeSeriesParams.MetricType metricType;
 
-    public HistogramFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        Builder builder
-    ) {
+    public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, CopyTo.empty());
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();

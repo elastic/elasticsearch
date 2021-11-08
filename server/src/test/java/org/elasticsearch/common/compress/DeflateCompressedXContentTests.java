@@ -12,11 +12,9 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -100,13 +98,13 @@ public class DeflateCompressedXContentTests extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        CompressedXContent compressedXContent = new CompressedXContent(toXContentObject, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentObject);
         assertEquals("{}", compressedXContent.string());
     }
 
     public void testToXContentFragment() throws IOException {
         ToXContentFragment toXContentFragment = (builder, params) -> builder.field("field", "value");
-        CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment);
         assertEquals("{\"field\":\"value\"}", compressedXContent.string());
     }
 
@@ -118,9 +116,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         );
         final CompressedXContent one = new CompressedXContent(jsonDirect);
         final CompressedXContent sameAsOne = new CompressedXContent(
-            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON)),
-            XContentType.JSON,
-            ToXContent.EMPTY_PARAMS
+            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON))
         );
         assertFalse(Arrays.equals(one.compressed(), sameAsOne.compressed()));
         assertEquals(one, sameAsOne);
@@ -133,14 +129,10 @@ public class DeflateCompressedXContentTests extends ESTestCase {
             () -> generateRandomStringArray(randomIntBetween(1, 1000), randomIntBetween(1, 512), false, true)
         );
         final CompressedXContent one = new CompressedXContent(
-            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON1)),
-            XContentType.JSON,
-            ToXContent.EMPTY_PARAMS
+            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON1))
         );
         final CompressedXContent two = new CompressedXContent(
-            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON2)),
-            XContentType.JSON,
-            ToXContent.EMPTY_PARAMS
+            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON2))
         );
         assertFalse(CompressedXContent.equalsWhenUncompressed(one.compressed(), two.compressed()));
     }

@@ -70,6 +70,6 @@ public class RestPutIndexTemplateActionTests extends ESTestCase {
             .withContent(BytesReference.bytes(typedContent), null)
             .build();
         action.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

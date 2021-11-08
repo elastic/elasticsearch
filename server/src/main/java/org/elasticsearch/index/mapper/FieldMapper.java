@@ -1298,7 +1298,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (Objects.equals("boost", propName)) {
                     if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                        deprecationLogger.critical(
+                        deprecationLogger.warn(
                             DeprecationCategory.API,
                             "boost",
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
@@ -1312,7 +1312,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.API,
                         propName,
                         "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
@@ -1325,7 +1325,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.critical(
+                        deprecationLogger.warn(
                             DeprecationCategory.API,
                             propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future",
@@ -1338,7 +1338,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
                         // The parameter is unknown, but this mapping is from a dynamic template.
                         // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
-                        deprecationLogger.critical(
+                        deprecationLogger.warn(
                             DeprecationCategory.API,
                             propName,
                             "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
@@ -1354,7 +1354,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     );
                 }
                 if (parameter.deprecated) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.API,
                         propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",

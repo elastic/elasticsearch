@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-getting-started]]
 == Getting Started with SQL
 

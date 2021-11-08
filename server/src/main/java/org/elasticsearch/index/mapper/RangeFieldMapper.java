@@ -163,9 +163,11 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
-            disallowCopyFields();
+            if (type != RangeType.IP) {
+                disallowCopyFields();
+            }
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), CopyTo.empty(), type, this);
+            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
         }
     }
 
@@ -529,6 +531,11 @@ public class RangeFieldMapper extends FieldMapper {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to encode ranges", e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "<" + name() + ":" + binaryValue() + ">";
         }
     }
 }

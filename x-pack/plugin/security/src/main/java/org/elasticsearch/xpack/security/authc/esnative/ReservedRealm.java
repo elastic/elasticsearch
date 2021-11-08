@@ -291,7 +291,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private void logDeprecatedUser(final User user) {
         Map<String, Object> metadata = user.metadata();
         if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "deprecated_user-" + user.principal(),
                 "The user ["

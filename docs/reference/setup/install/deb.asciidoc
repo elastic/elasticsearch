@@ -130,6 +130,9 @@ sudo dpkg -i elasticsearch-{version}-amd64.deb
 
 endif::[]
 
+[[deb-security-configuration]]
+include::package-security.asciidoc[]
+
 ifdef::include-xpack[]
 [role="xpack"]
 [[deb-enable-indices]]
@@ -143,6 +146,9 @@ endif::include-xpack[]
 include::systemd.asciidoc[]
 
 [[deb-check-running]]
+
+:os-dir:       /etc/elasticsearch
+
 include::check-running.asciidoc[]
 
 [[deb-configuring]]
@@ -190,6 +196,11 @@ locations for a Debian-based system:
   | /etc/default/elasticsearch
  d|
 
+| conf
+| Generated TLS keys and certificates for the transport and http layer.
+| /etc/elasticsearch/auto_config_tls_<timestamp>
+d|
+
 | data
   | The location of the data files of each index / shard allocated
     on the node.
@@ -220,4 +231,5 @@ locations for a Debian-based system:
 
 |=======================================================================
 
+include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

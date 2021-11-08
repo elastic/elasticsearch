@@ -19,7 +19,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -82,14 +81,18 @@ public final class CompressedXContent {
         assertConsistent();
     }
 
+    public CompressedXContent(ToXContent xcontent) throws IOException {
+        this(xcontent, ToXContent.EMPTY_PARAMS);
+    }
+
     /**
      * Create a {@link CompressedXContent} out of a {@link ToXContent} instance.
      */
-    public CompressedXContent(ToXContent xcontent, XContentType type, ToXContent.Params params) throws IOException {
+    public CompressedXContent(ToXContent xcontent, ToXContent.Params params) throws IOException {
         BytesStreamOutput bStream = new BytesStreamOutput();
         CRC32 crc32 = new CRC32();
         OutputStream checkedStream = new CheckedOutputStream(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream), crc32);
-        try (XContentBuilder builder = XContentFactory.contentBuilder(type, checkedStream)) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
             if (xcontent.isFragment()) {
                 builder.startObject();
             }

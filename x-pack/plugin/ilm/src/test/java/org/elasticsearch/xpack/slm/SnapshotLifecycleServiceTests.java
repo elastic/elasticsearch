@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -483,7 +482,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             true
         );
         service.clusterChanged(new ClusterChangedEvent("blah", state, ClusterState.EMPTY_STATE));
-        assertThat(task.get(), equalTo(OperationModeUpdateTask.slmMode(Priority.IMMEDIATE, OperationMode.STOPPED)));
+        assertThat(task.get(), equalTo(OperationModeUpdateTask.slmMode(OperationMode.STOPPED)));
         threadPool.shutdownNow();
     }
 

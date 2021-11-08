@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
@@ -239,7 +238,7 @@ public class IndexLifecycleService
             if (safeToStop && OperationMode.STOPPING == currentMode) {
                 clusterService.submitStateUpdateTask(
                     "ilm_operation_mode_update[stopped]",
-                    OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, OperationMode.STOPPED)
+                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
                 );
             }
         }
@@ -442,7 +441,7 @@ public class IndexLifecycleService
         if (safeToStop && OperationMode.STOPPING == currentMode) {
             clusterService.submitStateUpdateTask(
                 "ilm_operation_mode_update[stopped]",
-                OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, OperationMode.STOPPED)
+                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
             );
         }
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,7 +51,7 @@ public class TransportStartILMAction extends AcknowledgedTransportMasterNodeActi
     protected void masterOperation(Task task, StartILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
             "ilm_operation_mode_update[running]",
-            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(Priority.NORMAL, OperationMode.RUNNING), request, listener)
+            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(OperationMode.RUNNING), request, listener)
         );
     }
 

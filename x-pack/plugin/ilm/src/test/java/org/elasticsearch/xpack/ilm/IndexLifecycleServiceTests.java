@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -284,10 +283,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             changedOperationMode.set(true);
             return null;
         }).when(clusterService)
-            .submitStateUpdateTask(
-                eq("ilm_operation_mode_update[stopped]"),
-                eq(OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, OperationMode.STOPPED))
-            );
+            .submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());

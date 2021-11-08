@@ -55,12 +55,20 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         this.slmMode = slmMode;
     }
 
-    public static OperationModeUpdateTask ilmMode(Priority priority, OperationMode mode) {
-        return new OperationModeUpdateTask(priority, mode, null);
+    public static OperationModeUpdateTask ilmMode(OperationMode mode) {
+        return new OperationModeUpdateTask(getPriority(mode), mode, null);
     }
 
-    public static OperationModeUpdateTask slmMode(Priority priority, OperationMode mode) {
-        return new OperationModeUpdateTask(priority, null, mode);
+    public static OperationModeUpdateTask slmMode(OperationMode mode) {
+        return new OperationModeUpdateTask(getPriority(mode), null, mode);
+    }
+
+    private static Priority getPriority(OperationMode mode) {
+        if (mode == OperationMode.STOPPED || mode == OperationMode.STOPPING) {
+            return Priority.IMMEDIATE;
+        } else {
+            return Priority.NORMAL;
+        }
     }
 
     OperationMode getILMOperationMode() {

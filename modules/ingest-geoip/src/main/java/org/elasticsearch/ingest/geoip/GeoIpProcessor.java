@@ -23,7 +23,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -464,7 +463,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
                     HeaderWarning.addWarning(
-                        DeprecationLogger.CRITICAL,
                         "database [{}] was not updated for over 25 days, geoip processor"
                             + " will stop working if there is no update for 30 days",
                         databaseFile

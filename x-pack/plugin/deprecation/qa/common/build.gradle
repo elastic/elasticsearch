@@ -1,7 +1,5 @@
 apply plugin: 'elasticsearch.java'
 dependencies {
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   implementation project(':test:framework')
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 

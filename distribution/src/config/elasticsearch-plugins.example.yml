@@ -2,7 +2,8 @@
 #
 # All plugins must be listed here. If you add a plugin to this list and run
 # `elasticsearch-plugin sync`, that plugin will be installed. If you remove
-# a plugin and re-run the command, that plugin will be removed.
+# a plugin from this list, that plugin will be removed when Elasticsearch
+# next starts.
 
 plugins:
   # Each plugin must have an ID. Plugins with only an ID are official plugins and will be downloaded from Elastic.

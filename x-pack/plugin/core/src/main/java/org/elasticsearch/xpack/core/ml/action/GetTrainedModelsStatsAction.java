@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
 import java.io.IOException;
@@ -38,6 +40,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField PIPELINE_COUNT = new ParseField("pipeline_count");
     public static final ParseField INFERENCE_STATS = new ParseField("inference_stats");
+    public static final ParseField DEPLOYMENT_STATS = new ParseField("deployment_stats");
 
     private GetTrainedModelsStatsAction() {
         super(NAME, GetTrainedModelsStatsAction.Response::new);
@@ -73,6 +76,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private final String modelId;
             private final IngestStats ingestStats;
             private final InferenceStats inferenceStats;
+            private final AllocationStats deploymentStats;
             private final int pipelineCount;
 
             private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(
@@ -81,7 +85,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 Collections.emptyMap()
             );
 
-            public TrainedModelStats(String modelId, IngestStats ingestStats, int pipelineCount, InferenceStats inferenceStats) {
+            public TrainedModelStats(
+                String modelId,
+                IngestStats ingestStats,
+                int pipelineCount,
+                InferenceStats inferenceStats,
+                AllocationStats deploymentStats
+            ) {
                 this.modelId = Objects.requireNonNull(modelId);
                 this.ingestStats = ingestStats == null ? EMPTY_INGEST_STATS : ingestStats;
                 if (pipelineCount < 0) {
@@ -89,13 +99,19 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 }
                 this.pipelineCount = pipelineCount;
                 this.inferenceStats = inferenceStats;
+                this.deploymentStats = deploymentStats;
             }
 
             public TrainedModelStats(StreamInput in) throws IOException {
                 modelId = in.readString();
                 ingestStats = new IngestStats(in);
                 pipelineCount = in.readVInt();
-                this.inferenceStats = in.readOptionalWriteable(InferenceStats::new);
+                inferenceStats = in.readOptionalWriteable(InferenceStats::new);
+                if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                    this.deploymentStats = in.readOptionalWriteable(AllocationStats::new);
+                } else {
+                    this.deploymentStats = null;
+                }
             }
 
             public String getModelId() {
@@ -110,6 +126,14 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return pipelineCount;
             }
 
+            public InferenceStats getInferenceStats() {
+                return inferenceStats;
+            }
+
+            public AllocationStats getDeploymentStats() {
+                return deploymentStats;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
@@ -122,6 +146,9 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 if (this.inferenceStats != null) {
                     builder.field(INFERENCE_STATS.getPreferredName(), this.inferenceStats);
                 }
+                if (deploymentStats != null) {
+                    builder.field(DEPLOYMENT_STATS.getPreferredName(), this.deploymentStats);
+                }
                 builder.endObject();
                 return builder;
             }
@@ -131,12 +158,15 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 out.writeString(modelId);
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
-                out.writeOptionalWriteable(this.inferenceStats);
+                out.writeOptionalWriteable(inferenceStats);
+                if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                    out.writeOptionalWriteable(deploymentStats);
+                }
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(modelId, ingestStats, pipelineCount, inferenceStats);
+                return Objects.hash(modelId, ingestStats, pipelineCount, inferenceStats, deploymentStats);
             }
 
             @Override
@@ -151,6 +181,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return Objects.equals(this.modelId, other.modelId)
                     && Objects.equals(this.ingestStats, other.ingestStats)
                     && Objects.equals(this.pipelineCount, other.pipelineCount)
+                    && Objects.equals(this.deploymentStats, other.deploymentStats)
                     && Objects.equals(this.inferenceStats, other.inferenceStats);
             }
         }
@@ -176,6 +207,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private Map<String, Set<String>> expandedIdsWithAliases;
             private Map<String, IngestStats> ingestStatsMap;
             private Map<String, InferenceStats> inferenceStatsMap;
+            private Map<String, AllocationStats> allocationStatsMap;
 
             public Builder setTotalModelCount(long totalModelCount) {
                 this.totalModelCount = totalModelCount;
@@ -196,8 +228,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setInferenceStatsByModelId(Map<String, InferenceStats> infereceStatsByModelId) {
-                this.inferenceStatsMap = infereceStatsByModelId;
+            public Builder setInferenceStatsByModelId(Map<String, InferenceStats> inferenceStatsByModelId) {
+                this.inferenceStatsMap = inferenceStatsByModelId;
+                return this;
+            }
+
+            public Builder setDeploymentStatsByModelId(Map<String, AllocationStats> allocationStatsByModelId) {
+                this.allocationStatsMap = allocationStatsByModelId;
                 return this;
             }
 
@@ -206,12 +243,14 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 expandedIdsWithAliases.keySet().forEach(id -> {
                     IngestStats ingestStats = ingestStatsMap.get(id);
                     InferenceStats inferenceStats = inferenceStatsMap.get(id);
+                    AllocationStats allocationStats = allocationStatsMap.get(id);
                     trainedModelStats.add(
                         new TrainedModelStats(
                             id,
                             ingestStats,
                             ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
-                            inferenceStats
+                            inferenceStats,
+                            allocationStats
                         )
                     );
                 });

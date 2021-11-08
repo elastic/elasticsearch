@@ -41,10 +41,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -352,6 +354,40 @@ public class PyTorchModelIT extends ESRestTestCase {
                 containsString("No known trained model with deployment with id [c*]")
             );
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetTrainedModelStatsWithDeployment() throws IOException {
+        String model = "deployed_model";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+
+        startDeployment(model, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        client().performRequest(
+            putPipeline(
+                "my_pipeline",
+                "{"
+                    + "\"processors\": [\n"
+                    + "      {\n"
+                    + "        \"inference\": {\n"
+                    + "          \"model_id\": \""
+                    + model
+                    + "\"\n"
+                    + "        }\n"
+                    + "      }\n"
+                    + "    ]\n"
+                    + "}"
+            )
+        );
+        Response response = client().performRequest(new Request("GET", "_ml/trained_models/" + model + "/_stats"));
+        Map<String, Object> map = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        assertThat(stats.get(0).get("model_id"), equalTo(model));
+        assertThat(stats.get(0), allOf(hasKey("deployment_stats"), hasKey("pipeline_count"), hasKey("ingest")));
+        assertThat(stats.get(0).get("pipeline_count"), equalTo(1));
     }
 
     @SuppressWarnings("unchecked")

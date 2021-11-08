@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
@@ -52,7 +53,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
     GetDeploymentStatsAction.Request,
     GetDeploymentStatsAction.Response,
-    GetDeploymentStatsAction.Response.AllocationStats> {
+    AllocationStats> {
 
     @Inject
     public TransportGetDeploymentStatsAction(
@@ -67,7 +68,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             actionFilters,
             GetDeploymentStatsAction.Request::new,
             GetDeploymentStatsAction.Response::new,
-            GetDeploymentStatsAction.Response.AllocationStats::new,
+            AllocationStats::new,
             ThreadPool.Names.MANAGEMENT
         );
     }
@@ -75,18 +76,18 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
     @Override
     protected GetDeploymentStatsAction.Response newResponse(
         GetDeploymentStatsAction.Request request,
-        List<GetDeploymentStatsAction.Response.AllocationStats> taskResponse,
+        List<AllocationStats> taskResponse,
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
         // group the stats by model and merge individual node stats
         var mergedNodeStatsByModel = taskResponse.stream()
-            .collect(Collectors.toMap(GetDeploymentStatsAction.Response.AllocationStats::getModelId, Function.identity(), (l, r) -> {
+            .collect(Collectors.toMap(AllocationStats::getModelId, Function.identity(), (l, r) -> {
                 l.getNodeStats().addAll(r.getNodeStats());
                 return l;
             }, TreeMap::new));
 
-        List<GetDeploymentStatsAction.Response.AllocationStats> bunchedAndSorted = new ArrayList<>(mergedNodeStatsByModel.values());
+        List<AllocationStats> bunchedAndSorted = new ArrayList<>(mergedNodeStatsByModel.values());
 
         return new GetDeploymentStatsAction.Response(
             taskOperationFailures,
@@ -157,7 +158,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 .filter(StartTrainedModelDeploymentAction.TaskParams::mayAllocateToNode)
                 .collect(Collectors.toList());
             // Set the allocation state and reason if we have it
-            for (GetDeploymentStatsAction.Response.AllocationStats stats : updatedResponse.getStats().results()) {
+            for (AllocationStats stats : updatedResponse.getStats().results()) {
                 Optional<TrainedModelAllocation> modelAllocation = Optional.ofNullable(allocation.getModelAllocation(stats.getModelId()));
                 TrainedModelAllocation trainedModelAllocation = modelAllocation.orElse(null);
                 if (trainedModelAllocation != null) {
@@ -195,15 +196,15 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             .stream()
             .collect(Collectors.toMap(TrainedModelAllocation::getModelId, Function.identity()));
 
-        final List<GetDeploymentStatsAction.Response.AllocationStats> updatedAllocationStats = new ArrayList<>();
+        final List<AllocationStats> updatedAllocationStats = new ArrayList<>();
 
-        for (GetDeploymentStatsAction.Response.AllocationStats stat : tasksResponse.getStats().results()) {
+        for (AllocationStats stat : tasksResponse.getStats().results()) {
             if (modelToAllocationWithNonStartedRoutes.containsKey(stat.getModelId())) {
                 // there is merging to be done
                 Map<String, RoutingStateAndReason> nodeToRoutingStates = allocationNonStartedRoutes.get(
                     modelToAllocationWithNonStartedRoutes.get(stat.getModelId())
                 );
-                List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> updatedNodeStats = new ArrayList<>();
+                List<AllocationStats.NodeStats> updatedNodeStats = new ArrayList<>();
 
                 Set<String> visitedNodes = new HashSet<>();
                 for (var nodeStat : stat.getNodeStats()) {
@@ -214,7 +215,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                         // of the state of the task - it may be starting, started, stopping, or stopped.
                         RoutingStateAndReason stateAndReason = nodeToRoutingStates.get(nodeStat.getNode().getId());
                         updatedNodeStats.add(
-                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
+                            AllocationStats.NodeStats.forNotStartedState(
                                 nodeStat.getNode(),
                                 stateAndReason.getState(),
                                 stateAndReason.getReason()
@@ -231,7 +232,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 for (var nodeRoutingState : nodeToRoutingStates.entrySet()) {
                     if (visitedNodes.contains(nodeRoutingState.getKey()) == false) {
                         updatedNodeStats.add(
-                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
+                            AllocationStats.NodeStats.forNotStartedState(
                                 nodes.get(nodeRoutingState.getKey()),
                                 nodeRoutingState.getValue().getState(),
                                 nodeRoutingState.getValue().getReason()
@@ -242,7 +243,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 updatedNodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
                 updatedAllocationStats.add(
-                    new GetDeploymentStatsAction.Response.AllocationStats(
+                    new AllocationStats(
                         stat.getModelId(),
                         stat.getModelSize(),
                         stat.getInferenceThreads(),
@@ -264,11 +265,11 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             if (tasksResponse.getStats().results().stream().anyMatch(e -> modelId.equals(e.getModelId())) == false) {
 
                 // no tasks for this model so build the allocation stats from the non-started states
-                List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStats = new ArrayList<>();
+                List<AllocationStats.NodeStats> nodeStats = new ArrayList<>();
 
                 for (var routingEntry : nonStartedEntries.getValue().entrySet()) {
                     nodeStats.add(
-                        GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
+                        AllocationStats.NodeStats.forNotStartedState(
                             nodes.get(routingEntry.getKey()),
                             routingEntry.getValue().getState(),
                             routingEntry.getValue().getReason()
@@ -278,21 +279,11 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-                updatedAllocationStats.add(
-                    new GetDeploymentStatsAction.Response.AllocationStats(
-                        modelId,
-                        null,
-                        null,
-                        null,
-                        null,
-                        allocation.getStartTime(),
-                        nodeStats
-                    )
-                );
+                updatedAllocationStats.add(new AllocationStats(modelId, null, null, null, null, allocation.getStartTime(), nodeStats));
             }
         }
 
-        updatedAllocationStats.sort(Comparator.comparing(GetDeploymentStatsAction.Response.AllocationStats::getModelId));
+        updatedAllocationStats.sort(Comparator.comparing(AllocationStats::getModelId));
 
         return new GetDeploymentStatsAction.Response(
             tasksResponse.getTaskFailures(),
@@ -306,15 +297,15 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
     protected void taskOperation(
         GetDeploymentStatsAction.Request request,
         TrainedModelDeploymentTask task,
-        ActionListener<GetDeploymentStatsAction.Response.AllocationStats> listener
+        ActionListener<AllocationStats> listener
     ) {
         Optional<ModelStats> stats = task.modelStats();
 
-        List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStats = new ArrayList<>();
+        List<AllocationStats.NodeStats> nodeStats = new ArrayList<>();
 
         if (stats.isPresent()) {
             nodeStats.add(
-                GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                AllocationStats.NodeStats.forStartedState(
                     clusterService.localNode(),
                     stats.get().getTimingStats().getCount(),
                     // avoid reporting the average time as 0 if count < 1
@@ -327,17 +318,11 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         } else {
             // if there are no stats the process is missing.
             // Either because it is starting or stopped
-            nodeStats.add(
-                GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
-                    clusterService.localNode(),
-                    RoutingState.STOPPED,
-                    ""
-                )
-            );
+            nodeStats.add(AllocationStats.NodeStats.forNotStartedState(clusterService.localNode(), RoutingState.STOPPED, ""));
         }
 
         listener.onResponse(
-            new GetDeploymentStatsAction.Response.AllocationStats(
+            new AllocationStats(
                 task.getModelId(),
                 ByteSizeValue.ofBytes(task.getParams().getModelBytes()),
                 task.getParams().getInferenceThreads(),

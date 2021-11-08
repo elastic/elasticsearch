@@ -41,7 +41,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 
 `force`::
-  (Optional, Boolean) If true, the deployment is stopped forcefully.
+  (Optional, Boolean) If true, the deployment is stopped even if it is referenced by
+  ingest pipelines.
 
 ////
 [role="child_attributes"]

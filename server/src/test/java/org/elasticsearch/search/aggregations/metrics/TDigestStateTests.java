@@ -39,4 +39,27 @@ public class TDigestStateTests extends ESTestCase {
             prev = v;
         }
     }
+
+    // NOCOMMIT: put a real test name here
+    public void testSomeStuff() {
+        int size = 7;
+        TDigestState[] states = new TDigestState[size];
+        for (int counter = 0; counter < size; counter++) {
+            states[counter] = new TDigestState(50);
+            final int numberDocs = randomIntBetween(5, 50);
+            for (int i = 0; i < numberDocs; i++) {
+                double value = randomDoubleBetween(-1000, 1000, true);
+                states[counter].add(value);
+            }
+        }
+
+        int fromIndex = 0;
+        int toIndex = 6;
+        TDigestState result = new TDigestState(states[0].compression());
+        for (int i = fromIndex; i < toIndex; i++) {
+            result.add(states[i]);
+        }
+        assertNotEquals(Double.NEGATIVE_INFINITY, result.getMax());
+        assertTrue(result.getMax() > result.getMin());
+    }
 }

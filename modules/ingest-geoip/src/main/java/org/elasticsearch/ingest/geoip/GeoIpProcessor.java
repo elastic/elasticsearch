@@ -486,7 +486,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
                     HeaderWarning.addWarning(
-                        DeprecationLogger.CRITICAL,
                         "database [{}] was not updated for over 25 days, geoip processor"
                             + " will stop working if there is no update for 30 days",
                         databaseFile

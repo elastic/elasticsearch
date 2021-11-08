@@ -1684,7 +1684,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static final class DeprecationWarning {
-        private final Level level;
+        private final Level level; // Intentionally ignoring level for the sake of equality for now
         private final String message;
 
         public DeprecationWarning(Level level, String message) {
@@ -1694,7 +1694,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public int hashCode() {
-            return Objects.hash(level, message);
+            return Objects.hash(message);
         }
 
         @Override
@@ -1702,12 +1702,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeprecationWarning that = (DeprecationWarning) o;
-            return Objects.equals(level, that.level) && Objects.equals(message, that.message);
+            return Objects.equals(message, that.message);
         }
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s (%s): %s", level.name(), level.intLevel(), message);
+            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
     }
 }

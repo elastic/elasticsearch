@@ -63,7 +63,7 @@ public class MapperTestUtils {
             similarityService,
             mapperRegistry,
             () -> null,
-            IdFieldMapper.DISABLED,
+            IdFieldMapper.NO_FIELD_DATA,
             ScriptCompiler.NONE
         );
     }

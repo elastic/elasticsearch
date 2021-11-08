@@ -195,7 +195,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            IdFieldMapper.DISABLED,
+            IdFieldMapper.NO_FIELD_DATA,
             null,
             indexDeletionListener,
             emptyMap()

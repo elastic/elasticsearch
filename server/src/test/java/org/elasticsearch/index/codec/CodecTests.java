@@ -91,7 +91,7 @@ public class CodecTests extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> null,
-            IdFieldMapper.DISABLED,
+            IdFieldMapper.NO_FIELD_DATA,
             ScriptCompiler.NONE
         );
         return new CodecService(service);

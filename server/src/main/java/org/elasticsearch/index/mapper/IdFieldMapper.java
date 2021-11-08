@@ -87,7 +87,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final IdFieldMapper DISABLED = new IdFieldMapper(() -> false);
+    public static final IdFieldMapper NO_FIELD_DATA = new IdFieldMapper(() -> false);
 
     public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 

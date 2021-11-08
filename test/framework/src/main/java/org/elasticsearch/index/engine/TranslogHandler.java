@@ -58,7 +58,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             similarityService,
             mapperRegistry,
             () -> null,
-            IdFieldMapper.DISABLED,
+            IdFieldMapper.NO_FIELD_DATA,
             null
         );
     }

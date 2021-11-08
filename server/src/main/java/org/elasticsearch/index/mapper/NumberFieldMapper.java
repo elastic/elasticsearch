@@ -332,7 +332,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(
-                    name(),
+                    name,
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
                 );
@@ -443,7 +443,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(
-                    name(),
+                    name,
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
                 );
@@ -537,7 +537,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(
-                    name(),
+                    name,
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
                 );
@@ -618,7 +618,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
-                    name(),
+                    name,
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );
@@ -689,7 +689,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
-                    name(),
+                    name,
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );
@@ -819,7 +819,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
-                    name(),
+                    name,
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );
@@ -919,7 +919,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
-                    name(),
+                    name,
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );

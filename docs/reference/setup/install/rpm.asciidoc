@@ -123,6 +123,9 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
+[[rpm-security-configuration]]
+include::package-security.asciidoc[]
+
 ifdef::include-xpack[]
 [role="xpack"]
 [[rpm-enable-indices]]
@@ -136,6 +139,9 @@ endif::include-xpack[]
 include::systemd.asciidoc[]
 
 [[rpm-check-running]]
+
+:os-dir:       /etc/elasticsearch
+
 include::check-running.asciidoc[]
 
 [[rpm-configuring]]
@@ -183,6 +189,11 @@ locations for an RPM-based system:
   | /etc/sysconfig/elasticsearch
  d|
 
+| conf
+| Generated TLS keys and certificates for the transport and http layer.
+| /etc/elasticsearch/auto_config_tls_<timestamp>
+d|
+
 | data
   | The location of the data files of each index / shard allocated
     on the node.
@@ -213,4 +224,5 @@ locations for an RPM-based system:
 
 |=======================================================================
 
+include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

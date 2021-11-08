@@ -1,0 +1,18 @@
+[role="exclude"]
+===== Security certificates and keys
+
+When you install {es}, the following certificates and keys are
+generated in the {es} configuration directory, which are used to connect a {kib}
+instance to your secured {es} cluster and to encrypt internode communication.
+The files are listed here for reference.
+
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
+
+`http_keystore_local_node.p12`::
+Keystore that contains the key and certificate for the HTTP layer for this node.
+
+`transport_keystore_all_nodes.p12`::
+Keystore that contains the key and certificate for the transport layer for all
+the nodes in your cluster.

@@ -417,6 +417,18 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
     }
 
+    public void testGetPytorchModelWithDefinition() throws IOException {
+        String model = "should-fail-get";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().performRequest(new Request("GET", "_ml/trained_models/" + model + "?include=definition"))
+        );
+        assertThat(ex.getMessage(), containsString("[should-fail-get] is type [pytorch] and does not support retrieving the definition"));
+    }
+
     public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
         String model = "not-deployed";
         createTrainedModel(model);
@@ -470,6 +482,92 @@ public class PyTorchModelIT extends ESRestTestCase {
             ex.getMessage(),
             containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
         );
+    }
+
+    public void testTruncation() throws IOException {
+        String modelId = "no-truncation";
+
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity(
+            "{  "
+                + "    \"description\": \"simple model for testing\",\n"
+                + "    \"model_type\": \"pytorch\",\n"
+                + "    \"inference_config\": {\n"
+                + "        \"pass_through\": {\n"
+                + "            \"tokenization\": {"
+                + "              \"bert\": {"
+                + "                \"with_special_tokens\": false,"
+                + "                \"truncate\": \"none\","
+                + "                \"max_sequence_length\": 2"
+                + "              }\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }\n"
+                + "}"
+        );
+        client().performRequest(request);
+
+        putVocabulary(List.of("once", "twice", "thrice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        String input = "once twice thrice";
+        ResponseException ex = expectThrows(ResponseException.class, () -> infer("once twice thrice", modelId));
+        assertThat(
+            ex.getMessage(),
+            containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
+        );
+
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request.setJsonEntity(
+            "{"
+                + "\"docs\": [{\"input\":\""
+                + input
+                + "\"}],"
+                + "\"inference_config\": { "
+                + "  \"pass_through\": {"
+                + "    \"tokenization\": {\"bert\": {\"truncate\": \"first\"}}"
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        client().performRequest(request);
+    }
+
+    public void testStopUsedDeploymentByIngestProcessor() throws IOException {
+        String modelId = "test_stop_used_deployment_by_ingest_processor";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        client().performRequest(
+            putPipeline(
+                "my_pipeline",
+                "{"
+                    + "\"processors\": [\n"
+                    + "      {\n"
+                    + "        \"inference\": {\n"
+                    + "          \"model_id\": \""
+                    + modelId
+                    + "\"\n"
+                    + "        }\n"
+                    + "      }\n"
+                    + "    ]\n"
+                    + "}"
+            )
+        );
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot stop deployment for model [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
+                    + " ingest processors; use force to stop the deployment"
+            )
+        );
+
+        stopDeployment(modelId, true);
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
@@ -542,7 +640,15 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private void stopDeployment(String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_stop");
+        stopDeployment(modelId, false);
+    }
+
+    private void stopDeployment(String modelId, boolean force) throws IOException {
+        String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
+        if (force) {
+            endpoint += "?force=true";
+        }
+        Request request = new Request("POST", endpoint);
         client().performRequest(request);
     }
 

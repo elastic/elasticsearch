@@ -8,13 +8,37 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
+import org.elasticsearch.xpack.core.ilm.LifecycleType;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
+
+import java.util.List;
 
 /**
  * Describes an index lifecycle policy to be loaded from a resource file for use with an {@link IndexTemplateRegistry}.
  */
 public class LifecyclePolicyConfig {
+
+    public static final NamedXContentRegistry DEFAULT_X_CONTENT_REGISTRY = new NamedXContentRegistry(
+        List.of(
+            new NamedXContentRegistry.Entry(
+                LifecycleType.class,
+                new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE
+            ),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+        )
+    );
 
     private final String policyName;
     private final String fileName;

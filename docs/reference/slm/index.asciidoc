@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[snapshot-lifecycle-management]]
 == {slm-init}: Manage the snapshot lifecycle
 

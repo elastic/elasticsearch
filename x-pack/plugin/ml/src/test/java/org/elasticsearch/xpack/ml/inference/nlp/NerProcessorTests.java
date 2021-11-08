@@ -259,6 +259,6 @@ public class NerProcessorTests extends ESTestCase {
             .setDoLowerCase(true)
             .setWithSpecialTokens(false)
             .build();
-        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input)));
+        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input, Tokenization.Truncate.NONE)));
     }
 }

@@ -87,7 +87,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
+    public static final IdFieldMapper NO_FIELD_DATA = new IdFieldMapper(() -> false);
+
+    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 
     static final class IdFieldType extends TermBasedFieldType {
 
@@ -156,7 +158,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-                    deprecationLogger.critical(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.warn(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService);
                     return new IndexFieldData<>() {
                         @Override
@@ -253,7 +255,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+    public IdFieldMapper(BooleanSupplier fieldDataEnabled) {
         super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 

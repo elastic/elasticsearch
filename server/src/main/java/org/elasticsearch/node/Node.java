@@ -198,6 +198,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -320,7 +321,7 @@ public class Node implements Closeable {
                 logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.OTHER,
                     "no-jdk",
                     "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
@@ -420,7 +421,12 @@ public class Node implements Closeable {
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
-            final ScriptService scriptService = newScriptService(settings, scriptModule.engines, scriptModule.contexts);
+            final ScriptService scriptService = newScriptService(
+                settings,
+                scriptModule.engines,
+                scriptModule.contexts,
+                threadPool::absoluteTimeInMillis
+            );
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
@@ -1487,8 +1493,13 @@ public class Node implements Closeable {
     /**
      * Creates a new the ScriptService. This method can be overwritten by tests to inject mock implementations.
      */
-    protected ScriptService newScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        return new ScriptService(settings, engines, contexts);
+    protected ScriptService newScriptService(
+        Settings settings,
+        Map<String, ScriptEngine> engines,
+        Map<String, ScriptContext<?>> contexts,
+        LongSupplier timeProvider
+    ) {
+        return new ScriptService(settings, engines, contexts, timeProvider);
     }
 
     /**

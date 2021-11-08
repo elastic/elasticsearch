@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-trained-models]]
 = Create trained models API
 [subs="attributes"]

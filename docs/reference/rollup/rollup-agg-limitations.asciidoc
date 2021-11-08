@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-agg-limitations]]
 === {rollup-cap} aggregation limitations
 

@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -43,16 +44,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<ClusterHealthResponse> {
     private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
 
-    public void testIsTimeout() {
+    public void testIsTimeoutReturns200ByDefault() {
         ClusterHealthResponse res = new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
-            if (res.isTimedOut()) {
-                assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
-                assertCriticalWarnings(ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
-            } else {
-                assertEquals(RestStatus.OK, res.status());
-            }
+            assertEquals(RestStatus.OK, res.status(RestApiVersion.V_8));
         }
     }
 
@@ -60,7 +56,27 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         ClusterHealthResponse res = new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, true);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
-            assertEquals(RestStatus.OK, res.status());
+            assertEquals(RestStatus.OK, res.status(RestApiVersion.V_8));
+        }
+    }
+
+    public void testTimeoutReturns200InIfOptedInV7CompatibilityMode() {
+        ClusterHealthResponse res = new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, true);
+        for (int i = 0; i < 5; i++) {
+            res.setTimedOut(randomBoolean());
+            assertEquals(RestStatus.OK, res.status(RestApiVersion.V_7));
+        }
+    }
+
+    public void testTimeoutReturns408InV7CompatibilityMode() {
+        ClusterHealthResponse res = new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false);
+        for (int i = 0; i < 5; i++) {
+            res.setTimedOut(randomBoolean());
+            if (res.isTimedOut()) {
+                assertEquals(RestStatus.REQUEST_TIMEOUT, res.status(RestApiVersion.V_7));
+            } else {
+                assertEquals(RestStatus.OK, res.status(RestApiVersion.V_7));
+            }
         }
     }
 

@@ -468,31 +468,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * If the list of feature states to restore contains only "none" and we are restoring global state,
-     * no feature states should be restored.
-     */
-    public void testRestoreSystemIndicesAsGlobalStateWithEmptyListOfFeatureStatesNoIndicesSpecified() {
-        createRepository(REPO_NAME, "fs");
-        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
-
-        // run a snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setIncludeGlobalState(true)
-            .get();
-        assertSnapshotSuccess(createSnapshotResponse);
-
-        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
-            .setFeatureStates(new String[] { randomFrom("none", "NONE") })
-            .get();
-        assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(restoreResponse.getRestoreInfo().successfulShards()));
-        // GWB> What do we check here?
-    }
-
-    /**
      * When a feature state is restored, all indices that are part of that feature state should be deleted, then the indices in
      * the snapshot should be restored.
      *

@@ -1936,7 +1936,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 return indexMetadata;
             }
 
-            String digest = indexMetadata.mapping().getDigest();
+            String digest = indexMetadata.mapping().getSha256();
             MappingMetadata entry = cache.get(digest);
             if (entry != null) {
                 IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(indexMetadata);
@@ -1953,7 +1953,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 return;
             }
 
-            String digest = indexMetadataBuilder.mapping().getDigest();
+            String digest = indexMetadataBuilder.mapping().getSha256();
             MappingMetadata entry = cache.get(digest);
             if (entry != null) {
                 indexMetadataBuilder.putMapping(entry);
@@ -1973,7 +1973,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         continue;
                     }
 
-                    if (cacheKey.equals(mapping.getDigest())) {
+                    if (cacheKey.equals(mapping.getSha256())) {
                         used = true;
                         break;
                     }

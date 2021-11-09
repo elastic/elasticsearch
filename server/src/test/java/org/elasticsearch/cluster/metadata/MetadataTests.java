@@ -1794,7 +1794,7 @@ public class MetadataTests extends ESTestCase {
 
         // Add a new index with a new index with known mapping:
         MappingMetadata mapping = metadata.indices().get("index-" + randomInt(numIndices - 1)).mapping();
-        MappingMetadata entry = metadata.getCache().get(mapping.getDigest());
+        MappingMetadata entry = metadata.getCache().get(mapping.getSha256());
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
             mb.put(
@@ -1807,7 +1807,7 @@ public class MetadataTests extends ESTestCase {
             metadata = mb.build();
         }
         assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
-        assertThat(metadata.getCache().get(mapping.getDigest()), equalTo(entry));
+        assertThat(metadata.getCache().get(mapping.getSha256()), equalTo(entry));
 
         // Remove index and ensure mapping cache stays the same
         {
@@ -1816,11 +1816,11 @@ public class MetadataTests extends ESTestCase {
             metadata = mb.build();
         }
         assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
-        assertThat(metadata.getCache().get(mapping.getDigest()), equalTo(entry));
+        assertThat(metadata.getCache().get(mapping.getSha256()), equalTo(entry));
 
         // Update a mapping of an index:
         IndexMetadata luckyIndex = metadata.index("index-" + randomInt(numIndices - 1));
-        entry = metadata.getCache().get(luckyIndex.mapping().getDigest());
+        entry = metadata.getCache().get(luckyIndex.mapping().getSha256());
         MappingMetadata updatedMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", "updated"));
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
@@ -1828,8 +1828,8 @@ public class MetadataTests extends ESTestCase {
             metadata = mb.build();
         }
         assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size() + 1));
-        assertThat(metadata.getCache().get(luckyIndex.mapping().getDigest()), equalTo(entry));
-        assertThat(metadata.getCache().get(updatedMapping.getDigest()), equalTo(updatedMapping));
+        assertThat(metadata.getCache().get(luckyIndex.mapping().getSha256()), equalTo(entry));
+        assertThat(metadata.getCache().get(updatedMapping.getSha256()), equalTo(updatedMapping));
 
         // Remove the index with updated mapping
         {
@@ -1838,7 +1838,7 @@ public class MetadataTests extends ESTestCase {
             metadata = mb.build();
         }
         assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
-        assertThat(metadata.getCache().get(updatedMapping.getDigest()), nullValue());
+        assertThat(metadata.getCache().get(updatedMapping.getSha256()), nullValue());
 
         // Add an index with new mapping and then later remove it:
         MappingMetadata newMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("new", "mapping"));
@@ -1854,7 +1854,7 @@ public class MetadataTests extends ESTestCase {
             metadata = mb.build();
         }
         assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size() + 1));
-        assertThat(metadata.getCache().get(newMapping.getDigest()), equalTo(newMapping));
+        assertThat(metadata.getCache().get(newMapping.getSha256()), equalTo(newMapping));
 
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
@@ -1862,7 +1862,7 @@ public class MetadataTests extends ESTestCase {
             metadata = mb.build();
         }
         assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
-        assertThat(metadata.getCache().get(newMapping.getDigest()), nullValue());
+        assertThat(metadata.getCache().get(newMapping.getSha256()), nullValue());
     }
 
     public static Metadata randomMetadata() {

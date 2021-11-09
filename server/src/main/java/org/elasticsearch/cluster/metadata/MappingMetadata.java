@@ -41,13 +41,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
     private final boolean routingRequired;
 
-    private final String digest;
-
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routingRequired = docMapper.routingFieldMapper().required();
-        this.digest = source.getSha256();
     }
 
     public MappingMetadata(CompressedXContent mapping) {
@@ -58,7 +55,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         }
         this.type = mappingMap.keySet().iterator().next();
         this.routingRequired = routingRequired((Map<?, ?>) mappingMap.get(this.type));
-        this.digest = source.getSha256();
     }
 
     public MappingMetadata(String type, Map<String, Object> mapping) {
@@ -73,7 +69,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
             withoutType = (Map<?, ?>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
-        this.digest = source.getSha256();
     }
 
     public static void writeMappingMetadata(StreamOutput out, ImmutableOpenMap<String, MappingMetadata> mappings) throws IOException {
@@ -145,8 +140,8 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         return this.routingRequired;
     }
 
-    public String getDigest() {
-        return digest;
+    public String getSha256() {
+        return source.getSha256();
     }
 
     @Override
@@ -155,9 +150,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-            out.writeString(digest);
-        }
     }
 
     @Override
@@ -183,7 +175,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         type = in.readString();
         source = CompressedXContent.readCompressedString(in);
         routingRequired = in.readBoolean();
-        digest = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readString() : source.getSha256();
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {

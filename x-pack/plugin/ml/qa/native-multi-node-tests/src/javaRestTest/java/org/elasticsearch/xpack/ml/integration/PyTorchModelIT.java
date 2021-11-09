@@ -41,12 +41,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -246,9 +243,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(byteSize, is(not(nullValue())));
             assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
-            Response humanResponse = client().performRequest(
-                new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human")
-            );
+            Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
             stats = (List<Map<String, Object>>) entityAsMap(humanResponse).get("trained_model_stats");
             assertThat(stats, hasSize(1));
             String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));

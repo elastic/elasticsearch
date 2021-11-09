@@ -78,8 +78,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(deploymentId, request.deploymentId)
-                && Objects.equals(expandedIds, request.expandedIds);
+            return Objects.equals(deploymentId, request.deploymentId) && Objects.equals(expandedIds, request.expandedIds);
         }
 
         @Override

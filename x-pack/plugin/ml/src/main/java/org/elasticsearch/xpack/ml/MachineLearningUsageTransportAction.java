@@ -418,7 +418,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 createdByAnalyticsCount++;
             }
             estimatedOperations.add(trainedModelConfig.getEstimatedOperations());
-            estimatedMemoryUsageBytes.add(trainedModelConfig.getEstimatedHeapMemory());
+            estimatedMemoryUsageBytes.add(trainedModelConfig.getModelSize());
         }
 
         Map<String, Object> counts = new HashMap<>();

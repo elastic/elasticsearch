@@ -330,7 +330,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getBuilder(String name) {
+            public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
@@ -441,7 +441,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getBuilder(String name) {
+            public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
@@ -535,7 +535,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getBuilder(String name) {
+            public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
@@ -616,7 +616,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getBuilder(String name) {
+            public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
@@ -687,7 +687,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getBuilder(String name) {
+            public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
@@ -817,7 +817,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getBuilder(String name) {
+            public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
@@ -917,7 +917,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getBuilder(String name) {
+            public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
@@ -1121,7 +1121,7 @@ public class NumberFieldMapper extends FieldMapper {
             return builder.apply(l, u);
         }
 
-        public abstract IndexFieldData.Builder getBuilder(String name);
+        public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1234,7 +1234,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return type.getBuilder(name());
+            return type.getFieldDataBuilder(name());
         }
 
         @Override

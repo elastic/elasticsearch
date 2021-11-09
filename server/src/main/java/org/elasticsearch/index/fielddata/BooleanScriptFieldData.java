@@ -14,7 +14,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
-import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -74,7 +73,7 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public BooleanScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)), BooleanDocValuesField::new);
+        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)), toScriptField);
     }
 
     @Override

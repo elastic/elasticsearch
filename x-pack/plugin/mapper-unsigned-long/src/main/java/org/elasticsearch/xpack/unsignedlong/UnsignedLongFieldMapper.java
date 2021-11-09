@@ -287,9 +287,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                     name(),
                     IndexNumericFieldData.NumericType.LONG,
-                    UnsignedLongDocValuesField::new
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
                 ).build(cache, breakerService);
-                return new UnsignedLongIndexFieldData(signedLongValues);
+                return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
             };
         }
 

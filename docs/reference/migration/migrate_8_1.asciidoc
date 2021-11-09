@@ -58,12 +58,26 @@ enable <<deprecation-logging, deprecation logging>>.
 [%collapsible]
 ====
 *Details* +
-Legacy values for the `discovery.type` setting are deprecated and will be
-forbidden in a future version.
+Legacy values for the `discovery.type` setting are deprecated and will be forbidden in a future version.
 
 *Impact* +
 Do not set `discovery.type` to any value except `single-node` or `multi-node`.
 All other values are equivalent to the default discovery type which is
-`multi-node`. Where possible, omit this setting so that {es} uses the default
-discovery type.
+`multi-node`.
+Where possible, omit this setting so that {es} uses the default discovery type.
+====
+
+[discrete]
+[[breaking_8.1_lenient_bulk_action_deprecation]]
+==== Lenient parsing of bulk actions
+
+[[deprecate-lenient-parsing-of-bulk-actions]]
+.Lenient parsing of bulk actions is deprecated.
+[%collapsible]
+====
+*Details* +
+{es} 8.1 parses bulk actions more strictly in order to make sure there are no arbitrary fields after a bulk action declaration and that it gets properly closed with the closing brace.
+
+*Impact* +
+Make sure your bulk actions are valid JSON objects and that you don't have any arbitrary JSON fields after bulk actions.
 ====

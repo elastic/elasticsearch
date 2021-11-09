@@ -118,6 +118,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
@@ -575,32 +576,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private static Set<SnapshotId> listOfCloneSources(final ClusterState state) {
+    private static Set<SnapshotId> cloneSources(final ClusterState state) {
         return state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
             .asStream()
             .filter(SnapshotsInProgress.Entry::isClone)
             .map(SnapshotsInProgress.Entry::source)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
     }
 
-    private static Set<SnapshotId> listOfRestoreSources(final ClusterState state) {
-        final Set<SnapshotId> snapshotIds = new HashSet<>();
-        for (RestoreInProgress.Entry restore : state.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
-            snapshotIds.add(restore.snapshot().getSnapshotId());
-        }
-        return Set.copyOf(snapshotIds);
+    private static Set<SnapshotId> restoreSources(final ClusterState state) {
+        return StreamSupport.stream(state.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).spliterator(), false)
+            .map(restore -> restore.snapshot().getSnapshotId())
+            .collect(Collectors.toUnmodifiableSet());
     }
 
-    private static Set<SnapshotId> listOfDeletionsSources(final ClusterState state) {
-        final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletionsInProgress == null) {
-            return Set.of();
-        }
-        final Set<SnapshotId> snapshotIds = new HashSet<>();
-        for (SnapshotDeletionsInProgress.Entry deletion : deletionsInProgress.getEntries()) {
-            snapshotIds.addAll(deletion.getSnapshots());
-        }
-        return Set.copyOf(snapshotIds);
+    private static Set<SnapshotId> deletionsSources(final ClusterState state) {
+        return state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+            .getEntries()
+            .stream()
+            .flatMap(deletion -> deletion.getSnapshots().stream())
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -1324,9 +1319,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             || state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()) {
             return;
         }
-        final Set<SnapshotId> currentDeletions = listOfDeletionsSources(state);
-        final Set<SnapshotId> currentRestores = listOfRestoreSources(state);
-        final Set<SnapshotId> currentClones = listOfCloneSources(state);
+        final Set<SnapshotId> currentDeletions = deletionsSources(state);
+        final Set<SnapshotId> currentRestores = restoreSources(state);
+        final Set<SnapshotId> currentClones = cloneSources(state);
 
         // the list of snapshot ids to trigger deletion for, per repository
         final Map<RepositoryMetadata, Set<SnapshotId>> snapshotsToDelete = new HashMap<>();
@@ -1378,7 +1373,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshot.getRepositoryName(),
                     snapshot.getRepositoryUuid(),
                     snapshotId,
-                    Instant.ofEpochMilli(snapshot.getCreationTime()).atZone(ZoneOffset.UTC)
+                    Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
                 );
                 continue;
             }
@@ -1390,7 +1385,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     repository.name(),
                     repository.uuid(),
                     snapshotId,
-                    Instant.ofEpochMilli(snapshot.getCreationTime()).atZone(ZoneOffset.UTC)
+                    Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
                 );
                 continue;
             }
@@ -2441,7 +2436,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     return currentState;
                 }
 
-                final Set<SnapshotId> activeCloneSources = listOfCloneSources(currentState);
+                final Set<SnapshotId> activeCloneSources = cloneSources(currentState);
                 for (SnapshotId snapshotId : snapshotIds) {
                     if (activeCloneSources.contains(snapshotId)) {
                         throw new ConcurrentSnapshotExecutionException(

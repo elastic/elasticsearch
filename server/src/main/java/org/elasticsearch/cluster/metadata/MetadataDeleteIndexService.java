@@ -237,7 +237,7 @@ public class MetadataDeleteIndexService {
                                     + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
                                 maxPendingDeletions,
                                 evicted.getSnapshotId(),
-                                Instant.ofEpochMilli(evicted.getCreationTime()).atZone(ZoneOffset.UTC),
+                                Instant.ofEpochMilli(evicted.getIndexDeletionTime()).atZone(ZoneOffset.UTC),
                                 evicted.getRepositoryName(),
                                 evicted.getRepositoryUuid()
                             )

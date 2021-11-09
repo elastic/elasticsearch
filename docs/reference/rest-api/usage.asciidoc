@@ -163,6 +163,12 @@ GET /_xpack/usage
           "prepackaged": 1,
           "other": 0
         },
+        "model_size_bytes": {
+          "min": 0.0,
+          "max": 0.0,
+          "avg": 0.0,
+          "total": 0.0
+        },
         "estimated_heap_memory_usage_bytes": {
           "min": 0.0,
           "max": 0.0,

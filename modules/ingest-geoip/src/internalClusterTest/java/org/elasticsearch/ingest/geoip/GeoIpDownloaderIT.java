@@ -145,7 +145,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75221")
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
@@ -168,7 +168,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .setPersistentSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
-        Thread.sleep(10);
         settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -352,7 +351,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79074")
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/79074")
     public void testStartWithNoDatabases() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         putPipeline();

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-trained-model-definition-part]]
 = Create trained model definition part API
 [subs="attributes"]
@@ -58,14 +57,14 @@ The total number of parts that will be uploaded. Must be greater than 0.
 The following example creates a model definition part for a previously
 stored model configuration. The definition part is stored in the index
 that is configured by the `location.index.name`.
- 
 
-NOTE: The value of the `definition` object is elided from the example 
+
+NOTE: The value of the `definition` object is elided from the example
 as it is a very large base64 encoded string.
 
 [source,console]
 --------------------------------------------------
-PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/part/0
+PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/definition/0
 {
     "definition": "...",
     "total_definition_length": 265632637,

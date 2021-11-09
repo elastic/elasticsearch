@@ -423,7 +423,10 @@ include::search-vector-tile-api.asciidoc[tag=geometry]
 [%collapsible%open]
 ======
 `_count`::
-(string) Count of the cell's documents.
+(long) Count of the cell's documents.
+
+`_key`::
+(string) Bucket key of the cell in the format `<zoom>/<x>/<y>`.
 
 `<sub-aggregation>.value`::
 Sub-aggregation results for the cell. Only returned for sub-aggregations in the

@@ -599,25 +599,15 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (hasPointValues(reader, name()) == false) {
+            byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
+            if (minPackedValue == null) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
             }
-
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long minValue = LongPoint.decodeDimension(minPackedValue, 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
-        }
-
-        private boolean hasPointValues(IndexReader reader, String field) throws IOException {
-            for (LeafReaderContext ctx : reader.leaves()) {
-                PointValues values = ctx.reader().getPointValues(field);
-                if (values != null && values.size() > 0) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         public Relation isFieldWithinQuery(

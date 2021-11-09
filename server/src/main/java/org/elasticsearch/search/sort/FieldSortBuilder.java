@@ -630,7 +630,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 default:
                     return null;
             }
-        } else if (fieldType instanceof DateFieldType){
+        } else if (fieldType instanceof DateFieldType) {
             DateFieldType dateFieldType = (DateFieldType) fieldType;
             Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
             Long min = dateConverter.apply(minPackedValue);

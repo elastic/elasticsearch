@@ -293,22 +293,22 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         );
 
         TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance("model_1")
-            .setEstimatedHeapMemory(100)
+            .setModelSize(100)
             .setEstimatedOperations(200)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .build();
         TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("model_2")
-            .setEstimatedHeapMemory(200)
+            .setModelSize(200)
             .setEstimatedOperations(400)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .build();
         TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance("model_3")
-            .setEstimatedHeapMemory(300)
+            .setModelSize(300)
             .setEstimatedOperations(600)
             .build();
         TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("model_4")
             .setTags(Collections.singletonList("prepackaged"))
-            .setEstimatedHeapMemory(1000)
+            .setModelSize(1000)
             .setEstimatedOperations(2000)
             .build();
         givenTrainedModels(Arrays.asList(trainedModel1, trainedModel2, trainedModel3, trainedModel4));

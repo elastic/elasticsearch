@@ -413,16 +413,4 @@ public class ClusterDeprecationChecks {
         }
         return null;
     }
-
-    static DeprecationIssue checkTransientSettingsExistence(ClusterState state) {
-        if (state.metadata().transientSettings().isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "Transient cluster settings are deprecated",
-                "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                "Use persistent settings to configure your cluster.",
-                false,
-                null);
-        }
-        return null;
-    }
 }

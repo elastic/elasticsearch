@@ -20,7 +20,6 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.junit.After;
@@ -365,7 +364,10 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(stats.get(0), not(hasKey("deployment_stats")));
 
         // check all nodes are started for the non-stopped deployment
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue("deployment_stats.nodes", stats.get(1));
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "deployment_stats.nodes",
+            stats.get(1)
+        );
         // 2 ml nodes
         assertThat(nodes, hasSize(2));
         for (int j : new int[] { 0, 1 }) {

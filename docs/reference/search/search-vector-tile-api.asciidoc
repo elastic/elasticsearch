@@ -290,7 +290,7 @@ You can specify fields in the array as a string or object.
 .Properties of `fields` objects
 [%collapsible%open]
 ====
-include::search.asciidoc[tag=fields-api-props]
+include::search.asciidoc[tag=fields-param-props]
 ====
 
 include::search-vector-tile-api.asciidoc[tag=grid-precision]

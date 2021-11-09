@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedByt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
@@ -75,7 +77,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateSearchableSnapshots.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateSearchableSnapshots.class);
     }
 
     @Override
@@ -234,9 +236,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
                 shardFolderFound = true;
-                assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
-
-                assertTrue(Files.exists(shardPath.resolveTranslog()));
+                final boolean indexExists = Files.exists(shardPath.resolveIndex());
+                final boolean translogExists = Files.exists(shardPath.resolveTranslog());
+                logger.info(
+                    "--> [{}] verifying shard data path [{}] (index exists: {}, translog exists: {})",
+                    node,
+                    shardPath.getDataPath(),
+                    indexExists,
+                    translogExists
+                );
+                assertThat(snapshotDirectory, not(indexExists));
+                assertTrue(translogExists);
                 try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
                     final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                     if (snapshotDirectory) {

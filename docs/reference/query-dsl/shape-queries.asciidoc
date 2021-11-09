@@ -1,6 +1,5 @@
 [[shape-queries]]
 [role="xpack"]
-[testenv="basic"]
 == Shape queries
 
 

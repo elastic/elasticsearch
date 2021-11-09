@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -161,6 +162,16 @@ public class BertTokenizerTests extends ESTestCase {
         assertThat(tokenization.getTokens(), arrayContaining("Elastic", "##search", ",", "fun", "[MASK]", "."));
         assertArrayEquals(new int[] { 0, 1, 11, 3, 14, 10 }, tokenization.getTokenIds());
         assertArrayEquals(new int[] { 0, 0, 1, 2, 3, 4 }, tokenization.getTokenMap());
+    }
+
+    public void testPunctuationWithMask() {
+        BertTokenizer tokenizer = BertTokenizer.builder(
+            List.of("[CLS]", "This", "is", "[MASK]", "-", "ta", "##stic", "!", "[SEP]"),
+            Tokenization.createDefault()
+        ).setWithSpecialTokens(true).setNeverSplit(Set.of("[MASK]")).build();
+
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("This is [MASK]-tastic!", Tokenization.Truncate.NONE);
+        assertThat(tokenization.getTokens(), arrayContaining("[CLS]", "This", "is", "[MASK]", "-", "ta", "##stic", "!", "[SEP]"));
     }
 
     public void testBatchInput() {

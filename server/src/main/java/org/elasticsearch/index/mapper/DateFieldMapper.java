@@ -88,11 +88,6 @@ public final class DateFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Instant clampToValidRange(Instant instant) {
-                return instant;
-            }
-
-            @Override
             public long parsePointAsMillis(byte[] value) {
                 return LongPoint.decodeDimension(value, 0);
             }
@@ -121,11 +116,6 @@ public final class DateFieldMapper extends FieldMapper {
             @Override
             public Instant toInstant(long value) {
                 return DateUtils.toInstant(value);
-            }
-
-            @Override
-            public Instant clampToValidRange(Instant instant) {
-                return DateUtils.clampToNanosRange(instant);
             }
 
             @Override
@@ -179,12 +169,6 @@ public final class DateFieldMapper extends FieldMapper {
          * Convert a long value in this resolution into an instant.
          */
         public abstract Instant toInstant(long value);
-
-        /**
-         * Return the instant that this range can represent that is closest to
-         * the provided instant.
-         */
-        public abstract Instant clampToValidRange(Instant instant);
 
         /**
          * Decode the points representation of this field as milliseconds.
@@ -620,7 +604,7 @@ public final class DateFieldMapper extends FieldMapper {
             ZoneId timeZone,
             DateMathParser dateParser,
             QueryRewriteContext context
-        ) throws IOException {
+        ) {
             if (dateParser == null) {
                 if (from instanceof Number || to instanceof Number) {
                     // force epoch_millis

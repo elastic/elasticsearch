@@ -43,7 +43,7 @@ License::
 * Enforce license expiration {es-pull}79671[#79671]
 
 Machine Learning::
-* Removing allow_no_[datafeeds|jobs] from v8 APIs {es-pull}80048[#80048] (issue: {es-issue}60732[#60732])
+* Remove `allow_no_datafeeds` and `allow_no_jobs` parameters from APIs {es-pull}80048[#80048] (issue: {es-issue}60732[#60732])
 
 Packaging::
 * Require Java 17 for running Elasticsearch {es-pull}79873[#79873]
@@ -99,7 +99,7 @@ Infra/Core::
 * Check whether stdout is a real console {es-pull}79882[#79882]
 * Share int, long, float, double, and byte pages {es-pull}75053[#75053]
 * Revert "Deprecate resolution loss on date field (#78921)" {es-pull}79914[#79914] (issue: {es-issue}78921[#78921])
-* Adding two missing entries to the deprecation info api {es-pull}80290[#80290] (issue: {es-issue}80233[#80233])
+* Add two missing entries to the deprecation information API {es-pull}80290[#80290] (issue: {es-issue}80233[#80233])
 
 Infra/Scripting::
 * Add nio Buffers to Painless {es-pull}79870[#79870] (issue: {es-issue}79867[#79867])
@@ -162,7 +162,7 @@ Transform::
 TSDB::
 * Automatically add timestamp mapper {es-pull}79136[#79136]
 * Create a coordinating node level reader for tsdb {es-pull}79197[#79197]
-* Fix tsdb's shrink test in multi-version cluster {es-pull}79940[#79940] (issue: {es-issue}79936[#79936])
+* Fix TSDB shrink test in multi-version cluster {es-pull}79940[#79940] (issue: {es-issue}79936[#79936])
 * Do not allow shadowing metrics or dimensions {es-pull}79757[#79757]
 
 [[bug-8.0.0-beta1]]
@@ -170,7 +170,7 @@ TSDB::
 === Bug fixes
 
 Infra/Core::
-* Prevent stack overflow in rounding [OPEN] {es-pull}80450[#80450]
+* Prevent stack overflow in rounding {es-pull}80450[#80450]
 
 Infra/Settings::
 * Stricter `UpdateSettingsRequest` parsing on the REST layer {es-pull}79227[#79227] (issue: {es-issue}29268[#29268])
@@ -178,7 +178,7 @@ Infra/Settings::
 
 Machine Learning::
 * Add timeout parameter for delete trained models API {es-pull}79739[#79739] (issue: {es-issue}77070[#77070])
-* Fixing `MlMetadata` backwards compatibility bug with 7.13-16 {es-pull}80041[#80041]
+* Fix `MlMetadata` backwards compatibility bug with 7.13 through 7.16 {es-pull}80041[#80041]
 * Tone down ML unassigned job notifications {es-pull}79578[#79578] (issue: {es-issue}79270[#79270])
 * Use a new annotations index for future annotations {es-pull}79006[#79006] (issue: {es-issue}78439[#78439])
 
@@ -186,7 +186,7 @@ Search::
 * Remove unsafe assertion in wildcard field {es-pull}78966[#78966]
 
 Snapshot/Restore::
-* Don't Fill Stack Traces in `SnapshotShardFailure` {es-pull}80009[#80009] (issue: {es-issue}79718[#79718])
+* Don't fill stack traces in `SnapshotShardFailure` {es-pull}80009[#80009] (issue: {es-issue}79718[#79718])
 
 
 

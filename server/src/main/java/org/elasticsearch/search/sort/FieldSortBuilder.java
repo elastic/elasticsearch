@@ -609,35 +609,33 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         MappedFieldType fieldType,
         FieldSortBuilder sortBuilder
     ) throws IOException {
-        if (fieldType instanceof NumberFieldType || fieldType instanceof DateFieldType) {
-            String fieldName = fieldType.name();
-            byte[] minPackedValue = PointValues.getMinPackedValue(reader, fieldName);
-            if (minPackedValue == null) {
-                return null;
+        String fieldName = fieldType.name();
+        byte[] minPackedValue = PointValues.getMinPackedValue(reader, fieldName);
+        if (minPackedValue == null) {
+            return null;
+        }
+        if (fieldType instanceof NumberFieldType) {
+            NumberFieldType numberFieldType = (NumberFieldType) fieldType;
+            Number minPoint = numberFieldType.parsePoint(minPackedValue);
+            Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
+            switch (IndexSortConfig.getSortFieldType(sortField)) {
+                case LONG:
+                    return new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
+                case INT:
+                    return new MinAndMax<>(minPoint.intValue(), maxPoint.intValue());
+                case DOUBLE:
+                    return new MinAndMax<>(minPoint.doubleValue(), maxPoint.doubleValue());
+                case FLOAT:
+                    return new MinAndMax<>(minPoint.floatValue(), maxPoint.floatValue());
+                default:
+                    return null;
             }
-            if (fieldType instanceof NumberFieldType) {
-                NumberFieldType numberFieldType = (NumberFieldType) fieldType;
-                Number minPoint = numberFieldType.parsePoint(minPackedValue);
-                Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
-                switch (IndexSortConfig.getSortFieldType(sortField)) {
-                    case LONG:
-                        return new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
-                    case INT:
-                        return new MinAndMax<>(minPoint.intValue(), maxPoint.intValue());
-                    case DOUBLE:
-                        return new MinAndMax<>(minPoint.doubleValue(), maxPoint.doubleValue());
-                    case FLOAT:
-                        return new MinAndMax<>(minPoint.floatValue(), maxPoint.floatValue());
-                    default:
-                        return null;
-                }
-            } else {
-                DateFieldType dateFieldType = (DateFieldType) fieldType;
-                Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
-                Long min = dateConverter.apply(minPackedValue);
-                Long max = dateConverter.apply(PointValues.getMaxPackedValue(reader, fieldName));
-                return new MinAndMax<>(min, max);
-            }
+        } else if (fieldType instanceof DateFieldType){
+            DateFieldType dateFieldType = (DateFieldType) fieldType;
+            Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
+            Long min = dateConverter.apply(minPackedValue);
+            Long max = dateConverter.apply(PointValues.getMaxPackedValue(reader, fieldName));
+            return new MinAndMax<>(min, max);
         }
         return null;
     }

@@ -66,10 +66,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.cleanFollowedRemoteIndices;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -78,6 +80,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
@@ -2348,6 +2351,79 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(autoFollowEntry.getValue(), nullValue());
         }
         assertThat(autoFollowResults.v2().contains(indexName), equalTo(true));
+    }
+
+    public void testRemovesStatsOnRemovingAutoFollowPattern() {
+        // given auto-follow pattern added
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(
+            createClusterStateWith(
+                createAutoFollowPattern("pattern1", "logs-*"),
+                createAutoFollowPattern("pattern2", "logs-*"),
+                createAutoFollowPattern("pattern3", "logs-*")
+            )
+        );
+
+        // and stats are produced
+        autoFollowCoordinator.updateStats(
+            List.of(
+                new AutoFollowCoordinator.AutoFollowResult("pattern1", new RuntimeException("ClusterStateFetchException")),
+                new AutoFollowCoordinator.AutoFollowResult(
+                    "pattern1",
+                    List.of(Tuple.tuple(new Index("index1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
+                )
+            )
+        );
+        // and applied
+        assertThat(autoFollowCoordinator.getStats().getRecentAutoFollowErrors(), hasKey("pattern1:index1"));
+
+        // when auto-follow pattern `pattern1` is removed
+        autoFollowCoordinator.updateAutoFollowers(
+            createClusterStateWith(createAutoFollowPattern("pattern2", "logs-*"), createAutoFollowPattern("pattern3", "logs-*"))
+        );
+
+        // then stats are removed as well
+        assertThat(autoFollowCoordinator.getStats().getRecentAutoFollowErrors().keySet(), empty());
+    }
+
+    private AutoFollowCoordinator createAutoFollowCoordinator() {
+        return new AutoFollowCoordinator(
+            Settings.EMPTY,
+            null,
+            mockClusterService(),
+            new CcrLicenseChecker(() -> true, () -> false),
+            () -> 1L,
+            () -> 1L,
+            Runnable::run
+        );
+    }
+
+    private ClusterState createClusterStateWith(AutoFollowPattern... patterns) {
+        var patternsAsMap = Stream.of(patterns).collect(toMap(AutoFollowPattern::getRemoteCluster, Function.identity()));
+        return ClusterState.builder(new ClusterName("remote"))
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patternsAsMap, Map.of(), Map.of())))
+            .build();
+    }
+
+    private AutoFollowPattern createAutoFollowPattern(String remoteCluster, String pattern) {
+        return new AutoFollowPattern(
+            remoteCluster,
+            List.of(pattern),
+            List.of(),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     private Tuple<List<AutoFollowCoordinator.AutoFollowResult>, Set<String>> executeAutoFollow(

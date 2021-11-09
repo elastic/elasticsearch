@@ -64,6 +64,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 
 /**
@@ -189,30 +190,35 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 );
             } else {
                 recentAutoFollowErrors.remove(result.autoFollowPatternName);
-                for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
-                    final String patternAndIndexKey = result.autoFollowPatternName + ":" + entry.getKey().getName();
-                    if (entry.getValue() != null) {
-                        numberOfFailedIndicesAutoFollowed++;
-                        recentAutoFollowErrors.put(
-                            patternAndIndexKey,
-                            Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue()))
-                        );
-                        LOGGER.warn(
-                            new ParameterizedMessage(
-                                "failure occurred while auto following index [{}] for auto follow " + "pattern [{}]",
-                                entry.getKey(),
-                                result.autoFollowPatternName
-                            ),
-                            entry.getValue()
-                        );
-                    } else {
-                        numberOfSuccessfulIndicesAutoFollowed++;
-                        recentAutoFollowErrors.remove(patternAndIndexKey);
-                    }
-                }
             }
 
+            for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
+                final String patternAndIndexKey = result.autoFollowPatternName + ":" + entry.getKey().getName();
+                if (entry.getValue() != null) {
+                    numberOfFailedIndicesAutoFollowed++;
+                    recentAutoFollowErrors.put(
+                        patternAndIndexKey,
+                        Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue()))
+                    );
+                    LOGGER.warn(
+                        new ParameterizedMessage(
+                            "failure occurred while auto following index [{}] for auto follow " + "pattern [{}]",
+                            entry.getKey(),
+                            result.autoFollowPatternName
+                        ),
+                        entry.getValue()
+                    );
+                } else {
+                    numberOfSuccessfulIndicesAutoFollowed++;
+                    recentAutoFollowErrors.remove(patternAndIndexKey);
+                }
+            }
         }
+    }
+
+    synchronized void deleteStats(String patternName) {
+        var keysToRemove = recentAutoFollowErrors.keySet().stream().filter(p -> p.startsWith(patternName)).collect(toSet());
+        recentAutoFollowErrors.keySet().removeAll(keysToRemove);
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {
@@ -234,7 +240,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             .filter(AutoFollowPattern::isActive)
             .map(AutoFollowPattern::getRemoteCluster)
             .filter(remoteCluster -> autoFollowers.containsKey(remoteCluster) == false)
-            .collect(Collectors.toSet());
+            .collect(toSet());
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
@@ -335,6 +341,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
         assert assertNoOtherActiveAutoFollower(newAutoFollowers);
         this.autoFollowers = autoFollowers.copyAndPutAll(newAutoFollowers).copyAndRemoveAll(removedRemoteClusters);
+
+        for (String removedRemoteCluster : removedRemoteClusters) {
+            deleteStats(removedRemoteCluster);
+        }
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
@@ -781,7 +791,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     .values()
                     .stream()
                     .map(IndexMetadata::getIndexUUID)
-                    .collect(Collectors.toSet());
+                    .collect(toSet());
 
                 boolean requiresCSUpdate = false;
                 for (String autoFollowPatternName : autoFollowPatternNames) {

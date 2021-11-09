@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ilm.action;
+package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -20,8 +20,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;
@@ -30,7 +30,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class TransportStopILMActionTests extends ESTestCase {
+public class TransportStopSLMActionTests extends ESTestCase {
 
     private static final ActionListener<AcknowledgedResponse> EMPTY_LISTENER = new ActionListener<>() {
         @Override
@@ -47,7 +47,7 @@ public class TransportStopILMActionTests extends ESTestCase {
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
 
-        TransportStopILMAction transportStopILMAction = new TransportStopILMAction(
+        TransportStopSLMAction transportStopSLMAction = new TransportStopSLMAction(
             mock(TransportService.class),
             clusterService,
             mock(ThreadPool.class),
@@ -62,11 +62,11 @@ public class TransportStopILMActionTests extends ESTestCase {
             new TaskId(randomLong() + ":" + randomLong()),
             emptyMap()
         );
-        StopILMRequest request = new StopILMRequest();
-        transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
+        StopSLMAction.Request request = new StopSLMAction.Request();
+        transportStopSLMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
 
         verify(clusterService).submitStateUpdateTask(
-            eq("ilm_operation_mode_update[stopping]"),
+            eq("slm_operation_mode_update[stopping]"),
             argThat(new ArgumentMatcher<AckedClusterStateUpdateTask>() {
 
                 Priority actualPriority = null;

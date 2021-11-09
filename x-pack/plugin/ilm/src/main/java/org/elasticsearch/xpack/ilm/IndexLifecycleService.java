@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
@@ -238,7 +237,10 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                submitOperationModeUpdate(OperationMode.STOPPED);
+                clusterService.submitStateUpdateTask(
+                    "ilm_operation_mode_update[stopped]",
+                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
+                );
             }
         }
     }
@@ -438,7 +440,10 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            submitOperationModeUpdate(OperationMode.STOPPED);
+            clusterService.submitStateUpdateTask(
+                "ilm_operation_mode_update[stopped]",
+                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)
+            );
         }
     }
 
@@ -452,16 +457,6 @@ public class IndexLifecycleService
         if (engine != null) {
             engine.stop();
         }
-    }
-
-    public void submitOperationModeUpdate(OperationMode mode) {
-        OperationModeUpdateTask ilmOperationModeUpdateTask;
-        if (mode == OperationMode.STOPPING || mode == OperationMode.STOPPED) {
-            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, mode);
-        } else {
-            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.NORMAL, mode);
-        }
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update {OperationMode " + mode.name() + "}", ilmOperationModeUpdateTask);
     }
 
     /**

@@ -65,7 +65,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-flush-job-request-body]]
 == {api-request-body-title}
 
-You can alternatively specify the query parameters (such as `advance_time` and `calc_interim`) in the request body.
+You can also specify the query parameters (such as `advance_time` and
+`calc_interim`) in the request body.
 
 [[ml-flush-job-example]]
 == {api-examples-title}

@@ -193,10 +193,8 @@ users. The minimum value is `5s`. Defaults to `10s`.
 `xpack.ml.max_machine_memory_percent` setting is ignored. Instead, the maximum
 percentage of the machine's memory that can be used for running {ml} analytics
 processes is calculated automatically and takes into account the total node size
-and the size of the JVM on the node. If this setting differs between nodes, the
-value on the current master node is heeded. When the {operator-feature} is
-enabled, this setting can be updated only by operator users. The default value
-is `false`. 
+and the size of the JVM on the node. When the {operator-feature} is enabled, this
+setting can be updated only by operator users. The default value is `false`. 
 +
 --
 [IMPORTANT]

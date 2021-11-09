@@ -23,7 +23,7 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
       setting 'indices.memory.shard_inactive_time', '60m'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
-      if (BuildParams.isSnapshotBuild() == false) {
+      if (BuildParams.isSnapshotBuild() == false && bwcVersion.toString() == project.version) {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
       }
   }
@@ -42,6 +42,9 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
     useCluster baseCluster
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
+      if (BuildParams.isSnapshotBuild() == false) {
+        baseCluster.get().systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
       baseCluster.get().goToNextVersion()
     }
     systemProperty 'tests.is_old_cluster', 'false'

@@ -43,11 +43,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
@@ -74,13 +72,12 @@ public class ILMHistoryStoreTests extends ESTestCase {
             client,
             NamedXContentRegistry.EMPTY
         );
-        Map<String, ComposableIndexTemplate> templates = registry.getComposableTemplateConfigs()
-            .stream()
-            .collect(Collectors.toMap(IndexTemplateConfig::getTemplateName, this::parseIndexTemplate));
         ClusterState state = clusterService.state();
         ClusterServiceUtils.setState(
             clusterService,
-            ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).indexTemplates(templates)).build()
+            ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).indexTemplates(registry.getComposableTemplateConfigs()))
+                .build()
         );
         historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool);
     }

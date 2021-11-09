@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[start-trained-model-deployment]]
 = Start trained model deployment API
 [subs="attributes"]
@@ -12,7 +11,7 @@ Starts a new trained model deployment.
 [[start-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployent/_start`
+`POST _ml/trained_models/<model_id>/deployment/_start`
 
 [[start-trained-model-deployment-prereq]]
 == {api-prereq-title}
@@ -96,7 +95,8 @@ The API returns the following results:
                 "reason": ""
             }
         },
-        "allocation_state": "started"
+        "allocation_state": "started",
+        "start_time": "2021-11-02T11:50:34.766591Z"
     }
 }
 ----

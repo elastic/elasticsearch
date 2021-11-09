@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-category]]
 = Get categories API
 ++++
@@ -48,6 +47,20 @@ specify neither the category ID nor the `partition_field_value`, the API returns
 information about all categories. If you specify only the
 `partition_field_value`, it returns information about all categories for the
 specified partition.
+
+[[ml-get-category-query-parms]]
+== {api-query-parms-title}
+
+`from`::
+(Optional, integer) Skips the specified number of categories. Defaults to `0`.
+
+`partition_field_value`::
+(Optional, string) Only return categories for the specified partition.
+
+`size`::
+(Optional, integer) Specifies the maximum number of categories to obtain. 
+Defaults to `100`.
+
 
 [[ml-get-category-request-body]]
 == {api-request-body-title}

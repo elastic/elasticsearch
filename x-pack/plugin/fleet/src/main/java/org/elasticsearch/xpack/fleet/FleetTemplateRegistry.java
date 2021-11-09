@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
@@ -20,9 +21,10 @@ import java.util.List;
 
 public class FleetTemplateRegistry extends IndexTemplateRegistry {
 
-    public static final LifecyclePolicyConfig FLEET_ACTIONS_RESULTS_POLICY = new LifecyclePolicyConfig(
-        ".fleet-actions-results-ilm-policy",
-        "/fleet-actions-results-ilm-policy.json"
+    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
+        new LifecyclePolicyConfig(".fleet-actions-results-ilm-policy", "/fleet-actions-results-ilm-policy.json").load(
+            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
+        )
     );
 
     public FleetTemplateRegistry(
@@ -41,7 +43,7 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        return List.of(FLEET_ACTIONS_RESULTS_POLICY);
+    protected List<LifecyclePolicy> getPolicyConfigs() {
+        return LIFECYCLE_POLICIES;
     }
 }

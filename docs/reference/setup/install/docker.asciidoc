@@ -12,9 +12,22 @@ https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Githu
 
 include::license.asciidoc[]
 
-==== Pulling the image
+Starting in {es} 8.0, security is enabled by default. With security enabled,
+{stack} {security-features} require TLS encryption for the transport networking
+layer, or your cluster will fail to start.
 
-Obtaining {es} for Docker is as simple as issuing a +docker pull+ command
+==== Install Docker Desktop or Docker Engine
+
+Install the appropriate https://docs.docker.com/get-docker/[Docker application]
+for your operating system.
+
+NOTE: Make sure that Docker is allotted at least 4GiB of memory. In Docker
+Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
+or Settings (Windows).
+
+==== Pull the {es} Docker image
+
+Obtaining {es} for Docker is as simple as issuing a `docker pull` command
 against the Elastic Docker registry.
 
 ifeval::["{release-state}"=="unreleased"]
@@ -27,14 +40,18 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 
 [source,sh,subs="attributes"]
---------------------------------------------
+----
 docker pull {docker-repo}:{version}
---------------------------------------------
+----
 
 endif::[]
 
+Now that you have the {es} Docker image, you can start a 
+<<docker-cli-run-dev-mode,single-node>> or <<docker-compose-file,multi-node>>
+cluster.
+
 [[docker-cli-run-dev-mode]]
-==== Starting a single node cluster with Docker
+==== Start a single-node cluster with Docker
 
 ifeval::["{release-state}"=="unreleased"]
 
@@ -42,25 +59,128 @@ WARNING: Version {version} of the {es} Docker image has not yet been released.
 
 endif::[]
 
+If you're starting a single-node {es} cluster in a Docker container, security
+will be automatically enabled and configured for you. When you start {es} for
+the first time, the following security configuration occurs automatically:
+
+* <<elasticsearch-security-certificates,Certificates and keys>> are generated
+for the transport and HTTP layers.
+* The Transport Layer Security (TLS) configuration settings are written to
+`elasticsearch.yml`.
+* A password is generated for the `elastic` user.
+* An enrollment token is generated for {kib}.
+
+You can then {kibana-ref}/docker.html[start {kib}] and enter the enrollment
+token, which is valid for 30 minutes. This token automatically applies the
+security settings from your {es} cluster, authenticates to {es} with the
+`kibana_system` user, and writes the security configuration to `kibana.yml`. 
+
+The following command starts a single-node {es} cluster for development or
+testing.
+
+. Start {es} in Docker. A password is generated for the `elastic` user and
+output to the terminal, plus an enrollment token for enrolling {kib}.
++
+--
 ifeval::["{release-state}"!="unreleased"]
-
-To start a single-node {es} cluster for development or testing, specify
-<<single-node-discovery,single-node discovery>> to bypass the <<bootstrap-checks,bootstrap checks>>:
-
 [source,sh,subs="attributes"]
---------------------------------------------
-docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
---------------------------------------------
+----
+docker run --name es-node01 -p 9200:9200 -p 9300:9300 -it {docker-image}
+----
 
 endif::[]
+--
++
+TIP: You might need to scroll back a bit in the terminal to view the password
+and enrollment token.
+
+. Copy the generated password and enrollment token and save them in a secure
+location. These values are shown only when you start {es} for the first time.
++
+[NOTE]
+====
+If you need to reset the password for the `elastic` user or other
+built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
+This tool is available in the {es} `/bin` directory of the Docker container.
+For example:
+
+[source,sh]
+----
+docker exec -it es-node01 /usr/share/elasticsearch/bin/reset-elastic-password
+----
+====
+
+. Copy the `http_ca.crt` security certificate from your Docker container to
+your local machine.
++
+[source,sh]
+----
+docker cp es-node01:/usr/share/elasticsearch/config/tls_auto_config_*/http_ca.crt .
+----
+
+. Open a new terminal and verify that you can connect to your {es} cluster by
+making an authenticated call, using the `http_ca.crt` file that you copied from
+your Docker container. Enter the password for the `elastic` user when prompted.
++
+[source,sh]
+----
+curl --cacert http_ca.crt -u elastic https://localhost:9200
+----
+// NOTCONSOLE
+
+===== Next steps
+
+You now have a test {es} environment set up. Before you start
+serious development or go into production with {es}, review the
+<<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
+
+[[elasticsearch-security-certificates]]
+===== Security certificates and keys
+
+When you start {es} for the first time, the following certificates and keys are
+generated in the
+`/usr/share/elasticsearch/config/tls_auto_config_initial_node_<timestamp>`
+directory in the Docker container, and allow you to connect a {kib} instance
+to your secured {es} cluster and encrypt internode communication. The files are
+listed here for reference.
+
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
+
+`http_keystore_local_node.p12`::
+Keystore that contains the key and certificate for the HTTP layer for this node.
+
+`transport_keystore_all_nodes.p12`::
+Keystore that contains the key and certificate for the transport layer for all
+the nodes in your cluster.
 
 [[docker-compose-file]]
-==== Starting a multi-node cluster with Docker Compose
+==== Start a multi-node cluster with Docker Compose
 
-To get a three-node {es} cluster up and running in Docker,
-you can use Docker Compose:
+When defining multiple nodes in a `docker-compose.yml` file, you'll need to
+explicitly enable and configure security so that {es} doesn't try to generate a
+password for the `elastic` user on every node. 
 
-. Create a `docker-compose.yml` file:
+===== Prepare the environment
+
+The following example uses Docker Compose to start a three-node {es} cluster.
+Create each of the following files inside of a new directory. Copy and paste the
+contents of each example into the appropriate file as described in the
+following sections:
+
+* <<docker-instances-yml,`instances.yml`>>
+* <<docker-env,`.env`>>
+* <<docker-create-certs,`create-certs.yml`>>
+* <<docker-docker-compose,`docker-compose.yml`>>
+
+[[docker-instances-yml]]
+[discrete]
+===== `instances.yml`
+
+When you run the example, {es} uses this file to create a three-node cluster.
+The nodes are named `es01`, `es02`,and `es03`.
+
 ifeval::["{release-state}"=="unreleased"]
 +
 --
@@ -71,68 +191,204 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 [source,yaml,subs="attributes"]
---------------------------------------------
-include::docker-compose.yml[]
---------------------------------------------
+----
+include::instances.yml[]
+----
 endif::[]
+--
+
+[[docker-env]]
+[discrete]
+===== `.env`
+
+The `.env` file sets environment variables that are used when you run the
+example. Ensure that you specify a strong password for the `elastic` user with
+the `ELASTIC_PASSWORD` variable. This variable is referenced by the
+`docker-compose.yml` file.
+
+ifeval::["{release-state}"=="unreleased"]
++
+--
+WARNING: Version {version} of {es} has not yet been released, so a
+`docker-compose.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+[source,yaml,subs="attributes"]
+----
+include::.env[]
+----
+endif::[]
+--
+
+`COMPOSE_PROJECT_NAME`:: Adds an `es_` prefix for all volumes and networks
+created by `docker-compose`.
+
+`CERTS_DIR`:: Specifies the path inside the Docker image where {es} expects the
+security certificates.
+
+`ELASTIC_PASSWORD`:: Sets the initial password for the `elastic` user.
+
+[discrete]
+[[docker-create-certs]]
+===== `create-certs.yml`
+
+The `create-certs.yml` file includes a script that generates node certificates
+and a certificate authority (CA) certificate and key where {es} expects them.
+These certificates and key are placed in a Docker volume named `es_certs`.
+
+ifeval::["{release-state}"=="unreleased"]
++
+--
+WARNING: Version {version} of {es} has not yet been released, so a
+`docker-compose.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+[source,yaml,subs="attributes"]
+----
+include::create-certs.yml[]
+----
+endif::[]
+--
+
+[[docker-docker-compose]]
+[discrete]
+===== `docker-compose.yml`
+
+The `docker-compose.yml` file defines configuration settings for each of your
+{es} nodes.
 
 NOTE: This sample `docker-compose.yml` file uses the `ES_JAVA_OPTS`
 environment variable to manually set the heap size to 512MB. We do not recommend
-using `ES_JAVA_OPTS` in production. See <<docker-set-heap-size>>.
+using `ES_JAVA_OPTS` in production.
+See <<docker-set-heap-size,manually set the heap size>>.
 
-This sample Docker Compose file brings up a three-node {es} cluster.
-Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
+This configuration exposes port `9200` on all network interfaces. Given how
+Docker manipulates `iptables` on Linux, this means that your {es} cluster is
+publicly accessible, potentially ignoring any firewall settings. If you don't
+want to expose port `9200` and instead use a reverse proxy, replace `9200:9200`
+with `127.0.0.1:9200:9200` in the `docker-compose.yml` file. {es} will then only
+be accessible from the host machine itself.
 
-Please note that this configuration exposes port 9200 on all network interfaces, and given how
-Docker manipulates `iptables` on Linux, this means that your {es} cluster is publicly accessible,
-potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use
-a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
-{es} will then only be accessible from the host machine itself.
+ifeval::["{release-state}"=="unreleased"]
++
+--
+WARNING: Version {version} of {es} has not yet been released, so a
+`docker-compose.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+[source,yaml,subs="attributes"]
+----
+include::docker-compose.yml[]
+----
+endif::[]
+--
+
+===== Start your cluster with security enabled and configured
+
+This sample Docker Compose file starts a three-node {es} cluster.
 
 The https://docs.docker.com/storage/volumes[Docker named volumes]
-`data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
-If they don't already exist, `docker-compose` creates them when you bring up the cluster.
+`data01`, `data02`, and `data03` store the node data directories so that the
+data persists across restarts. If they don't already exist, running
+`docker-compose` creates these volumes.
+
+[[docker-generate-certificates]]
+. Generate the certificates. You only need to run this command one time:
++
+["source","sh"]
+----
+docker-compose -f create-certs.yml run --rm create_certs
+----
+
+. Start your {es} nodes with TLS configured on the transport layer:
++
+["source","sh"]
+----
+docker-compose up -d
+----
++
+Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01`
+over a Docker network.
+
+. Access the {es} API over TLS using the bootstrapped password for the `elastic`
+user that you specified in the `.env` file:
++
+["source","sh",subs="attributes"]
+----
+docker run --rm -v es_certs:/certs --network=es_default {docker-image} curl --cacert /certs/ca/ca.crt -u elastic:<password> https://es01:9200
+----
+// NOTCONSOLE
++
 --
-. Make sure Docker Engine is allotted at least 4GiB of memory.
-In Docker Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
-or Settings (Windows).
-+
-NOTE: Docker Compose is not pre-installed with Docker on Linux.
-See docs.docker.com for installation instructions:
-https://docs.docker.com/compose/install[Install Compose on Linux]
+`es_certs`:: The name of the volume that the script in `create-certs.yml`
+creates to hold your certificates.
 
-. Run `docker-compose` to bring up the cluster:
-+
-[source,sh,subs="attributes"]
---------------------------------------------
-docker-compose up
---------------------------------------------
+`<password>`:: The password for the `elastic` user, defined by the
+`ELASTIC_PASSWORD` variable in the `.env` file.
+--
 
-. Submit a `_cat/nodes` request to see that the nodes are up and running:
+. Submit a `_cat/nodes` request to check that the nodes are up and running:
 +
 [source,sh]
---------------------------------------------------
-curl -X GET "localhost:9200/_cat/nodes?v=true&pretty"
---------------------------------------------------
+----
+curl -X GET "https://localhost:9200/_cat/nodes?v=true&pretty"
+----
 // NOTCONSOLE
 
-Log messages go to the console and are handled by the configured Docker logging driver.
-By default you can access logs with `docker logs`. If you would prefer the {es}
-container to write logs to disk, set the `ES_LOG_STYLE` environment variable to `file`.
-This causes {es} to use the same logging configuration as other {es} distribution formats.
+Log messages go to the console and are handled by the configured Docker logging
+driver. By default, you can access logs with `docker logs`. If you prefer that
+the {es} container write logs to disk, set the `ES_LOG_STYLE` environment
+variable to `file`. This causes {es} to use the same logging configuration as
+other {es} distribution formats.
 
-To stop the cluster, run `docker-compose down`.
-The data in the Docker volumes is preserved and loaded
-when you restart the cluster with `docker-compose up`.
-To **delete the data volumes** when you bring down the cluster,
-specify the `-v` option: `docker-compose down -v`.
+If you need to generate a new password for the `elastic` user or any of the
+built-in users, use the `elasticsearch-reset-password` tool:
 
+WARNING: Windows users not running PowerShell must remove all backslashes (`\`)
+and join lines in the following command.
 
-[[next-getting-started-tls-docker]]
-===== Start a multi-node cluster with TLS enabled
+["source","sh"]
+----
+docker exec es01 /bin/bash -c "bin/elasticsearch-reset-password \
+auto --batch \
+--url https://localhost:9200"
+----
 
-See <<configuring-tls-docker>> and
-{stack-gs}/get-started-docker.html#get-started-docker-tls[Run the {stack} in Docker with TLS enabled].
+===== Stop the cluster
+To stop the cluster, run `docker-compose down`. The data in the Docker volumes
+is preserved and loaded when you restart the cluster with `docker-compose up`.
+
+--
+["source","sh"]
+----
+docker-compose down
+----
+--
+
+To **delete the data volumes** when you stop the cluster, specify the `-v`
+option:
+
+["source","sh"]
+----
+docker-compose down -v
+----
+
+WARNING: Deleting data volumes will remove the generated security certificates
+for your nodes. You will need to run `docker-compose` and 
+<<docker-generate-certificates,regenerate the security certificates>> before
+starting your cluster.
+
+===== Next steps
+
+You now have a test {es} environment set up. Before you start
+serious development or go into production with {es}, review the
+<<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
 [[docker-prod-prerequisites]]
 ==== Using the Docker images in production
@@ -302,6 +558,7 @@ overrides all other JVM options. The `ES_JAVA_OPTS` variable overrides all other
 JVM options. We do not recommend using `ES_JAVA_OPTS` in production. The
 `docker-compose.yml` file above sets the heap size to 512MB.
 
+
 ===== Pin deployments to a specific image version
 
 Pin your deployments to a specific version of the {es} Docker image. For
@@ -392,6 +649,11 @@ For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify
 --------------------------------------------
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
+
+If you bind-mount a custom `elasticsearch.yml` file, ensure it includes the
+`network.host: 0.0.0.0` setting. This setting ensures the node is reachable for
+HTTP and transport traffic, provided its ports are exposed. The Docker image's
+built-in `elasticsearch.yml` file includes this setting by default.
 
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
 uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,
@@ -498,6 +760,7 @@ You should use `centos:8` as a base in order to avoid incompatibilities.
 Use http://man7.org/linux/man-pages/man1/ldd.1.html[`ldd`] to list the
 shared libraries required by a utility.
 
+[discrete]
 [[troubleshoot-docker-errors]]
 ==== Troubleshoot Docker errors for {es}
 
@@ -541,5 +804,3 @@ To resolve this error:
   path rather than the keystore file's path. For an example, see
   <<docker-keystore-bind-mount>>.
 . Retry the command.
-
-include::next-steps.asciidoc[]

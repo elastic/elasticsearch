@@ -13,6 +13,7 @@ import com.carrotsearch.hppc.IntSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -30,13 +31,13 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -96,11 +97,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
     protected final Settings settings;
-    private final Version version;
     protected final ThreadPool threadPool;
-    protected final PageCacheRecycler pageCacheRecycler;
+    protected final Recycler<BytesRef> recycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
+    private final Version version;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -134,13 +135,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.profileSettingsSet = getProfileSettings(settings);
         this.version = version;
         this.threadPool = threadPool;
-        this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
-        BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays);
+        this.recycler = createRecycler(settings, pageCacheRecycler);
+        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler);
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
@@ -262,6 +262,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
+
+            // In this is a proxy request, determine whether we want to compress based on the wrapped request
+            final TransportRequest wrapped;
+            if (request instanceof TransportActionProxy.ProxyRequest) {
+                wrapped = ((TransportActionProxy.ProxyRequest<?>) request).wrapped;
+            } else {
+                wrapped = request;
+            }
+
+            final Compression.Scheme schemeToUse = getCompressionScheme(wrapped);
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
+        }
+
+        private Compression.Scheme getCompressionScheme(TransportRequest request) {
             // We compress if total transport compression is enabled or if indexing_data transport compression
             // is enabled and the request is a RawIndexingDataTransportRequest which indicates it should be
             // compressed.
@@ -269,8 +283,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 || (compress == Compression.Enabled.INDEXING_DATA
                     && request instanceof RawIndexingDataTransportRequest
                     && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
-            final Compression.Scheme schemeToUse = shouldCompress ? compressionScheme : null;
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
+            return shouldCompress ? compressionScheme : null;
         }
 
         @Override
@@ -287,6 +300,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // primarily exists for the test implementations.
     protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
         return connectionProfile;
+    }
+
+    protected Recycler<BytesRef> createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
+        return new BytesRefRecycler(pageCacheRecycler);
     }
 
     @Override

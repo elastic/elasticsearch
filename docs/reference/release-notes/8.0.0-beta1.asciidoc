@@ -4,8 +4,6 @@
 [[release-notes-8.0.0-beta1]]
 == {es} version 8.0.0-beta1
 
-coming::[8.0.0-beta1]
-
 Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 
 [[known-issues-8.0.0-beta1]]

@@ -30,7 +30,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -570,7 +569,7 @@ public class MetadataIndexTemplateService {
                 name
             );
             logger.warn(warning);
-            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+            HeaderWarning.addWarning(warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -959,7 +958,7 @@ public class MetadataIndexTemplateService {
                     request.name
                 );
                 logger.warn(warning);
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                HeaderWarning.addWarning(warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(

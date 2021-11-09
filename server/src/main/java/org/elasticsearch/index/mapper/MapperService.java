@@ -48,7 +48,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -141,7 +140,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        BooleanSupplier idFieldDataEnabled,
+        IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler
     ) {
         super(indexSettings);
@@ -158,7 +157,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldDataEnabled
+            idFieldMapper
         );
         this.documentParser = new DocumentParser(
             xContentRegistry,

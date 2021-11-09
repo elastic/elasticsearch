@@ -41,7 +41,7 @@ public class X509KeyPairSettings {
         key,
         "",
         SecureString::new,
-        Setting.Property.Deprecated,
+        Setting.Property.DeprecatedWarning,
         Setting.Property.Filtered,
         Setting.Property.NodeScope
     );
@@ -72,7 +72,7 @@ public class X509KeyPairSettings {
         key,
         "",
         SecureString::new,
-        Setting.Property.Deprecated,
+        Setting.Property.DeprecatedWarning,
         Setting.Property.Filtered,
         Setting.Property.NodeScope
     );
@@ -103,7 +103,7 @@ public class X509KeyPairSettings {
         key,
         "",
         SecureString::new,
-        Setting.Property.Deprecated,
+        Setting.Property.DeprecatedWarning,
         Setting.Property.Filtered,
         Setting.Property.NodeScope
     );

@@ -85,6 +85,7 @@ public class Constants {
         "cluster:admin/transform/delete",
         "cluster:admin/transform/preview",
         "cluster:admin/transform/put",
+        "cluster:admin/transform/reset",
         "cluster:admin/transform/start",
         "cluster:admin/transform/stop",
         "cluster:admin/transform/update",

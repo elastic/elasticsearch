@@ -372,12 +372,6 @@ An array of `trained_model` objects. Supported trained models are `tree` and
 (Optional, string)
 A human-readable description of the {infer} trained model.
 
-`model_size_bytes`::
-(Optional, integer)
-The estimated memory usage in bytes to keep the trained model in memory. This
-property is supported only if `defer_definition_decompression` is `true` or the
-model definition is not supplied.
-
 `estimated_operations`::
 (Optional, integer)
 The estimated number of operations to use the trained model during inference.
@@ -742,6 +736,12 @@ empty as the index for storing model definitions is configured automatically.
 `metadata`::
 (Optional, object)
 An object map that contains metadata about the model.
+
+`model_size_bytes`::
+(Optional, integer)
+The estimated memory usage in bytes to keep the trained model in memory. This
+property is supported only if `defer_definition_decompression` is `true` or the
+model definition is not supplied.
 
 `model_type`::
 (Optional, string)

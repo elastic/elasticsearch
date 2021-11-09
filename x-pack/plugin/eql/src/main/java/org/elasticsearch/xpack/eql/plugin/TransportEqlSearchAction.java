@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.eql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -57,16 +57,17 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
-public class TransportEqlSearchAction extends TransportRetryAction<EqlSearchRequest, EqlSearchResponse>
+public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements
-        AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
+        AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask>,
+        TransportRetryAction.RetryOperation<EqlSearchRequest, EqlSearchResponse> {
 
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
-    private final ThreadPool threadPool;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
+    private final TransportRetryAction<EqlSearchRequest, EqlSearchResponse> retryAction;
 
     @Inject
     public TransportEqlSearchAction(
@@ -80,14 +81,13 @@ public class TransportEqlSearchAction extends TransportRetryAction<EqlSearchRequ
         Client client,
         BigArrays bigArrays
     ) {
-        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, clusterService);
+        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
-        this.threadPool = threadPool;
         this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -102,6 +102,13 @@ public class TransportEqlSearchAction extends TransportRetryAction<EqlSearchRequ
             clusterService,
             threadPool,
             bigArrays
+        );
+        this.retryAction = new TransportRetryAction<>(
+            this,
+            transportService,
+            clusterService,
+            EqlSearchAction.INSTANCE.name(),
+            EqlSearchAction.INSTANCE.getResponseReader()
         );
     }
 
@@ -131,7 +138,7 @@ public class TransportEqlSearchAction extends TransportRetryAction<EqlSearchRequ
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, listener);
+        retryAction.executeWithRetry(task, request, listener);
     }
 
     @Override
@@ -152,7 +159,7 @@ public class TransportEqlSearchAction extends TransportRetryAction<EqlSearchRequ
     }
 
     @Override
-    protected void executeRequest(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
+    protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,
@@ -162,8 +169,13 @@ public class TransportEqlSearchAction extends TransportRetryAction<EqlSearchRequ
                 listener
             );
         } else {
-            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
+            retryAction.executeWithRetry(task, request, listener);
         }
+    }
+
+    @Override
+    public void executeRequest(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
+        operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
     }
 
     public static void operation(
@@ -239,11 +251,6 @@ public class TransportEqlSearchAction extends TransportRetryAction<EqlSearchRequ
                 wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
             );
         }
-    }
-
-    @Override
-    public Reader<EqlSearchResponse> responseReader() {
-        return EqlSearchAction.INSTANCE.getResponseReader();
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {

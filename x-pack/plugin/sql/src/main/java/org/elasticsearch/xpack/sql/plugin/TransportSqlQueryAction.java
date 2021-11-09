@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
@@ -58,9 +58,10 @@ import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
-public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryRequest, SqlQueryResponse>
+public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
     implements
-        AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> {
+        AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask>,
+        TransportRetryAction.RetryOperation<SqlQueryRequest, SqlQueryResponse> {
 
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
@@ -68,6 +69,7 @@ public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryReques
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
+    private final TransportRetryAction<SqlQueryRequest, SqlQueryResponse> retryAction;
 
     @Inject
     public TransportSqlQueryAction(
@@ -80,7 +82,7 @@ public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryReques
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays
     ) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, clusterService);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -103,10 +105,17 @@ public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryReques
             threadPool,
             bigArrays
         );
+        this.retryAction = new TransportRetryAction<>(
+            this,
+            transportService,
+            clusterService,
+            SqlQueryAction.INSTANCE.name(),
+            SqlQueryAction.INSTANCE.getResponseReader()
+        );
     }
 
     @Override
-    protected void executeRequest(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
+    protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
             asyncTaskManagementService.asyncExecute(
@@ -117,8 +126,13 @@ public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryReques
                 listener
             );
         } else {
-            operation(planExecutor, (SqlQueryTask) task, request, listener, username(securityContext), transportService, clusterService);
+            retryAction.executeWithRetry(task, request, listener);
         }
+    }
+
+    @Override
+    public void executeRequest(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
+        operation(planExecutor, (SqlQueryTask) task, request, listener, username(securityContext), transportService, clusterService);
     }
 
     /**
@@ -169,11 +183,6 @@ public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryReques
                 wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), listener::onFailure)
             );
         }
-    }
-
-    @Override
-    public Reader<SqlQueryResponse> responseReader() {
-        return SqlQueryAction.INSTANCE.getResponseReader();
     }
 
     private static SqlQueryResponse createResponseWithSchema(SqlQueryRequest request, Page page, SqlQueryTask task) {
@@ -273,7 +282,7 @@ public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryReques
 
     @Override
     public void execute(SqlQueryRequest request, SqlQueryTask task, ActionListener<SqlQueryResponse> listener) {
-        operation(planExecutor, task, request, listener, username(securityContext), transportService, clusterService);
+        retryAction.executeWithRetry(task, request, listener);
     }
 
     @Override

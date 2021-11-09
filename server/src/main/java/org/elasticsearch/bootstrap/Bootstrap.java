@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.plugins.PluginsManager;
@@ -336,7 +337,7 @@ final class Bootstrap {
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
             if (PluginsManager.configExists(environment)) {
-                if (System.getProperty("es.distribution.type", "unknown").equals("docker")) {
+                if (Build.CURRENT.type() == Build.Type.DOCKER) {
                     try {
                         PluginsManager.syncPlugins(environment);
                     } catch (Exception e) {

@@ -196,6 +196,56 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
+    public void testPutAsyncStressTest() throws Exception {
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof CreateIndexAction && request instanceof CreateIndexRequest) {
+                return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
+            }
+            calledTimes.incrementAndGet();
+            assertThat(action, instanceOf(BulkAction.class));
+            assertThat(request, instanceOf(BulkRequest.class));
+            BulkRequest bulkRequest = (BulkRequest) request;
+            bulkRequest.requests().forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
+            assertNotNull(listener);
+
+            // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
+            int responses = bulkRequest.numberOfActions();
+            return new BulkResponse(
+                IntStream.range(0, responses)
+                    .mapToObj(
+                        i -> BulkItemResponse.success(
+                            i,
+                            DocWriteRequest.OpType.INDEX,
+                            new IndexResponse(new ShardId("index", "uuid", 0), randomAlphaOfLength(10), 1, 1, 1, true)
+                        )
+                    )
+                    .toArray(BulkItemResponse[]::new),
+                1000L
+            );
+        });
+
+        for (int i = 0; i < 8192; i++) {
+            String index = randomAlphaOfLength(5);
+            String policyId = randomAlphaOfLength(5);
+            String phase = randomAlphaOfLength(5);
+            final long timestamp = randomNonNegativeLong();
+            ILMHistoryItem record = ILMHistoryItem.success(
+                index,
+                policyId,
+                timestamp,
+                10L,
+                LifecycleExecutionState.builder().setPhase(phase).build()
+            );
+
+            historyStore.putAsync(record);
+        }
+
+        historyStore.close();
+
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+    }
+
     /**
      * A client that delegates to a verifying function for action/request/listener
      */

@@ -1390,22 +1390,17 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        if (dimension) {
-            if (false == fields.isEmpty()) {
-                try {
-                    // Extract the tsid part of the dimension field by using the long value.
-                    // Dimension can only be one of byte, short, int, long
-                    BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(numericValue.longValue());
-                    // Add the first field to dimension fields, so that we ensure it has not been added
-                    context.doc().addDimensionBytes(fieldType().name(), bytes);
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
-                }
+        if (dimension && fields.isEmpty() == false) {
+            try {
+                // Extract the tsid part of the dimension field by using the long value.
+                // Dimension can only be one of byte, short, int, long
+                BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(numericValue.longValue());
+                context.doc().addDimensionBytes(fieldType().name(), bytes);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
             }
         }
-
         context.doc().addAll(fields);
-
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());

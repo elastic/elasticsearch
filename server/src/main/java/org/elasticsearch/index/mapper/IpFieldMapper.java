@@ -499,18 +499,17 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
+        if (dimension) {
+            try {
+                // Extract the tsid part of the dimension field
+                BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(NetworkAddress.format(address));
+                context.doc().addDimensionBytes(fieldType().name(), bytes);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
+            }
+        }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
-            if (dimension) {
-                try {
-                    // Extract the tsid part of the dimension field
-                    BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(NetworkAddress.format(address));
-                    // Add dimension field with key so that we ensure it is single-valued. Dimension fields are always indexed.
-                    context.doc().addDimensionBytes(field.name(), bytes);
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
-                }
-            }
             context.doc().add(field);
         }
         if (hasDocValues) {

@@ -64,6 +64,7 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
+
     }
 
     /**

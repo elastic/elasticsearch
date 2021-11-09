@@ -600,26 +600,20 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
+        if (dimension) {
+            try {
+                // Extract the tsid part of the dimension field
+                BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(value);
+                context.doc().addDimensionBytes(fieldType().name(), bytes);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
+            }
+        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
-        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
-            throw new IllegalArgumentException(
-                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
-            );
-        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            if (dimension) {
-                try {
-                    // Extract the tsid part of the dimension field
-                    BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(value);
-                    // Add dimension field with key so that we ensure it is single-valued. Dimension fields are always indexed.
-                    context.doc().addDimensionBytes(field.name(), bytes);
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
-                }
-            }
             context.doc().add(field);
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {

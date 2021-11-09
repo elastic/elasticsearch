@@ -205,7 +205,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             BytesRef bytes = new BytesRef(value);
             if (bytes.length > DIMENSION_VALUE_LIMIT) {
                 throw new IllegalArgumentException(
-                    "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + bytes.length + "]"
+                    "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + bytes.length + "]."
                 );
             }
             out.writeBytesRef(bytes);

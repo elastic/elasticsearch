@@ -381,7 +381,7 @@ public class PackageTests extends PackagingTestCase {
 
         withCustomConfig(tempConf -> {
             // Create a startup problem by adding an invalid YAML line to the config
-            append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
+            append(tempConf.resolve("elasticsearch.yml"), "discovery.seed_hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
             Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);

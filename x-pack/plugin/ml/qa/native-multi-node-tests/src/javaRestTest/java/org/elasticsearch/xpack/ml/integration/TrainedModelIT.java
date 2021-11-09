@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -333,8 +332,8 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(
             responseException.getMessage(),
             containsString(
-                "[total_definition_length] must be the same in all model definition parts. " +
-                    "The value [600] in model definition part [2] does not match the value [500] in part [0]"
+                "[total_definition_length] must be the same in all model definition parts. "
+                    + "The value [600] in model definition part [2] does not match the value [500] in part [0]"
             )
         );
 

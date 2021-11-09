@@ -74,6 +74,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.cleanFollowedRemoteIndices;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -87,6 +88,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.core.IsNot.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -2357,11 +2359,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         // given auto-follow pattern added
         var autoFollowCoordinator = createAutoFollowCoordinator();
         autoFollowCoordinator.updateAutoFollowers(
-            createClusterStateWith(
-                createAutoFollowPattern("pattern1", "logs-*"),
-                createAutoFollowPattern("pattern2", "logs-*"),
-                createAutoFollowPattern("pattern3", "logs-*")
-            )
+            createClusterStateWith(createAutoFollowPattern("pattern1", "logs-*"), createAutoFollowPattern("pattern2", "logs-*"))
         );
 
         // and stats are produced
@@ -2371,19 +2369,27 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 new AutoFollowCoordinator.AutoFollowResult(
                     "pattern1",
                     List.of(Tuple.tuple(new Index("index1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
+                ),
+                new AutoFollowCoordinator.AutoFollowResult(
+                    "pattern2",
+                    List.of(Tuple.tuple(new Index("index1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
                 )
             )
         );
         // and applied
-        assertThat(autoFollowCoordinator.getStats().getRecentAutoFollowErrors(), hasKey("pattern1:index1"));
-
-        // when auto-follow pattern `pattern1` is removed
-        autoFollowCoordinator.updateAutoFollowers(
-            createClusterStateWith(createAutoFollowPattern("pattern2", "logs-*"), createAutoFollowPattern("pattern3", "logs-*"))
+        assertThat(
+            autoFollowCoordinator.getStats().getRecentAutoFollowErrors(),
+            allOf(hasKey("pattern1:index1"), hasKey("pattern2:index1"))
         );
 
-        // then stats are removed as well
-        assertThat(autoFollowCoordinator.getStats().getRecentAutoFollowErrors().keySet(), empty());
+        // when auto-follow pattern `pattern1` is removed
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(createAutoFollowPattern("pattern2", "logs-*")));
+
+        // then stats are removed as well only for the first pattern
+        assertThat(
+            autoFollowCoordinator.getStats().getRecentAutoFollowErrors(),
+            allOf(not(hasKey("pattern1:index1")), hasKey("pattern2:index1"))
+        );
     }
 
     private AutoFollowCoordinator createAutoFollowCoordinator() {

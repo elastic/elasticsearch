@@ -217,8 +217,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     synchronized void deleteStats(String patternName) {
-        var keysToRemove = recentAutoFollowErrors.keySet().stream().filter(p -> p.startsWith(patternName)).collect(toSet());
-        recentAutoFollowErrors.keySet().removeAll(keysToRemove);
+        recentAutoFollowErrors.keySet().removeIf(key -> key.startsWith(patternName));
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {

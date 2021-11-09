@@ -30,7 +30,7 @@ import java.util.Objects;
 public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsAction.Response> {
 
     public static final GetDeploymentStatsAction INSTANCE = new GetDeploymentStatsAction();
-    public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployments/stats/get";
+    public static final String NAME = "cluster:internal/xpack/ml/trained_models/deployments/stats/get";
 
     private GetDeploymentStatsAction() {
         super(NAME, GetDeploymentStatsAction.Response::new);
@@ -38,10 +38,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
     public static class Request extends BaseTasksRequest<GetDeploymentStatsAction.Request> {
 
-        public static final String ALLOW_NO_MATCH = "allow_no_match";
-
         private final String deploymentId;
-        private boolean allowNoMatch = true;
         // used internally this should not be set by the REST request
         private List<String> expandedIds;
 
@@ -53,7 +50,6 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         public Request(StreamInput in) throws IOException {
             super(in);
             this.deploymentId = in.readString();
-            this.allowNoMatch = in.readBoolean();
             this.expandedIds = in.readStringList();
         }
 
@@ -61,7 +57,6 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            out.writeBoolean(allowNoMatch);
             out.writeStringCollection(expandedIds);
         }
 
@@ -71,14 +66,6 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
         public void setExpandedIds(List<String> expandedIds) {
             this.expandedIds = expandedIds;
-        }
-
-        public void setAllowNoMatch(boolean allowNoMatch) {
-            this.allowNoMatch = allowNoMatch;
-        }
-
-        public boolean isAllowNoMatch() {
-            return allowNoMatch;
         }
 
         @Override
@@ -92,13 +79,12 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(deploymentId, request.deploymentId)
-                && this.allowNoMatch == request.allowNoMatch
                 && Objects.equals(expandedIds, request.expandedIds);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, allowNoMatch, expandedIds);
+            return Objects.hash(deploymentId, expandedIds);
         }
     }
 

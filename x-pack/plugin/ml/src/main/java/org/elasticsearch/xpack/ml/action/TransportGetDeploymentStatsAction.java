@@ -131,12 +131,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         }
 
         // check request has been satisfied
-        ExpandedIdsMatcher requiredIdsMatcher = new ExpandedIdsMatcher(tokenizedRequestIds, request.isAllowNoMatch());
+        ExpandedIdsMatcher requiredIdsMatcher = new ExpandedIdsMatcher(tokenizedRequestIds, true);
         requiredIdsMatcher.filterMatchedIds(matchedDeploymentIds);
-        if (requiredIdsMatcher.hasUnmatchedIds()) {
-            listener.onFailure(ExceptionsHelper.missingDeployment(requiredIdsMatcher.unmatchedIdsString()));
-            return;
-        }
         if (matchedDeploymentIds.isEmpty()) {
             listener.onResponse(
                 new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0L)

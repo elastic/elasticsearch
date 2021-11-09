@@ -102,7 +102,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     break;
                 default:
                     logger.debug("creating index {} with background indexing", indexName);
-                    final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), -1, 1);
+                    final BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), -1, 1);
                     indexers.put(indexName, indexer);
                     indexer.setFailureAssertion(t -> assertException(t, indexName));
                     waitForDocs(1, indexer);

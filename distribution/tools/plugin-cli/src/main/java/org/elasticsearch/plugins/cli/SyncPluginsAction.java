@@ -14,7 +14,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.SyncPluginsProvider;
+import org.elasticsearch.plugins.PluginsSynchronizer;
 
 import java.io.IOException;
 import java.net.Proxy;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * This action cannot be called from the command line. It is used exclusively by Elasticsearch on startup, but only
  * if the config file exists and the distribution type allows it.
  */
-public class SyncPluginsAction implements SyncPluginsProvider {
+public class SyncPluginsAction implements PluginsSynchronizer {
     private final Terminal terminal;
     private final Environment env;
 

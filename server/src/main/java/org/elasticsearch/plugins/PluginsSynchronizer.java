@@ -8,6 +8,10 @@
 
 package org.elasticsearch.plugins;
 
-public interface SyncPluginsProvider {
+/**
+ * This is a marker interface for classes that are capable of synchronizing the currently-installed ES plugins
+ * with those that ought to be installed according to a configuration file.
+ */
+public interface PluginsSynchronizer {
     void execute() throws Exception;
 }

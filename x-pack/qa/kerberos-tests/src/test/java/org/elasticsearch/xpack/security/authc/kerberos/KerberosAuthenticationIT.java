@@ -104,6 +104,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
+        testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -116,6 +117,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
+        testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -128,6 +130,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
+        testSuppressedOnJDK8u262();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));

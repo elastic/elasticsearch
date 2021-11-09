@@ -429,6 +429,31 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(ex.getMessage(), containsString("[should-fail-get] is type [pytorch] and does not support retrieving the definition"));
     }
 
+    public void testStartDeploymentWithTruncatedDefinition() throws IOException {
+        String model = "should-fail-get";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
+        request.setJsonEntity(
+            "{  "
+                + "\"total_definition_length\":"
+                + RAW_MODEL_SIZE
+                + 2L
+                + ","
+                + "\"definition\": \""
+                + BASE_64_ENCODED_MODEL
+                + "\","
+                + "\"total_parts\": 1"
+                + "}"
+        );
+        client().performRequest(request);
+        Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
+        assertThat(
+            ex.getMessage(),
+            containsString("Model definition truncated. Unable to deserialize trained model definition [" + model + "]")
+        );
+    }
+
     public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
         String model = "not-deployed";
         createTrainedModel(model);

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -39,6 +40,9 @@ public final class NativeMemoryCalculator {
     private NativeMemoryCalculator() {}
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, Settings settings) {
+        if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) == false) {
+            return OptionalLong.empty();
+        }
         return allowedBytesForMl(
             node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
             node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
@@ -48,6 +52,9 @@ public final class NativeMemoryCalculator {
     }
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, ClusterSettings settings) {
+        if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) == false) {
+            return OptionalLong.empty();
+        }
         return allowedBytesForMl(
             node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
             node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
@@ -57,6 +64,9 @@ public final class NativeMemoryCalculator {
     }
 
     public static OptionalLong allowedBytesForMl(DiscoveryNode node, int maxMemoryPercent, boolean useAutoPercent) {
+        if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) == false) {
+            return OptionalLong.empty();
+        }
         return allowedBytesForMl(
             node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
             node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
@@ -66,6 +76,8 @@ public final class NativeMemoryCalculator {
     }
 
     private static OptionalLong allowedBytesForMl(String nodeBytes, String jvmBytes, int maxMemoryPercent, boolean useAuto) {
+        assert nodeBytes != null
+            : "This private method should only be called for ML nodes, and all ML nodes should have the ml.machine_memory node attribute";
         if (nodeBytes == null) {
             return OptionalLong.empty();
         }
@@ -73,6 +85,7 @@ public final class NativeMemoryCalculator {
         try {
             machineMemory = Long.parseLong(nodeBytes);
         } catch (NumberFormatException e) {
+            assert e == null : "ml.machine_memory should parse because we set it internally: invalid value was " + nodeBytes;
             return OptionalLong.empty();
         }
         Long jvmMemory = null;
@@ -129,10 +142,14 @@ public final class NativeMemoryCalculator {
     }
 
     static long allowedBytesForMl(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
+        // machineMemory can get set to -1 if the OS probe that determines memory fails
+        if (machineMemory <= 0) {
+            return 0L;
+        }
         if (useAuto && jvmSize != null) {
             // It is conceivable that there is a machine smaller than 200MB.
             // If the administrator wants to use the auto configuration, the node should be larger.
-            if (machineMemory - jvmSize <= OS_OVERHEAD || machineMemory == 0) {
+            if (machineMemory - jvmSize <= OS_OVERHEAD) {
                 return machineMemory / 100;
             }
             // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning
@@ -198,7 +215,7 @@ public final class NativeMemoryCalculator {
      */
     public static ByteSizeValue calculateMaxModelMemoryLimitToFit(ClusterSettings clusterSettings, DiscoveryNodes nodes) {
 
-        long maxMlMemory = -1;
+        long maxMlMemory = 0;
         int numMlNodes = 0;
 
         for (DiscoveryNode node : nodes) {
@@ -225,7 +242,7 @@ public final class NativeMemoryCalculator {
             );
         }
 
-        if (maxMlMemory <= 0) {
+        if (maxMlMemory == 0L) {
             // This implies there are currently no ML nodes in the cluster, and
             // no automatic mechanism for adding one, so we have no idea what
             // the effective limit would be if one were added

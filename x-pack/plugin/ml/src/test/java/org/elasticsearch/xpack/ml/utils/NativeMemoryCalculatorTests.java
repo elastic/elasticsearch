@@ -471,13 +471,22 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
                         nodeId,
                         ta,
                         Collections.singletonMap(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(mlMachineMemory)),
-                        Collections.emptySet(),
+                        Set.of(DiscoveryNodeRole.ML_ROLE),
                         Version.CURRENT
                     )
                 );
             } else {
                 // Not an ML node
-                builder.add(new DiscoveryNode(nodeName, nodeId, ta, Collections.emptyMap(), Collections.emptySet(), Version.CURRENT));
+                builder.add(
+                    new DiscoveryNode(
+                        nodeName,
+                        nodeId,
+                        ta,
+                        Collections.emptyMap(),
+                        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE),
+                        Version.CURRENT
+                    )
+                );
             }
         }
 
@@ -496,17 +505,21 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         return new ClusterSettings(newSettings(maxMemoryPercent, useAuto, maxModelMemoryLimit), ML_MEMORY_RELATED_SETTINGS);
     }
 
-    private static DiscoveryNode newNode(Long jvmSizeLong, Long nodeSizeLong) {
+    private static DiscoveryNode newNode(Long jvmSizeLong, Long mlNodeSizeLong) {
         String jvmSize = jvmSizeLong != null ? jvmSizeLong.toString() : null;
-        String nodeSize = nodeSizeLong != null ? nodeSizeLong.toString() : null;
+        String mlNodeSize = mlNodeSizeLong != null ? mlNodeSizeLong.toString() : null;
         Map<String, String> attrs = new HashMap<>();
         if (jvmSize != null) {
             attrs.put(MAX_JVM_SIZE_NODE_ATTR, jvmSize);
         }
-        if (nodeSize != null) {
-            attrs.put(MACHINE_MEMORY_NODE_ATTR, nodeSize);
+        Set<DiscoveryNodeRole> roles;
+        if (mlNodeSize != null) {
+            attrs.put(MACHINE_MEMORY_NODE_ATTR, mlNodeSize);
+            roles = Set.of(DiscoveryNodeRole.ML_ROLE);
+        } else {
+            roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
         }
-        return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), attrs, DiscoveryNodeRole.roles(), Version.CURRENT);
+        return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles, Version.CURRENT);
     }
 
 }

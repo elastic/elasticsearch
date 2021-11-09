@@ -67,6 +67,7 @@ All other values are equivalent to the default discovery type which is
 Where possible, omit this setting so that {es} uses the default discovery type.
 ====
 
+[discrete]
 [[breaking_8.1_lenient_bulk_action_deprecation]]
 ==== Lenient parsing of bulk actions
 
@@ -75,8 +76,8 @@ Where possible, omit this setting so that {es} uses the default discovery type.
 [%collapsible]
 ====
 *Details* +
-{es} parses bulk actions more strictly in order to make sure there are no arbitrary fields after an action declaration and that it gets properly closed.
+{es} 8.1 parses bulk actions more strictly in order to make sure there are no arbitrary fields after a bulk action declaration and that it gets properly closed with the closing brace.
 
 *Impact* +
-Make sure your bulk requests are valid JSON objects and you don't have any arbitrary JSON fields after bulk actions.
+Make sure your bulk actions are valid JSON objects and that you don't have any arbitrary JSON fields after bulk actions.
 ====

@@ -150,7 +150,7 @@ public class ILMHistoryStore implements Closeable {
             // TODO: remove the threadpool wrapping when the .add call is non-blocking
             // (it can currently execute the bulk request occasionally)
             // see: https://github.com/elastic/elasticsearch/issues/50440
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
                 try {
                     processor.add(request);
                 } catch (Exception e) {

@@ -162,8 +162,7 @@ public class MetadataMappingService {
                 // update mapping metadata on all types
                 DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {
-                    MappingMetadata mappingMetadata = new MappingMetadata(mapper.mappingSource());
-                    indexMetadataBuilder.putMapping(mappingMetadata);
+                    indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource()));
                 }
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());

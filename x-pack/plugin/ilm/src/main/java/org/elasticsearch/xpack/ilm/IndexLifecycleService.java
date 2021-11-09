@@ -79,6 +79,7 @@ public class IndexLifecycleService
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final Clock clock;
     private final PolicyStepsRegistry policyRegistry;
+    private final ILMHistoryStore ilmHistoryStore;
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
     private final ClusterService clusterService;
@@ -103,12 +104,17 @@ public class IndexLifecycleService
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client, licenseState);
+        this.ilmHistoryStore = ilmHistoryStore;
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
+    }
+
+    public ILMHistoryStore getIlmHistoryStore() {
+        return this.ilmHistoryStore;
     }
 
     public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {

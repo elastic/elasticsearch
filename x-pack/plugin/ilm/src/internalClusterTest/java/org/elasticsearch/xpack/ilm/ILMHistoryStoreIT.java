@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -19,15 +23,28 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
+import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ILMHistoryStoreIT extends ESIntegTestCase {
+
+    private final ExecutorService executorService = Executors.newFixedThreadPool(1);
+
+    @After
+    public void shutdownExec() {
+        executorService.shutdownNow();
+    }
 
     @After
     public void cleanup() {
@@ -58,7 +75,7 @@ public class ILMHistoryStoreIT extends ESIntegTestCase {
         return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, DataStreamsPlugin.class);
     }
 
-    public void testPutAsyncStressTest() throws Exception {
+    public void testPutAsyncStressTest() {
         final String master = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -66,25 +83,49 @@ public class ILMHistoryStoreIT extends ESIntegTestCase {
         ILMHistoryStore ilmHistoryStore = indexLifecycleService.getIlmHistoryStore();
         assertNotNull(ilmHistoryStore);
 
-        for (int i = 0; i < 8192; i++) {
-            String index = randomAlphaOfLength(5);
-            String policyId = randomAlphaOfLength(5);
-            String phase = randomAlphaOfLength(5);
-            final long timestamp = randomNonNegativeLong();
-            ILMHistoryItem record = ILMHistoryItem.success(
-                index,
-                policyId,
-                timestamp,
-                10L,
-                LifecycleExecutionState.builder().setPhase(phase).build()
-            );
+        // in the background, putAsync a bunch of ILMHistoryItems, then close the ILMHistoryStore
+        Future<?> future = executorService.submit(() -> {
+            for (int i = 0; i < 8192; i++) {
+                String index = randomAlphaOfLength(5);
+                String policyId = randomAlphaOfLength(5);
+                String phase = randomAlphaOfLength(5);
+                final long timestamp = randomNonNegativeLong();
+                ILMHistoryItem record = ILMHistoryItem.success(
+                    index,
+                    policyId,
+                    timestamp,
+                    10L,
+                    LifecycleExecutionState.builder().setPhase(phase).build()
+                );
 
-            ilmHistoryStore.putAsync(record);
+                ilmHistoryStore.putAsync(record);
+            }
+
+            // since putAsync runs async, we need to give the other thread(s) a chance to run
+            try {
+                assertBusy(() -> {
+                    SearchRequestBuilder searchRequestBuilder = client().prepareSearch(".ds-ilm-history*")
+                        .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                        .setSize(0)
+                        .setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE);
+                    try {
+                        SearchResponse countResponse = searchRequestBuilder.get();
+                        TotalHits hits = countResponse.getHits().getTotalHits();
+                        assertThat(hits.value, Matchers.greaterThanOrEqualTo(8192L));
+                    } catch (SearchPhaseExecutionException e) {
+                        fail(); // retry via the assertBusy
+                    }
+                }, 20, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // if the above doesn't deadlock, then we'll get a result eventually
+        try {
+            future.get(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            fail();
         }
-        Thread.sleep(1000);
-
-        ilmHistoryStore.close();
-
-        assertFalse(true);
     }
 }

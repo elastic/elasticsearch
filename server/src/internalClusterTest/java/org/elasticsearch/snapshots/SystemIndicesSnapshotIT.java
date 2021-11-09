@@ -463,6 +463,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // verify that the system index still has the updated document, i.e. has not been restored
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        // And the regular index has been restored
+        assertThat(getDocCount(regularIndex), equalTo(1L));
     }
 
     /**
@@ -680,45 +682,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .collect(Collectors.toSet());
 
         assertThat(snapshottedIndices, allOf(hasItem(regularIndex), not(hasItem(SystemIndexTestPlugin.SYSTEM_INDEX_NAME))));
-    }
-
-    /**
-     * Tests that using the special "none" feature state value when restoring a snapshot causes no system indices to be restored
-     */
-    public void testNoneFeatureStateOnRestore() {
-        createRepository(REPO_NAME, "fs");
-        final String regularIndex = "test-idx";
-
-        indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
-        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
-
-        // Create a snapshot
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setIncludeGlobalState(true)
-            .get();
-        assertSnapshotSuccess(createSnapshotResponse);
-
-        // Index another doc into the system index
-        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
-        assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
-        // And delete the regular index so we can restore it
-        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
-
-        // Restore the snapshot specifying the regular index and "none" for feature states
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(randomBoolean())
-            .setFeatureStates(randomFrom("none", "NONE"))
-            .get();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-
-        // The regular index should only have one doc
-        assertThat(getDocCount(regularIndex), equalTo(1L));
-        // But the system index shouldn't have been touched
-        assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
     }
 
     /**

@@ -130,7 +130,7 @@ public class PluginCliTests extends PackagingTestCase {
     public void test101InstallFailsIfConfigFilePresent() throws IOException {
         Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
 
-        Shell.Result result = installation.executables().pluginTool.runIgnoreExitCode("install", "analysis-icu");
+        Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
         assertThat(result.isSuccess(), is(false));
         assertThat(result.stderr, matchesPattern("^Plugins config \\[[^+]] exists.*"));
     }
@@ -141,7 +141,7 @@ public class PluginCliTests extends PackagingTestCase {
     public void test102RemoveFailsIfConfigFilePresent() throws IOException {
         Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
 
-        Shell.Result result = installation.executables().pluginTool.runIgnoreExitCode("remove", "analysis-icu");
+        Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
         assertThat(result.isSuccess(), is(false));
         assertThat(result.stderr, matchesPattern("^Plugins config \\[[^+]] exists.*"));
     }

@@ -39,6 +39,9 @@ import java.util.stream.Collectors;
  * if the config file exists and the distribution type allows it.
  */
 public class SyncPluginsAction implements PluginsSynchronizer {
+    public static final String ELASTICSEARCH_PLUGINS_YML = "elasticsearch-plugins.yml";
+    public static final String ELASTICSEARCH_PLUGINS_YML_CACHE = ".elasticsearch-plugins.yml.cache";
+
     private final Terminal terminal;
     private final Environment env;
 
@@ -72,8 +75,8 @@ public class SyncPluginsAction implements PluginsSynchronizer {
      */
     @Override
     public void execute() throws Exception {
-        final Path configPath = this.env.configFile().resolve("elasticsearch-plugins.yml");
-        final Path previousConfigPath = this.env.configFile().resolve(".elasticsearch-plugins.yml.cache");
+        final Path configPath = this.env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
+        final Path previousConfigPath = this.env.pluginsFile().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);
 
         if (Files.exists(configPath) == false) {
             // The `PluginsManager` will have checked that this file exists before invoking the action.

@@ -113,18 +113,20 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (flushEnabled.get() == false) {
-            if (event.metadataChanged()) {
-                final IndexLifecycleMetadata indexLifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+        if (flushEnabled.get()) {
+            return;
+        }
+        if (event.metadataChanged() == false) {
+            return;
+        }
+        final IndexLifecycleMetadata indexLifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
 
-                if (event.state().getMetadata().templatesV2().containsKey(".deprecation-indexing-template")
-                    && indexLifecycleMetadata != null
-                    && indexLifecycleMetadata.getPolicies().containsKey(".deprecation-indexing-ilm-policy")) {
-                    flushEnabled.set(true);
-                    logger.debug("Deprecation log indexing started, because both template and ilm policy are loaded");
-                    clusterService.removeListener(this);
-                }
-            }
+        if (event.state().getMetadata().templatesV2().containsKey(".deprecation-indexing-template")
+            && indexLifecycleMetadata != null
+            && indexLifecycleMetadata.getPolicies().containsKey(".deprecation-indexing-ilm-policy")) {
+            flushEnabled.set(true);
+            logger.debug("Deprecation log indexing started, because both template and ilm policy are loaded");
+            clusterService.removeListener(this);
         }
     }
 

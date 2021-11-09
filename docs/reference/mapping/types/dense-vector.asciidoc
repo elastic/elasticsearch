@@ -92,6 +92,9 @@ NOTE: Indexing vectors for approximate kNN search is an expensive process. It ca
 substantial time to ingest documents that contain vector fields with `index`
 enabled.
 
+NOTE: Dense vector fields cannot be indexed if they are within
+<<nested, `nested`>> mappings.
+
 [role="child_attributes"]
 [[dense-vector-params]]
 ==== Parameters for dense vector fields

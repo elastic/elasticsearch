@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
@@ -344,16 +345,22 @@ final class Security {
     }
 
     /**
-     * Prepopulates the system's security manager setters map with this class as a caller.
+     * Prepopulates the system's security manager callers map with this class as a caller.
      * This is loathsome, but avoids the annoying warning message at run time.
+     * Returns true if the callers map has been populated.
      */
-    static void prepopulateSecurityCaller() {
+    static boolean prepopulateSecurityCaller() {
+        Field f;
+        try {
+            f = getDeclaredField(Class.forName("java.lang.System$CallersHolder", true, null), "callers");
+        } catch (NoSuchFieldException | ClassNotFoundException ignore) {
+            return false;
+        }
         try {
             Class<?> c = Class.forName("sun.misc.Unsafe");
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(c, MethodHandles.lookup());
             VarHandle handle = lookup.findStaticVarHandle(c, "theUnsafe", c);
             Object theUnsafe = handle.get();
-            Field f = getDeclaredField(Class.forName("java.lang.System$CallersHolder", true, null), "callers");
             MethodHandle mh = lookup.findVirtual(c, "staticFieldBase", methodType(Object.class, Field.class));
             mh = mh.asType(mh.type().changeParameterType(0, Object.class));
             Object base = mh.invokeExact(theUnsafe, f);
@@ -362,12 +369,17 @@ final class Security {
             long offset = (long) mh.invokeExact(theUnsafe, f);
             mh = lookup.findVirtual(c, "getObject", methodType(Object.class, Object.class, long.class));
             mh = mh.asType(mh.type().changeParameterType(0, Object.class));
-            @SuppressWarnings("unchecked")
-            Map<Class<?>, Boolean> callers = (Map<Class<?>, Boolean>) (Object) mh.invokeExact(theUnsafe, base, offset);
-            callers.put(org.elasticsearch.bootstrap.Security.class, true);
-        } catch (NoSuchFieldException ignore) {} catch (Throwable t) {
-            throw new AssertionError(t);
+            Object callers = (Object) mh.invokeExact(theUnsafe, base, offset);
+            if (Map.class.isAssignableFrom(callers.getClass())) {
+                @SuppressWarnings("unchecked")
+                Map<Class<?>, Boolean> map = Map.class.cast(callers);
+                map.put(org.elasticsearch.bootstrap.Security.class, true);
+                return true;
+            }
+        } catch (Throwable t) {
+            throw new ElasticsearchException(t);
         }
+        return false;
     }
 
     @SuppressForbidden(reason = "access violation required")

@@ -1,3 +1,66 @@
+[[release-notes-7.15.2]]
+== {es} version 7.15.2
+
+Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
+
+[[enhancement-7.15.2]]
+[float]
+=== Enhancements
+
+Authorization::
+* Better logging and internal user handling for operator privileges {es-pull}79331[#79331]
+
+[[bug-7.15.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Possible source of leaked delayable writables {es-pull}80166[#80166]
+
+Authorization::
+* Marking operator user no longer depends on license state {es-pull}79595[#79595]
+* Preserve request headers in a mixed version cluster {es-pull}79412[#79412] (issue: {es-issue}79354[#79354])
+* Try set operator user header on each node {es-pull}79528[#79528]
+
+Geo::
+* Fix circuit breaker leak in `MultiTerms` aggregation {es-pull}79362[#79362]
+* Guard geoline aggregation from parents aggegator that emit empty buckets {es-pull}79129[#79129] (issue: {es-issue}79128[#79128])
+
+Indices APIs::
+* Correctly merge lists with primitives {es-pull}80336[#80336] (issue: {es-issue}78211[#78211])
+
+Infra/Core::
+* Treat system indices with unexpected type as needing upgrade {es-pull}78622[#78622] (issue: {es-issue}78456[#78456])
+
+License::
+* Put License API can return HTTP 500 {es-pull}79093[#79093] (issue: {es-issue}74058[#74058])
+
+Machine Learning::
+* Add `bucket_count_ks_test` results reader for internode communication {es-pull}79063[#79063]
+* Fix cancellation of named pipe connection on Linux if the remote end does not connect within the configured timeout period {ml-pull}2102[#2102]
+
+Mapping::
+* Fix execution of exists query within nested queries on field with `doc_values` disabled {es-pull}78841[#78841] (issue: {es-issue}76362[#76362])
+
+Network::
+* Ensure `indexing_data` CCR requests are compressed {es-pull}79413[#79413]
+
+Snapshot/Restore::
+* Create cache files with CREATE_NEW & SPARSE options {es-pull}79371[#79371]
+* Quicker shared cache file preallocation {es-pull}79447[#79447]
+
+TLS::
+* Fix parsing of PBES2 encrypted PKCS#8 keys {es-pull}78904[#78904] (issues: {es-issue}8[#8], {es-issue}32021[#32021], {es-issue}78901[#78901])
+
+[[upgrade-7.15.2]]
+[float]
+=== Upgrades
+
+Packaging::
+* Bump bundled JDK to 17.0.1 {es-pull}80034[#80034] (issue: {es-issue}80001[#80001])
+
+
+
 [[release-notes-7.15.1]]
 == {es} version 7.15.1
 

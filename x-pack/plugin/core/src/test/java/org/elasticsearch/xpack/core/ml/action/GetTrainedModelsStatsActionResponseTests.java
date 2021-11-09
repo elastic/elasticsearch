@@ -71,7 +71,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response mutateInstanceForVersion(Response instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+        if (version.before(Version.V_8_0_0)) {
             return new Response(
                 new QueryPage<>(
                     instance.getResources()

@@ -57,8 +57,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 [[ml-stop-datafeed-request-body]]
 == {api-request-body-title}
 
-You can specify the same `allow_no_match`, `force`, and  `timeout` parameters in
-the request body.
+You can also specify the query parameters (such as `allow_no_match` and
+`force`) in the request body.
 
 [[ml-stop-datafeed-response-codes]]
 == {api-response-codes-title}

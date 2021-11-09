@@ -372,6 +372,9 @@ An array of `trained_model` objects. Supported trained models are `tree` and
 (Optional, string)
 A human-readable description of the {infer} trained model.
 
+`estimated_heap_memory_usage_bytes`::
+(Optional, integer) deprecated:[7.16.0,Replaced by `model_size_bytes`]
+
 `estimated_operations`::
 (Optional, integer)
 The estimated number of operations to use the trained model during inference.

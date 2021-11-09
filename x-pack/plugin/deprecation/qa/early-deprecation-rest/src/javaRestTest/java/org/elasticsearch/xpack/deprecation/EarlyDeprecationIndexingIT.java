@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.xpack.deprecation.DeprecationTestUtils.DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -34,6 +33,9 @@ import static org.hamcrest.Matchers.startsWith;
  * Tests that deprecation message on startup creates a deprecation data stream
  */
 public class EarlyDeprecationIndexingIT extends ESRestTestCase {
+    // Deprecation log when indexed is using ECS layout
+    // which is different than ES JSON used for log files - ES JSON fields are in DeprecatedMessage#KEY_FIELD_NAME
+    String KEY_FIELD_NAME = "event.code";
 
     /**
      * In EarlyDeprecationTestPlugin#onNodeStarted we simulate a very early deprecation that can happen before the template is loaded

@@ -3,10 +3,10 @@
   - skip:
       version: " - 7.99.99"
       reason:  "transient settings deprecation"
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
-      warnings:
+      allowed_warnings:
         - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
       cluster.put_settings:
         body:
@@ -23,7 +23,7 @@
   - match: {transient: {cluster.routing.allocation.enable: "none"}}
 
   - do:
-      warnings:
+      allowed_warnings:
         - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
       cluster.put_settings:
         body:

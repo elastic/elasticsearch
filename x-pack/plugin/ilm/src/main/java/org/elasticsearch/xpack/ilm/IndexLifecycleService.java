@@ -112,7 +112,8 @@ public class IndexLifecycleService
             .addSettingsUpdateConsumer(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING, this::updatePollInterval);
     }
 
-    public ILMHistoryStore getIlmHistoryStore() {
+    // visible for testing
+    ILMHistoryStore getIlmHistoryStore() {
         return this.ilmHistoryStore;
     }
 

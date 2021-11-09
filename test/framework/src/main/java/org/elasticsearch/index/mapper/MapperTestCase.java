@@ -780,6 +780,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "].";
     }
 
+    /** Minimal mapping that allows copy_to directives to work */
+    protected void copyToTestMapping(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+    }
+
     /** Does this field type support copy_to */
     protected boolean supportsCopyTo() {
         return true;
@@ -789,11 +794,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field");
-            minimalMapping(b);
+            copyToTestMapping(b);
             b.field("copy_to", "copy_field");
             b.endObject();
             b.startObject("copy_field");
-            minimalMapping(b);
+            copyToTestMapping(b);
             b.endObject();
         }));
 
@@ -801,6 +806,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ParsedDocument doc = mapper.parse(source(this::writeCopyField));
             IndexableField[] source = doc.rootDoc().getFields("field");
             IndexableField[] copy = doc.rootDoc().getFields("copy_field");
+            assertTrue("copy_to fields are empty", copy.length > 0);
 
             String sourceToString = Arrays.toString(source);
             String expected = sourceToString.replaceAll("<field:", "<copy_field:");

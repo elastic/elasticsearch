@@ -90,6 +90,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsCopyTo() {
+        return false;
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
     }

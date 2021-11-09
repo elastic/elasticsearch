@@ -1397,15 +1397,15 @@ public class NumberFieldMapper extends FieldMapper {
                     // Dimension can only be one of byte, short, int, long
                     BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(numericValue.longValue());
                     // Add the first field to dimension fields, so that we ensure it has not been added
-                    context.doc().addDimensionField(fields.get(0), bytes);
-                    context.doc().addAll(fields.subList(1, fields.size()));
+                    context.doc().addDimensionBytes(fieldType().name(), bytes);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
                 }
             }
-        } else {
-            context.doc().addAll(fields);
         }
+
+        context.doc().addAll(fields);
+
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());

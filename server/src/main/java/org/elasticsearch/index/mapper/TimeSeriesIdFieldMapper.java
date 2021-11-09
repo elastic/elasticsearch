@@ -132,7 +132,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         assert fieldType().isSearchable() == false;
 
         // SortedMap is expected to be sorted by key (field name)
-        SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionFields();
+        SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
         if (dimensionFields.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing");
         }

@@ -506,13 +506,12 @@ public class IpFieldMapper extends FieldMapper {
                     // Extract the tsid part of the dimension field
                     BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(NetworkAddress.format(address));
                     // Add dimension field with key so that we ensure it is single-valued. Dimension fields are always indexed.
-                    context.doc().addDimensionField(field, bytes);
+                    context.doc().addDimensionBytes(field.name(), bytes);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
                 }
-            } else {
-                context.doc().add(field);
             }
+            context.doc().add(field);
         }
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));

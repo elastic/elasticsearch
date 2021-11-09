@@ -23,7 +23,8 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
 public class GetFeaturesResponseTests extends AbstractResponseTestCase<
-    org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse, GetFeaturesResponse> {
+    org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse,
+    GetFeaturesResponse> {
 
     @Override
     protected org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse createServerTestInstance(

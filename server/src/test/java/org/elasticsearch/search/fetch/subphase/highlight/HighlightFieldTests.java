@@ -12,13 +12,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +35,8 @@ public class HighlightFieldTests extends ESTestCase {
             fragments = new Text[size];
             for (int i = 0; i < size; i++) {
                 fragments[i] = new Text(
-                        frequently() ? randomAlphaOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30));
+                    frequently() ? randomAlphaOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30)
+                );
             }
         }
         return new HighlightField(name, fragments);
@@ -71,13 +72,7 @@ public class HighlightFieldTests extends ESTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-          "{\n" +
-          "  \"foo\" : [\n" +
-          "    \"bar\",\n" +
-          "    \"baz\"\n" +
-          "  ]\n" +
-          "}", Strings.toString(builder));
+        assertEquals("{\n" + "  \"foo\" : [\n" + "    \"bar\",\n" + "    \"baz\"\n" + "  ]\n" + "}", Strings.toString(builder));
 
         field = new HighlightField("foo", null);
         builder = JsonXContent.contentBuilder();
@@ -85,10 +80,7 @@ public class HighlightFieldTests extends ESTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-          "{\n" +
-          "  \"foo\" : null\n" +
-          "}", Strings.toString(builder));
+        assertEquals("{\n" + "  \"foo\" : null\n" + "}", Strings.toString(builder));
     }
 
     /**
@@ -114,10 +106,10 @@ public class HighlightFieldTests extends ESTestCase {
     private static HighlightField mutate(HighlightField original) {
         Text[] fragments = original.getFragments();
         if (randomBoolean()) {
-            return new HighlightField(original.getName()+"_suffix", fragments);
+            return new HighlightField(original.getName() + "_suffix", fragments);
         } else {
             if (fragments == null) {
-                fragments = new Text[]{new Text("field")};
+                fragments = new Text[] { new Text("field") };
             } else {
                 fragments = Arrays.copyOf(fragments, fragments.length + 1);
                 fragments[fragments.length - 1] = new Text("something new");

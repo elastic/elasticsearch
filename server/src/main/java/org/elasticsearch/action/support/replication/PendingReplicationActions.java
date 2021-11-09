@@ -9,8 +9,8 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,12 +39,20 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.add(replicationAction);
             if (onGoingReplicationActions.containsKey(allocationId) == false) {
-                replicationAction.cancel(new IndexShardClosedException(shardId,
-                    "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
+                replicationAction.cancel(
+                    new IndexShardClosedException(
+                        shardId,
+                        "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"
+                    )
+                );
             }
         } else {
-            replicationAction.cancel(new IndexShardClosedException(shardId,
-                "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
+            replicationAction.cancel(
+                new IndexShardClosedException(
+                    shardId,
+                    "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"
+                )
+            );
         }
     }
 
@@ -96,8 +104,11 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
     }
 
     private void cancelActions(ArrayList<Set<RetryableAction<?>>> toCancel, String message) {
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
-            .flatMap(Collection::stream)
-            .forEach(action -> action.cancel(new IndexShardClosedException(shardId, message))));
+        threadPool.executor(ThreadPool.Names.GENERIC)
+            .execute(
+                () -> toCancel.stream()
+                    .flatMap(Collection::stream)
+                    .forEach(action -> action.cancel(new IndexShardClosedException(shardId, message)))
+            );
     }
 }

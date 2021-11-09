@@ -50,7 +50,8 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,7 +65,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).thenAnswer(
+        when(allocationService.reroute(any(ClusterState.class), anyString())).thenAnswer(
             mockInvocation -> mockInvocation.getArguments()[0]
         );
         service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
@@ -117,7 +118,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = clusterState(index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), anyString())).then(i -> i.getArguments()[0]);
 
         // Remove it
         ClusterState after = service.deleteIndices(before, singleton(before.metadata().getIndices().get(index).getIndex()));
@@ -128,7 +129,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.blocks().indices().get(index));
 
         // Make sure we actually attempted to reroute
-        verify(allocationService).reroute(any(ClusterState.class), any(String.class));
+        verify(allocationService).reroute(any(ClusterState.class), anyString());
     }
 
     public void testDeleteBackingIndexForDataStream() {

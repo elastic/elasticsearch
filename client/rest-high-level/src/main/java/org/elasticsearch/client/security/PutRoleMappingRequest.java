@@ -10,8 +10,8 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -36,14 +36,26 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
     private final RefreshPolicy refreshPolicy;
 
     @Deprecated
-    public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final RoleMapperExpression rules,
-                                 @Nullable final Map<String, Object> metadata, @Nullable final RefreshPolicy refreshPolicy) {
+    public PutRoleMappingRequest(
+        final String name,
+        final boolean enabled,
+        final List<String> roles,
+        final RoleMapperExpression rules,
+        @Nullable final Map<String, Object> metadata,
+        @Nullable final RefreshPolicy refreshPolicy
+    ) {
         this(name, enabled, roles, Collections.emptyList(), rules, metadata, refreshPolicy);
     }
 
-    public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final List<TemplateRoleName> templates,
-                                 final RoleMapperExpression rules, @Nullable final Map<String, Object> metadata,
-                                 @Nullable final RefreshPolicy refreshPolicy) {
+    public PutRoleMappingRequest(
+        final String name,
+        final boolean enabled,
+        final List<String> roles,
+        final List<TemplateRoleName> templates,
+        final RoleMapperExpression rules,
+        @Nullable final Map<String, Object> metadata,
+        @Nullable final RefreshPolicy refreshPolicy
+    ) {
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("role-mapping name is missing");
         }
@@ -108,13 +120,13 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
         }
         final PutRoleMappingRequest other = (PutRoleMappingRequest) obj;
 
-        return (enabled == other.enabled) &&
-            (refreshPolicy == other.refreshPolicy) &&
-            Objects.equals(name, other.name) &&
-            Objects.equals(roles, other.roles) &&
-            Objects.equals(roleTemplates, other.roleTemplates) &&
-            Objects.equals(rules, other.rules) &&
-            Objects.equals(metadata, other.metadata);
+        return (enabled == other.enabled)
+            && (refreshPolicy == other.refreshPolicy)
+            && Objects.equals(name, other.name)
+            && Objects.equals(roles, other.roles)
+            && Objects.equals(roleTemplates, other.roleTemplates)
+            && Objects.equals(rules, other.rules)
+            && Objects.equals(metadata, other.metadata);
     }
 
     @Override

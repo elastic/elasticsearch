@@ -13,8 +13,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class GetTrialStatusResponseTests extends
-    AbstractResponseTestCase<org.elasticsearch.license.GetTrialStatusResponse, GetTrialStatusResponse> {
+public class GetTrialStatusResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.license.GetTrialStatusResponse,
+    GetTrialStatusResponse> {
 
     @Override
     protected org.elasticsearch.license.GetTrialStatusResponse createServerTestInstance(XContentType xContentType) {
@@ -27,10 +28,13 @@ public class GetTrialStatusResponseTests extends
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.license.GetTrialStatusResponse serverTestInstance,
-                                   GetTrialStatusResponse clientInstance) {
-        org.elasticsearch.license.GetTrialStatusResponse serverInstance =
-            new org.elasticsearch.license.GetTrialStatusResponse(clientInstance.isEligibleToStartTrial());
+    protected void assertInstances(
+        org.elasticsearch.license.GetTrialStatusResponse serverTestInstance,
+        GetTrialStatusResponse clientInstance
+    ) {
+        org.elasticsearch.license.GetTrialStatusResponse serverInstance = new org.elasticsearch.license.GetTrialStatusResponse(
+            clientInstance.isEligibleToStartTrial()
+        );
         assertEquals(serverInstance, serverTestInstance);
     }
 }

@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -31,13 +31,20 @@ public class TimeSyncConfig implements SyncConfig {
     private final String field;
     private final TimeValue delay;
 
-    private static final ConstructingObjectParser<TimeSyncConfig, Void> PARSER = new ConstructingObjectParser<>("time_sync_config", true,
-            args -> new TimeSyncConfig((String) args[0], args[1] != null ? (TimeValue) args[1] : TimeValue.ZERO));
+    private static final ConstructingObjectParser<TimeSyncConfig, Void> PARSER = new ConstructingObjectParser<>(
+        "time_sync_config",
+        true,
+        args -> new TimeSyncConfig((String) args[0], args[1] != null ? (TimeValue) args[1] : TimeValue.ZERO)
+    );
 
     static {
         PARSER.declareString(constructorArg(), FIELD);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DELAY.getPreferredName()), DELAY,
-                ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DELAY.getPreferredName()),
+            DELAY,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
     }
 
     public static TimeSyncConfig fromXContent(XContentParser parser) {
@@ -82,8 +89,7 @@ public class TimeSyncConfig implements SyncConfig {
 
         final TimeSyncConfig that = (TimeSyncConfig) other;
 
-        return Objects.equals(this.field, that.field)
-                && Objects.equals(this.delay, that.delay);
+        return Objects.equals(this.field, that.field) && Objects.equals(this.delay, that.delay);
     }
 
     @Override

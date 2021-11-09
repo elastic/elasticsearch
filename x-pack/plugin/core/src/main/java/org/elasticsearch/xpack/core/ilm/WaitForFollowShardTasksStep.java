@@ -10,12 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
@@ -50,9 +50,12 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         }
 
         FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
-        request.setIndices(new String[]{index.getName()});
-        getClient().execute(FollowStatsAction.INSTANCE, request,
-            ActionListener.wrap(r -> handleResponse(r, listener), listener::onFailure));
+        request.setIndices(new String[] { index.getName() });
+        getClient().execute(
+            FollowStatsAction.INSTANCE,
+            request,
+            ActionListener.wrap(r -> handleResponse(r, listener), listener::onFailure)
+        );
     }
 
     void handleResponse(FollowStatsAction.StatsResponses responses, Listener listener) {
@@ -67,10 +70,15 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         if (conditionMet) {
             listener.onResponse(true, null);
         } else {
-            List<Info.ShardFollowTaskInfo> shardFollowTaskInfos = unSyncedShardFollowStatuses
-                .stream()
-                .map(status -> new Info.ShardFollowTaskInfo(status.followerIndex(), status.getShardId(),
-                    status.leaderGlobalCheckpoint(), status.followerGlobalCheckpoint()))
+            List<Info.ShardFollowTaskInfo> shardFollowTaskInfos = unSyncedShardFollowStatuses.stream()
+                .map(
+                    status -> new Info.ShardFollowTaskInfo(
+                        status.followerIndex(),
+                        status.getShardId(),
+                        status.leaderGlobalCheckpoint(),
+                        status.followerGlobalCheckpoint()
+                    )
+                )
                 .collect(Collectors.toList());
             listener.onResponse(false, new Info(shardFollowTaskInfos));
         }
@@ -147,7 +155,6 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
                 return followerIndex;
             }
 
-
             int getShardId() {
                 return shardId;
             }
@@ -176,10 +183,10 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 ShardFollowTaskInfo that = (ShardFollowTaskInfo) o;
-                return shardId == that.shardId &&
-                    leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
-                    followerGlobalCheckpoint == that.followerGlobalCheckpoint &&
-                    Objects.equals(followerIndex, that.followerIndex);
+                return shardId == that.shardId
+                    && leaderGlobalCheckpoint == that.leaderGlobalCheckpoint
+                    && followerGlobalCheckpoint == that.followerGlobalCheckpoint
+                    && Objects.equals(followerIndex, that.followerIndex);
             }
 
             @Override

@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -41,7 +41,7 @@ public class SetPriorityActionTests extends AbstractXContentTestCase<SetPriority
         assertThat(e.getMessage(), equalTo("[priority] must be 0 or greater"));
     }
 
-    public void testNullPriorityAllowed(){
+    public void testNullPriorityAllowed() {
         SetPriorityAction nullPriority = new SetPriorityAction(null);
         assertNull(nullPriority.recoveryPriority);
     }

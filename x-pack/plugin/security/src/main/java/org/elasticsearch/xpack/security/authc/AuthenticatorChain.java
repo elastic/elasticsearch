@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 class AuthenticatorChain {
@@ -63,16 +65,22 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(
-            serviceAccountAuthenticator,
-            oAuth2TokenAuthenticator,
-            apiKeyAuthenticator,
-            realmsAuthenticator
-        );
+        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
     }
 
-    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
+    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
+        // Check whether authentication is an operator user and mark the threadContext if necessary
+        // before returning the authentication object
+        final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+            operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
+            return authentication;
+        });
+        // If a token is directly provided in the context, authenticate with it
+        if (context.getMostRecentAuthenticationToken() != null) {
+            authenticateAsyncWithExistingAuthenticationToken(context, listener);
+            return;
+        }
         final Authentication authentication;
         try {
             authentication = lookForExistingAuthentication(context);
@@ -94,27 +102,23 @@ class AuthenticatorChain {
      * This method currently uses a shorter chain to match existing behaviour. But there is no reason
      * why this could not use the same chain.
      */
-    void authenticateAsyncWithExistingCredentials(
-        Authenticator.Context context,
-        ActionListener<Authentication> listener) {
+    private void authenticateAsyncWithExistingAuthenticationToken(Authenticator.Context context, ActionListener<Authentication> listener) {
         assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
         context.setHandleNullToken(false);  // already has a token, should not try null token
         doAuthenticate(context, false, listener);
     }
 
-    private void doAuthenticate(
-        Authenticator.Context context,
-        boolean shouldExtractCredentials,
-        ActionListener<Authentication> listener
-    ) {
+    private void doAuthenticate(Authenticator.Context context, boolean shouldExtractCredentials, ActionListener<Authentication> listener) {
         // The iterating listener walks through the list of Authenticators and attempts to authenticate using
         // each Authenticator (and optionally asks it to extract the authenticationToken).
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
         // because of either a successful authentication or a not-continuable failure.
-        final IteratingActionListener<Authenticator.Result, Authenticator> iteratingActionListener = new IteratingActionListener<>(
+        final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
             ActionListener.wrap(result -> {
-                if (result.getStatus() == Authenticator.Status.SUCCESS) {
-                    maybeLookupRunAsUser(context, result.getAuthentication(), listener);
+                assert result.getStatus() != AuthenticationResult.Status.TERMINATE
+                    : "terminate should already be handled by each individual authenticator";
+                if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
+                    maybeLookupRunAsUser(context, result.getValue(), listener);
                 } else {
                     if (context.shouldHandleNullToken()) {
                         handleNullToken(context, listener);
@@ -127,11 +131,12 @@ class AuthenticatorChain {
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
-            result -> result.getStatus() == Authenticator.Status.UNSUCCESSFUL || result.getStatus() == Authenticator.Status.NOT_HANDLED);
-        iteratingActionListener.run();
+            result -> result.getStatus() == AuthenticationResult.Status.CONTINUE
+        );
+        iterListener.run();
     }
 
-    private BiConsumer<Authenticator, ActionListener<Authenticator.Result>> getAuthenticatorConsumer(
+    private BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
         Authenticator.Context context,
         boolean shouldExtractCredentials
     ) {
@@ -145,35 +150,44 @@ class AuthenticatorChain {
                         listener.onFailure(e);
                     } else { // other exceptions like illegal argument
                         context.addUnsuccessfulMessage(authenticator.name() + ": " + e.getMessage());
-                        listener.onResponse(Authenticator.Result.unsuccessful(e.getMessage(), e));
+                        listener.onResponse(AuthenticationResult.unsuccessful(e.getMessage(), e));
                     }
                     return;
                 }
                 if (authenticationToken == null) {
-                    listener.onResponse(Authenticator.Result.notHandled());
+                    listener.onResponse(AuthenticationResult.notHandled());
                     return;
                 }
                 context.addAuthenticationToken(authenticationToken);
             }
             context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
-            authenticator.authenticate(context, ActionListener.wrap(result -> {
-                if (result.getStatus() == Authenticator.Status.UNSUCCESSFUL) {
-                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
-                }
-                listener.onResponse(result);
-            }, e -> {
+
+            final Consumer<Exception> onFailure = (e) -> {
+                assert e != null : "exception cannot be null";
+                // Not adding additional metadata if the exception is not security related, e.g. server busy.
+                // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
+                // about their nature so that no additional information is needed; (2) Non-security errors may
+                // not inherit ElasticsearchException and thus does not have the addMetadata method.
                 if (e instanceof ElasticsearchSecurityException) {
+                    // Attach any other unsuccessful messages to the final error
                     final ElasticsearchSecurityException ese = (ElasticsearchSecurityException) e;
                     if (false == context.getUnsuccessfulMessages().isEmpty()) {
                         addMetadata(context, ese);
                     }
                 }
-                // Not adding additional metadata if the exception is not security related, e.g. server busy.
-                // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
-                // about their nature so that no additional information is needed; (2) Non-security errors may
-                // not inherit ElasticsearchException and thus does not have the addMetadata method.
                 listener.onFailure(e);
-            }));
+            };
+
+            authenticator.authenticate(context, ActionListener.wrap(result -> {
+                if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                    onFailure.accept(result.getException());
+                    return;
+                }
+                if (result.getStatus() == AuthenticationResult.Status.CONTINUE && result.getMessage() != null) {
+                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
+                }
+                listener.onResponse(result);
+            }, onFailure));
         };
     }
 
@@ -182,8 +196,7 @@ class AuthenticatorChain {
         Authentication authentication,
         ActionListener<Authentication> listener
     ) {
-        // TODO: only allow run as for realm authentication to maintain the existing behaviour
-        if (false == runAsEnabled || authentication.getAuthenticationType() != Authentication.AuthenticationType.REALM) {
+        if (false == runAsEnabled) {
             finishAuthentication(context, authentication, listener);
             return;
         }
@@ -197,10 +210,13 @@ class AuthenticatorChain {
         final User user = authentication.getUser();
         if (runAsUsername.isEmpty()) {
             logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
-            listener.onFailure(context.getRequest()
-                .runAsDenied(new Authentication(new User(runAsUsername, null, user),
-                    authentication.getAuthenticatedBy(),
-                    null), context.getMostRecentAuthenticationToken()));
+            listener.onFailure(
+                context.getRequest()
+                    .runAsDenied(
+                        new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null),
+                        context.getMostRecentAuthenticationToken()
+                    )
+            );
             return;
         }
 
@@ -210,9 +226,23 @@ class AuthenticatorChain {
             if (tuple == null) {
                 logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, user.principal());
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
-                finalAuth = new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null);
+                finalAuth = new Authentication(
+                    new User(runAsUsername, null, user),
+                    authentication.getAuthenticatedBy(),
+                    null,
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             } else {
-                finalAuth = new Authentication(new User(tuple.v1(), user), authentication.getAuthenticatedBy(), tuple.v2());
+                finalAuth = new Authentication(
+                    new User(tuple.v1(), user),
+                    authentication.getAuthenticatedBy(),
+                    tuple.v2(),
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));
@@ -228,9 +258,13 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage(
-                "caught exception while trying to read authentication from request [{}]",
-                context.getRequest()), e);
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "caught exception while trying to read authentication from request [{}]",
+                    context.getRequest()
+                ),
+                e
+            );
             throw context.getRequest().tamperedRequest();
         }
         if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
@@ -262,26 +296,32 @@ class AuthenticatorChain {
             logger.trace(
                 "No valid credentials found in request [{}], using fallback [{}]",
                 context.getRequest(),
-                context.getFallbackUser().principal());
+                context.getFallbackUser().principal()
+            );
             Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__fallback", "__fallback", nodeName);
-            authentication = new Authentication(context.getFallbackUser(),
+            authentication = new Authentication(
+                context.getFallbackUser(),
                 authenticatedBy,
                 null,
                 Version.CURRENT,
                 Authentication.AuthenticationType.INTERNAL,
-                Collections.emptyMap());
+                Collections.emptyMap()
+            );
         } else if (shouldFallbackToAnonymous(context)) {
             logger.trace(
                 "No valid credentials found in request [{}], using anonymous [{}]",
                 context.getRequest(),
-                anonymousUser.principal());
+                anonymousUser.principal()
+            );
             Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__anonymous", "__anonymous", nodeName);
-            authentication = new Authentication(anonymousUser,
+            authentication = new Authentication(
+                anonymousUser,
                 authenticatedBy,
                 null,
                 Version.CURRENT,
                 Authentication.AuthenticationType.ANONYMOUS,
-                Collections.emptyMap());
+                Collections.emptyMap()
+            );
         } else {
             authentication = null;
         }
@@ -289,16 +329,21 @@ class AuthenticatorChain {
         if (authentication != null) {
             // TODO: we can also support run-as for fallback users if needed
             // TODO: the authentication for fallback user is now serialised in the inner threadContext
-            //       instead of at the AuthenticationService level
+            // instead of at the AuthenticationService level
             writeAuthToContext(context, authentication, listener);
         } else {
             final ElasticsearchSecurityException ese = context.getRequest().anonymousAccessDenied();
             if (false == context.getUnsuccessfulMessages().isEmpty()) {
-                logger.debug("Authenticating with null credentials is unsuccessful in request [{}]" +
-                    " after unsuccessful attempts of other credentials", context.getRequest());
+                logger.debug(
+                    "Authenticating with null credentials is unsuccessful in request [{}]"
+                        + " after unsuccessful attempts of other credentials",
+                    context.getRequest()
+                );
                 final ElasticsearchSecurityException eseWithPreviousCredentials = new ElasticsearchSecurityException(
                     "unable to authenticate with provided credentials and anonymous access is not allowed for this request",
-                    ese.status(), ese.getCause());
+                    ese.status(),
+                    ese.getCause()
+                );
                 ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);
@@ -331,15 +376,13 @@ class AuthenticatorChain {
         try {
             authenticationSerializer.writeToContext(authentication, context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
-            // Header for operator privileges will only be written if authentication actually happens,
-            // i.e. not read from either header or transient header
-            operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("Failed to store authentication [{}] for request [{}]",
-                authentication,
-                context.getRequest()), e);
-            final ElasticsearchSecurityException ese = context.getRequest().exceptionProcessingRequest(
-                e, context.getMostRecentAuthenticationToken());
+            logger.debug(
+                new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, context.getRequest()),
+                e
+            );
+            final ElasticsearchSecurityException ese = context.getRequest()
+                .exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken());
             addMetadata(context, ese);
             listener.onFailure(ese);
             return;
@@ -371,9 +414,9 @@ class AuthenticatorChain {
             return false;
         }
         String header = context.getThreadContext().getHeader("Authorization");
-        if (Strings.hasText(header) &&
-            ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length()) ||
-                (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+        if (Strings.hasText(header)
+            && ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length())
+                || (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
             return false;
         }
         return true;

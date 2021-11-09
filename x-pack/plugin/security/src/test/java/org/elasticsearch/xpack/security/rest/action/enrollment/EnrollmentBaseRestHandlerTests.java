@@ -26,23 +26,23 @@ import static org.hamcrest.Matchers.instanceOf;
 public class EnrollmentBaseRestHandlerTests extends ESTestCase {
 
     public void testInEnrollmentMode() {
-        final Settings settings = Settings.builder()
-            .put(XPackSettings.ENROLLMENT_ENABLED.getKey(), true)
-            .build();
+        final Settings settings = Settings.builder().put(XPackSettings.ENROLLMENT_ENABLED.getKey(), true).build();
         final EnrollmentBaseRestHandler handler = buildHandler(settings);
         assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
     }
 
     public void testNotInEnrollmentMode() {
-        final Settings settings = Settings.builder()
-            .put(XPackSettings.ENROLLMENT_ENABLED.getKey(), false)
-            .build();
+        final Settings settings = Settings.builder().put(XPackSettings.ENROLLMENT_ENABLED.getKey(), false).build();
         final EnrollmentBaseRestHandler handler = buildHandler(settings);
         Exception ex = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(ex.getMessage(), Matchers.containsString("Enrollment mode is not enabled. Set [xpack.security.enrollment.enabled] " +
-            "to true, in order to use this API."));
-        assertThat(((ElasticsearchSecurityException)ex).status(), Matchers.equalTo(RestStatus.FORBIDDEN));
+        assertThat(
+            ex.getMessage(),
+            Matchers.containsString(
+                "Enrollment mode is not enabled. Set [xpack.security.enrollment.enabled] " + "to true, in order to use this API."
+            )
+        );
+        assertThat(((ElasticsearchSecurityException) ex).status(), Matchers.equalTo(RestStatus.FORBIDDEN));
     }
 
     public void testSecurityExplicitlyDisabled() {

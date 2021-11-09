@@ -14,8 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -25,6 +23,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -43,36 +43,62 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutRoleActionTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(List.of(
-            new NamedXContentRegistry.Entry(QueryBuilder.class, new ParseField(MatchAllQueryBuilder.NAME),
-                (p, c) -> MatchAllQueryBuilder.fromXContent(p)),
-            new NamedXContentRegistry.Entry(QueryBuilder.class, new ParseField(HasChildQueryBuilder.NAME),
-                (p, c) -> HasChildQueryBuilder.fromXContent(p)),
-            new NamedXContentRegistry.Entry(QueryBuilder.class, new ParseField(HasParentQueryBuilder.NAME),
-                (p, c) -> HasParentQueryBuilder.fromXContent(p)),
-            new NamedXContentRegistry.Entry(QueryBuilder.class, new ParseField(TermQueryBuilder.NAME),
-                (p, c) -> TermQueryBuilder.fromXContent(p))));
+        return new NamedXContentRegistry(
+            List.of(
+                new NamedXContentRegistry.Entry(
+                    QueryBuilder.class,
+                    new ParseField(MatchAllQueryBuilder.NAME),
+                    (p, c) -> MatchAllQueryBuilder.fromXContent(p)
+                ),
+                new NamedXContentRegistry.Entry(
+                    QueryBuilder.class,
+                    new ParseField(HasChildQueryBuilder.NAME),
+                    (p, c) -> HasChildQueryBuilder.fromXContent(p)
+                ),
+                new NamedXContentRegistry.Entry(
+                    QueryBuilder.class,
+                    new ParseField(HasParentQueryBuilder.NAME),
+                    (p, c) -> HasParentQueryBuilder.fromXContent(p)
+                ),
+                new NamedXContentRegistry.Entry(
+                    QueryBuilder.class,
+                    new ParseField(TermQueryBuilder.NAME),
+                    (p, c) -> TermQueryBuilder.fromXContent(p)
+                )
+            )
+        );
     }
 
     public void testReservedRole() {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService,
-            xContentRegistry());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportPutRoleAction action = new TransportPutRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            xContentRegistry()
+        );
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
@@ -94,16 +120,27 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(instanceOf(IllegalArgumentException.class)));
         assertThat(throwableRef.get().getMessage(), containsString("is reserved and cannot be modified"));
-        verifyZeroInteractions(rolesStore);
+        verifyNoMoreInteractions(rolesStore);
     }
 
     public void testValidRole() {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService,
-            xContentRegistry());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportPutRoleAction action = new TransportPutRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            xContentRegistry()
+        );
 
         final boolean created = randomBoolean();
         PutRoleRequest request = new PutRoleRequest();
@@ -142,10 +179,21 @@ public class TransportPutRoleActionTests extends ESTestCase {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService,
-            xContentRegistry());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportPutRoleAction action = new TransportPutRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            xContentRegistry()
+        );
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
@@ -181,18 +229,30 @@ public class TransportPutRoleActionTests extends ESTestCase {
 
     public void testCreationOfRoleWithMalformedQueryJsonFails() {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService,
-            xContentRegistry());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportPutRoleAction action = new TransportPutRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            xContentRegistry()
+        );
         PutRoleRequest request = new PutRoleRequest();
         request.name("test");
-        String[] malformedQueryJson = new String[]{"{ \"match_all\": { \"unknown_field\": \"\" } }",
+        String[] malformedQueryJson = new String[] {
+            "{ \"match_all\": { \"unknown_field\": \"\" } }",
             "{ malformed JSON }",
             "{ \"unknown\": {\"\"} }",
-            "{}"};
+            "{}" };
         BytesReference query = new BytesArray(randomFrom(malformedQueryJson));
-        request.addIndex(new String[]{"idx1"}, new String[]{"read"}, null, null, query, randomBoolean());
+        request.addIndex(new String[] { "idx1" }, new String[] { "read" }, null, null, query, randomBoolean());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
@@ -212,23 +272,39 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         Throwable t = throwableRef.get();
         assertThat(t, instanceOf(ElasticsearchParseException.class));
-        assertThat(t.getMessage(), containsString("failed to parse field 'query' for indices [" +
-            Strings.arrayToCommaDelimitedString(new String[]{"idx1"}) +
-            "] at index privilege [0] of role descriptor"));
+        assertThat(
+            t.getMessage(),
+            containsString(
+                "failed to parse field 'query' for indices ["
+                    + Strings.arrayToCommaDelimitedString(new String[] { "idx1" })
+                    + "] at index privilege [0] of role descriptor"
+            )
+        );
     }
 
     public void testCreationOfRoleWithUnsupportedQueryFails() throws Exception {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService,
-            xContentRegistry());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportPutRoleAction action = new TransportPutRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            xContentRegistry()
+        );
         PutRoleRequest request = new PutRoleRequest();
         request.name("test");
         String hasChildQuery = "{ \"has_child\": { \"type\": \"child\", \"query\": { \"match_all\": {} } } }";
         String hasParentQuery = "{ \"has_parent\": { \"parent_type\": \"parent\", \"query\": { \"match_all\": {} } } }";
         BytesReference query = new BytesArray(randomFrom(hasChildQuery, hasParentQuery));
-        request.addIndex(new String[]{"idx1"}, new String[]{"read"}, null, null, query, randomBoolean());
+        request.addIndex(new String[] { "idx1" }, new String[] { "read" }, null, null, query, randomBoolean());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
@@ -248,8 +324,13 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         Throwable t = throwableRef.get();
         assertThat(t, instanceOf(ElasticsearchParseException.class));
-        assertThat(t.getMessage(), containsString("failed to parse field 'query' for indices [" +
-            Strings.arrayToCommaDelimitedString(new String[]{"idx1"}) +
-            "] at index privilege [0] of role descriptor"));
+        assertThat(
+            t.getMessage(),
+            containsString(
+                "failed to parse field 'query' for indices ["
+                    + Strings.arrayToCommaDelimitedString(new String[] { "idx1" })
+                    + "] at index privilege [0] of role descriptor"
+            )
+        );
     }
 }

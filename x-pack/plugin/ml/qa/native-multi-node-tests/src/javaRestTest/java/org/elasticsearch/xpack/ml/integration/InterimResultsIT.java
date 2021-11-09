@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -42,7 +42,8 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
     public void testInterimResultsUpdates() throws Exception {
         String jobId = "test-interim-results-updates";
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Collections.singletonList(new Detector.Builder("max", "value").build()));
+            Collections.singletonList(new Detector.Builder("max", "value").build())
+        );
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(BUCKET_SPAN_SECONDS));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
@@ -68,8 +69,8 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
 
         // push some data up to a 1/4 bucket boundary, flush (with interim), check interim results
         String data = "{\"time\":1400040000,\"value\":14}\n"
-                + "{\"time\":1400040500,\"value\":12}\n"
-                + "{\"time\":1400040510,\"value\":16}\n";
+            + "{\"time\":1400040500,\"value\":12}\n"
+            + "{\"time\":1400040510,\"value\":16}\n";
         assertThat(postData(job.getId(), data).getProcessedRecordCount(), equalTo(3L));
         flushJob(job.getId(), true);
 
@@ -109,7 +110,8 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
     public void testNoInterimResultsAfterAdvancingBucket() throws Exception {
         String jobId = "test-no-inerim-results-after-advancing-bucket";
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-            Collections.singletonList(new Detector.Builder("count", null).build()));
+            Collections.singletonList(new Detector.Builder("count", null).build())
+        );
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(BUCKET_SPAN_SECONDS));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");

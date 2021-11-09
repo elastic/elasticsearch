@@ -493,7 +493,7 @@ These settings include:
 * <<shard-allocation-awareness,Allocation awareness>> cluster settings
 
 To review your allocation settings, use the <<indices-get-settings,get index
-settings>> and <<cluster-get-settings,get cluster settings>> APIs.
+settings>> and <<cluster-get-settings,cluster get settings>> APIs.
 
 [source,console]
 ----
@@ -504,7 +504,7 @@ GET _cluster/settings?flat_settings=true&include_defaults=true
 // TEST[s/^/PUT my-index\n/]
 
 You can change the settings using the <<indices-update-settings,update index
-settings>> and <<cluster-update-settings,update cluster settings>> APIs.
+settings>> and <<cluster-update-settings,cluster update settings>> APIs.
 
 **Allocate or reduce replicas**
 

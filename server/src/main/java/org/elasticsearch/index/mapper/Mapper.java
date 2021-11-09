@@ -65,5 +65,4 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
-
 }

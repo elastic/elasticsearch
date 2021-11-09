@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.env;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FileNotFoundException;
@@ -21,6 +21,7 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -34,8 +35,11 @@ public class EnvironmentTests extends ESTestCase {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(Settings.builder()
-                .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(
+            Settings.builder()
+                .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other")
+                .build()
+        );
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
@@ -43,7 +47,6 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/other/repo"), notNullValue());
-
 
         assertThat(environment.resolveRepoURL(new URL("file:///test/repos/repo1")), notNullValue());
         assertThat(environment.resolveRepoURL(new URL("file:/test/repos/repo1")), notNullValue());
@@ -62,7 +65,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
+        assertThat(environment.dataFiles(), equalTo(new Path[] { pathHome.resolve("data") }));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -70,6 +73,15 @@ public class EnvironmentTests extends ESTestCase {
         assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
         final Environment environment = new Environment(settings, null);
         assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
+    }
+
+    public void testPathDataLegacyCommaList() {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir().toAbsolutePath())
+            .put("path.data", createTempDir().toAbsolutePath() + "," + createTempDir().toAbsolutePath())
+            .build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.dataFiles(), arrayWithSize(2));
     }
 
     public void testPathLogsWhenNotSet() {
@@ -101,9 +113,7 @@ public class EnvironmentTests extends ESTestCase {
     }
 
     public void testNonExistentTempPathValidation() {
-        Settings build = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .build();
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempDir().resolve("this_does_not_exist"));
         FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpFile);
         assertThat(e.getMessage(), startsWith("Temporary file directory ["));
@@ -111,9 +121,7 @@ public class EnvironmentTests extends ESTestCase {
     }
 
     public void testTempPathValidationWhenRegularFile() throws IOException {
-        Settings build = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .build();
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempFile("something", ".test"));
         IOException e = expectThrows(IOException.class, environment::validateTmpFile);
         assertThat(e.getMessage(), startsWith("Configured temporary file directory ["));
@@ -165,12 +173,20 @@ public class EnvironmentTests extends ESTestCase {
         }
         {
             final Settings settings = Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString())
+                .build();
             assertThat(Environment.dataPathUsesList(settings), is(true));
         }
         {
             final Settings settings = Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+                .build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString() + "," + createTempDir().toString())
+                .build();
             assertThat(Environment.dataPathUsesList(settings), is(true));
         }
     }

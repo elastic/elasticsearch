@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,17 +17,17 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Represents set of {@link LifecycleAction}s which should be executed at a
@@ -41,29 +40,36 @@ public class Phase implements ToXContentObject, Writeable {
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false,
-            (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
-                    .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))));
+    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false, (a, name) -> {
+        final List<LifecycleAction> lifecycleActions = (List<LifecycleAction>) a[1];
+        Map<String, LifecycleAction> map = new HashMap<>(lifecycleActions.size());
+        for (LifecycleAction lifecycleAction : lifecycleActions) {
+            if (map.put(lifecycleAction.getWriteableName(), lifecycleAction) != null) {
+                throw new IllegalStateException("Duplicate key");
+            }
+        }
+        return new Phase(name, (TimeValue) a[0], map);
+    });
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (ContextParser<String, Object>) (p, c) -> {
-                // In earlier versions it was possible to create a Phase with a negative `min_age` which would then cause errors
-                // when the phase is read from the cluster state during startup (even before negative timevalues were strictly
-                // disallowed) so this is a hack to treat negative `min_age`s as 0 to prevent those errors.
-                // They will be saved as `0` so this hack can be removed once we no longer have to read cluster states from 7.x.
-                assert Version.CURRENT.major < 9 : "remove this hack now that we don't have to read 7.x cluster states";
-                final String timeValueString = p.text();
-                if (timeValueString.startsWith("-")) {
-                    logger.warn("phase has negative min_age value of [{}] - this will be treated as a min_age of 0",
-                        timeValueString);
-                    return TimeValue.ZERO;
-                }
-                return TimeValue.parseTimeValue(timeValueString, MIN_AGE.getPreferredName());
-            }, MIN_AGE, ValueType.VALUE);
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-                (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
-                    throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
-                }, ACTIONS_FIELD);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (ContextParser<String, Object>) (p, c) -> {
+            // In earlier versions it was possible to create a Phase with a negative `min_age` which would then cause errors
+            // when the phase is read from the cluster state during startup (even before negative timevalues were strictly
+            // disallowed) so this is a hack to treat negative `min_age`s as 0 to prevent those errors.
+            // They will be saved as `0` so this hack can be removed once we no longer have to read cluster states from 7.x.
+            assert Version.CURRENT.major < 9 : "remove this hack now that we don't have to read 7.x cluster states";
+            final String timeValueString = p.text();
+            if (timeValueString.startsWith("-")) {
+                logger.warn("phase has negative min_age value of [{}] - this will be treated as a min_age of 0", timeValueString);
+                return TimeValue.ZERO;
+            }
+            return TimeValue.parseTimeValue(timeValueString, MIN_AGE.getPreferredName());
+        }, MIN_AGE, ValueType.VALUE);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> p.namedObject(LifecycleAction.class, n, null),
+            v -> { throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported"); },
+            ACTIONS_FIELD
+        );
     }
 
     public static Phase parse(XContentParser parser, String name) {
@@ -167,9 +173,7 @@ public class Phase implements ToXContentObject, Writeable {
             return false;
         }
         Phase other = (Phase) obj;
-        return Objects.equals(name, other.name) &&
-                Objects.equals(minimumAge, other.minimumAge) &&
-                Objects.equals(actions, other.actions);
+        return Objects.equals(name, other.name) && Objects.equals(minimumAge, other.minimumAge) && Objects.equals(actions, other.actions);
     }
 
     @Override

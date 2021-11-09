@@ -21,12 +21,11 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
 import java.util.List;
-
 
 /**
  * Utility class that transforms Elasticsearch geometry objects to the Lucene representation
@@ -35,7 +34,7 @@ public class GeoShapeUtils {
 
     public static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
         org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
-        for(int i = 0; i<holes.length; i++) {
+        for (int i = 0; i < holes.length; i++) {
             holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
         }
         return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
@@ -43,8 +42,9 @@ public class GeoShapeUtils {
 
     public static org.apache.lucene.geo.Polygon toLucenePolygon(Rectangle r) {
         return new org.apache.lucene.geo.Polygon(
-            new double[]{r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat()},
-            new double[]{r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon()});
+            new double[] { r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat() },
+            new double[] { r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon() }
+        );
     }
 
     public static org.apache.lucene.geo.Rectangle toLuceneRectangle(Rectangle r) {
@@ -73,6 +73,11 @@ public class GeoShapeUtils {
         ShapeRelation relation
     ) {
         if (geometry == null) {
+            return new LatLonGeometry[0];
+        }
+        // make geometry lucene friendly
+        geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
+        if (geometry.isEmpty()) {
             return new LatLonGeometry[0];
         }
         final List<LatLonGeometry> geometries = new ArrayList<>();
@@ -155,9 +160,7 @@ public class GeoShapeUtils {
             @Override
             public Void visit(org.elasticsearch.geometry.Polygon polygon) {
                 if (polygon.isEmpty() == false) {
-                    List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
-                    GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
-                    collector.forEach((p) -> geometries.add(toLucenePolygon(p)));
+                    geometries.add(toLucenePolygon(polygon));
                 }
                 return null;
             }
@@ -170,9 +173,8 @@ public class GeoShapeUtils {
                 return null;
             }
         });
-        return geometries.toArray(new LatLonGeometry[geometries.size()]);
+        return geometries.toArray(new LatLonGeometry[0]);
     }
 
-    private GeoShapeUtils() {
-    }
+    private GeoShapeUtils() {}
 }

@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,14 +27,14 @@ public class PostCalendarEventResponse implements ToXContentObject {
     public static final ParseField EVENTS = new ParseField("events");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<PostCalendarEventResponse, Void> PARSER =
-        new ConstructingObjectParser<>("post_calendar_event_response",
-            true,
-            a -> new PostCalendarEventResponse((List<ScheduledEvent>)a[0]));
+    public static final ConstructingObjectParser<PostCalendarEventResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "post_calendar_event_response",
+        true,
+        a -> new PostCalendarEventResponse((List<ScheduledEvent>) a[0])
+    );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            (p, c) -> ScheduledEvent.PARSER.apply(p, null), EVENTS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ScheduledEvent.PARSER.apply(p, null), EVENTS);
     }
 
     public static PostCalendarEventResponse fromXContent(XContentParser parser) throws IOException {
@@ -63,7 +63,7 @@ public class PostCalendarEventResponse implements ToXContentObject {
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(scheduledEvents);
     }
 

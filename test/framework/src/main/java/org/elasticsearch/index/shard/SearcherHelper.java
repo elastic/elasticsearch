@@ -20,11 +20,16 @@ import static org.mockito.Mockito.mock;
 
 public class SearcherHelper {
 
-    public static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
-                                               CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) {
+    public static Engine.Searcher wrapSearcher(
+        Engine.Searcher engineSearcher,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
+    ) {
         try {
-            return IndexShard.wrapSearcher(engineSearcher, mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
-                readerWrapper);
+            return IndexShard.wrapSearcher(
+                engineSearcher,
+                mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
+                readerWrapper
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

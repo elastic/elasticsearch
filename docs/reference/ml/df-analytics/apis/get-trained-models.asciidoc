@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-trained-models]]
 = Get trained models API
 [subs="attributes"]
@@ -102,7 +101,7 @@ ascending order.
 ====
 `created_by`:::
 (string)
-Information on the creator of the trained model.
+The creator of the trained model.
 
 `create_time`:::
 (<<time-units,time units>>)
@@ -110,11 +109,10 @@ The time when the trained model was created.
 
 `default_field_map` :::
 (object)
-A string to string object that contains the default field map to use
-when inferring against the model. For example, data frame analytics
-may train the model on a specific multi-field `foo.keyword`.
-The analytics job would then supply a default field map entry for
-`"foo" : "foo.keyword"`.
+A string object that contains the default field map to use when inferring 
+against the model. For example, {dfanalytics} may train the model on a specific 
+multi-field `foo.keyword`. The analytics job would then supply a default field 
+map entry for `"foo" : "foo.keyword"`.
 +
 Any field map described in the inference configuration takes precedence.
 
@@ -133,8 +131,8 @@ The estimated number of operations to use the trained model.
 `inference_config`:::
 (object)
 The default configuration for inference. This can be either a `regression`
-or `classification` configuration. It must match the underlying
-`definition.trained_model`'s `target_type`.
+or `classification` configuration. It must match the `target_type` of the 
+underlying `definition.trained_model`.
 +
 .Properties of `inference_config`
 [%collapsible%open]
@@ -196,6 +194,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
+
 `with_special_tokens`::::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
@@ -250,6 +252,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
+
 `with_special_tokens`::::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
@@ -296,6 +302,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
 
 `with_special_tokens`::::
 (Optional, boolean)
@@ -367,6 +377,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
+
 `with_special_tokens`::::
 (Optional, boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
@@ -413,6 +427,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
 
 `with_special_tokens`::::
 (Optional, boolean)
@@ -475,6 +493,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `max_sequence_length`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`truncate`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-truncate]
 
 `with_special_tokens`::::
 (Optional, boolean)

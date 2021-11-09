@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.regression;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
@@ -35,7 +35,9 @@ public class RegressionStats implements AnalysisStats {
     public static final ConstructingObjectParser<RegressionStats, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<RegressionStats, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<RegressionStats, Void> parser = new ConstructingObjectParser<>(TYPE_VALUE, ignoreUnknownFields,
+        ConstructingObjectParser<RegressionStats, Void> parser = new ConstructingObjectParser<>(
+            TYPE_VALUE,
+            ignoreUnknownFields,
             a -> new RegressionStats(
                 (String) a[0],
                 (Instant) a[1],
@@ -48,17 +50,28 @@ public class RegressionStats implements AnalysisStats {
 
         parser.declareString((bucket, s) -> {}, Fields.TYPE);
         parser.declareString(ConstructingObjectParser.constructorArg(), Fields.JOB_ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, Fields.TIMESTAMP.getPreferredName()),
             Fields.TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         parser.declareInt(ConstructingObjectParser.constructorArg(), ITERATION);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> Hyperparameters.fromXContent(p, ignoreUnknownFields), HYPERPARAMETERS);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> TimingStats.fromXContent(p, ignoreUnknownFields), TIMING_STATS);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> ValidationLoss.fromXContent(p, ignoreUnknownFields), VALIDATION_LOSS);
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> Hyperparameters.fromXContent(p, ignoreUnknownFields),
+            HYPERPARAMETERS
+        );
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> TimingStats.fromXContent(p, ignoreUnknownFields),
+            TIMING_STATS
+        );
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> ValidationLoss.fromXContent(p, ignoreUnknownFields),
+            VALIDATION_LOSS
+        );
         return parser;
     }
 
@@ -69,8 +82,14 @@ public class RegressionStats implements AnalysisStats {
     private final TimingStats timingStats;
     private final ValidationLoss validationLoss;
 
-    public RegressionStats(String jobId, Instant timestamp, int iteration, Hyperparameters hyperparameters, TimingStats timingStats,
-                           ValidationLoss validationLoss) {
+    public RegressionStats(
+        String jobId,
+        Instant timestamp,
+        int iteration,
+        Hyperparameters hyperparameters,
+        TimingStats timingStats,
+        ValidationLoss validationLoss
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         // We intend to store this timestamp in millis granularity. Thus we're rounding here to ensure
         // internal representation matches toXContent

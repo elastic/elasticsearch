@@ -13,8 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldParser;
-import org.elasticsearch.index.mapper.flattened.KeyedFlattenedLeafFieldData;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -77,11 +75,12 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         testFindOrdinalBounds("prefix", singleValueDelegate, 0, 0);
         testFindOrdinalBounds("prefix1", singleValueDelegate, -1, -1);
 
-        terms = new BytesRef[] { prefixedValue("prefix", "value"),
+        terms = new BytesRef[] {
+            prefixedValue("prefix", "value"),
             prefixedValue("prefix1", "value"),
             prefixedValue("prefix1", "value1"),
             prefixedValue("prefix2", "value"),
-            prefixedValue("prefix3", "value")};
+            prefixedValue("prefix3", "value") };
         LeafOrdinalsFieldData oddLengthDelegate = new MockLeafOrdinalsFieldData(terms, new long[0]);
         testFindOrdinalBounds("prefix", oddLengthDelegate, 0, 0);
         testFindOrdinalBounds("prefix1", oddLengthDelegate, 1, 2);
@@ -89,14 +88,12 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         testFindOrdinalBounds("prefix3", oddLengthDelegate, 4, 4);
     }
 
-    public void testFindOrdinalBounds(String key,
-                                      LeafOrdinalsFieldData delegate,
-                                      long expectedMinOrd,
-                                      long expectedMacOrd) throws IOException {
+    public void testFindOrdinalBounds(String key, LeafOrdinalsFieldData delegate, long expectedMinOrd, long expectedMacOrd)
+        throws IOException {
         BytesRef bytesKey = new BytesRef(key);
 
         long actualMinOrd = KeyedFlattenedLeafFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
-        assertEquals(expectedMinOrd,  actualMinOrd);
+        assertEquals(expectedMinOrd, actualMinOrd);
 
         long actualMaxOrd = KeyedFlattenedLeafFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
         assertEquals(expectedMacOrd, actualMaxOrd);
@@ -148,8 +145,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     private static class MockLeafOrdinalsFieldData extends AbstractLeafOrdinalsFieldData {
         private final SortedSetDocValues docValues;
 
-        MockLeafOrdinalsFieldData(BytesRef[] allTerms,
-                                  long[] documentOrds) {
+        MockLeafOrdinalsFieldData(BytesRef[] allTerms, long[] documentOrds) {
             super(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
             this.docValues = new MockSortedSetDocValues(allTerms, documentOrds);
         }
@@ -175,8 +171,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         private final long[] documentOrds;
         private int index;
 
-        MockSortedSetDocValues(BytesRef[] allTerms,
-                               long[] documentOrds) {
+        MockSortedSetDocValues(BytesRef[] allTerms, long[] documentOrds) {
             this.allTerms = allTerms;
             this.documentOrds = documentOrds;
         }

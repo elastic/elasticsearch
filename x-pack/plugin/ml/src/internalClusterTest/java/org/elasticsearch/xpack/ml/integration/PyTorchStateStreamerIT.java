@@ -41,7 +41,7 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         String modelId = "test-state-streamer-restore";
 
         List<byte[]> chunks = new ArrayList<>(numChunks);
-        for (int i=0; i<numChunks; i++) {
+        for (int i = 0; i < numChunks; i++) {
             chunks.add(randomByteArrayOfLength(chunkSize));
         }
 
@@ -49,14 +49,19 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         putModelDefinition(docs);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream(modelSize);
-        PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(client(),
-            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
+        PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(
+            client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            xContentRegistry()
+        );
 
         AtomicReference<Boolean> onSuccess = new AtomicReference<>();
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        blockingCall(listener ->
-                stateStreamer.writeStateToStream(modelId, InferenceIndexConstants.LATEST_INDEX_NAME, outputStream, listener),
-            onSuccess, onFailure);
+        blockingCall(
+            listener -> stateStreamer.writeStateToStream(modelId, InferenceIndexConstants.LATEST_INDEX_NAME, outputStream, listener),
+            onSuccess,
+            onFailure
+        );
 
         byte[] writtenData = outputStream.toByteArray();
 
@@ -65,7 +70,7 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         assertEquals(modelSize, writtenSize);
 
         byte[] writtenChunk = new byte[chunkSize];
-        for (int i=0; i<numChunks; i++) {
+        for (int i = 0; i < numChunks; i++) {
             System.arraycopy(writtenData, i * chunkSize + 4, writtenChunk, 0, chunkSize);
             assertArrayEquals(chunks.get(i), writtenChunk);
         }
@@ -79,19 +84,19 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         for (int i = 0; i < binaryChunks.size(); i++) {
             String encodedData = new String(Base64.getEncoder().encode(binaryChunks.get(i)), StandardCharsets.UTF_8);
 
-            docs.add(new TrainedModelDefinitionDoc.Builder()
-                .setDocNum(i)
-                .setCompressedString(encodedData)
-                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                .setTotalDefinitionLength(totalLength)
-                .setDefinitionLength(encodedData.length())
-                .setEos(i == binaryChunks.size() - 1)
-                .setModelId(modelId)
-                .build());
+            docs.add(
+                new TrainedModelDefinitionDoc.Builder().setDocNum(i)
+                    .setCompressedString(encodedData)
+                    .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+                    .setTotalDefinitionLength(totalLength)
+                    .setDefinitionLength(encodedData.length())
+                    .setEos(i == binaryChunks.size() - 1)
+                    .setModelId(modelId)
+                    .build()
+            );
         }
         return docs;
     }
-
 
     private void putModelDefinition(List<TrainedModelDefinitionDoc> docs) throws IOException {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -106,9 +111,7 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
             }
         }
 
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {

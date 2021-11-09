@@ -18,29 +18,36 @@ import static org.hamcrest.Matchers.equalTo;
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
     public void testCheckTransientSettingsExistence() {
+        Settings persistentSettings = Settings.builder().put("xpack.monitoring.collection.enabled", true).build();
+
         Settings transientSettings = Settings.builder()
             .put("indices.recovery.max_bytes_per_sec", "20mb")
+            .put("action.auto_create_index", true)
+            .put("cluster.routing.allocation.enable", "primaries")
             .build();
         Metadata metadataWithTransientSettings = Metadata.builder()
+            .persistentSettings(persistentSettings)
             .transientSettings(transientSettings)
             .build();
 
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithTransientSettings).build();
         DeprecationIssue issue = ClusterDeprecationChecks.checkTransientSettingsExistence(badState);
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "Transient cluster settings are in the process of being removed.",
-                "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                "Use persistent settings to define your cluster settings instead.",
-                false, null)
-        ));
+        assertThat(
+            issue,
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "Transient cluster settings are deprecated",
+                    "https://ela.st/es-deprecation-7-transient-cluster-settings",
+                    "Use persistent settings to configure your cluster.",
+                    false,
+                    null
+                )
+            )
+        );
 
-        Settings persistentSettings = Settings.builder()
-            .put("indices.recovery.max_bytes_per_sec", "20mb")
-            .build();
-        Metadata metadataWithoutTransientSettings = Metadata.builder()
-            .persistentSettings(persistentSettings)
-            .build();
+        persistentSettings = Settings.builder().put("indices.recovery.max_bytes_per_sec", "20mb").build();
+        Metadata metadataWithoutTransientSettings = Metadata.builder().persistentSettings(persistentSettings).build();
 
         ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithoutTransientSettings).build();
         issue = ClusterDeprecationChecks.checkTransientSettingsExistence(okState);

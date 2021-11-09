@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.input;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;

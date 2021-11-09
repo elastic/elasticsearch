@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 
 import java.io.IOException;
@@ -36,7 +36,8 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractSerializ
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
-            randomIntBetween(1, 8)
+            randomIntBetween(1, 8),
+            randomIntBetween(1, 10000)
         );
     }
 }

@@ -103,8 +103,7 @@ tasks.register("verifyVersions") {
 
     // Make sure backport bot config file is up to date
     JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
-    List<BwcVersions.UnreleasedVersionInfo> unreleased = BuildParams.bwcVersions.unreleased.collect { BuildParams.bwcVersions.unreleasedInfo(it) }
-    unreleased.each { unreleasedVersion ->
+    BuildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
       boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
         if (branchChoice.isObject()) {
           return branchChoice.get("name").textValue() == unreleasedVersion.branch
@@ -116,11 +115,11 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    BwcVersions.UnreleasedVersionInfo nextMinor = unreleased.find { it.branch.endsWith("x") }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == nextMinor.branch }.key
-    if (versionMapping != "^v${nextMinor.version}\$") {
-      throw new GradleException("Backport label mapping for branch ${nextMinor.branch} is '${versionMapping}' but should be " +
-        "'^v${nextMinor.version}\$'. Update .backportrc.json.")
+    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'master' }.key
+    String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
+    if (versionMapping != expectedMapping) {
+      throw new GradleException("Backport label mapping for branch 'master' is '${versionMapping}' but should be " +
+        "'${expectedMapping}'. Update .backportrc.json.")
     }
   }
 }

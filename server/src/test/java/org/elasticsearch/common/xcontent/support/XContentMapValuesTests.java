@@ -316,12 +316,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testNestedFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("array", Arrays.asList(1, new HashMap<String, Object>() {
-            {
-                put("nested", 2);
-                put("nested_2", 3);
-            }
-        }));
+        map.put("array", Arrays.asList(1, Map.of("nested", 2, "nested_2", 3)));
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "array.nested" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
 
@@ -336,12 +331,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         map.clear();
         map.put("field", "value");
-        map.put("obj", new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        });
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
         filteredMap = XContentMapValues.filter(map, new String[] { "obj.field" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
         assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
@@ -359,18 +349,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testCompleteObjectFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("obj", new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        });
-        map.put("array", Arrays.asList(1, new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        }));
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
+        map.put("array", Arrays.asList(1, Map.of("field", "value", "field2", "value2")));
 
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "obj" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
@@ -401,18 +381,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testFilterIncludesUsingStarPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("obj", new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        });
-        map.put("n_obj", new HashMap<String, Object>() {
-            {
-                put("n_field", "value");
-                put("n_field2", "value2");
-            }
-        });
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
+        map.put("n_obj", Map.of("n_field", "value", "n_field2", "value2"));
 
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "*.field2" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
@@ -546,6 +516,11 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(expected, filtered);
     }
 
+    /**
+     * Tests that we can extract paths containing non-ascii characters.
+     * See {@link AbstractFilteringTestCase#testFilterSupplementaryCharactersInPaths()}
+     * for a similar test but for XContent.
+     */
     public void testSupplementaryCharactersInPaths() {
         Map<String, Object> map = new HashMap<>();
         map.put("搜索", 2);
@@ -555,6 +530,11 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(Collections.singletonMap("指数", 3), XContentMapValues.filter(map, new String[0], new String[] { "搜索" }));
     }
 
+    /**
+     * Tests that we can extract paths which share a prefix with other paths.
+     * See {@link AbstractFilteringTestCase#testFilterSharedPrefixes()}
+     * for a similar test but for XContent.
+     */
     public void testSharedPrefixes() {
         Map<String, Object> map = new HashMap<>();
         map.put("foobar", 2);
@@ -633,6 +613,11 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         }
     }
 
+    /**
+     * Tests that we can extract paths which have another path as a prefix.
+     * See {@link AbstractFilteringTestCase#testFilterPrefix()}
+     * for a similar test but for XContent.
+     */
     public void testPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("photos", Arrays.asList(new String[] { "foo", "bar" }));

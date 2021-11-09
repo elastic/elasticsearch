@@ -15,6 +15,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsSynchronizer;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.net.Proxy;
@@ -88,12 +90,12 @@ public class SyncPluginsAction implements PluginsSynchronizer {
         }
 
         // Parse descriptor file
-        final PluginsConfig pluginsConfig = PluginsConfig.parseConfig(configPath);
+        final PluginsConfig pluginsConfig = PluginsConfig.parseConfig(configPath, YamlXContent.yamlXContent);
         pluginsConfig.validate(InstallPluginAction.OFFICIAL_PLUGINS);
 
         // Parse cached descriptor file, if it exists
         final Optional<PluginsConfig> cachedPluginsConfig = Files.exists(previousConfigPath)
-            ? Optional.of(PluginsConfig.parseConfig(previousConfigPath))
+            ? Optional.of(PluginsConfig.parseConfig(previousConfigPath, CborXContent.cborXContent))
             : Optional.empty();
 
         final PluginChanges changes = getPluginChanges(pluginsConfig, cachedPluginsConfig);
@@ -106,7 +108,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
         performSync(pluginsConfig, changes);
 
         // 8. Cached the applied config so that we can diff it on the next run.
-        PluginsConfig.writeConfig(pluginsConfig, previousConfigPath);
+        PluginsConfig.writeConfig(CborXContent.cborXContent, pluginsConfig, previousConfigPath);
     }
 
     // @VisibleForTesting

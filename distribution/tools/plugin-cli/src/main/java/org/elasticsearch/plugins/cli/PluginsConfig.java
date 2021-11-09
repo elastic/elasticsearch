@@ -8,13 +8,12 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -141,9 +140,10 @@ public class PluginsConfig {
      * Constructs a {@link PluginsConfig} instance from the config YAML file
      *
      * @param configPath the config file to load
+     * @param xContent the XContent type to expect when reading the file
      * @return a validated config
      */
-    static PluginsConfig parseConfig(Path configPath) throws IOException {
+    static PluginsConfig parseConfig(Path configPath, XContent xContent) throws IOException {
         // Normally a parser is declared and built statically in the class, but we'll only
         // use this when starting up Elasticsearch, so there's no point keeping one around.
 
@@ -155,18 +155,24 @@ public class PluginsConfig {
         parser.declareStringOrNull(PluginsConfig::setProxy, new ParseField("proxy"));
         parser.declareObjectArrayOrNull(PluginsConfig::setPlugins, descriptorParser, new ParseField("plugins"));
 
-        final XContentParser yamlXContentParser = YamlXContent.yamlXContent.createParser(
-            NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+        final XContentParser yamlXContentParser = xContent.createParser(
+            XContentParserConfiguration.EMPTY,
             Files.newInputStream(configPath)
         );
 
         return parser.parse(yamlXContentParser, null);
     }
 
-    static void writeConfig(PluginsConfig config, Path configPath) throws IOException {
+    /**
+     * Write a config file to disk
+     * @param xContent the format to use when writing the config
+     * @param config the config to write
+     * @param configPath the path to write to
+     * @throws IOException if anything breaks
+     */
+    static void writeConfig(XContent xContent, PluginsConfig config, Path configPath) throws IOException {
         final OutputStream outputStream = Files.newOutputStream(configPath);
-        final XContentBuilder builder = new XContentBuilder(YamlXContent.yamlXContent, outputStream);
+        final XContentBuilder builder = new XContentBuilder(xContent, outputStream);
 
         builder.startObject();
         builder.startArray("plugins");

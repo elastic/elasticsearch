@@ -48,8 +48,9 @@ PUT /_cluster/settings
 
 An example of a transient update:
 
-NOTE: Transient settings are deprecated and will be removed in a future release.
-Use persistent cluster settings instead.
+// tag::transient-settings-deprecation[]
+deprecated::[7.16,Transient settings are deprecated and will be removed in a future release. Use persistent cluster settings instead. See the <<transient-settings-migration-guide>>.]
+// end::transient-settings-deprecation[]
 
 [source,console]
 --------------------------------------------------

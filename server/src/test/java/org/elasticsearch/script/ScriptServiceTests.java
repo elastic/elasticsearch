@@ -79,7 +79,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
-        scriptService = new ScriptService(finalSettings, engines, contexts) {
+        scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L) {
             @Override
             Map<String, StoredScriptSource> getScriptsFromClusterState() {
                 Map<String, StoredScriptSource> scripts = new HashMap<>();

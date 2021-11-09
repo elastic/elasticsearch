@@ -307,7 +307,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.critical(
+                    DEPRECATION_LOGGER.warn(
                         DeprecationCategory.MAPPINGS,
                         "date_mapper_null_field",
                         "Error parsing ["

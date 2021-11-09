@@ -10,13 +10,22 @@ package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRef;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteOrder;
 
 /**
  * A set of utilities for numbers.
  */
 public final class Numbers {
+
+    private static final VarHandle BIG_ENDIAN_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
+
+    private static final VarHandle BIG_ENDIAN_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+
+    private static final VarHandle BIG_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
@@ -24,18 +33,15 @@ public final class Numbers {
     private Numbers() {}
 
     public static short bytesToShort(byte[] bytes, int offset) {
-        return (short) (((bytes[offset] & 0xFF) << 8) | (bytes[offset + 1] & 0xFF));
+        return (short) BIG_ENDIAN_SHORT.get(bytes, offset);
     }
 
     public static int bytesToInt(byte[] bytes, int offset) {
-        return ((bytes[offset] & 0xFF) << 24) | ((bytes[offset + 1] & 0xFF) << 16) | ((bytes[offset + 2] & 0xFF) << 8) | (bytes[offset + 3]
-            & 0xFF);
+        return (int) BIG_ENDIAN_INT.get(bytes, offset);
     }
 
     public static long bytesToLong(byte[] bytes, int offset) {
-        return (((long) (((bytes[offset] & 0xFF) << 24) | ((bytes[offset + 1] & 0xFF) << 16) | ((bytes[offset + 2] & 0xFF) << 8)
-            | (bytes[offset + 3] & 0xFF))) << 32) | ((((bytes[offset + 4] & 0xFF) << 24) | ((bytes[offset + 5] & 0xFF) << 16)
-                | ((bytes[offset + 6] & 0xFF) << 8) | (bytes[offset + 7] & 0xFF)) & 0xFFFFFFFFL);
+        return (long) BIG_ENDIAN_LONG.get(bytes, offset);
     }
 
     public static long bytesToLong(BytesRef bytes) {
@@ -44,10 +50,7 @@ public final class Numbers {
 
     public static byte[] intToBytes(int val) {
         byte[] arr = new byte[4];
-        arr[0] = (byte) (val >>> 24);
-        arr[1] = (byte) (val >>> 16);
-        arr[2] = (byte) (val >>> 8);
-        arr[3] = (byte) (val);
+        BIG_ENDIAN_INT.set(arr, 0, val);
         return arr;
     }
 
@@ -59,8 +62,7 @@ public final class Numbers {
      */
     public static byte[] shortToBytes(int val) {
         byte[] arr = new byte[2];
-        arr[0] = (byte) (val >>> 8);
-        arr[1] = (byte) (val);
+        BIG_ENDIAN_SHORT.set(arr, 0, (short) val);
         return arr;
     }
 
@@ -72,14 +74,7 @@ public final class Numbers {
      */
     public static byte[] longToBytes(long val) {
         byte[] arr = new byte[8];
-        arr[0] = (byte) (val >>> 56);
-        arr[1] = (byte) (val >>> 48);
-        arr[2] = (byte) (val >>> 40);
-        arr[3] = (byte) (val >>> 32);
-        arr[4] = (byte) (val >>> 24);
-        arr[5] = (byte) (val >>> 16);
-        arr[6] = (byte) (val >>> 8);
-        arr[7] = (byte) (val);
+        BIG_ENDIAN_LONG.set(arr, 0, val);
         return arr;
     }
 

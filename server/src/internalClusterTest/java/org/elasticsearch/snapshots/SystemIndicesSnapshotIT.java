@@ -223,7 +223,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Delete the regular index so we can restore it
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
 
-        // restore indices by feature, with only the regular index named explicitly
+        // restore indices by feature
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setFeatureStates("SystemIndexTestPlugin")
@@ -431,11 +431,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     /**
      * If the list of feature states to restore contains only "none" and we are restoring global state,
      * no feature states should be restored.
-     *
-     * In this test, we explicitly request a regular index to avoid any confusion over the meaning of
-     * "all indices."
      */
-    public void testRestoreSystemIndicesAsGlobalStateWithEmptyListOfFeatureStates() {
+    public void testRestoreSystemIndicesAsGlobalStateWithNoFeatureStates() {
         createRepository(REPO_NAME, "fs");
         String regularIndex = "my-index";
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
@@ -456,7 +453,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(regularIndex).get());
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
-        // restore regular index, with global state and an empty list of feature states
+        // restore with global state and all indices but explicitly no feature states.
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(true)

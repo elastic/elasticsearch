@@ -264,7 +264,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
                     name(),
                     IndexNumericFieldData.NumericType.LONG,
-                    null
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
                 ).build(cache, breakerService);
                 return new ScaledFloatIndexFieldData(
                     scaledValues,

@@ -626,20 +626,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         continue;
                     }
 
-                    final String pipelineId = indexRequest.getPipeline();
-                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                    final String finalPipelineId = indexRequest.getFinalPipeline();
-                    indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+                    //final String pipelineId = indexRequest.getPipeline();
+                    //indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                    //final String finalPipelineId = indexRequest.getFinalPipeline();
+                    //indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
                     boolean hasFinalPipeline = true;
                     final List<String> pipelines;
-                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                        && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(pipelineId, finalPipelineId);
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        pipelines = List.of(pipelineId);
+                    if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
+                        && IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
+                        pipelines = List.of(indexRequest.getPipeline(), indexRequest.getFinalPipeline());
+                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false) {
+                        pipelines = List.of(indexRequest.getPipeline());
                         hasFinalPipeline = false;
-                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                        pipelines = List.of(finalPipelineId);
+                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
+                        pipelines = List.of(indexRequest.getFinalPipeline());
                     } else {
                         if (counter.decrementAndGet() == 0) {
                             onCompletion.accept(originalThread, null);

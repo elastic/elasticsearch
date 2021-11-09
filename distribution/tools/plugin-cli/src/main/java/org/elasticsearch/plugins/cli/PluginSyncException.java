@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli.action;
+package org.elasticsearch.plugins.cli;
 
 /**
  * Thrown when a problem occurs synchronising plugins.

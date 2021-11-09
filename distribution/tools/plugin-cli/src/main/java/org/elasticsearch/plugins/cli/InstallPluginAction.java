@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli.action;
+package org.elasticsearch.plugins.cli;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
@@ -41,7 +41,6 @@ import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.cli.ProgressInputStream;
 
 import java.io.BufferedReader;
 import java.io.Closeable;

@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.plugins.cli.action;
+package org.elasticsearch.plugins.cli;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginTestUtil;
-import org.elasticsearch.plugins.cli.action.SyncPluginsAction.PluginChanges;
+import org.elasticsearch.plugins.cli.SyncPluginsAction.PluginChanges;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -198,8 +198,8 @@ public class SyncPluginsActionTests extends ESTestCase {
 
         action.performSync(installAction, removeAction, new PluginChanges(List.of(), List.of(), List.of()));
 
-        verify(installAction, never()).execute(any());
-        verify(removeAction, never()).execute(any());
+        verify(installAction, never()).execute(anyList());
+        verify(removeAction, never()).execute(anyList());
     }
 
     /**
@@ -212,7 +212,7 @@ public class SyncPluginsActionTests extends ESTestCase {
 
         action.performSync(installAction, removeAction, new PluginChanges(pluginDescriptors, List.of(), List.of()));
 
-        verify(installAction, never()).execute(any());
+        verify(installAction, never()).execute(anyList());
         verify(removeAction).setPurge(true);
         verify(removeAction).execute(pluginDescriptors);
     }
@@ -228,7 +228,7 @@ public class SyncPluginsActionTests extends ESTestCase {
         action.performSync(installAction, removeAction, new PluginChanges(List.of(), pluginDescriptors, List.of()));
 
         verify(installAction).execute(pluginDescriptors);
-        verify(removeAction, never()).execute(any());
+        verify(removeAction, never()).execute(anyList());
     }
 
     /**

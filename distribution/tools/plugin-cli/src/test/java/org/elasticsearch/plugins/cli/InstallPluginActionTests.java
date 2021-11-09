@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli.action;
+package org.elasticsearch.plugins.cli;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
@@ -49,7 +49,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginTestUtil;
-import org.elasticsearch.plugins.cli.MockInstallPluginCommand;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;

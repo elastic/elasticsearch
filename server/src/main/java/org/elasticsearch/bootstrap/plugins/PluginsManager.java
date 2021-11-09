@@ -21,7 +21,7 @@ import java.nio.file.Path;
 
 public class PluginsManager {
 
-    public static final String SYNC_PLUGINS_ACTION = "org.elasticsearch.plugins.cli.action.SyncPluginsAction";
+    public static final String SYNC_PLUGINS_ACTION = "org.elasticsearch.plugins.cli.SyncPluginsAction";
 
     public static boolean configExists(Environment env) {
         return Files.exists(env.configFile().resolve("elasticsearch-plugins.yml"));

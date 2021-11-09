@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli.action;
+package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
@@ -14,8 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.Proxy.Type;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.plugins.cli.action.ProxyMatcher.matchesProxy;
-import static org.elasticsearch.plugins.cli.action.ProxyUtils.buildProxy;
+import static org.elasticsearch.plugins.cli.ProxyMatcher.matchesProxy;
+import static org.elasticsearch.plugins.cli.ProxyUtils.buildProxy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

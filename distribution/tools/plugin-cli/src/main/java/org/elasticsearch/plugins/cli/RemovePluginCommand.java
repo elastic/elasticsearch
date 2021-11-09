@@ -14,9 +14,6 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.cli.action.PluginDescriptor;
-import org.elasticsearch.plugins.cli.action.RemovePluginAction;
-import org.elasticsearch.plugins.cli.action.SyncPluginsAction;
 
 import java.util.Arrays;
 import java.util.List;

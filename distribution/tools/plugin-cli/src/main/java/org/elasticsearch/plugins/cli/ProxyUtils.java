@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli.action;
+package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;

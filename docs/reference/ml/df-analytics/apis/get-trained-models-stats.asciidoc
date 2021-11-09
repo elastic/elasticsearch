@@ -26,7 +26,7 @@ Retrieves usage information for trained models.
 [[ml-get-trained-models-stats-prereq]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 
@@ -78,13 +78,131 @@ in ascending order.
 .Properties of trained model stats
 [%collapsible%open]
 ====
+`deployment_stats`:::
+(list)
+A collection of deployment stats if one of the provided `model_id` values
+is deployed
++
+.Properties of deployment stats
+[%collapsible%open]
+=====
+`allocation_status`:::
+(object)
+The detailed allocation status given the deployment configuration.
++
+.Properties of allocation stats
+[%collapsible%open]
+======
+`allocation_count`:::
+(integer)
+The current number of nodes where the model is allocated.
+
+`state`:::
+(string)
+The detailed allocation state related to the nodes.
++
+--
+* `starting`: Allocations are being attempted but no node currently has the model allocated.
+* `started`: At least one node has the model allocated.
+* `fully_allocated`: The deployment is fully allocated and satisfies the `target_allocation_count`.
+--
+
+`target_allocation_count`:::
+(integer)
+The desired number of nodes for model allocation.
+======
+
 `model_id`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-`pipeline_count`:::
+`model_size`:::
+(<<byte-units,byte value>>)
+The size of the loaded model in bytes.
+
+`nodes`:::
+(array of objects)
+The deployment stats for each node that currently has the model allocated.
++
+.Properties of node stats
+[%collapsible%open]
+======
+`average_inference_time_ms`:::
+(double)
+The average time for each inference call to complete on this node.
+
+`inference_count`:::
 (integer)
-The number of ingest pipelines that currently refer to the model.
+The total number of inference calls made against this node for this model.
+
+`last_access`:::
+(long)
+The epoch time stamp of the last inference call for the model on this node.
+
+`node`:::
+(object)
+Information pertaining to the node.
++
+.Properties of node
+[%collapsible%open]
+========
+`attributes`:::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+
+`ephemeral_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+
+`id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
+
+`name`:::
+(string) The node name.
+
+`transport_address`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+========
+
+`reason`:::
+(string)
+The reason for the current state. Usually only populated when the `routing_state` is `failed`.
+
+`routing_state`:::
+(object)
+The current routing state and reason for the current routing state for this allocation.
++
+--
+* `starting`: The model is attempting to allocate on this model, inference calls are not yet accepted.
+* `started`: The model is allocated and ready to accept inference requests.
+* `stopping`: The model is being deallocated from this node.
+* `stopped`: The model is fully deallocated from this node.
+* `failed`: The allocation attempt failed, see `reason` field for the potential cause.
+--
+
+`start_time`:::
+(long)
+The epoch timestamp when the allocation started.
+
+======
+
+`start_time`:::
+(long)
+The epoch timestamp when the deployment started.
+
+`state`:::
+(string)
+The overall state of the deployment. The values may be:
++
+--
+* `starting`: The deployment has recently started but is not yet usable as the model is not allocated on any nodes.
+* `started`: The deployment is usable as at least one node has the model allocated.
+* `stopping`: The deployment is preparing to stop and deallocate the model from the relevant nodes.
+--
+
+=====
 
 `inference_stats`:::
 (object)
@@ -127,6 +245,13 @@ A collection of ingest stats for the model across all nodes. The values are
 summations of the individual node statistics. The format matches the `ingest`
 section in <<cluster-nodes-stats>>.
 
+`model_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`pipeline_count`:::
+(integer)
+The number of ingest pipelines that currently refer to the model.
 ====
 
 [[ml-get-trained-models-stats-response-codes]]

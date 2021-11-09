@@ -133,7 +133,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         final ClusterState clusterState = clusterService.state();
 
         transformConfigManager.getTransformConfigurationForUpdate(id, ActionListener.wrap(configAndVersion -> {
-            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+            TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
             TransformConfig config = configAndVersion.v1();
 
             /*

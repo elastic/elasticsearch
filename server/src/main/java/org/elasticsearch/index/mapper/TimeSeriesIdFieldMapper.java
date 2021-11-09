@@ -9,11 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,10 +26,10 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.function.Supplier;
 
 /**
@@ -133,47 +131,31 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
         assert fieldType().isSearchable() == false;
 
-        List<IndexableField> dimensionFields = context.doc().getDimensionFields();
+        // SortedMap is expected to be sorted by key (field name)
+        SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionFields();
         if (dimensionFields.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing");
         }
-        Collections.sort(dimensionFields, Comparator.comparing(IndexableField::name));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(dimensionFields.size());
-            for (IndexableField field : dimensionFields) {
-                int len = UnicodeUtil.calcUTF16toUTF8Length(field.name(), 0, field.name().length());
+            for (Map.Entry<String, BytesReference> entry : dimensionFields.entrySet()) {
+                String fieldName = entry.getKey();
+                BytesRef fieldNameBytes = new BytesRef(fieldName);
+                int len = fieldNameBytes.length;
                 if (len > DIMENSION_NAME_LIMIT) {
                     throw new IllegalArgumentException(
-                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + field.name() + "] was [" + len + "]"
+                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + fieldName + "] was [" + len + "]"
                     );
                 }
-                out.writeBytesRef(new BytesRef(field.name())); // Write in utf-8 instead of writeString's utf-16-ish thing
-
-                if (field.numericValue() != null) {
-                    Number number = field.numericValue();
-                    out.write((byte) 'l');
-                    out.writeLong(number.longValue());
-                } else if (field.binaryValue() != null) {
-                    /*
-                     * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
-                     * so its easier for folks to reason about the space taken up. Mostly
-                     * it'll be smaller too.
-                     */
-                    BytesRef bytes = field.binaryValue();
-                    if (bytes.length > DIMENSION_VALUE_LIMIT) {
-                        throw new IllegalArgumentException("longer than [" + DIMENSION_VALUE_LIMIT + "] bytes [" + bytes.length + "]");
-                    }
-                    out.write((byte) 's');
-                    out.writeBytesRef(bytes);
-                } else {
-                    throw new IllegalArgumentException("null values not allowed");
-                }
+                // Write field name in utf-8 instead of writeString's utf-16-ish thing
+                out.writeBytesRef(fieldNameBytes);
+                entry.getValue().writeTo(out);
             }
 
             BytesReference timeSeriesId = out.bytes();
             if (timeSeriesId.length() > LIMIT) {
-                throw new IllegalArgumentException("tsid longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "]");
+                throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "]");
             }
             assert timeSeriesId != null : "In time series mode _tsid cannot be null";
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
@@ -210,5 +192,32 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
         }
         return result;
+    }
+
+    static BytesReference extractTsidValue(String value) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.write((byte) 's');
+            /*
+             * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
+             * so its easier for folks to reason about the space taken up. Mostly
+             * it'll be smaller too.
+             */
+            BytesRef bytes = new BytesRef(value);
+            if (bytes.length > DIMENSION_VALUE_LIMIT) {
+                throw new IllegalArgumentException(
+                    "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + bytes.length + "]"
+                );
+            }
+            out.writeBytesRef(bytes);
+            return out.bytes();
+        }
+    }
+
+    static BytesReference extractTsidValue(long value) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.write((byte) 'l');
+            out.writeLong(value);
+            return out.bytes();
+        }
     }
 }

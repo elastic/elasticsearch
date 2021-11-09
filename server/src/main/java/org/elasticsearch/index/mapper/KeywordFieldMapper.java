@@ -29,6 +29,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -610,8 +611,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             if (dimension) {
-                // Add dimension field with key so that we ensure it is single-valued. Dimension fields are always indexed.
-                context.doc().addDimensionField(field);
+                try {
+                    // Extract the tsid part of the dimension field
+                    BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(value);
+                    // Add dimension field with key so that we ensure it is single-valued. Dimension fields are always indexed.
+                    context.doc().addDimensionField(field, bytes);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
+                }
             } else {
                 context.doc().add(field);
             }

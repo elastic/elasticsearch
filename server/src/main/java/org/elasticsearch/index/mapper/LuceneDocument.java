@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,6 +18,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
@@ -28,7 +31,7 @@ public class LuceneDocument implements Iterable<IndexableField> {
     private final String prefix;
     private final List<IndexableField> fields;
     private Map<Object, IndexableField> keyedFields;
-    private Map<String, IndexableField> dimensionFields;
+    private SortedMap<String, BytesReference> dimensionFields;
 
     LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
@@ -104,21 +107,22 @@ public class LuceneDocument implements Iterable<IndexableField> {
     /**
      * Add a dimension field
      */
-    public void addDimensionField(IndexableField field) {
+    public void addDimensionField(IndexableField field, BytesReference tsidLeaf) {
         if (dimensionFields == null) {
-            dimensionFields = new HashMap<>();
+            // It is a {@link TreeMap} so that it is order by field name
+            dimensionFields = new TreeMap<>();
         } else if (dimensionFields.containsKey(field.name())) {
             throw new IllegalArgumentException("Dimension field [" + field.name() + "] cannot be a multi-valued field.");
         }
-        dimensionFields.put(field.name(), field);
+        dimensionFields.put(field.name(), tsidLeaf);
         add(field);
     }
 
-    public List<IndexableField> getDimensionFields() {
+    public SortedMap<String, BytesReference> getDimensionFields() {
         if (dimensionFields == null) {
-            return Collections.emptyList();
+            return Collections.emptySortedMap();
         }
-        return new ArrayList<>(dimensionFields.values());
+        return dimensionFields;
     }
 
     public IndexableField[] getFields(String name) {

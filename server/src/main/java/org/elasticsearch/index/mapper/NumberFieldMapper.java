@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -1390,10 +1391,17 @@ public class NumberFieldMapper extends FieldMapper {
     private void indexValue(DocumentParserContext context, Number numericValue) {
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
         if (dimension) {
-            if (fields.size() > 0) {
-                // Add the first field to dimension fields, so that we ensure it has not been added
-                context.doc().addDimensionField(fields.get(0));
-                context.doc().addAll(fields.subList(1, fields.size()));
+            if (false == fields.isEmpty()) {
+                try {
+                    // Extract the tsid part of the dimension field by using the long value.
+                    // Dimension can only be one of byte, short, int, long
+                    BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(numericValue.longValue());
+                    // Add the first field to dimension fields, so that we ensure it has not been added
+                    context.doc().addDimensionField(fields.get(0), bytes);
+                    context.doc().addAll(fields.subList(1, fields.size()));
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
+                }
             }
         } else {
             context.doc().addAll(fields);

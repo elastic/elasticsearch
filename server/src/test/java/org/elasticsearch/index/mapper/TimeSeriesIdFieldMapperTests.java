@@ -17,8 +17,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Map;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -55,7 +56,6 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -66,13 +66,8 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                         .field("@timestamp", "2021-10-01")
                         .endObject()
                 ),
-                XContentType.JSON,
-                null,
-                Map.of()
-            )
+                XContentType.JSON)
         );
-
-        Map<String, Object> v = TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
 
         assertThat(
             doc.rootDoc().getBinaryValue("_tsid"),
@@ -80,6 +75,11 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         );
         assertThat(doc.rootDoc().getField("kw_field").binaryValue(), equalTo(new BytesRef("value")));
         assertThat(doc.rootDoc().getField("long_field").numericValue(), equalTo(100L));
+
+        assertMap(
+            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            matchesMap().entry("kw_field", "value").entry("long_field", 100L)
+        );
     }
 
     public void testDisabledInStandardMode() throws Exception {
@@ -90,12 +90,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
-                XContentType.JSON,
-                null,
-                Map.of()
+                XContentType.JSON
             )
         );
 

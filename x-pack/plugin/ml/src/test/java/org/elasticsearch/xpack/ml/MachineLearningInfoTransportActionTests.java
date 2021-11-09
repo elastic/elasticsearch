@@ -462,10 +462,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
 
             assertThat(source.getValue("inference.trained_models._all.count"), equalTo(4));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.min"), equalTo(100.0));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.max"), equalTo(300.0));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.total"), equalTo(600.0));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.avg"), equalTo(200.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.min"), equalTo(100.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.max"), equalTo(300.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.total"), equalTo(600.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.avg"), equalTo(200.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.min"), equalTo(200.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.max"), equalTo(600.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.total"), equalTo(1200.0));

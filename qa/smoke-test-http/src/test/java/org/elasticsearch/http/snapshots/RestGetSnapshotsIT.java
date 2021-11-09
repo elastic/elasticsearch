@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
@@ -46,10 +47,16 @@ import static org.hamcrest.Matchers.is;
 // TODO: dry up duplication across this suite and org.elasticsearch.snapshots.GetSnapshotsIT more
 public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
+    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
+        .put("thread_pool.snapshot.core", 5)
+        .put("thread_pool.snapshot.max", 5)
+        .build();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LARGE_SNAPSHOT_POOL_SETTINGS)
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
             .build();
     }
@@ -156,7 +163,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertNull(batch3LargeLimit.next());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79779")
     public void testSortAndPaginateWithInProgress() throws Exception {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "mock");
@@ -176,7 +182,14 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             inProgressSnapshots.add(AbstractSnapshotIntegTestCase.startFullSnapshot(logger, repoName, snapshotName, false));
         }
         AbstractSnapshotIntegTestCase.awaitNumberOfSnapshotsInProgress(logger, inProgressCount);
-
+        AbstractSnapshotIntegTestCase.awaitClusterState(
+            logger,
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .asStream()
+                .flatMap(s -> s.shards().stream())
+                .filter(e -> e.getKey().getIndexName().equals("test-index-1"))
+                .allMatch(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)
+        );
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);

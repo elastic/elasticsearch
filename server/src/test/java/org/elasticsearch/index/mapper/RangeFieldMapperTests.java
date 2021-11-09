@@ -48,6 +48,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
     }
 
+    @Override
+    protected boolean supportsCopyTo() {
+        return false;
+    }
+
     private String getFromField() {
         return random().nextBoolean() ? GT_FIELD.getPreferredName() : GTE_FIELD.getPreferredName();
     }

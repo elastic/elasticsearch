@@ -136,4 +136,10 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     protected boolean dedupAfterFetch() {
         return true;
     }
+
+    @Override
+    protected void copyToTestMapping(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+        b.field("store", true);
+    }
 }

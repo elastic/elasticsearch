@@ -1243,6 +1243,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             });
         }
 
+        protected void disallowCopyFields() {
+            if (copyTo.hasValues()) {
+                deprecationLogger.warn(
+                    DeprecationCategory.MAPPINGS,
+                    "copy_to",
+                    "Field [{}] is configured with a [copy_to] setting which is unsupported and will be ignored",
+                    name
+                );
+            }
+        }
+
         /**
          * Writes the current builder parameter values as XContent
          */

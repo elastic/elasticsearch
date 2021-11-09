@@ -181,6 +181,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public AggregateDoubleMetricFieldMapper build(MapperBuilderContext context) {
+            disallowCopyFields();
             if (defaultMetric.isConfigured() == false) {
                 // If a single metric is contained, this should be the default
                 if (metrics.getValue().size() == 1) {

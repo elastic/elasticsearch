@@ -61,11 +61,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
+            disallowCopyFields();
             return new RankFeaturesFieldMapper(
                 name,
                 new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
                 positiveScoreImpact.getValue()
             );
         }
@@ -118,10 +118,9 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
-        CopyTo copyTo,
         boolean positiveScoreImpact
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, CopyTo.empty());
         this.positiveScoreImpact = positiveScoreImpact;
     }
 

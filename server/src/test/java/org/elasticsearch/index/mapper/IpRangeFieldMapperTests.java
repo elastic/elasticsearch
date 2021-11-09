@@ -38,6 +38,16 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
+    protected boolean supportsCopyTo() {
+        return true;
+    }
+
+    @Override
+    protected void writeCopyField(XContentBuilder builder) throws IOException {
+        builder.field("field", "192.168.0.0/15");
+    }
+
+    @Override
     protected boolean supportsCoerce() {
         return false;
     }

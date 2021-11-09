@@ -126,6 +126,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
+            disallowCopyFields();
             return new DenseVectorFieldMapper(
                 name,
                 new DenseVectorFieldType(
@@ -141,8 +142,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                 similarity.getValue(),
                 indexOptions.getValue(),
                 indexVersionCreated,
-                multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                multiFieldsBuilder.build(this, context)
             );
         }
     }
@@ -360,10 +360,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         VectorSimilarity similarity,
         IndexOptions indexOptions,
         Version indexCreatedVersion,
-        MultiFields multiFields,
-        CopyTo copyTo
+        MultiFields multiFields
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, CopyTo.empty());
         this.dims = dims;
         this.indexed = indexed;
         this.similarity = similarity;

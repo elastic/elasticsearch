@@ -99,11 +99,11 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public HistogramFieldMapper build(MapperBuilderContext context) {
+            disallowCopyFields();
             return new HistogramFieldMapper(
                 name,
                 new HistogramFieldType(context.buildFullName(name), meta.getValue(), metric.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
                 this
             );
         }
@@ -120,14 +120,8 @@ public class HistogramFieldMapper extends FieldMapper {
     /** The metric type (gauge, counter, summary) if  field is a time series metric */
     private final TimeSeriesParams.MetricType metricType;
 
-    public HistogramFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, Builder builder) {
+        super(simpleName, mappedFieldType, multiFields, CopyTo.empty());
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.metricType = builder.metric.getValue();

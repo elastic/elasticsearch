@@ -226,7 +226,11 @@ public class BinaryFieldMapper extends FieldMapper {
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
             }
+        }
 
+        @Override
+        public String toString() {
+            return "<" + name() + ":" + binaryValue() + ">";
         }
     }
 }

@@ -58,6 +58,11 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsCopyTo() {
+        return false;
+    }
+
     public void testParseValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(

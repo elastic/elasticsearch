@@ -1,13 +1,10 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images. Starting with version 8.0.0, these
-are based upon
-https://hub.docker.com/_/almalinux[almalinux:8.4-minimal].
-
-A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source files
-are in
+{es} is also available as Docker images. A list of all published Docker
+images and tags is available at
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files are
+in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 include::license.asciidoc[]
@@ -505,7 +502,7 @@ To check the Docker daemon defaults for ulimits, run:
 
 [source,sh]
 --------------------------------------------
-docker run --rm almalinux:8.4-minimal /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm docker.elastic.co/elasticsearch/elasticsearch:{version} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.

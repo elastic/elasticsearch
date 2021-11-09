@@ -44,6 +44,9 @@ data streams or indices are returned.
 You can use the following settings to control the behavior of the deprecation info API:
 
 [[skip_deprecated_settings]]
+NOTE: This setting is designed for indirect use by {ess-trial}[{ess}], {ece-ref}[{ece}], and {eck-ref}[{eck}].
+Direct use is not supported.
+
 // tag::skip_deprecated_settings-tag[]
 `deprecation.skip_deprecated_settings`
 (<<dynamic-cluster-setting,Dynamic>>)

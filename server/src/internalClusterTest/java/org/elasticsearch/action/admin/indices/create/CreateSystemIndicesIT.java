@@ -8,10 +8,13 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -112,6 +115,21 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings(), concreteIndex);
+        assertAliases(concreteIndex);
+    }
+
+    /**
+     * Make sure that aliases are created hidden
+     */
+    private void assertAliases(String concreteIndex) {
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .actionGet();
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(concreteIndex).size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).isHidden(), equalTo(true));
     }
 
     /**

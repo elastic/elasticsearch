@@ -1,0 +1,101 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.system.indices;
+
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.After;
+
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+
+public class SystemAliasIT extends ESRestTestCase {
+    static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("rest-user-password".toCharArray()));
+
+    @After
+    public void resetFeatures() throws Exception {
+        client().performRequest(new Request("POST", "/_features/_reset"));
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCreatingSystemIndexWithAlias() throws Exception {
+        {
+            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setJsonEntity("{" +
+                "  \"aliases\": {" +
+                "    \".internal-unmanaged-alias\": {}" +
+                "  }" +
+                "}");
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
+
+        {
+            Request request = new Request("GET", "/.internal-unmanaged-index-8");
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.internal-unmanaged-index-8], " +
+                        "but in a future major version, direct access to system indices will be prevented by default"));
+            Response response = client().performRequest(request);
+            Map<String, Object> responseMap = responseAsMap(response);
+            Map<String, Object> indexMap = (Map<String, Object>) responseMap.get(".internal-unmanaged-index-8");
+            Map<String, Object> settingsMap = (Map<String, Object>) indexMap.get("settings");
+            Map<String, Object> indexSettingsMap = (Map<String, Object>) settingsMap.get("index");
+            assertThat(indexSettingsMap.get("hidden"), equalTo("true"));
+
+            Map<String, Object> aliasMap = (Map<String, Object>) indexMap.get("aliases");
+            assertThat(aliasMap.keySet(), equalTo(Set.of(".internal-unmanaged-alias")));
+        }
+
+        {
+            Request request = new Request("GET", "/_aliases");
+            request.setOptions(
+                expectWarnings("this request accesses system indices: [.internal-unmanaged-index-8], " +
+                        "but in a future major version, direct access to system indices will be prevented by default",
+                    "this request accesses aliases with names reserved for system indices: [.internal-unmanaged-alias], " +
+                        "but in a future major version, direct access to system indices and their aliases will not be allowed"));
+            Response response = client().performRequest(request);
+            Map<String, Object> responseMap = responseAsMap(response);
+            Map<String, Object> indexAliasMap = (Map<String, Object>) responseMap.get(".internal-unmanaged-index-8");
+            Map<String, Object> aliasesMap = (Map<String, Object>) indexAliasMap.get("aliases");
+            Map<String, Object> aliasMap = (Map<String, Object>) aliasesMap.get(".internal-unmanaged-alias");
+            assertThat(aliasMap.get("is_hidden"), notNullValue());
+            assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        }
+    }
+
+    // TODO[wrb] test create with v1 alias template
+
+    // TODO[wrb] test create with v2 alias template
+
+    // TODO[wrb] test auto-create with v1 alias template
+
+    // TODO[wrb] test auto-create with v2 alias template
+
+    // TODO[wrb] test index alias api
+
+    // TODO[wrb] test alias api
+
+    // TODO[wrb] test aliases api
+
+    // TODO[wrb] test managed system index
+}

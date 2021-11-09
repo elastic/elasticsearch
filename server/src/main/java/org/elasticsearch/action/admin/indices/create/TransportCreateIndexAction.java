@@ -34,11 +34,14 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 
 /**
  * Create index action.
+ *
+ * TODO[wrb]: handle hiding system aliases
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
     private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);
@@ -156,11 +159,18 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         String indexName,
         long nameResolvedAt
     ) {
+        Set<Alias> aliases = request.aliases().stream()
+            .peek(alias -> {
+                if (systemIndices.isSystemName(alias.name())) {
+                    alias.isHidden(true);
+                }
+            })
+            .collect(Collectors.toSet());
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
-            .aliases(request.aliases())
+            .aliases(aliases)
             .nameResolvedInstant(nameResolvedAt)
             .waitForActiveShards(request.waitForActiveShards());
     }
@@ -176,7 +186,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         if (descriptor.getAliasName() == null) {
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()));
+            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true));
         }
 
         final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(

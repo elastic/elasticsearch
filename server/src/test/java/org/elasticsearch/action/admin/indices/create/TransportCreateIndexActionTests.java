@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,6 +45,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         .build();
 
     private static final String SYSTEM_INDEX_NAME = ".my-system";
+    private static final String SYSTEM_ALIAS_NAME = ".my-alias";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
         Map.of(
             "test-feature",
@@ -54,6 +56,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                     SystemIndexDescriptor.builder()
                         .setIndexPattern(SYSTEM_INDEX_NAME + "*")
                         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                        .setAliasName(SYSTEM_ALIAS_NAME)
                         .build()
                 )
             )
@@ -117,6 +120,26 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
         assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
+    }
+
+    public void testSystemAliasCreatedHiddenByDefault() {
+        CreateIndexRequest request = new CreateIndexRequest();
+        request.index(SYSTEM_INDEX_NAME);
+        request.alias(new Alias(SYSTEM_ALIAS_NAME));
+
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
+
+        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
+        verify(mockListener, times(0)).onFailure(any());
+        verify(metadataCreateIndexService, times(1)).createIndex(createRequestArgumentCaptor.capture(), any());
+
+        CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
+        assertTrue(processedRequest.aliases().contains(new Alias(SYSTEM_ALIAS_NAME).isHidden(true)));
     }
 
 }

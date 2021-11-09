@@ -241,7 +241,6 @@ public interface IndexAbstraction {
                 );
             }
 
-            // TODO[wrb]: how do we handle system alias visibility?
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
             this.isSystem = indices.stream().allMatch(IndexMetadata::isSystem);
             dataStreamAlias = false;

@@ -49,6 +49,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
+ *
+ * TODO[wrb]: handle hiding system aliases
  */
 public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
@@ -250,7 +252,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             updateRequest.settings(settings);
                         }
                         if (aliasName != null) {
-                            updateRequest.aliases(Set.of(new Alias(aliasName)));
+                            updateRequest.aliases(Set.of(new Alias(aliasName).isHidden(true)));
                         }
 
                         if (logger.isDebugEnabled()) {

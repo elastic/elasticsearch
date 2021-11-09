@@ -45,6 +45,9 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, ActionPlugin {
 
+    private static final String INTERNAL_UNMANAGED_INDEX_NAME = ".internal-unmanaged-index*";
+    private static final String INTERNAL_MANAGED_INDEX_NAME = ".internal-managed-index*";
+
     @Override
     public String getFeatureName() {
         return "system indices qa";
@@ -73,6 +76,32 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setOrigin("net-new")
                 .setVersionMetaKey("version")
                 .setPrimaryIndex(".net-new-system-index-" + Version.CURRENT.major)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(INTERNAL_UNMANAGED_INDEX_NAME)
+                .setDescription("internal unmanaged system index")
+                .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                .setOrigin("qa")
+                .setVersionMetaKey("version")
+                .setPrimaryIndex(".internal-unmanaged-index-" + Version.CURRENT.major)
+                .setAliasName(".internal-unmanaged-alias")
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(INTERNAL_MANAGED_INDEX_NAME)
+                .setDescription("internal managed system index")
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setMappings(mappings())
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                        .build()
+                )
+                .setOrigin("qa")
+                .setVersionMetaKey("version")
+                .setPrimaryIndex(".internal-managed-index-" + Version.CURRENT.major)
+                .setAliasName(".internal-managed-alias")
                 .build()
         );
     }

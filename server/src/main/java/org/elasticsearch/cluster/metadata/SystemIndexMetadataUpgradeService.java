@@ -98,6 +98,21 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                         builder.settings(Settings.builder().put(cursor.value.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
                         updated = true;
                     }
+                    if (isSystem && cursor.value.getAliases().values().stream().anyMatch(a -> a.isHidden() == false)) {
+                        for (AliasMetadata aliasMetadata : cursor.value.getAliases().values()) {
+                            if (aliasMetadata.isHidden() == false) {
+                                builder.removeAlias(aliasMetadata.alias());
+                                builder.putAlias(
+                                    AliasMetadata.builder(aliasMetadata.alias())
+                                        .filter(aliasMetadata.filter())
+                                        .indexRouting(aliasMetadata.indexRouting())
+                                        .isHidden(true)
+                                        .searchRouting(aliasMetadata.searchRouting())
+                                        .writeIndex(aliasMetadata.writeIndex())
+                                );
+                            }
+                        }
+                    }
                     if (updated) {
                         updatedMetadata.add(builder.build());
                     }

@@ -53,6 +53,8 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * Add/remove aliases action
+ *
+ * TODO[wrb]: handle hiding system aliases
  */
 public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNodeAction<IndicesAliasesRequest> {
 

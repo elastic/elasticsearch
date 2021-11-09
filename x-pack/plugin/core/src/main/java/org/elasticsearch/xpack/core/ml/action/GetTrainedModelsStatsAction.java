@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 
 public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStatsAction.Response> {
 
@@ -146,7 +149,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 if (this.inferenceStats != null) {
                     builder.field(INFERENCE_STATS.getPreferredName(), this.inferenceStats);
                 }
-                if (deploymentStats != null) {
+                if (deploymentStats != null && builder.getRestApiVersion().matches(onOrAfter(RestApiVersion.V_8))) {
                     builder.field(DEPLOYMENT_STATS.getPreferredName(), this.deploymentStats);
                 }
                 builder.endObject();

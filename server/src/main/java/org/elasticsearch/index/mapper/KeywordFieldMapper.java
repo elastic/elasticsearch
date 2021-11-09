@@ -506,9 +506,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    /** The maximum keyword length allowed for a dimension field */
-    private static final int DIMENSION_MAX_BYTES = 1024;
-
     private final boolean indexed;
     private final boolean hasDocValues;
     private final String nullValue;

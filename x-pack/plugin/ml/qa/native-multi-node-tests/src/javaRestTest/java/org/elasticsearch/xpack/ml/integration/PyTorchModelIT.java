@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateR
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -270,9 +271,12 @@ public class PyTorchModelIT extends ESRestTestCase {
         Response response = getTrainedModelStats(modelA);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
         assertThat(stats, hasSize(1));
-        assertThat(stats.get(0).get("deployment_stats.model_id"), equalTo(modelA));
-        assertThat(stats.get(0).get("deployment_stats.model_size_bytes"), equalTo((int) RAW_MODEL_SIZE));
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>) stats.get(0).get("deployment_stats.nodes");
+        assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
+        assertThat(XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "deployment_stats.nodes",
+            stats.get(0)
+        );
         // 2 of the 3 nodes in the cluster are ML nodes
         assertThat(nodes, hasSize(2));
         int inferenceCount = sumInferenceCountOnNodes(nodes);
@@ -304,14 +308,14 @@ public class PyTorchModelIT extends ESRestTestCase {
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            assertThat(stats.get(0).get("deployment_stats.model_id"), equalTo(modelFoo));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelFoo));
         }
         {
             Response response = getTrainedModelStats("bar");
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            assertThat(stats.get(0).get("deployment_stats.model_id"), equalTo(modelBar));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelBar));
         }
     }
 
@@ -339,11 +343,14 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         // check all nodes are started
         for (int i : new int[] { 0, 1 }) {
-            List<Map<String, Object>> nodes = (List<Map<String, Object>>) stats.get(i).get("deployment_stats.nodes");
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(i)
+            );
             // 2 ml nodes
             assertThat(nodes, hasSize(2));
             for (int j : new int[] { 0, 1 }) {
-                Object state = MapHelper.dig("routing_state.routing_state", nodes.get(j));
+                Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
                 assertEquals("started", state);
             }
         }
@@ -354,14 +361,15 @@ public class PyTorchModelIT extends ESRestTestCase {
         map = entityAsMap(response);
         stats = (List<Map<String, Object>>) map.get("trained_model_stats");
 
-        assertThat(stats, hasSize(1));
+        assertThat(stats, hasSize(2));
+        assertThat(stats.get(0), not(hasKey("deployment_stats")));
 
-        // check all nodes are started
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>) stats.get(0).get("deployment_stats.nodes");
+        // check all nodes are started for the non-stopped deployment
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue("deployment_stats.nodes", stats.get(1));
         // 2 ml nodes
         assertThat(nodes, hasSize(2));
         for (int j : new int[] { 0, 1 }) {
-            Object state = MapHelper.dig("routing_state.routing_state", nodes.get(j));
+            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
             assertEquals("started", state);
         }
 

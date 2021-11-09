@@ -73,13 +73,15 @@ public class MetadataDeleteIndexService {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()),
+        clusterService.submitStateUpdateTask(
+            "delete-index " + Arrays.toString(request.indices()),
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     return deleteIndices(currentState, Sets.newHashSet(request.indices()));
                 }
-            });
+            }
+        );
     }
 
     /**
@@ -94,8 +96,13 @@ public class MetadataDeleteIndexService {
             IndexAbstraction.DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
                 if (parent.getWriteIndex().equals(im.getIndex())) {
-                    throw new IllegalArgumentException("index [" + index.getName() + "] is the write index for data stream [" +
-                        parent.getName() + "] and cannot be deleted");
+                    throw new IllegalArgumentException(
+                        "index ["
+                            + index.getName()
+                            + "] is the write index for data stream ["
+                            + parent.getName()
+                            + "] and cannot be deleted"
+                    );
                 } else {
                     backingIndices.put(index, parent.getDataStream());
                 }
@@ -106,8 +113,11 @@ public class MetadataDeleteIndexService {
         // Check if index deletion conflicts with any running snapshots
         Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToDelete);
         if (snapshottingIndices.isEmpty() == false) {
-            throw new SnapshotInProgressException("Cannot delete indices that are being snapshotted: " + snapshottingIndices +
-                ". Try again after snapshot finishes or cancel the currently running snapshot.");
+            throw new SnapshotInProgressException(
+                "Cannot delete indices that are being snapshotted: "
+                    + snapshottingIndices
+                    + ". Try again after snapshot finishes or cancel the currently running snapshot."
+            );
         }
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
@@ -130,8 +140,12 @@ public class MetadataDeleteIndexService {
         // add tombstones to the cluster state for each deleted index
         final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
         metadataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
-        logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
-            graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
+        logger.trace(
+            "{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
+            graveyardBuilder.getNumPurged(),
+            previousGraveyardSize,
+            currentGraveyard.getTombstones().size()
+        );
 
         final ClusterState.Builder builder = ClusterState.builder(currentState)
             .routingTable(routingTableBuilder.build())

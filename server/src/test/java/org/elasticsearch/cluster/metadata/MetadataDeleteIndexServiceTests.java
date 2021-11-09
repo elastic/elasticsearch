@@ -55,7 +55,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 public class MetadataDeleteIndexServiceTests extends ESTestCase {
     private AllocationService allocationService;
     private MetadataDeleteIndexService service;
@@ -65,8 +64,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class)))
-            .thenAnswer(mockInvocation -> mockInvocation.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class))).thenAnswer(
+            mockInvocation -> mockInvocation.getArguments()[0]
+        );
         service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
     }
 
@@ -80,17 +80,35 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteSnapshotting() {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
-        SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(new SnapshotsInProgress.Entry(snapshot, true, false,
-                SnapshotsInProgress.State.INIT, singletonMap(index, new IndexId(index, "doesn't matter")),
-                Collections.emptyList(), Collections.emptyList(), System.currentTimeMillis(), (long) randomIntBetween(0, 1000),
-                ImmutableOpenMap.of(), null, SnapshotInfoTestUtils.randomUserMetadata(), VersionUtils.randomVersion(random())));
-        ClusterState state = ClusterState.builder(clusterState(index))
-                .putCustom(SnapshotsInProgress.TYPE, snaps)
-                .build();
-        Exception e = expectThrows(SnapshotInProgressException.class,
-                () -> service.deleteIndices(state, singleton(state.metadata().getIndices().get(index).getIndex())));
-        assertEquals("Cannot delete indices that are being snapshotted: [[" + index + "]]. Try again after snapshot finishes "
-                + "or cancel the currently running snapshot.", e.getMessage());
+        SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
+            new SnapshotsInProgress.Entry(
+                snapshot,
+                true,
+                false,
+                SnapshotsInProgress.State.INIT,
+                singletonMap(index, new IndexId(index, "doesn't matter")),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                System.currentTimeMillis(),
+                (long) randomIntBetween(0, 1000),
+                ImmutableOpenMap.of(),
+                null,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                VersionUtils.randomVersion(random())
+            )
+        );
+        ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
+        Exception e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> service.deleteIndices(state, singleton(state.metadata().getIndices().get(index).getIndex()))
+        );
+        assertEquals(
+            "Cannot delete indices that are being snapshotted: [["
+                + index
+                + "]]. Try again after snapshot finishes "
+                + "or cancel the currently running snapshot.",
+            e.getMessage()
+        );
     }
 
     public void testDeleteUnassigned() {
@@ -117,7 +135,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of()
+        );
 
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
 
@@ -126,8 +146,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(after.metadata().getIndices().get(
-            DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
+        assertThat(
+            after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)),
+            IsNull.nullValue()
+        );
     }
 
     public void testDeleteMultipleBackingIndexForDataStream() {
@@ -135,10 +157,14 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of()
+        );
 
-        List<Integer> indexNumbersToDelete =
-            randomSubsetOf(numBackingIndicesToDelete, IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList()));
+        List<Integer> indexNumbersToDelete = randomSubsetOf(
+            numBackingIndicesToDelete,
+            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList())
+        );
 
         Set<Index> indicesToDelete = new HashSet<>();
         for (int k : indexNumbersToDelete) {
@@ -160,36 +186,47 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numBackingIndices = randomIntBetween(1, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of()
+        );
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
         Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
 
-        assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +
-            dataStreamName + "] and cannot be deleted"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index [" + indexToDelete.getName() + "] is the write index for data stream [" + dataStreamName + "] and cannot be deleted"
+            )
+        );
     }
 
     public void testDeleteIndexWithSnapshotDeletion() {
         final boolean deleteSnapshot = randomBoolean();
         final IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(Settings.builder()
-                .put("index.version.created", VersionUtils.randomVersion(random()))
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
-                .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, "repo_name")
-                .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, randomBoolean() ? null : "repo_uuid")
-                .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, "snap_name")
-                .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY, "snap_uuid")
-                .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, deleteSnapshot)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", VersionUtils.randomVersion(random()))
+                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                    .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, "repo_name")
+                    .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, randomBoolean() ? null : "repo_uuid")
+                    .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, "snap_name")
+                    .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY, "snap_uuid")
+                    .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, deleteSnapshot)
+                    .build()
+            )
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
         final ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder()
-                .put(indexMetadata, false)
-                .putCustom(RepositoriesMetadata.TYPE,
-                    new RepositoriesMetadata(
-                        List.of(new RepositoryMetadata("repo_name", "fs", Settings.EMPTY).withUuid("repo_uuid")))))
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, false)
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        new RepositoriesMetadata(List.of(new RepositoryMetadata("repo_name", "fs", Settings.EMPTY).withUuid("repo_uuid")))
+                    )
+            )
             .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
             .build();
@@ -249,8 +286,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .metadata(metadataBuilder)
             .build();
 
-        SnapshotDeletionsPending pendingDeletions =
-            clusterState.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
+        SnapshotDeletionsPending pendingDeletions = clusterState.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
         while (indices.size() > 0) {
             assertThat(pendingDeletions.isEmpty(), equalTo(true));
 
@@ -272,14 +308,14 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
     private ClusterState clusterState(String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-                .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
+            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
         return ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata, false))
-                .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
-                .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
-                .build();
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
+            .build();
     }
 }

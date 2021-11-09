@@ -170,12 +170,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     /**
      * Parse the {@code _tsid} into a human readable map.
      */
-    public static Map<String, Object> parse(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Map<String, Object> result = new LinkedHashMap<String, Object>(size);
-        for (int i = 0; i < size; i++) {
-            String name = in.readString();
-            try {
+    public static Map<String, Object> parse(StreamInput in) {
+        try {
+            int size = in.readVInt();
+            Map<String, Object> result = new LinkedHashMap<String, Object>(size);
+
+            for (int i = 0; i < size; i++) {
+                String name = in.readString();
+
                 int type = in.read();
                 switch (type) {
                     case (byte) 's':
@@ -185,13 +187,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                         result.put(name, in.readLong());
                         break;
                     default:
-                        throw new IllegalArgumentException("known type [" + type + "]");
+                        throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("can't parse [" + name + "]: " + e.getMessage(), e);
             }
+            return result;
+        } catch (IOException|IllegalArgumentException e) {
+            throw new IllegalArgumentException("Error formatting " + NAME + ": " + e.getMessage(), e);
         }
-        return result;
     }
 
     static BytesReference extractTsidValue(String value) throws IOException {

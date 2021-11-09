@@ -694,11 +694,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public Object format(BytesRef value) {
-            try {
-                return TimeSeriesIdFieldMapper.parse(new BytesArray(value).streamInput());
-            } catch (IOException e) {
-                throw new IllegalArgumentException("error formatting tsid: " + e.getMessage(), e);
-            }
+            return TimeSeriesIdFieldMapper.parse(new BytesArray(value).streamInput());
         }
     };
 }

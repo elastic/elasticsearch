@@ -223,20 +223,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         );
         restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
         restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(
-            doc -> {
-                // The in-memory size of the model was found to be approximately equal
-                // to the size of the model on disk in experiments for BERT models. However,
-                // this might not always be the case.
-                // TODO Improve heuristic for in-memory model size.
-                listener.onResponse(doc.getTotalDefinitionLength());
+        restorer.restoreModelDefinition(doc -> {
+            // The in-memory size of the model was found to be approximately equal
+            // to the size of the model on disk in experiments for BERT models. However,
+            // this might not always be the case.
+            // TODO Improve heuristic for in-memory model size.
+            listener.onResponse(doc.getTotalDefinitionLength());
 
-                // Return false to stop the restorer as we only need the first doc
-                return false;
-            },
-            success -> { /* nothing to do */ },
-            listener::onFailure
-        );
+            // Return false to stop the restorer as we only need the first doc
+            return false;
+        }, success -> { /* nothing to do */ }, listener::onFailure);
     }
 
     private void waitForDeploymentState(

@@ -34,12 +34,12 @@ setting.
 
 `discovery.type`::
 (<<static-cluster-setting,Static>>)
-Specifies whether {es} should form a multiple-node cluster. By default, {es}
-discovers other nodes when forming a cluster and allows other nodes to join the
-cluster later. If `discovery.type` is set to `single-node`, {es} forms a
-single-node cluster and suppresses the timeout set by `cluster.publish.timeout`.
-For more information about when you might use this setting, see
-<<single-node-discovery>>.
+Specifies whether {es} should form a multiple-node cluster. Defaults to
+`multi-node`, which means that {es} discovers other nodes when forming a cluster
+and allows other nodes to join the cluster later. If set to `single-node`, {es}
+forms a single-node cluster and suppresses the timeout set by
+`cluster.publish.timeout`. For more information about when you might use this
+setting, see <<single-node-discovery>>.
 
 `cluster.initial_master_nodes`::
 (<<static-cluster-setting,Static>>)

@@ -16,7 +16,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
-public class TransformMetadataIT extends TransformRestTestCase {
+public class TransformDestIndexMetadataIT extends TransformRestTestCase {
 
     private boolean indicesCreated = false;
 
@@ -38,7 +38,7 @@ public class TransformMetadataIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    public void testMetadata() throws Exception {
+    public void testTransformDestIndexMetadata() throws Exception {
         long testStarted = System.currentTimeMillis();
         createPivotReviewsTransform("test_meta", "pivot_reviews", null);
         startAndWaitForTransform("test_meta", "pivot_reviews");

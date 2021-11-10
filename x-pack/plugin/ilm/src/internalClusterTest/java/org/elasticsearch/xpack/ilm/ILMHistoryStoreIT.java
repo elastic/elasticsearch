@@ -48,9 +48,10 @@ public class ILMHistoryStoreIT extends ESIntegTestCase {
 
     @After
     public void cleanup() {
+        // the datastream delete uses the generic threadpool, so if that's locked up, then we'll hang at the actionGet -- hence the timeout
         DeleteDataStreamAction.Request deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
-        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet(5, TimeUnit.SECONDS));
     }
 
     @Override

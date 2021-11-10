@@ -67,3 +67,22 @@ All other values are equivalent to the default discovery type which is
 `multi-node`. Where possible, omit this setting so that {es} uses the default
 discovery type.
 ====
+
+[discrete]
+[[breaking_8.1_crud_deprecation]]
+==== CRUD deprecations
+
+[[deprecate-lenient-parsing-of-bulk-actions]]
+.Lenient parsing of bulk actions is deprecated.
+[%collapsible]
+====
+*Details* +
+Older versions of {es} parse the action lines of bulk requests very permissively
+and would silently ignore invalid or malformed actions. This lenience is
+deprecated and a future version will reject bulk requests containing invalid
+actions.
+
+*Impact* +
+Ensure that bulk actions are well-formed JSON objects containing a single entry
+with the correct key.
+====

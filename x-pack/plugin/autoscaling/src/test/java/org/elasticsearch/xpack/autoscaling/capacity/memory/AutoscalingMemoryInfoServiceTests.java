@@ -331,7 +331,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             n -> {
                 assertThat(
                     service.snapshot().get(n),
-                    equalTo(response.getNodesMap().get(n.getId()).getOs().getMem().getTotal().getBytes())
+                    equalTo(response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes())
                 );
             }
         );
@@ -347,7 +347,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         OsStats osStats = new OsStats(
             randomNonNegativeLong(),
             new OsStats.Cpu(randomShort(), null),
-            new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
+            new OsStats.Mem(memory, randomLongBetween(0, memory), randomLongBetween(0, memory)),
             new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
             null
         );

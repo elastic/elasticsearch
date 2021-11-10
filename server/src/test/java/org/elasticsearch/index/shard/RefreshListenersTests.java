@@ -456,7 +456,6 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79689")
     public void testDisallowAddListeners() throws Exception {
         assertEquals(0, listeners.pendingCount());
         TestLocationListener listener = new TestLocationListener();
@@ -503,8 +502,19 @@ public class RefreshListenersTests extends ESTestCase {
         }
 
         assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), new TestLocationListener()));
-        assertFalse(listeners.addOrNotify(index("1").getSeqNo(), new TestSeqNoListener()));
-        assertEquals(3, listeners.pendingCount());
+        final int expectedPending;
+        if (listeners.pendingCount() == maxListeners) {
+            // Rejected
+            TestSeqNoListener rejected = new TestSeqNoListener();
+            assertTrue(listeners.addOrNotify(index("1").getSeqNo(), rejected));
+            assertNotNull(rejected.error);
+            expectedPending = 2;
+        } else {
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), new TestSeqNoListener()));
+            assertFalse(seqNoListener.isDone.get());
+            expectedPending = 3;
+        }
+        assertEquals(expectedPending, listeners.pendingCount());
     }
 
     public void testSequenceNumberMustBeIssued() throws Exception {

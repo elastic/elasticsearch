@@ -79,6 +79,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
@@ -320,16 +321,23 @@ public class DockerTests extends PackagingTestCase {
         chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
         chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
 
-        // Restart the container
-        runContainer(
-            distribution(),
-            builder().uid(501, 501)
-                .volume(tempEsDataDir.toAbsolutePath(), installation.data)
-                .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
-                .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
-        );
+        try {
+            // Restart the container
+            runContainer(
+                distribution(),
+                builder().uid(501, 501)
+                    .volume(tempEsDataDir.toAbsolutePath(), installation.data)
+                    .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
+                    .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
+            );
 
-        waitForElasticsearch(installation);
+            waitForElasticsearch(installation);
+            removeContainer();
+        } finally {
+            rmDirWithPrivilegeEscalation(tempEsConfigDir);
+            rmDirWithPrivilegeEscalation(tempEsDataDir);
+            rmDirWithPrivilegeEscalation(tempEsLogsDir);
+        }
     }
 
     /**

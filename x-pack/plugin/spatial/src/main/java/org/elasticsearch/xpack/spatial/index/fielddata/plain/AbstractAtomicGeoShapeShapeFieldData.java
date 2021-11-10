@@ -124,7 +124,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public GeoPoint getCentroid() {
-            return gsSupplier.getInternal() == null ? null : getCentroid();
+            return gsSupplier.getInternal() == null ? null : gsSupplier.getCentroid();
         }
 
         @Override

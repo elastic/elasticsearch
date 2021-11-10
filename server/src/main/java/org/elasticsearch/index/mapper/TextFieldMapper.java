@@ -1103,7 +1103,7 @@ public class TextFieldMapper extends FieldMapper {
         b.index.toXContent(builder, includeDefaults);
         b.store.toXContent(builder, includeDefaults);
         this.multiFields.toXContent(builder, params);
-        this.copyTo.toXContent(builder, params);
+        this.copyTo.toXContent(builder);
         b.meta.toXContent(builder, includeDefaults);
         b.indexOptions.toXContent(builder, includeDefaults);
         b.termVectors.toXContent(builder, includeDefaults);

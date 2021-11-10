@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsActionResponseTests;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
@@ -60,7 +61,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         DiscoveryNodes nodes = buildNodes("nodeA", "nodeB");
         var modified = TransportGetDeploymentStatsAction.addFailedRoutes(emptyResponse, badRoutes, nodes);
-        List<GetDeploymentStatsAction.Response.AllocationStats> results = modified.getStats().results();
+        List<AllocationStats> results = modified.getStats().results();
         assertThat(results, hasSize(2));
         assertEquals("model1", results.get(0).getModelId());
         assertThat(results.get(0).getNodeStats(), hasSize(2));
@@ -73,9 +74,9 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
     public void testAddFailedRoutes_GivenMixedResponses() throws UnknownHostException {
         DiscoveryNodes nodes = buildNodes("node1", "node2", "node3");
 
-        List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
+        List<AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
         nodeStatsList.add(
-            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+            AllocationStats.NodeStats.forStartedState(
                 nodes.get("node1"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
@@ -85,7 +86,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             )
         );
         nodeStatsList.add(
-            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+            AllocationStats.NodeStats.forStartedState(
                 nodes.get("node2"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
@@ -95,7 +96,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             )
         );
 
-        var model1 = new GetDeploymentStatsAction.Response.AllocationStats(
+        var model1 = new AllocationStats(
             "model1",
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
@@ -113,7 +114,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
 
         var modified = TransportGetDeploymentStatsAction.addFailedRoutes(response, badRoutes, nodes);
-        List<GetDeploymentStatsAction.Response.AllocationStats> results = modified.getStats().results();
+        List<AllocationStats> results = modified.getStats().results();
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getNodeStats(), hasSize(3));
         assertEquals("node1", results.get(0).getNodeStats().get(0).getNode().getId());
@@ -127,9 +128,9 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
     public void testAddFailedRoutes_TaskResultIsOverwritten() throws UnknownHostException {
         DiscoveryNodes nodes = buildNodes("node1", "node2");
 
-        List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
+        List<AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
         nodeStatsList.add(
-            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+            AllocationStats.NodeStats.forStartedState(
                 nodes.get("node1"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
@@ -139,7 +140,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             )
         );
         nodeStatsList.add(
-            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+            AllocationStats.NodeStats.forStartedState(
                 nodes.get("node2"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
@@ -149,7 +150,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             )
         );
 
-        var model1 = new GetDeploymentStatsAction.Response.AllocationStats(
+        var model1 = new AllocationStats(
             "model1",
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
@@ -167,7 +168,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         badRoutes.put(createAllocation("model1"), nodeRoutes);
 
         var modified = TransportGetDeploymentStatsAction.addFailedRoutes(response, badRoutes, nodes);
-        List<GetDeploymentStatsAction.Response.AllocationStats> results = modified.getStats().results();
+        List<AllocationStats> results = modified.getStats().results();
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getNodeStats(), hasSize(2));
         assertEquals("node1", results.get(0).getNodeStats().get(0).getNode().getId());
@@ -187,14 +188,14 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         return builder.build();
     }
 
-    private GetDeploymentStatsAction.Response.AllocationStats randomDeploymentStats() {
-        List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
+    private AllocationStats randomDeploymentStats() {
+        List<AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
         int numNodes = randomIntBetween(1, 4);
         for (int i = 0; i < numNodes; i++) {
             var node = new DiscoveryNode("node_" + i, new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
             if (randomBoolean()) {
                 nodeStatsList.add(
-                    GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                    AllocationStats.NodeStats.forStartedState(
                         node,
                         randomNonNegativeLong(),
                         randomDoubleBetween(0.0, 100.0, true),
@@ -205,7 +206,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
                 );
             } else {
                 nodeStatsList.add(
-                    GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
+                    AllocationStats.NodeStats.forNotStartedState(
                         node,
                         randomFrom(RoutingState.values()),
                         randomBoolean() ? null : "a good reason"
@@ -216,7 +217,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         nodeStatsList.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-        return new GetDeploymentStatsAction.Response.AllocationStats(
+        return new AllocationStats(
             randomAlphaOfLength(5),
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),

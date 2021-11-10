@@ -47,6 +47,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -61,6 +62,7 @@ import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
@@ -72,6 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressForbidden(reason = "use a http server")
@@ -390,6 +393,66 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertThat(countInits.get(), equalTo(0));
         assertThat(countUploads.get(), equalTo(0));
         assertThat(allow410Gone.get(), is(false));
+    }
+
+    public void testDeleteBatchesAreSentIncrementally() throws Exception {
+        // See com.google.cloud.storage.spi.v1.HttpStorageRpc.DefaultRpcBatch.MAX_BATCH_SIZE
+        final int sdkMaxBatchSize = 100;
+        final AtomicInteger receivedBatchRequests = new AtomicInteger();
+
+        final int totalDeletes = randomIntBetween(MAX_DELETES_PER_BATCH - 1, MAX_DELETES_PER_BATCH * 2);
+        final AtomicInteger pendingDeletes = new AtomicInteger();
+        final Iterator<String> blobNamesIterator = new Iterator<>() {
+            int totalDeletesSent = 0;
+
+            @Override
+            public boolean hasNext() {
+                return totalDeletesSent < totalDeletes;
+            }
+
+            @Override
+            public String next() {
+                if (pendingDeletes.get() == MAX_DELETES_PER_BATCH) {
+                    // Check that once MAX_DELETES_PER_BATCH deletes are enqueued the pending batch requests are sent
+                    assertThat(receivedBatchRequests.get(), is(greaterThan(0)));
+                    assertThat(receivedBatchRequests.get(), is(lessThanOrEqualTo(MAX_DELETES_PER_BATCH / sdkMaxBatchSize)));
+                    receivedBatchRequests.set(0);
+                    pendingDeletes.set(0);
+                }
+
+                pendingDeletes.incrementAndGet();
+                return Integer.toString(totalDeletesSent++);
+            }
+        };
+        final BlobContainer blobContainer = createBlobContainer(1, null, null, null);
+        httpServer.createContext("/batch/storage/v1", safeHandler(exchange -> {
+            assert pendingDeletes.get() <= MAX_DELETES_PER_BATCH;
+
+            receivedBatchRequests.incrementAndGet();
+            final StringBuilder batch = new StringBuilder();
+            for (String line : Streams.readAllLines(exchange.getRequestBody())) {
+                if (line.length() == 0 || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
+                    batch.append(line).append("\r\n");
+                } else if (line.startsWith("DELETE")) {
+                    batch.append("HTTP/1.1 204 NO_CONTENT").append("\r\n");
+                    batch.append("\r\n");
+                }
+            }
+            byte[] response = batch.toString().getBytes(UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", exchange.getRequestHeaders().getFirst("Content-Type"));
+            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+            exchange.getResponseBody().write(response);
+        }));
+
+        blobContainer.deleteBlobsIgnoringIfNotExists(blobNamesIterator);
+
+        // Ensure that the remaining deletes are sent in the last batch
+        if (pendingDeletes.get() > 0) {
+            assertThat(receivedBatchRequests.get(), is(greaterThan(0)));
+            assertThat(receivedBatchRequests.get(), is(lessThanOrEqualTo(MAX_DELETES_PER_BATCH / sdkMaxBatchSize)));
+
+            assertThat(pendingDeletes.get(), is(lessThanOrEqualTo(MAX_DELETES_PER_BATCH)));
+        }
     }
 
     private HttpHandler safeHandler(HttpHandler handler) {

@@ -200,7 +200,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc otherDoc = other.topDocs.topDocs.scoreDocs[d];
             if (thisDoc.doc != otherDoc.doc) return false;
             if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
-            if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
             if (thisDoc instanceof FieldDoc) {
                 if (false == (otherDoc instanceof FieldDoc)) return false;
                 FieldDoc thisFieldDoc = (FieldDoc) thisDoc;
@@ -225,7 +224,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc doc = topDocs.topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;
             hashCode = 31 * hashCode + Float.floatToIntBits(doc.score);
-            hashCode = 31 * hashCode + doc.shardIndex;
             if (doc instanceof FieldDoc) {
                 FieldDoc fieldDoc = (FieldDoc) doc;
                 hashCode = 31 * hashCode + Arrays.hashCode(fieldDoc.fields);

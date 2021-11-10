@@ -188,6 +188,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80619")
     public void testGetDefinitionFromDocsTruncated() {
         String modelId = randomAlphaOfLength(10);
         Exception ex = expectThrows(

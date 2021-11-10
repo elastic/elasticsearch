@@ -4,8 +4,6 @@
 [[release-notes-8.0.0-beta1]]
 == {es} version 8.0.0-beta1
 
-coming::[8.0.0-beta1]
-
 Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 
 [[known-issues-8.0.0-beta1]]
@@ -24,9 +22,6 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 [float]
 === Breaking changes
 
-CRUD::
-* Return `200 OK` response code for a cluster health timeout {es-pull}78968[#78968] (issues: {es-issue}70849[#70849], {es-issue}78180[#78180], {es-issue}78940[#78940])
-
 ILM+SLM::
 * Always enforce default tier preference {es-pull}79751[#79751] (issue: {es-issue}76147[#76147])
 * Validate that snapshot repository exists for ILM policies at creation/update time {es-pull}78468[#78468] (issues: {es-issue}72957[#72957], {es-issue}77657[#77657])
@@ -44,6 +39,9 @@ Ingest::
 
 License::
 * Enforce license expiration {es-pull}79671[#79671]
+
+Machine Learning::
+* Remove `allow_no_datafeeds` and `allow_no_jobs` parameters from APIs {es-pull}80048[#80048] (issue: {es-issue}60732[#60732])
 
 Packaging::
 * Require Java 17 for running Elasticsearch {es-pull}79873[#79873]
@@ -96,7 +94,10 @@ ILM+SLM::
 * Inject migrate action regardless of allocate action {es-pull}79090[#79090] (issue: {es-issue}76147[#76147])
 
 Infra/Core::
+* Check whether stdout is a real console {es-pull}79882[#79882]
 * Share int, long, float, double, and byte pages {es-pull}75053[#75053]
+* Revert "Deprecate resolution loss on date field (#78921)" {es-pull}79914[#79914] (issue: {es-issue}78921[#78921])
+* Add two missing entries to the deprecation information API {es-pull}80290[#80290] (issue: {es-issue}80233[#80233])
 
 Infra/Scripting::
 * Add nio Buffers to Painless {es-pull}79870[#79870] (issue: {es-issue}79867[#79867])
@@ -114,6 +115,7 @@ Machine Learning::
 * Add inference time configuration overrides {es-pull}78441[#78441] (issue: {es-issue}77799[#77799])
 * Optimize source extraction for `categorize_text` aggregation {es-pull}79099[#79099]
 * The Linux build platform for the {ml} C++ code is now CentOS 7 running gcc 10.3. {ml-pull}2028[#2028]
+* Make ML indices hidden when the node becomes master {es-pull}77416[#77416] (issue: {es-issue}53674[#53674])
 
 Mapping::
 * Add support for configuring HNSW parameters {es-pull}79193[#79193] (issue: {es-issue}78473[#78473])
@@ -134,6 +136,7 @@ Search::
 * Ensure kNN search respects authorization {es-pull}79693[#79693] (issue: {es-issue}78473[#78473])
 * Load kNN vectors format with mmapfs {es-pull}78724[#78724] (issue: {es-issue}78473[#78473])
 * Support cosine similarity in kNN search {es-pull}79500[#79500]
+* Node level can match action {es-pull}78765[#78765]
 
 
 
@@ -157,11 +160,15 @@ Transform::
 TSDB::
 * Automatically add timestamp mapper {es-pull}79136[#79136]
 * Create a coordinating node level reader for tsdb {es-pull}79197[#79197]
-* Fix tsdb's shrink test in multi-version cluster {es-pull}79940[#79940] (issue: {es-issue}79936[#79936])
+* Fix TSDB shrink test in multi-version cluster {es-pull}79940[#79940] (issue: {es-issue}79936[#79936])
+* Do not allow shadowing metrics or dimensions {es-pull}79757[#79757]
 
 [[bug-8.0.0-beta1]]
 [float]
 === Bug fixes
+
+Infra/Core::
+* Prevent stack overflow in rounding {es-pull}80450[#80450]
 
 Infra/Settings::
 * Stricter `UpdateSettingsRequest` parsing on the REST layer {es-pull}79227[#79227] (issue: {es-issue}29268[#29268])
@@ -169,11 +176,15 @@ Infra/Settings::
 
 Machine Learning::
 * Add timeout parameter for delete trained models API {es-pull}79739[#79739] (issue: {es-issue}77070[#77070])
+* Fix `MlMetadata` backwards compatibility bug with 7.13 through 7.16 {es-pull}80041[#80041]
 * Tone down ML unassigned job notifications {es-pull}79578[#79578] (issue: {es-issue}79270[#79270])
 * Use a new annotations index for future annotations {es-pull}79006[#79006] (issue: {es-issue}78439[#78439])
 
 Search::
 * Remove unsafe assertion in wildcard field {es-pull}78966[#78966]
+
+Snapshot/Restore::
+* Don't fill stack traces in `SnapshotShardFailure` {es-pull}80009[#80009] (issue: {es-issue}79718[#79718])
 
 
 

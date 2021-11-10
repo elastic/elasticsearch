@@ -1276,10 +1276,14 @@ analytical processing. Once this limit is approached, data pruning becomes
 more aggressive. Upon exceeding this limit, new entities are not modeled. The
 default value for jobs created in version 6.1 and later is `1024mb`. If the
 `xpack.ml.max_model_memory_limit` setting has a value greater than `0` and less
-than `1024mb`, however, that value is used instead. The default value is
-relatively small to ensure that high resource usage is a conscious decision. If
-you have jobs that are expected to analyze high cardinality fields, you will
-likely need to use a higher value.
+than `1024mb`, however, that value is used instead. If
+`xpack.ml.max_model_memory_limit` is not set, but
+`xpack.ml.use_auto_machine_memory_percent` is set, then the default
+`model_memory_limit` will be set to the largest size that could be assigned in
+the cluster, capped at `1024mb`. The default value is relatively small to
+ensure that high resource usage is a conscious decision. If you have jobs that
+are expected to analyze high cardinality fields, you will likely need to use a
+higher value.
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit

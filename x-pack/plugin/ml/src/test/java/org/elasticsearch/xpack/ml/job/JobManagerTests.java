@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -86,7 +87,6 @@ import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
 
-    private Environment environment;
     private AnalysisRegistry analysisRegistry;
     private ClusterService clusterService;
     private ThreadPool threadPool;
@@ -104,8 +104,7 @@ public class JobManagerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        environment = TestEnvironment.newEnvironment(settings);
-        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
         clusterService = mock(ClusterService.class);
         givenClusterSettings(settings);
 
@@ -503,7 +502,6 @@ public class JobManagerTests extends ESTestCase {
 
     private JobManager createJobManager(Client client) {
         return new JobManager(
-            environment.settings(),
             jobResultsProvider,
             jobResultsPersister,
             clusterService,
@@ -512,7 +510,8 @@ public class JobManagerTests extends ESTestCase {
             client,
             updateJobProcessNotifier,
             xContentRegistry(),
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            () -> ByteSizeValue.ZERO
         );
     }
 

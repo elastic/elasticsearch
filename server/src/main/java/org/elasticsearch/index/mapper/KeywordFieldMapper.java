@@ -365,7 +365,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // would work but either leaves us positioned on the seek term (if it exists) or the
         // term after (if the seek term doesn't exist). That complicates any subsequent
         // iteration logic so this class simplifies the pagination use case.
-        final class SearchAfterTermsEnum extends FilteredTermsEnum {
+        static final class SearchAfterTermsEnum extends FilteredTermsEnum {
             private final BytesRef afterRef;
 
             SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {

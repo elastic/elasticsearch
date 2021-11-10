@@ -82,10 +82,10 @@ public class DeprecationRestHandler implements RestHandler {
                 deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
             }
         } else {
-            if (deprecationLevel == null || deprecationLevel == Level.WARN) {
-                deprecationLogger.compatible(Level.WARN, deprecationKey, deprecationMessage);
-            } else {
+            if (deprecationLevel == null || deprecationLevel == DeprecationLogger.CRITICAL) {
                 deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
+            } else {
+                deprecationLogger.compatible(Level.WARN, deprecationKey, deprecationMessage);
             }
         }
 

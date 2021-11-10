@@ -91,10 +91,10 @@ public class DeprecationRestHandlerTests extends ESTestCase {
 
             // log, then forward
             if (compatibleVersionWarning) {
-                if (deprecationLevel == null || deprecationLevel == Level.WARN) {
-                    inOrder.verify(deprecationLogger).compatible(Level.WARN, "deprecated_route_GET_/some/path", deprecationMessage);
-                } else {
+                if (deprecationLevel == null || deprecationLevel == DeprecationLogger.CRITICAL) {
                     inOrder.verify(deprecationLogger).compatibleCritical("deprecated_route_GET_/some/path", deprecationMessage);
+                } else {
+                    inOrder.verify(deprecationLogger).compatible(Level.WARN, "deprecated_route_GET_/some/path", deprecationMessage);
                 }
             } else {
                 if (deprecationLevel == null || deprecationLevel == Level.WARN) {

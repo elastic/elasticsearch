@@ -3,7 +3,7 @@
 
 A document is routed to a particular shard in an index using the following
 formulas:
-    
+
     routing_factor = num_routing_shards / num_primary_shards
     shard_num = (hash(_routing) % num_routing_shards) / routing_factor
 
@@ -48,8 +48,9 @@ GET my-index-000001/_search
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
 
-NOTE: Data streams do not support custom routing. Instead, target the
-appropriate backing index for the stream.
+NOTE: Data streams do not support custom routing unless they were created with
+the <<put-index-template-api-request-body,`allow_custom_routing`>> setting
+enabled in the template.
 
 ==== Searching with custom routing
 

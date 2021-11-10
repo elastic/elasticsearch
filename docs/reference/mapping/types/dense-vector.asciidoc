@@ -5,18 +5,21 @@
 <titleabbrev>Dense vector</titleabbrev>
 ++++
 
-The `dense_vector` field type stores dense vectors of float values.
+The `dense_vector` field type stores dense vectors of float values. Dense
+vector fields can be used in the following ways:
 
-You can use `dense_vector` fields in
-<<query-dsl-script-score-query,`script_score`>> queries to score documents.
-They can also be indexed to support efficient k-nearest neighbor search. Dense
-vector fields do not support aggregations, sorting, or other query types.
+* In <<query-dsl-script-score-query,`script_score`>> queries, to score
+documents matching a filter
+* In the <<knn-search, kNN search API>>, to find the _k_ most similar vectors
+to a query vector
+
+The `dense_vector` type does not support aggregations or sorting.
 
 You add a `dense_vector` field as an array of floats:
 
 [source,console]
 --------------------------------------------------
-PUT my-index-000001
+PUT my-index
 {
   "mappings": {
     "properties": {
@@ -31,13 +34,13 @@ PUT my-index-000001
   }
 }
 
-PUT my-index-000001/_doc/1
+PUT my-index/_doc/1
 {
   "my_text" : "text1",
   "my_vector" : [0.5, 10, 6]
 }
 
-PUT my-index-000001/_doc/2
+PUT my-index/_doc/2
 {
   "my_text" : "text2",
   "my_vector" : [-0.5, 10, 10]
@@ -63,12 +66,13 @@ similarity.
 
 In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
-data structure to support fast kNN search. You can enable indexing through the
-`index` parameter:
+data structure to support fast kNN retrieval through the
+<<knn-search, kNN search API>>. You can enable indexing by setting the `index`
+parameter:
 
 [source,console]
 --------------------------------------------------
-PUT my-index-000002
+PUT my-index-2
 {
   "mappings": {
     "properties": {
@@ -84,13 +88,16 @@ PUT my-index-000002
 --------------------------------------------------
 <1> When `index` is enabled, you must define the vector similarity to use in kNN search
 
-{es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to
-support efficient kNN search. Like most kNN algorithms, HNSW is an approximate
-method that sacrifices result accuracy for improved speed.
+{es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to support
+efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
+that sacrifices result accuracy for improved speed.
 
 NOTE: Indexing vectors for approximate kNN search is an expensive process. It can take
 substantial time to ingest documents that contain vector fields with `index`
 enabled.
+
+NOTE: Dense vector fields cannot be indexed if they are within
+<<nested, `nested`>> mappings.
 
 [role="child_attributes"]
 [[dense-vector-params]]
@@ -104,9 +111,10 @@ Number of vector dimensions. Can't exceed `2048`.
 
 `index`::
 (Optional, Boolean)
-If `true`, you can search this field using the kNN search API. Defaults to
-`false`.
+If `true`, you can search this field using the <<knn-search, kNN search API>>.
+Defaults to `false`.
 
+[[dense-vector-similarity]]
 `similarity`::
 (Required^*^, string)
 The vector similarity metric to use in kNN search. Documents are ranked by

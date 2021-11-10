@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -61,7 +60,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -100,11 +98,6 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected List<Version> bwcVersions() {
-        return AbstractBWCWireSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
-    }
-
-    @Override
     protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance).setSource(
             DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version)
@@ -118,86 +111,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         if (instance.getAnalysis() instanceof Classification) {
             builder.setAnalysis(ClassificationTests.mutateForVersion((Classification) instance.getAnalysis(), version));
         }
-        if (version.before(Version.V_7_5_0)) {
-            builder.setAllowLazyStart(false);
-        }
-        if (version.before(Version.V_7_4_0)) {
-            builder.setDescription(null);
-        }
-        if (version.before(Version.V_7_3_0)) {
-            builder.setCreateTime(null);
-            builder.setVersion(null);
-        }
         return builder.build();
-    }
-
-    @Override
-    protected void assertOnBWCObject(DataFrameAnalyticsConfig bwcSerializedObject, DataFrameAnalyticsConfig testInstance, Version version) {
-
-        // Don't have to worry about Regression/Classifications Seeds
-        if (version.onOrAfter(Version.V_7_6_0) || testInstance.getAnalysis() instanceof OutlierDetection) {
-            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
-            return;
-        }
-        DataFrameAnalysis bwcAnalysis;
-        DataFrameAnalysis testAnalysis;
-        if (testInstance.getAnalysis() instanceof Regression) {
-            Regression testRegression = (Regression) testInstance.getAnalysis();
-            Regression bwcRegression = (Regression) bwcSerializedObject.getAnalysis();
-
-            bwcAnalysis = new Regression(
-                bwcRegression.getDependentVariable(),
-                bwcRegression.getBoostedTreeParams(),
-                bwcRegression.getPredictionFieldName(),
-                bwcRegression.getTrainingPercent(),
-                42L,
-                bwcRegression.getLossFunction(),
-                bwcRegression.getLossFunctionParameter(),
-                bwcRegression.getFeatureProcessors(),
-                bwcRegression.getEarlyStoppingEnabled()
-            );
-            testAnalysis = new Regression(
-                testRegression.getDependentVariable(),
-                testRegression.getBoostedTreeParams(),
-                testRegression.getPredictionFieldName(),
-                testRegression.getTrainingPercent(),
-                42L,
-                testRegression.getLossFunction(),
-                testRegression.getLossFunctionParameter(),
-                testRegression.getFeatureProcessors(),
-                testRegression.getEarlyStoppingEnabled()
-            );
-        } else {
-            Classification testClassification = (Classification) testInstance.getAnalysis();
-            Classification bwcClassification = (Classification) bwcSerializedObject.getAnalysis();
-            bwcAnalysis = new Classification(
-                bwcClassification.getDependentVariable(),
-                bwcClassification.getBoostedTreeParams(),
-                bwcClassification.getPredictionFieldName(),
-                bwcClassification.getClassAssignmentObjective(),
-                bwcClassification.getNumTopClasses(),
-                bwcClassification.getTrainingPercent(),
-                42L,
-                bwcClassification.getFeatureProcessors(),
-                bwcClassification.getEarlyStoppingEnabled()
-            );
-            testAnalysis = new Classification(
-                testClassification.getDependentVariable(),
-                testClassification.getBoostedTreeParams(),
-                testClassification.getPredictionFieldName(),
-                testClassification.getClassAssignmentObjective(),
-                testClassification.getNumTopClasses(),
-                testClassification.getTrainingPercent(),
-                42L,
-                testClassification.getFeatureProcessors(),
-                testClassification.getEarlyStoppingEnabled()
-            );
-        }
-        super.assertOnBWCObject(
-            new DataFrameAnalyticsConfig.Builder(bwcSerializedObject).setAnalysis(bwcAnalysis).build(),
-            new DataFrameAnalyticsConfig.Builder(testInstance).setAnalysis(testAnalysis).build(),
-            version
-        );
     }
 
     @Override
@@ -509,24 +423,6 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             config.toXContent(builder, ToXContent.EMPTY_PARAMS);
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));
-        }
-    }
-
-    public void testToXContent_GivenAnalysisWithRandomizeSeedAndVersionIsBeforeItWasIntroduced() throws IOException {
-        Regression regression = new Regression("foo");
-        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
-
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(Version.V_7_5_0)
-            .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
-            .setDest(new DataFrameAnalyticsDest("dest_index", null))
-            .setAnalysis(regression)
-            .build();
-
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            config.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            String json = Strings.toString(builder);
-            assertThat(json, not(containsString("randomize_seed")));
         }
     }
 

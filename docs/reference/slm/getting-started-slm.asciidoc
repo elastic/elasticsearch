@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[getting-started-snapshot-lifecycle-management]]
 === Tutorial: Automate backups with {slm-init}
 

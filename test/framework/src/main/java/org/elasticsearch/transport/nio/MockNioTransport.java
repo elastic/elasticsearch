@@ -11,6 +11,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -227,8 +228,10 @@ public class MockNioTransport extends TcpTransport {
                 if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
                     return new Page(ByteBuffer.allocate(length), () -> {});
                 } else {
-                    Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes);
+                    Recycler.V<BytesRef> bytes = recycler.obtain();
+                    BytesRef v = bytes.v();
+                    assert v.length == length;
+                    return new Page(ByteBuffer.wrap(v.bytes, v.offset, length), bytes);
                 }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, bytesRefRecycler, MockNioTransport.this);

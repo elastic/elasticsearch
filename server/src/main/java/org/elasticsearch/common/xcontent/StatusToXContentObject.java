@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -20,4 +21,8 @@ public interface StatusToXContentObject extends ToXContentObject {
      * Returns the REST status to make sure it is returned correctly
      */
     RestStatus status();
+
+    default RestStatus status(RestApiVersion restApiVersion) {
+        return status();
+    }
 }

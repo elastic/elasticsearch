@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-auto-follow]]
 === Manage auto-follow patterns
 To replicate time series indices, you configure an auto-follow pattern so that

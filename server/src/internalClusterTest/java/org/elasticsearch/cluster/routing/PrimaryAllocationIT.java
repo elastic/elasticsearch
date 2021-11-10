@@ -1,5 +1,3 @@
-package org.elasticsearch.cluster.routing;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,6 +5,8 @@ package org.elasticsearch.cluster.routing;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 

@@ -21,10 +21,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,9 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -56,7 +52,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -67,15 +62,12 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -103,18 +95,14 @@ public class JobManager {
     private final ThreadPool threadPool;
     private final UpdateJobProcessNotifier updateJobProcessNotifier;
     private final JobConfigProvider jobConfigProvider;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final NamedXContentRegistry xContentRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-
-    private volatile ByteSizeValue maxModelMemoryLimit;
+    private final Supplier<ByteSizeValue> maxModelMemoryLimitSupplier;
 
     /**
      * Create a JobManager
      */
     public JobManager(
-        Environment environment,
-        Settings settings,
         JobResultsProvider jobResultsProvider,
         JobResultsPersister jobResultsPersister,
         ClusterService clusterService,
@@ -123,7 +111,8 @@ public class JobManager {
         Client client,
         UpdateJobProcessNotifier updateJobProcessNotifier,
         NamedXContentRegistry xContentRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<ByteSizeValue> maxModelMemoryLimitSupplier
     ) {
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
@@ -134,15 +123,8 @@ public class JobManager {
         this.updateJobProcessNotifier = updateJobProcessNotifier;
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
-        maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
-    }
-
-    private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
-        this.maxModelMemoryLimit = maxModelMemoryLimit;
+        this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
@@ -161,33 +143,9 @@ public class JobManager {
             jobId,
             ActionListener.wrap(
                 r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
-                e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                        // Try to get the job from the cluster state
-                        getJobFromClusterState(jobId, jobListener);
-                    } else {
-                        jobListener.onFailure(e);
-                    }
-                }
+                jobListener::onFailure
             )
         );
-    }
-
-    /**
-     * Read a job from the cluster state.
-     * The job is returned on the same thread even though a listener is used.
-     *
-     * @param jobId the jobId
-     * @param jobListener the Job listener. If no job matches {@code jobId}
-     *                    a ResourceNotFoundException is returned
-     */
-    private void getJobFromClusterState(String jobId, ActionListener<Job> jobListener) {
-        Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(jobId);
-        if (job == null) {
-            jobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
-        } else {
-            jobListener.onResponse(job);
-        }
     }
 
     /**
@@ -199,23 +157,7 @@ public class JobManager {
      * @param jobsListener The jobs listener
      */
     public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoMatch, clusterService.state());
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, ActionListener.wrap(jobBuilders -> {
-            // Check for duplicate jobs
-            for (Job.Builder jb : jobBuilders) {
-                if (clusterStateJobs.containsKey(jb.getId())) {
-                    jobsListener.onFailure(
-                        new IllegalStateException("Job [" + jb.getId() + "] configuration " + "exists in both clusterstate and index")
-                    );
-                    return;
-                }
-            }
-            // Merge cluster state and index jobs
-            List<Job.Builder> jobs = new ArrayList<>(jobBuilders);
-            jobs.addAll(clusterStateJobs.values().stream().map(Job.Builder::new).collect(Collectors.toList()));
-            jobs.sort(Comparator.comparing(Job.Builder::getId));
-            jobsListener.onResponse(jobs);
-        }, jobsListener::onFailure));
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, jobsListener);
     }
 
     /**
@@ -241,20 +183,6 @@ public class JobManager {
                 jobsListener::onFailure
             )
         );
-    }
-
-    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoMatch, ClusterState clusterState) {
-        Map<String, Job> jobIdToJob = new HashMap<>();
-        try {
-            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoMatch);
-            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-            for (String expandedJobId : expandedJobIds) {
-                jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-        return jobIdToJob;
     }
 
     /**
@@ -304,18 +232,11 @@ public class JobManager {
         Version minNodeVersion = state.getNodes().getMinNodeVersion();
 
         Job.Builder jobBuilder = request.getJobBuilder();
-        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
+        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());
         jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
         validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, minNodeVersion);
 
         Job job = jobBuilder.build(new Date());
-
-        // Check for the job in the cluster state first
-        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
-        if (currentMlMetadata.getJobs().containsKey(job.getId())) {
-            actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
-            return;
-        }
 
         ActionListener<Boolean> putJobListener = new ActionListener<>() {
             @Override
@@ -343,21 +264,17 @@ public class JobManager {
             }
         };
 
-        ActionListener<Boolean> addDocMappingsListener = ActionListener.wrap(indicesCreated -> {
-            if (state == null) {
-                logger.warn("Cannot update doc mapping because clusterState == null");
-                putJobListener.onResponse(false);
-                return;
-            }
-            ElasticsearchMappings.addDocMappingIfMissing(
+        ActionListener<Boolean> addDocMappingsListener = ActionListener.wrap(
+            indicesCreated -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlConfigIndex.indexName(),
                 MlConfigIndex::mapping,
                 client,
                 state,
                 request.masterNodeTimeout(),
                 putJobListener
-            );
-        }, putJobListener::onFailure);
+            ),
+            putJobListener::onFailure
+        );
 
         ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(matchedIds -> {
             if (matchedIds.isEmpty()) {
@@ -409,16 +326,10 @@ public class JobManager {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
 
-        ClusterState clusterState = clusterService.state();
-        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
-            actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update job", request.getJobId()));
-            return;
-        }
-
         Runnable doUpdate = () -> jobConfigProvider.updateJobWithValidation(
             request.getJobId(),
             request.getJobUpdate(),
-            maxModelMemoryLimit,
+            maxModelMemoryLimitSupplier.get(),
             this::validate,
             ActionListener.wrap(updatedJob -> postJobUpdate(request, updatedJob, actionListener), actionListener::onFailure)
         );
@@ -429,7 +340,7 @@ public class JobManager {
             MlConfigIndex.indexName(),
             MlConfigIndex::mapping,
             client,
-            clusterState,
+            clusterService.state(),
             request.masterNodeTimeout(),
             ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure)
         );
@@ -544,27 +455,24 @@ public class JobManager {
 
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (modelSnapshotId != null && ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) == false) {
-            voidChainTaskExecutor.add(listener -> {
-                jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
-                    if (newModelSnapshot == null) {
-                        String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
-                        listener.onFailure(new ResourceNotFoundException(message));
-                        return;
+            voidChainTaskExecutor.add(listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
+                if (newModelSnapshot == null) {
+                    String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
+                    listener.onFailure(new ResourceNotFoundException(message));
+                    return;
+                }
+                jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
+                    if (oldModelSnapshot != null && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
+                        String message = "Job ["
+                            + job.getId()
+                            + "] has a more recent model snapshot ["
+                            + oldModelSnapshot.result.getSnapshotId()
+                            + "]";
+                        listener.onFailure(new IllegalArgumentException(message));
                     }
-                    jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
-                        if (oldModelSnapshot != null
-                            && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
-                            String message = "Job ["
-                                + job.getId()
-                                + "] has a more recent model snapshot ["
-                                + oldModelSnapshot.result.getSnapshotId()
-                                + "]";
-                            listener.onFailure(new IllegalArgumentException(message));
-                        }
-                        listener.onResponse(null);
-                    }, listener::onFailure);
+                    listener.onResponse(null);
                 }, listener::onFailure);
-            });
+            }, listener::onFailure));
         }
     }
 
@@ -631,8 +539,8 @@ public class JobManager {
             return;
         }
 
-        jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(jobBuilders -> {
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+        jobConfigProvider.findJobsWithCustomRules(
+            ActionListener.wrap(jobBuilders -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                 for (Job job : jobBuilders) {
                     Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
                     ClusterState clusterState = clusterService.state();
@@ -641,7 +549,7 @@ public class JobManager {
                             updateJobProcessNotifier.submitJobUpdate(
                                 UpdateParams.filterUpdate(job.getId(), filter),
                                 ActionListener.wrap(
-                                    isUpdated -> { auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems); },
+                                    isUpdated -> auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems),
                                     e -> {}
                                 )
                             );
@@ -652,8 +560,8 @@ public class JobManager {
                 }
 
                 updatedListener.onResponse(Boolean.TRUE);
-            });
-        }, updatedListener::onFailure));
+            }), updatedListener::onFailure)
+        );
     }
 
     private void auditFilterChanges(String jobId, String filterId, Set<String> addedItems, Set<String> removedItems) {
@@ -692,8 +600,9 @@ public class JobManager {
         }
 
         // calendarJobIds may be a group or job
-        jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(expandedIds -> {
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+        jobConfigProvider.expandGroupIds(
+            calendarJobIds,
+            ActionListener.wrap(expandedIds -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                 // Merge the expended group members with the request Ids.
                 // Ids that aren't jobs will be filtered by isJobOpen()
                 expandedIds.addAll(calendarJobIds);
@@ -712,8 +621,8 @@ public class JobManager {
                 }
 
                 updateListener.onResponse(Boolean.TRUE);
-            });
-        }, updateListener::onFailure));
+            }), updateListener::onFailure)
+        );
     }
 
     public void revertSnapshot(
@@ -762,7 +671,7 @@ public class JobManager {
         // -------
         JobUpdate update = new JobUpdate.Builder(request.getJobId()).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
 
-        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(job -> {
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimitSupplier.get(), ActionListener.wrap(job -> {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
             updateHandler.accept(Boolean.TRUE);
         }, actionListener::onFailure));

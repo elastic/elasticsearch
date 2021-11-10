@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-upgrade-job-model-snapshot]]
 = Upgrade model snapshots API
 ++++

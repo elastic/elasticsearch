@@ -151,7 +151,7 @@ final class Ec2ClientSettings {
                 return null;
             } else {
                 if (key.length() == 0) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.SETTINGS,
                         "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",
@@ -160,7 +160,7 @@ final class Ec2ClientSettings {
                     );
                 }
                 if (secret.length() == 0) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.SETTINGS,
                         "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",

@@ -897,7 +897,7 @@ end::inference-config-classification-num-top-classes[]
 
 tag::inference-config-classification-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. Defaults 
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. Defaults
 to 0 which means no {feat-imp} calculation occurs.
 end::inference-config-classification-num-top-feature-importance-values[]
 
@@ -908,7 +908,7 @@ end::inference-config-classification-top-classes-results-field[]
 
 tag::inference-config-classification-prediction-field-type[]
 Specifies the type of the predicted field to write.
-Valid values are: `string`, `number`, `boolean`. When `boolean` is provided 
+Valid values are: `string`, `number`, `boolean`. When `boolean` is provided
 `1.0` is transformed to `true` and `0.0` to `false`.
 end::inference-config-classification-prediction-field-type[]
 
@@ -921,7 +921,7 @@ BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
 
 tag::inference-config-nlp-tokenization-bert-do-lower-case[]
-Specifies if the tokenization lower case the text sequence when building the 
+Specifies if the tokenization lower case the text sequence when building the
 tokens.
 end::inference-config-nlp-tokenization-bert-do-lower-case[]
 
@@ -936,7 +936,7 @@ The default value is `first`.
 					 that sequence is truncated.
 --
 
-NOTE: For `zero_shot_classification`, the hypothesis sequence is always the second 
+NOTE: For `zero_shot_classification`, the hypothesis sequence is always the second
 sequence. Therefore, do not use `second` in this case.
 
 end::inference-config-nlp-tokenization-bert-truncate[]
@@ -951,21 +951,21 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
-Specifies the maximum number of tokens allowed to be output by the tokenizer. 
+Specifies the maximum number of tokens allowed to be output by the tokenizer.
 The default for BERT-style tokenization is `512`.
 end::inference-config-nlp-tokenization-bert-max-sequence-length[]
 
 tag::inference-config-nlp-vocabulary[]
-The configuration for retreiving the vocabulary of the model. The vocabulary is 
-then used at inference time. This information is usually provided automatically 
+The configuration for retreiving the vocabulary of the model. The vocabulary is
+then used at inference time. This information is usually provided automatically
 by storing vocabulary in a known, internally managed index.
 end::inference-config-nlp-vocabulary[]
 
 tag::inference-config-nlp-fill-mask[]
-Configuration for a fill_mask natural language processing (NLP) task. The 
-fill_mask task works with models optimized for a fill mask action. For example, 
-for BERT models, the following text may be provided: "The capital of France is 
-[MASK].". The response indicates the value most likely to replace `[MASK]`. In 
+Configuration for a fill_mask natural language processing (NLP) task. The
+fill_mask task works with models optimized for a fill mask action. For example,
+for BERT models, the following text may be provided: "The capital of France is
+[MASK].". The response indicates the value most likely to replace `[MASK]`. In
 this instance, the most probable token is `paris`.
 end::inference-config-nlp-fill-mask[]
 
@@ -993,7 +993,7 @@ end::inference-config-text-classification[]
 tag::inference-config-text-embedding[]
 Text embedding takes an input sequence and transforms it into a vector of
 numbers. These embeddings capture not simply tokens, but semantic meanings and
-context. These embeddings can be used in a <<dense-vector,dense vector>> field 
+context. These embeddings can be used in a <<dense-vector,dense vector>> field
 for powerful insights.
 end::inference-config-text-embedding[]
 
@@ -1021,7 +1021,7 @@ it is possible to adjust the labels to classify. This makes this type of model
 and task exceptionally flexible.
 +
 --
-If consistently classifying the same labels, it may be better to use a 
+If consistently classifying the same labels, it may be better to use a
 fine-tuned text classification model.
 --
 end::inference-config-zero-shot-classification[]
@@ -1276,10 +1276,14 @@ analytical processing. Once this limit is approached, data pruning becomes
 more aggressive. Upon exceeding this limit, new entities are not modeled. The
 default value for jobs created in version 6.1 and later is `1024mb`. If the
 `xpack.ml.max_model_memory_limit` setting has a value greater than `0` and less
-than `1024mb`, however, that value is used instead. The default value is
-relatively small to ensure that high resource usage is a conscious decision. If
-you have jobs that are expected to analyze high cardinality fields, you will
-likely need to use a higher value.
+than `1024mb`, however, that value is used instead. If
+`xpack.ml.max_model_memory_limit` is not set, but
+`xpack.ml.use_auto_machine_memory_percent` is set, then the default
+`model_memory_limit` will be set to the largest size that could be assigned in
+the cluster, capped at `1024mb`. The default value is relatively small to
+ensure that high resource usage is a conscious decision. If you have jobs that
+are expected to analyze high cardinality fields, you will likely need to use a
+higher value.
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit

@@ -35,6 +35,7 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Includes.DEFINITION;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
@@ -76,13 +77,17 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         );
         final GetTrainedModelsAction.Request request;
         if (restRequest.hasParam(INCLUDE_MODEL_DEFINITION)) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 INCLUDE_MODEL_DEFINITION,
                 "[{}] parameter is deprecated! Use [include=definition] instead.",
                 INCLUDE_MODEL_DEFINITION
             );
-            request = new GetTrainedModelsAction.Request(modelId, restRequest.paramAsBoolean(INCLUDE_MODEL_DEFINITION, false), tags);
+            request = new GetTrainedModelsAction.Request(
+                modelId,
+                tags,
+                restRequest.paramAsBoolean(INCLUDE_MODEL_DEFINITION, false) ? Set.of(DEFINITION) : Set.of()
+            );
         } else {
             request = new GetTrainedModelsAction.Request(modelId, tags, includes);
         }

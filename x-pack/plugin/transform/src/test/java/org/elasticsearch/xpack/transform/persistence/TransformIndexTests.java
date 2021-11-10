@@ -7,15 +7,26 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.junit.Assert;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -23,6 +34,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -36,23 +49,93 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class TransformIndexTests extends ESTestCase {
 
     private static final String TRANSFORM_ID = "some-random-transform-id";
     private static final int CURRENT_TIME_MILLIS = 123456789;
+    private static final String DEST_INDEX = "some-dest-index";
     private static final String CREATED_BY = "transform";
 
-    private Client client = mock(Client.class);
+    private Client client;
     private Clock clock = Clock.fixed(Instant.ofEpochMilli(CURRENT_TIME_MILLIS), ZoneId.systemDefault());
 
+    @Before
+    public void setUpMocks() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+    }
+
+    public void testIsDestinationIndexCreatedByTransform_NoIndex() throws Exception {
+        doAnswer(withFailure(new IndexNotFoundException(DEST_INDEX))).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        TransformIndex.isDestinationIndexCreatedByTransform(
+            client,
+            DEST_INDEX,
+            new LatchedActionListener<>(ActionListener.wrap(Assert::assertFalse, e -> fail(e.getMessage())), latch)
+        );
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+    }
+
+    private void testIsDestinationIndexCreatedByTransform(ImmutableOpenMap<String, MappingMetadata> mappings, boolean expectedValue)
+        throws Exception {
+        GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { DEST_INDEX }, mappings, null, null, null, null);
+        doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        TransformIndex.isDestinationIndexCreatedByTransform(
+            client,
+            DEST_INDEX,
+            new LatchedActionListener<>(
+                ActionListener.wrap(value -> assertThat(value, is(equalTo(expectedValue))), e -> fail(e.getMessage())),
+                latch
+            )
+        );
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testIsDestinationIndexCreatedByTransform_NoMappings() throws Exception {
+        testIsDestinationIndexCreatedByTransform(null, false);
+    }
+
+    public void testIsDestinationIndexCreatedByTransform_NoIndexInMappings() throws Exception {
+        testIsDestinationIndexCreatedByTransform(ImmutableOpenMap.of(), false);
+    }
+
+    public void testIsDestinationIndexCreatedByTransform_NoMeta() throws Exception {
+        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
+            .fPut(DEST_INDEX, MappingMetadata.EMPTY_MAPPINGS)
+            .build();
+        testIsDestinationIndexCreatedByTransform(mappings, false);
+    }
+
+    public void testIsDestinationIndexCreatedByTransform_NoCreatedBy() throws Exception {
+        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
+            .fPut(DEST_INDEX, new MappingMetadata("_doc", Map.of("_meta", Map.of())))
+            .build();
+        testIsDestinationIndexCreatedByTransform(mappings, false);
+    }
+
+    public void testIsDestinationIndexCreatedByTransform_CreatedByDoesNotMatch() throws Exception {
+        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
+            .fPut(DEST_INDEX, new MappingMetadata("_doc", Map.of("_meta", Map.of("created_by", "some-user"))))
+            .build();
+        testIsDestinationIndexCreatedByTransform(mappings, false);
+    }
+
+    public void testIsDestinationIndexCreatedByTransform_Ok() throws Exception {
+        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
+            .fPut(DEST_INDEX, new MappingMetadata("_doc", Map.of("_meta", Map.of("created_by", CREATED_BY))))
+            .build();
+        testIsDestinationIndexCreatedByTransform(mappings, true);
+    }
+
     public void testCreateDestinationIndex() throws IOException {
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(null);
-            return null;
-        }).when(client).execute(any(), any(), any());
+        doAnswer(withResponse(null)).when(client).execute(any(), any(), any());
 
         TransformIndex.createDestinationIndex(
             client,
@@ -138,5 +221,23 @@ public class TransformIndexTests extends ESTestCase {
                 put("f.g.h.i", singletonMap("type", "text"));
             }
         })));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Response> Answer<Response> withResponse(Response response) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Response> Answer<Response> withFailure(Exception e) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
+            listener.onFailure(e);
+            return null;
+        };
     }
 }

@@ -161,7 +161,7 @@ RUN <%= retry.loop(
       "export DEBIAN_FRONTEND=noninteractive && \n" +
       "${package_manager} update && \n" +
       "${package_manager} install -y --no-install-recommends curl netcat zip unzip vim-tiny && \n" +
-      "${package_manager} clean clean && \n" +
+      "${package_manager} clean && \n" +
       "rm -rf /var/lib/apt/lists/*"
   ) %>
 
@@ -273,7 +273,7 @@ ENTRYPOINT ["/bin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 # Generate a stub command that will be overwritten at runtime
 RUN mkdir /app && \\
-    echo -e '#!/bin/sh\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    echo '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
 
 <% } else { %>

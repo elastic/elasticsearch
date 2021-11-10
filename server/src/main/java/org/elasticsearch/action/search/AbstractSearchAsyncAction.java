@@ -513,7 +513,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
             );
         } else {
-            if (lastShard == false) {
+            if (lastShard == false && isTaskCancelledException(e) == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             }
         }

@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
@@ -339,16 +340,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 List.of(
-                    new GetDeploymentStatsAction.Response.AllocationStats(
-                        "model_3",
-                        ByteSizeValue.ofMb(100),
-                        null,
-                        null,
-                        null,
-                        Instant.now(),
-                        List.of()
-                    ).setState(AllocationState.STOPPING),
-                    new GetDeploymentStatsAction.Response.AllocationStats(
+                    new AllocationStats("model_3", ByteSizeValue.ofMb(100), null, null, null, Instant.now(), List.of()).setState(
+                        AllocationState.STOPPING
+                    ),
+                    new AllocationStats(
                         "model_4",
                         ByteSizeValue.ofMb(200),
                         2,
@@ -356,7 +351,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                         1000,
                         Instant.now(),
                         List.of(
-                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                            AllocationStats.NodeStats.forStartedState(
                                 new DiscoveryNode("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2), Version.CURRENT),
                                 5,
                                 42.0,
@@ -364,7 +359,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 Instant.now(),
                                 Instant.now()
                             ),
-                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                            AllocationStats.NodeStats.forStartedState(
                                 new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
                                 4,
                                 50.0,

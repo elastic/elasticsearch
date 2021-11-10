@@ -170,7 +170,11 @@ public class MetadataDeleteIndexService {
             SnapshotDeletionsPending.TYPE,
             SnapshotDeletionsPending.EMPTY
         );
-        final SnapshotDeletionsPending updatedPendingDeletes = updateSnapshotDeletionsPending(deletionsInPending, indicesToDelete, currentState);
+        final SnapshotDeletionsPending updatedPendingDeletes = updateSnapshotDeletionsPending(
+            deletionsInPending,
+            indicesToDelete,
+            currentState
+        );
         if (updatedPendingDeletes != deletionsInPending) {
             if (customBuilder == null) {
                 customBuilder = ImmutableOpenMap.builder(currentState.getCustoms());
@@ -208,7 +212,8 @@ public class MetadataDeleteIndexService {
             return pendingDeletions;
         }
 
-        final Set<SnapshotId> activeSearchableSnapshots = state.metadata().indices()
+        final Set<SnapshotId> activeSearchableSnapshots = state.metadata()
+            .indices()
             .stream()
             .map(Map.Entry::getValue)
             .filter(index -> indicesToDelete.contains(index.getIndex()) == false)

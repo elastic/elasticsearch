@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.logging.log4j.Level.WARN;
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
@@ -511,7 +512,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
-        assertWarnings(org.apache.logging.log4j.Level.WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+        assertWarnings(WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
     }
 
@@ -584,7 +585,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
         assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
-        assertWarnings(org.apache.logging.log4j.Level.WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+        assertWarnings(WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }
 
     public void testRewriteForBWCOfDateNormalization() throws IOException {
@@ -740,7 +741,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.CURRENT);
 
         // check _and_ clear warnings
-        assertWarnings(org.apache.logging.log4j.Level.WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+        assertWarnings(WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(
@@ -765,7 +766,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_10_0);
 
         // check _and_ clear warnings
-        assertWarnings(org.apache.logging.log4j.Level.WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+        assertWarnings(WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(
@@ -790,7 +791,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_4_0);
 
         // check _and_ clear warnings
-        assertWarnings(org.apache.logging.log4j.Level.WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+        assertWarnings(WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(

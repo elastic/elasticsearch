@@ -4,7 +4,7 @@ setup:
 
   - do:
       indices.create:
-        index: test
+        index: futest
         body:
           settings:
             routing.rebalance.enable: none
@@ -22,7 +22,7 @@ setup:
 
   - do:
       index:
-        index: test
+        index: futest
         body:
           name: cow.jpg
           vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
@@ -32,7 +32,7 @@ setup:
 
   - do:
       index:
-        index: test
+        index: futest
         id: 2
         body:
           name: moose.jpg
@@ -43,7 +43,7 @@ setup:
 
   - do:
       index:
-        index: test
+        index: futest
         id: 3
         body:
           name: rabbit.jpg
@@ -56,7 +56,7 @@ setup:
 "Field usage":
   - do:
       knn_search:
-        index: test
+        index: futest
         body:
           fields: [ "name" ]
           knn:
@@ -72,16 +72,16 @@ setup:
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 
   - do:
-      indices.field_usage_stats: { index: test }
+      indices.field_usage_stats: { index: futest }
 
-  - is_true: test
-  - length: { test.shards: 1 }
+  - is_true: futest
+  - length: { futest.shards: 1 }
 
-  - gt: { test.shards.0.stats.all_fields.any: 0 }
-  - gt: { test.shards.0.stats.all_fields.vectors: 0 }
+  - gt: { futest.shards.0.stats.all_fields.any: 0 }
+  - gt: { futest.shards.0.stats.all_fields.vectors: 0 }
 
-  - gt: { test.shards.0.stats.fields.vector.any: 0 }
-  - gt: { test.shards.0.stats.fields.vector.vectors: 0 }
+  - gt: { futest.shards.0.stats.fields.vector.any: 0 }
+  - gt: { futest.shards.0.stats.fields.vector.vectors: 0 }
 
-  - gt: { test.shards.0.stats.fields._id.stored_fields: 0 }
-  - match: { test.shards.0.stats.fields._id.vectors: 0 }
+  - gt: { futest.shards.0.stats.fields._id.stored_fields: 0 }
+  - match: { futest.shards.0.stats.fields._id.vectors: 0 }

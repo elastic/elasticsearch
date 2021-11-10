@@ -128,7 +128,6 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
                 "test",
-                "_doc",
                 client(),
                 -1,
                 RandomizedTest.scaledRandomIntBetween(2, 5),

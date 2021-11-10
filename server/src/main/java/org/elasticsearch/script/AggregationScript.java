@@ -29,7 +29,7 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
-        deprecationLogger.critical(
+        deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
             "aggregation-script_doc",
             "Accessing variable [doc] via [params.doc] from within an aggregation-script "
@@ -37,7 +37,7 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
         );
         return value;
     }, "_doc", value -> {
-        deprecationLogger.critical(
+        deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
             "aggregation-script__doc",
             "Accessing variable [doc] via [params._doc] from within an aggregation-script "

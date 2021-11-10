@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -26,7 +27,7 @@ public class TriangleTreeTests extends ESTestCase {
     public void testVisitAllTriangles() throws IOException {
         Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 10), false);
         // write tree
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         List<IndexableField> fieldList = indexer.indexShape(geometry);
         BytesStreamOutput output = new BytesStreamOutput();
         TriangleTreeWriter.writeTo(output, fieldList);

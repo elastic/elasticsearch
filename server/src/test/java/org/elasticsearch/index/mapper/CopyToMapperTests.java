@@ -653,7 +653,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc()
+            () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
         );
         assertEquals(
             "Cannot copy field [date] to fields [date_copy]. Copy-to currently only works for value-type fields, not objects.",
@@ -679,7 +679,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
         BytesReference json = BytesReference.bytes(jsonBuilder().startObject().nullField("keyword").endObject());
 
-        LuceneDocument document = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument document = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         assertEquals(0, document.getFields("keyword").length);
 
         IndexableField[] fields = document.getFields("keyword_copy");
@@ -705,7 +705,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             for (String value : List.of("41.12,-71.34", "drm3btev3e86", "POINT (-71.34 41.12)")) {
                 BytesReference json = BytesReference.bytes(jsonBuilder().startObject().field("geopoint", value).endObject());
 
-                LuceneDocument doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+                LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
 
                 IndexableField[] fields = doc.getFields("geopoint");
                 assertThat(fields.length, equalTo(2));
@@ -722,7 +722,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
             MapperParsingException ex = expectThrows(
                 MapperParsingException.class,
-                () -> docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc()
+                () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
             );
             assertEquals(
                 "Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
@@ -736,7 +736,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
             MapperParsingException ex = expectThrows(
                 MapperParsingException.class,
-                () -> docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc()
+                () -> docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc()
             );
             assertEquals(
                 "Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",

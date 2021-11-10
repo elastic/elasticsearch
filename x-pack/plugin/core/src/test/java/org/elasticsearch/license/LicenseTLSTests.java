@@ -19,6 +19,8 @@ import java.net.InetAddress;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -43,7 +45,10 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
 
         inetAddress = TransportAddress.META_ADDRESS;
-        settings = Settings.builder().put("xpack.security.enabled", true).put("discovery.type", "single-node").build();
+        settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
+            .build();
         licenseService.stop();
         licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);

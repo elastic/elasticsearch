@@ -38,6 +38,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -133,6 +134,23 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
                                 return booleans.get(0) ? 3 : 0;
+                            }
+                        };
+                    }
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                    @Override
+                    public boolean needs_score() {
+                        return false;
+                    }
+
+                    @Override
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                            @Override
+                            public double execute(ExplanationHolder explanation) {
+                                BooleanDocValuesField booleans = (BooleanDocValuesField) field("test");
+                                return booleans.getInternal(0) ? 3 : 0;
                             }
                         };
                     }
@@ -308,7 +326,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";
             XContentParser parser = createParser(JsonXContent.jsonXContent, source);
-            SourceToParse sourceToParse = new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON);
+            SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
             DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, null, null, null, sourceToParse) {
                 @Override
                 public XContentParser parser() {

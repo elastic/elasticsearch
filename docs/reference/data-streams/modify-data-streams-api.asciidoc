@@ -85,8 +85,8 @@ DELETE /_index_template/template
 [%collapsible%open]
 =====
 `add_backing_index`::
-Adds an existing index as backing index to a data stream. The index will be
-hidden as part of the operation.
+Adds an existing index as a backing index for a data stream. The index is
+hidden as part of this operation.
 
 WARNING: Adding indices with the `add_backing_index` action
 can potentially result in improper data stream behavior. 

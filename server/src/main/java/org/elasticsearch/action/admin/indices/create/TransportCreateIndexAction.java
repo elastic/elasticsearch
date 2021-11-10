@@ -159,13 +159,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         String indexName,
         long nameResolvedAt
     ) {
-        Set<Alias> aliases = request.aliases().stream()
-            .peek(alias -> {
-                if (systemIndices.isSystemName(alias.name())) {
-                    alias.isHidden(true);
-                }
-            })
-            .collect(Collectors.toSet());
+        Set<Alias> aliases = request.aliases().stream().peek(alias -> {
+            if (systemIndices.isSystemName(alias.name())) {
+                alias.isHidden(true);
+            }
+        }).collect(Collectors.toSet());
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())

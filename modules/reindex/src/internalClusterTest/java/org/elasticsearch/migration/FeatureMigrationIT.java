@@ -248,10 +248,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             );
         } else {
             // managed
-            createRequest.setSettings(Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                .build());
+            createRequest.setSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .build()
+            );
         }
         if (descriptor.getMappings() == null) {
             createRequest.setMapping(createSimpleMapping(false, descriptor.isInternal()));

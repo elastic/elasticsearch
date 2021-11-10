@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -29,6 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
@@ -43,6 +45,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     @Before
     public void beforeEach() {
         TestSystemIndexDescriptor.useNewMappings.set(false);
+        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     @Override
@@ -92,6 +95,37 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      */
     public void testCreateSystemIndexViaConcreteName() {
         doCreateTest(() -> assertAcked(prepareCreate(PRIMARY_INDEX_NAME)), PRIMARY_INDEX_NAME);
+    }
+
+    /**
+     * Check that a template applying a system alias creates a hidden alias.
+     */
+    public void testCreateSystemAliasViaTemplate() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate("test-template")
+                .setPatterns(List.of(INDEX_NAME + "*"))
+                .addAlias(new Alias(INDEX_NAME + "-alias"))
+                .get()
+        );
+
+        internalCluster().startNodes(1);
+
+        assertAcked(prepareCreate(INDEX_NAME + "-2"));
+        ensureGreen(INDEX_NAME); // huh?
+
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .get();
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
+
+        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     private void doCreateTest(Runnable runnable, String concreteIndex) {

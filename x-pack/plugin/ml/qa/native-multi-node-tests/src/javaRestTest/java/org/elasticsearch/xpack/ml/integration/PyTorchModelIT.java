@@ -579,6 +579,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         );
 
         deleteModel(modelId, true);
+
+        assertThatTrainedModelAllocationMetadataIsEmpty();
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
@@ -698,5 +700,17 @@ public class PyTorchModelIT extends ESRestTestCase {
     private Response deleteModel(String modelId, boolean force) throws IOException {
         Request request = new Request("DELETE", "/_ml/trained_models/" + modelId + "?force=" + force);
         return client().performRequest(request);
+    }
+
+    private void assertThatTrainedModelAllocationMetadataIsEmpty() throws IOException {
+        Request getTrainedModelAllocationMetadataRequest = new Request(
+            "GET",
+            "_cluster/state?filter_path=metadata.trained_model_allocation"
+        );
+        Response getTrainedModelAllocationMetadataResponse = client().performRequest(getTrainedModelAllocationMetadataRequest);
+        assertThat(
+            EntityUtils.toString(getTrainedModelAllocationMetadataResponse.getEntity()),
+            containsString("\"trained_model_allocation\":{}")
+        );
     }
 }

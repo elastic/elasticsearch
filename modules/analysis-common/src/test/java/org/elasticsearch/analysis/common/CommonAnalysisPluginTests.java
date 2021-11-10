@@ -8,6 +8,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
@@ -193,6 +194,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
 
         createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
         assertWarnings(
+            Level.WARN,
             "The [nGram] token filter name is deprecated and will be removed in a future version. "
                 + "Please change the filter name to [ngram] instead."
         );
@@ -214,6 +216,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
 
         createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
         assertWarnings(
+            Level.WARN,
             "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
                 + "Please change the filter name to [edge_ngram] instead."
         );
@@ -276,6 +279,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             assertNotNull(tokenizer);
             if (expectWarning) {
                 assertWarnings(
+                    Level.WARN,
                     "The ["
                         + deprecatedName
                         + "] tokenizer name is deprecated and will be removed in a future version. "
@@ -302,6 +306,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
 
             if (expectWarning) {
                 assertWarnings(
+                    Level.WARN,
                     "The ["
                         + deprecatedName
                         + "] tokenizer name is deprecated and will be removed in a future version. "

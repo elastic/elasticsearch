@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
@@ -246,7 +247,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     public void testBadNullValue() throws IOException {
         createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
 
-        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
+        assertWarnings(Level.WARN, "Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testNullConfigValuesFail() {

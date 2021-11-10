@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -104,7 +105,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
 
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+        assertWarnings(Level.WARN, SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -135,7 +136,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, vectorBR);
         assertArrayEquals("Decoded sparse vector values are not equal to the indexed ones.", expectedValues, decodedValues, 0.001f);
 
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+        assertWarnings(Level.WARN, SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testDimensionNumberValidation() throws IOException {
@@ -196,7 +197,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             containsString("takes an object that maps a dimension number to a float, but got unexpected token [START_ARRAY]")
         );
 
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+        assertWarnings(Level.WARN, SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testDimensionLimit() throws IOException {
@@ -218,7 +219,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         );
         assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
 
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+        assertWarnings(Level.WARN, SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     @Override
@@ -253,5 +254,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [vectors] of type [sparse_vector] can't be used in multifields"));
+    }
+
+    protected Level getWarningLevel() {
+        return Level.WARN;
     }
 }

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -763,6 +764,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         assertWarnings(
+            Level.WARN,
             "You have defined more than [10] completion contexts in the mapping for field [field]. "
                 + "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0]."
         );

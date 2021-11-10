@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
@@ -108,7 +109,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.OTHER,
                         "deprecated_token_filter_create",
                         "Using deprecated token filter [deprecated]"
@@ -118,7 +119,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
                 @Override
                 public TokenStream normalize(TokenStream tokenStream) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.OTHER,
                         "deprecated_token_filter_normalize",
                         "Using deprecated token filter [deprecated]"
@@ -574,7 +575,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(2, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
+        assertWarnings(Level.WARN, "Using deprecated token filter [deprecated]");
 
         // normalizer
         req = new AnalyzeAction.Request();
@@ -584,6 +585,6 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(1, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
+        assertWarnings(Level.WARN, "Using deprecated token filter [deprecated]");
     }
 }

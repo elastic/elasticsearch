@@ -9,6 +9,7 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -1234,7 +1235,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         client().prepareIndex(indexName, "_doc").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         assertHitCount(client().prepareSearch().get(), 0L);
         assertHitCount(client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1L);
-        assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
+        assertWarnings(Level.WARN, TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
     }
 
     public void testCreateReduceContext() {

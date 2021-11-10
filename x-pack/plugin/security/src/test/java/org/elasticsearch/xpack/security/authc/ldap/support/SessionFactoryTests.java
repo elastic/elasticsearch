@@ -10,6 +10,7 @@ import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
@@ -157,6 +158,7 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getResponseTimeoutMillis(), is(equalTo(20L)));
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
         assertWarnings(
+            Level.WARN,
             "the setting [xpack.security.authc.realms.ldap.conn_settings.hostname_verification] has been deprecated and will be "
                 + "removed in a future version. use [xpack.security.authc.realms.ldap.conn_settings.ssl.verification_mode] instead"
         );

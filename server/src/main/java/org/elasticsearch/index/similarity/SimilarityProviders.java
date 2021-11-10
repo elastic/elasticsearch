@@ -172,7 +172,7 @@ final class SimilarityProviders {
                         "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
                     );
                 } else {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.QUERIES,
                         afterEffect + "_after_effect_replaced",
                         "After effect ["

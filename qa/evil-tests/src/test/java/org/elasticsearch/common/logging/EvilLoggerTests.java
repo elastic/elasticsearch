@@ -115,7 +115,7 @@ public class EvilLoggerTests extends ESTestCase {
                 }
                 for (int j = 0; j < iterations; j++) {
                     for (final Integer id : ids) {
-                        deprecationLogger.critical(
+                        deprecationLogger.warn(
                             DeprecationCategory.OTHER,
                             Integer.toString(id),
                             "This is a maybe logged deprecation message" + id
@@ -167,7 +167,7 @@ public class EvilLoggerTests extends ESTestCase {
         for (int i = 0; i < 128; i++) {
             assertLogLine(
                 deprecationEvents.get(i),
-                DeprecationLogger.CRITICAL,
+                Level.WARN,
                 "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
                 "This is a maybe logged deprecation message" + i
             );

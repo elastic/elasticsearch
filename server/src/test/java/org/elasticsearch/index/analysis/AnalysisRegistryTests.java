@@ -10,6 +10,7 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -353,7 +354,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
-                        deprecationLogger.critical(
+                        deprecationLogger.warn(
                             DeprecationCategory.OTHER,
                             "deprecated_token_filter",
                             "Using deprecated token filter [deprecated]"
@@ -385,7 +386,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.critical(DeprecationCategory.OTHER, "unused_token_filter", "Using deprecated token filter [unused]");
+                    deprecationLogger.warn(DeprecationCategory.OTHER, "unused_token_filter", "Using deprecated token filter [unused]");
                     return tokenStream;
                 }
             }
@@ -398,7 +399,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.OTHER,
                         "deprecated_normalizer",
                         "Using deprecated token filter [deprecated_normalizer]"
@@ -432,7 +433,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
 
         // We should only get a warning from the token filter that is referenced in settings
-        assertWarnings("Using deprecated token filter [deprecated]");
+        assertWarnings(Level.WARN, "Using deprecated token filter [deprecated]");
 
         indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.getPreviousVersion())
@@ -450,7 +451,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
         // We should only get a warning from the normalizer, because we're on a version where 'deprecated'
         // works fine
-        assertWarnings("Using deprecated token filter [deprecated_normalizer]");
+        assertWarnings(Level.WARN, "Using deprecated token filter [deprecated_normalizer]");
 
         indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

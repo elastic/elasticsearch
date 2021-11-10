@@ -1069,6 +1069,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             equalTo(expectedIssue)
         );
         assertWarnings(
+            Level.WARN,
             String.format(
                 Locale.ROOT,
                 "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [%s] " + "found for setting [%s]",

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -60,7 +61,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         );
         Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
-        assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
+        assertWarnings(Level.WARN, "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
 
         FieldNamesFieldMapper.FieldNamesFieldType unsearchable = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", null));

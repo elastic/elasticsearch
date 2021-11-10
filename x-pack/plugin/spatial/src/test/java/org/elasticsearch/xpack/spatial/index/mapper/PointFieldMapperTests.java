@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -232,7 +233,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+        assertWarnings(Level.WARN, "Adding multifields to [point] mappers has no effect and will be forbidden in future");
     }
 
     @Override

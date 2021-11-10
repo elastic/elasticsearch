@@ -205,7 +205,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
         private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.MAPPINGS,
                     "excessive_completion_contexts",
                     "You have defined more than ["

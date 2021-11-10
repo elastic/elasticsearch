@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -1456,6 +1457,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         compositeRolesStore.logDeprecatedRoles(new LinkedHashSet<>(descriptors));
 
         assertWarnings(
+            Level.WARN,
             "The role ["
                 + deprecated1.getName()
                 + "] is deprecated and will be removed in a future version of Elasticsearch."

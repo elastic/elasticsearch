@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -61,7 +62,7 @@ public class DateUtilsTests extends ESTestCase {
                 equalTo(jodaTz.getOffset(now))
             );
             if (DateUtils.DEPRECATED_SHORT_TIMEZONES.containsKey(jodaTz.getID())) {
-                assertWarnings("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
+                assertWarnings(Level.WARN, "Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
             }
             // roundtrip does not throw either
             assertNotNull(DateUtils.zoneIdToDateTimeZone(zoneId));

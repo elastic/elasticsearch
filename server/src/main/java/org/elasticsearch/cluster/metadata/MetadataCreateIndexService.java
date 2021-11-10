@@ -220,7 +220,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.INDICES,
                     "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names "

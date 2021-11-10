@@ -269,6 +269,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(0));
         assertWarnings(
+            Level.WARN,
             "this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct"
                 + " access to system indices and their aliases will not be allowed"
         );

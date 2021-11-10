@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
@@ -503,6 +504,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(iac.getIndexPermissions("test1").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("test_write1").isGranted(), is(true));
         assertWarnings(
+            Level.WARN,
             "the index privilege [index] allowed the update mapping action ["
                 + PutMappingAction.NAME
                 + "] on "
@@ -523,6 +525,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(iac.getIndexPermissions("test1").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("test_write1").isGranted(), is(true));
         assertWarnings(
+            Level.WARN,
             "the index privilege [index] allowed the update mapping action ["
                 + AutoPutMappingAction.NAME
                 + "] on "

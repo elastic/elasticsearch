@@ -408,6 +408,7 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -783,7 +784,6 @@ public class MachineLearning extends Plugin
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(
-            settings,
             jobResultsProvider,
             jobResultsPersister,
             clusterService,
@@ -792,7 +792,8 @@ public class MachineLearning extends Plugin
             client,
             notifier,
             xContentRegistry,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            () -> NativeMemoryCalculator.getMaxModelMemoryLimit(clusterService)
         );
         DatafeedManager datafeedManager = new DatafeedManager(
             datafeedConfigProvider,

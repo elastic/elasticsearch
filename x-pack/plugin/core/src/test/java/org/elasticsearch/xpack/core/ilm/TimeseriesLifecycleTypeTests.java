@@ -64,7 +64,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final DeleteAction TEST_DELETE_ACTION = DeleteAction.WITH_SNAPSHOT_DELETE;
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
-    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
+    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null, false);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
@@ -305,7 +305,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                 )
             );
-            Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
+            Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null, false)));
             Phase cold = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -1070,7 +1070,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 case DeleteAction.NAME:
                     return DeleteAction.WITH_SNAPSHOT_DELETE;
                 case ForceMergeAction.NAME:
-                    return new ForceMergeAction(1, null);
+                    return new ForceMergeAction(1, null, false);
                 case ReadOnlyAction.NAME:
                     return new ReadOnlyAction();
                 case RolloverAction.NAME:

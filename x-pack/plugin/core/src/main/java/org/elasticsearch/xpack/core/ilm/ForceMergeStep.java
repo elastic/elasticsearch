@@ -30,11 +30,13 @@ public class ForceMergeStep extends AsyncActionStep {
 
     public static final String NAME = "forcemerge";
     private static final Logger logger = LogManager.getLogger(ForceMergeStep.class);
-    private final int maxNumSegments;
+    private final Integer maxNumSegments;
+    private final boolean onlyExpungeDeletes;
 
-    public ForceMergeStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments) {
+    public ForceMergeStep(StepKey key, StepKey nextStepKey, Client client, Integer maxNumSegments, boolean onlyExpungeDeletes) {
         super(key, nextStepKey, client);
         this.maxNumSegments = maxNumSegments;
+        this.onlyExpungeDeletes = onlyExpungeDeletes;
     }
 
     @Override
@@ -42,8 +44,12 @@ public class ForceMergeStep extends AsyncActionStep {
         return true;
     }
 
-    public int getMaxNumSegments() {
+    public Integer getMaxNumSegments() {
         return maxNumSegments;
+    }
+
+    public boolean getOnlyExpungeDeletes() {
+        return onlyExpungeDeletes;
     }
 
     @Override
@@ -55,7 +61,11 @@ public class ForceMergeStep extends AsyncActionStep {
     ) {
         String indexName = indexMetadata.getIndex().getName();
         ForceMergeRequest request = new ForceMergeRequest(indexName);
-        request.maxNumSegments(maxNumSegments);
+        if (maxNumSegments != null) {
+            request.maxNumSegments(maxNumSegments);
+        } else {
+            request.onlyExpungeDeletes(onlyExpungeDeletes);
+        }
         getClient().admin().indices().forceMerge(request, ActionListener.wrap(response -> {
             if (response.getFailedShards() == 0) {
                 listener.onResponse(null);
@@ -84,7 +94,7 @@ public class ForceMergeStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxNumSegments);
+        return Objects.hash(super.hashCode(), maxNumSegments, onlyExpungeDeletes);
     }
 
     @Override
@@ -96,6 +106,8 @@ public class ForceMergeStep extends AsyncActionStep {
             return false;
         }
         ForceMergeStep other = (ForceMergeStep) obj;
-        return super.equals(obj) && Objects.equals(maxNumSegments, other.maxNumSegments);
+        return super.equals(obj)
+            && Objects.equals(maxNumSegments, other.maxNumSegments)
+            && Objects.equals(onlyExpungeDeletes, other.onlyExpungeDeletes);
     }
 }

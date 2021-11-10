@@ -636,16 +636,20 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(
                 WriteRequest.RefreshPolicy.IMMEDIATE
             ).id(TransformStoredDoc.documentId(storedDoc.getId())).source(source);
-            if (seqNoPrimaryTermAndIndex != null
-                && seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
-                indexRequest.opType(DocWriteRequest.OpType.INDEX)
-                    .setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
-                    .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+            if (seqNoPrimaryTermAndIndex != null) {
+                // if seqNoPrimaryTermAndIndex is set, use optype index even if not on the latest index, because the upgrader
+                // could have been called, see gh#80073
+                indexRequest.opType(DocWriteRequest.OpType.INDEX);
+                // if on the latest index use optimistic concurrency control in addition
+                if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                    indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                        .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+                }
             } else {
-                // If the index is NOT the latest or we are null, that means we have not created this doc before
-                // so, it should be a create option without the seqNo and primaryTerm set
+                // we have not created this doc before or we are called from the upgrader
                 indexRequest.opType(DocWriteRequest.OpType.CREATE);
             }
+
             executeAsyncWithOrigin(
                 client,
                 TRANSFORM_ORIGIN,

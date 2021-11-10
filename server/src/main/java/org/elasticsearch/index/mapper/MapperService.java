@@ -48,7 +48,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -141,7 +140,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        BooleanSupplier idFieldDataEnabled,
+        IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler
     ) {
         super(indexSettings);
@@ -158,7 +157,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldDataEnabled
+            idFieldMapper
         );
         this.documentParser = new DocumentParser(
             xContentRegistry,
@@ -184,10 +183,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public IndexAnalyzers getIndexAnalyzers() {
         return this.indexAnalyzers;
-    }
-
-    public NamedAnalyzer getNamedAnalyzer(String analyzerName) {
-        return this.indexAnalyzers.get(analyzerName);
     }
 
     public MappingParserContext parserContext() {
@@ -253,7 +248,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Update local mapping by applying the incoming mapping that have already been merged with the current one on the master
      */
-    public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+    public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
         assert newIndexMetadata.getIndex().equals(index())
             : "index mismatch: expected " + index() + " but was " + newIndexMetadata.getIndex();
 

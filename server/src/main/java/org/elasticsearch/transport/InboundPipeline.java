@@ -19,7 +19,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -27,7 +26,6 @@ import java.util.function.Supplier;
 
 public class InboundPipeline implements Releasable {
 
-    private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
     private final LongSupplier relativeTimeInMillis;
@@ -92,99 +90,93 @@ public class InboundPipeline implements Releasable {
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
         statsTracker.markBytesRead(reference.length());
-        pending.add(reference.retain());
 
-        final ArrayList<Object> fragments = fragmentList.get();
-        boolean continueHandling = true;
+        if (pending.isEmpty() == false) {
+            if (isClosed == false) {
+                pending.add(reference.retain());
+                doHandleBytesWithPending(channel);
+            }
+            return;
+        }
 
-        while (continueHandling && isClosed == false) {
-            boolean continueDecoding = true;
-            while (continueDecoding && pending.isEmpty() == false) {
+        boolean continueDecoding = true;
+        while (continueDecoding && isClosed == false && reference.length() > 0) {
+            final int bytesDecoded = decoder.decode(reference, fragment -> this.forwardFragment(channel, fragment));
+            if (bytesDecoded != 0) {
+                reference = reference.releasableSlice(bytesDecoded);
+            } else {
+                continueDecoding = false;
+            }
+        }
+        if (isClosed == false && reference.length() > 0) {
+            pending.add(reference.retain());
+        }
+    }
+
+    private void doHandleBytesWithPending(TcpChannel channel) throws IOException {
+        while (isClosed == false && pending.isEmpty() == false) {
+            final int bytesDecoded;
+            if (pending.size() == 1) {
+                bytesDecoded = decoder.decode(pending.peekFirst(), fragment -> this.forwardFragment(channel, fragment));
+            } else {
                 try (ReleasableBytesReference toDecode = getPendingBytes()) {
-                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
-                    if (bytesDecoded != 0) {
-                        releasePendingBytes(bytesDecoded);
-                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
-                            continueDecoding = false;
-                        }
-                    } else {
-                        continueDecoding = false;
-                    }
+                    bytesDecoded = decoder.decode(toDecode, fragment -> this.forwardFragment(channel, fragment));
                 }
             }
-
-            if (fragments.isEmpty()) {
-                continueHandling = false;
+            if (bytesDecoded != 0 && isClosed == false) {
+                releasePendingBytes(bytesDecoded);
             } else {
-                try {
-                    forwardFragments(channel, fragments);
-                } finally {
-                    for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
-                            ((ReleasableBytesReference) fragment).close();
-                        }
-                    }
-                    fragments.clear();
-                }
+                return;
             }
         }
     }
 
-    private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
-        for (Object fragment : fragments) {
-            if (fragment instanceof Header) {
-                assert aggregator.isAggregating() == false;
-                aggregator.headerReceived((Header) fragment);
-            } else if (fragment instanceof Compression.Scheme) {
-                assert aggregator.isAggregating();
-                aggregator.updateCompressionScheme((Compression.Scheme) fragment);
-            } else if (fragment == InboundDecoder.PING) {
-                assert aggregator.isAggregating() == false;
-                messageHandler.accept(channel, PING_MESSAGE);
-            } else if (fragment == InboundDecoder.END_CONTENT) {
-                assert aggregator.isAggregating();
-                try (InboundMessage aggregated = aggregator.finishAggregation()) {
-                    statsTracker.markMessageReceived();
-                    messageHandler.accept(channel, aggregated);
-                }
-            } else {
-                assert aggregator.isAggregating();
-                assert fragment instanceof ReleasableBytesReference;
-                aggregator.aggregate((ReleasableBytesReference) fragment);
+    private void forwardFragment(TcpChannel channel, Object fragment) throws IOException {
+        if (fragment instanceof Header) {
+            assert aggregator.isAggregating() == false;
+            aggregator.headerReceived((Header) fragment);
+        } else if (fragment instanceof Compression.Scheme) {
+            assert aggregator.isAggregating();
+            aggregator.updateCompressionScheme((Compression.Scheme) fragment);
+        } else if (fragment == InboundDecoder.PING) {
+            assert aggregator.isAggregating() == false;
+            messageHandler.accept(channel, PING_MESSAGE);
+        } else if (fragment == InboundDecoder.END_CONTENT) {
+            assert aggregator.isAggregating();
+            try (InboundMessage aggregated = aggregator.finishAggregation()) {
+                statsTracker.markMessageReceived();
+                messageHandler.accept(channel, aggregated);
             }
+        } else {
+            assert aggregator.isAggregating();
+            assert fragment instanceof ReleasableBytesReference;
+            aggregator.aggregate((ReleasableBytesReference) fragment);
         }
-    }
-
-    private boolean endOfMessage(Object fragment) {
-        return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 
     private ReleasableBytesReference getPendingBytes() {
-        if (pending.size() == 1) {
-            return pending.peekFirst().retain();
-        } else {
-            final ReleasableBytesReference[] bytesReferences = new ReleasableBytesReference[pending.size()];
-            int index = 0;
-            for (ReleasableBytesReference pendingReference : pending) {
-                bytesReferences[index] = pendingReference.retain();
-                ++index;
-            }
-            final Releasable releasable = () -> Releasables.closeExpectNoException(bytesReferences);
-            return new ReleasableBytesReference(CompositeBytesReference.of(bytesReferences), releasable);
+        assert pending.size() > 1 : "must use this method with multiple pending references but used with " + pending;
+        final ReleasableBytesReference[] bytesReferences = new ReleasableBytesReference[pending.size()];
+        int index = 0;
+        for (ReleasableBytesReference pendingReference : pending) {
+            bytesReferences[index] = pendingReference.retain();
+            ++index;
         }
+        final Releasable releasable = () -> Releasables.closeExpectNoException(bytesReferences);
+        return new ReleasableBytesReference(CompositeBytesReference.of(bytesReferences), releasable);
     }
 
     private void releasePendingBytes(int bytesConsumed) {
         int bytesToRelease = bytesConsumed;
         while (bytesToRelease != 0) {
-            try (ReleasableBytesReference reference = pending.pollFirst()) {
-                assert reference != null;
-                if (bytesToRelease < reference.length()) {
-                    pending.addFirst(reference.retainedSlice(bytesToRelease, reference.length() - bytesToRelease));
-                    bytesToRelease -= bytesToRelease;
-                } else {
-                    bytesToRelease -= reference.length();
-                }
+            ReleasableBytesReference reference = pending.pollFirst();
+            assert reference != null;
+            if (bytesToRelease < reference.length()) {
+                pending.addFirst(reference.releasableSlice(bytesToRelease));
+                return;
+            } else {
+                bytesToRelease -= reference.length();
+                reference.decRef();
             }
         }
     }

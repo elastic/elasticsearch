@@ -82,6 +82,20 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return this;
     }
 
+    public ReleasableBytesReference releasableSlice(int from) {
+        if (from == 0) {
+            return this;
+        }
+        return new ReleasableBytesReference(delegate.slice(from, length() - from), refCounted);
+    }
+
+    public ReleasableBytesReference releasableSlice(int from, int length) {
+        if (from == 0 && length() == length) {
+            return this;
+        }
+        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
+    }
+
     public ReleasableBytesReference retainedSlice(int from, int length) {
         if (from == 0 && length() == length) {
             return retain();

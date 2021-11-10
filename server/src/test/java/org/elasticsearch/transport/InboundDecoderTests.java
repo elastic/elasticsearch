@@ -107,8 +107,8 @@ public class InboundDecoderTests extends ESTestCase {
             final Object endMarker = fragments.get(1);
 
             assertEquals(messageBytes, content);
-            // Ref count is incremented since the bytes are forwarded as a fragment
-            assertEquals(2, releasable2.refCount());
+            // Ref count is unchanged since the fragment consumer did noy increment the ref count
+            assertEquals(1, releasable2.refCount());
             assertEquals(InboundDecoder.END_CONTENT, endMarker);
         }
 
@@ -165,7 +165,6 @@ public class InboundDecoderTests extends ESTestCase {
                 assertEquals(3, fragments.size());
                 final Object body = fragments.get(1);
                 assertThat(body, instanceOf(ReleasableBytesReference.class));
-                ((ReleasableBytesReference) body).close();
             }
             assertEquals(InboundDecoder.END_CONTENT, fragments.get(fragments.size() - 1));
             assertEquals(totalBytes.length() - bytesConsumed, bytesConsumed2);
@@ -267,7 +266,13 @@ public class InboundDecoderTests extends ESTestCase {
 
             final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
             final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
-            int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
+            int bytesConsumed2 = decoder.decode(releasable2, e -> {
+                if (e instanceof ReleasableBytesReference) {
+                    fragments.add(((ReleasableBytesReference) e).retain());
+                } else {
+                    fragments.add(e);
+                }
+            });
             assertEquals(totalBytes.length() - totalHeaderSize, bytesConsumed2);
 
             final Object compressionScheme = fragments.get(0);

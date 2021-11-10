@@ -14,11 +14,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 
 public class InboundDecoder implements Releasable {
 
@@ -38,7 +38,7 @@ public class InboundDecoder implements Releasable {
         this.recycler = recycler;
     }
 
-    public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int decode(ReleasableBytesReference reference, CheckedConsumer<Object, IOException> fragmentConsumer) throws IOException {
         ensureOpen();
         try {
             return internalDecode(reference, fragmentConsumer);
@@ -48,7 +48,8 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    public int internalDecode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int internalDecode(ReleasableBytesReference reference, CheckedConsumer<Object, IOException> fragmentConsumer)
+        throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
             if (messageLength == -1) {
@@ -89,25 +90,31 @@ public class InboundDecoder implements Releasable {
             }
             int remainingToConsume = totalNetworkSize - bytesConsumed;
             int maxBytesToConsume = Math.min(reference.length(), remainingToConsume);
-            ReleasableBytesReference retainedContent;
-            if (maxBytesToConsume == remainingToConsume) {
-                retainedContent = reference.retainedSlice(0, maxBytesToConsume);
-            } else {
-                retainedContent = reference.retain();
-            }
 
             int bytesConsumedThisDecode = 0;
             if (decompressor != null) {
-                bytesConsumedThisDecode += decompress(retainedContent);
+                bytesConsumedThisDecode += decompress(
+                    maxBytesToConsume == remainingToConsume ? reference.slice(0, maxBytesToConsume) : reference
+                );
                 bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
-                    fragmentConsumer.accept(decompressed);
+                    try {
+                        fragmentConsumer.accept(decompressed);
+                    } finally {
+                        decompressed.decRef();
+                    }
                 }
             } else {
+                ReleasableBytesReference contentToConsume;
+                if (maxBytesToConsume == remainingToConsume) {
+                    contentToConsume = reference.releasableSlice(0, maxBytesToConsume);
+                } else {
+                    contentToConsume = reference;
+                }
                 bytesConsumedThisDecode += maxBytesToConsume;
                 bytesConsumed += maxBytesToConsume;
-                fragmentConsumer.accept(retainedContent);
+                fragmentConsumer.accept(contentToConsume);
             }
             if (isDone()) {
                 finishMessage(fragmentConsumer);
@@ -123,7 +130,7 @@ public class InboundDecoder implements Releasable {
         cleanDecodeState();
     }
 
-    private void finishMessage(Consumer<Object> fragmentConsumer) {
+    private void finishMessage(CheckedConsumer<Object, IOException> fragmentConsumer) throws IOException {
         cleanDecodeState();
         fragmentConsumer.accept(END_CONTENT);
     }
@@ -139,10 +146,8 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    private int decompress(ReleasableBytesReference content) throws IOException {
-        try (content) {
-            return decompressor.decompress(content);
-        }
+    private int decompress(BytesReference content) throws IOException {
+        return decompressor.decompress(content);
     }
 
     private boolean isDone() {

@@ -88,6 +88,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
+    private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
@@ -95,7 +97,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
 
@@ -617,7 +618,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 });
             }
-            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
+
+            // allow memory for bulk request items to be reclaimed before all items have been completed
+            bulkRequest.resourceReleaser().close();
+            bulkRequest = null;
         }
 
         private boolean handleBlockExceptions(ClusterState state) {

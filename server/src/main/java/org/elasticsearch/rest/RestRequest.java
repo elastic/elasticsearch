@@ -607,7 +607,7 @@ public class RestRequest implements ToXContent.Params {
 
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        private String failedHeaderName;
+        private final String failedHeaderName;
 
         MediaTypeHeaderException(final IllegalArgumentException cause, String failedHeaderName) {
             super(cause);

@@ -22,6 +22,7 @@ import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
+import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -150,6 +151,9 @@ final class Bootstrap {
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
+
+        // init filesystem natives
+        FileSystemNatives.init();
     }
 
     static void initializeProbes() {

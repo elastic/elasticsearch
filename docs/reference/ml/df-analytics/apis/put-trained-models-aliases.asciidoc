@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[put-trained-models-aliases]]
 = Create or update trained model aliases API
 [subs="attributes"]

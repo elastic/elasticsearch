@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
@@ -20,6 +21,8 @@ import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -92,6 +95,10 @@ final class Security {
     /** no instantiation */
     private Security() {}
 
+    static void setSecurityManager(@SuppressWarnings("removal") SecurityManager sm) {
+        System.setSecurityManager(sm);
+    }
+
     /**
      * Initializes SecurityManager for the environment
      * Can only happen once!
@@ -117,7 +124,7 @@ final class Security {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
-        System.setSecurityManager(new SecureSM(classesThatCanExit));
+        setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();
@@ -332,5 +339,49 @@ final class Security {
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }
+    }
+
+    /**
+     * Prepopulates the system's security manager callers map with this class as a caller.
+     * This is loathsome, but avoids the annoying warning message at run time.
+     * Returns true if the callers map has been populated.
+     */
+    static boolean prepopulateSecurityCaller() {
+        Field f;
+        try {
+            f = getDeclaredField(Class.forName("java.lang.System$CallersHolder", true, null), "callers");
+        } catch (NoSuchFieldException | ClassNotFoundException ignore) {
+            return false;
+        }
+        try {
+            Class<?> c = Class.forName("sun.misc.Unsafe");
+            Object theUnsafe = setAccessible(getDeclaredField(c, "theUnsafe")).get(null);
+            Method m = c.getMethod("staticFieldBase", Field.class);
+            Object base = m.invoke(theUnsafe, f);
+            m = c.getMethod("staticFieldOffset", Field.class);
+            long offset = (long) m.invoke(theUnsafe, f);
+            m = c.getMethod("getObject", Object.class, long.class);
+            Object callers = m.invoke(theUnsafe, base, offset);
+            if (Map.class.isAssignableFrom(callers.getClass())) {
+                @SuppressWarnings("unchecked")
+                Map<Class<?>, Boolean> map = Map.class.cast(callers);
+                map.put(org.elasticsearch.bootstrap.Security.class, true);
+                return true;
+            }
+        } catch (Throwable t) {
+            throw new ElasticsearchException(t);
+        }
+        return false;
+    }
+
+    @SuppressForbidden(reason = "access violation required")
+    private static Field setAccessible(Field field) {
+        field.setAccessible(true);
+        return field;
+    }
+
+    @SuppressForbidden(reason = "access violation required")
+    private static Field getDeclaredField(Class<?> c, String name) throws NoSuchFieldException {
+        return c.getDeclaredField(name);
     }
 }

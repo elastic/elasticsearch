@@ -491,7 +491,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                     createdByAnalyticsCount++;
                 }
                 estimatedOperations.add(trainedModelConfig.getEstimatedOperations());
-                estimatedMemoryUsageBytes.add(trainedModelConfig.getEstimatedHeapMemory());
+                estimatedMemoryUsageBytes.add(trainedModelConfig.getModelSize());
             }
 
             Map<String, Object> counts = new HashMap<>();
@@ -504,9 +504,10 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
             trainedModelsUsage.put("count", counts);
             trainedModelsUsage.put(TrainedModelConfig.ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations.asMap());
             trainedModelsUsage.put(
-                TrainedModelConfig.ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                TrainedModelConfig.DEPRECATED_ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
                 estimatedMemoryUsageBytes.asMap()
             );
+            trainedModelsUsage.put(TrainedModelConfig.MODEL_SIZE_BYTES.getPreferredName(), estimatedMemoryUsageBytes.asMap());
 
             inferenceUsage.put("trained_models", trainedModelsUsage);
         }

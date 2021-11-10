@@ -309,7 +309,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, true, nonCachedExtensions);
         ensureGreen(restoredIndexName);
-        assertShardFolders(restoredIndexName, true);
+        assertBusy(() -> assertShardFolders(restoredIndexName, true));
 
         assertThat(
             client().admin()

@@ -316,16 +316,20 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
                     return;
                 }
+                long firstTotalLength = ((Number) hits[0].getSourceAsMap()
+                    .get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())).longValue();
+
                 long summedLengths = 0;
                 for (SearchHit hit : hits) {
                     Map<String, Object> fields = hit.getSourceAsMap();
                     if (fields == null) {
                         listener.onFailure(
                             ExceptionsHelper.badRequestException(
-                                "[{}] model definition [{}] is missing required fields {}, unable to be deployed",
+                                "[{}] model definition [{}] is missing required fields {}. {}",
                                 modelId,
                                 TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
-                                List.of(requiredSourceFields)
+                                List.of(requiredSourceFields),
+                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
                             )
                         );
                         return;
@@ -334,21 +338,40 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     if (diff.isEmpty() == false) {
                         listener.onFailure(
                             ExceptionsHelper.badRequestException(
-                                "[{}] model definition [{}] is missing required fields {}, unable to be deployed",
+                                "[{}] model definition [{}] is missing required fields {}. {}",
                                 modelId,
                                 TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
-                                diff
+                                diff,
+                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
                             )
                         );
                         return;
                     }
                     summedLengths += ((Number) fields.get(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())).longValue();
+                    long totalLength = ((Number) fields.get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()))
+                        .longValue();
+                    if (totalLength != firstTotalLength) {
+                        listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "[{}] [total_definition_length] must be the same in all model definition parts. "
+                                    + "The value [{}] in model definition part [{}] does not match the value [{}] in part [{}]. "
+                                    + Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS,
+                                modelId,
+                                totalLength,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
+                                firstTotalLength,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits[0].getId()))
+                            )
+                        );
+                        return;
+                    }
+
                 }
-                long totalLength = ((Number) hits[hits.length - 1].getSourceAsMap()
-                    .get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())).longValue();
                 Boolean eos = (Boolean) hits[hits.length - 1].getSourceAsMap().get(TrainedModelDefinitionDoc.EOS.getPreferredName());
-                if (summedLengths != totalLength || eos == null || eos == false) {
-                    listener.onFailure(ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                if (summedLengths != firstTotalLength || eos == null || eos == false) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId))
+                    );
                     return;
                 }
                 listener.onResponse(null);

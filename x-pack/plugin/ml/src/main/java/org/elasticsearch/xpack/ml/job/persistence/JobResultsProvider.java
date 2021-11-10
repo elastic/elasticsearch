@@ -1271,7 +1271,7 @@ public class JobResultsProvider {
         // Also, if no jobs have been opened since the previous versions, the .ml-anomalies-* index may not have
         // the `min_version`.
         if (sortField.equals(ModelSnapshot.MIN_VERSION.getPreferredName())) {
-            sb.missing(Version.fromString("6.3.0")).unmappedType("keyword");
+            sb.missing("6.3.0").unmappedType("keyword");
         }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
@@ -1283,16 +1283,14 @@ public class JobResultsProvider {
             size
         );
 
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().sort(sb)
+            .query(finalQuery)
+            .from(from)
+            .size(size)
+            .trackTotalHits(true)
+            .fetchSource(REMOVE_QUANTILES_FROM_SOURCE);
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.sort(sb);
-        sourceBuilder.query(finalQuery);
-        sourceBuilder.from(from);
-        sourceBuilder.size(size);
-        sourceBuilder.trackTotalHits(true);
-        sourceBuilder.fetchSource(REMOVE_QUANTILES_FROM_SOURCE);
-        searchRequest.source(sourceBuilder);
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions())).source(sourceBuilder);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,

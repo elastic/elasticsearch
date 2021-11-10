@@ -370,7 +370,7 @@ public class BulkRequestTests extends ESTestCase {
                 + "{ \"field1\" : \"value3\" }\n"
                 +
 
-                "{ \"index\" : {\"dynamic_templates\":{}}\n"
+                "{ \"index\" : {\"dynamic_templates\":{}}}\n"
                 + "{ \"field1\" : \"value3\" }\n"
         );
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
@@ -409,6 +409,50 @@ public class BulkRequestTests extends ESTestCase {
             equalTo(
                 "Malformed action/metadata line [1], " + "expected a simple value for field [dynamic_templates] but found [START_ARRAY]"
             )
+        );
+    }
+
+    public void testBulkActionWithoutCurlyBrace() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted"
+                + " but will be rejected in a future version."
+        );
+    }
+
+    public void testBulkActionWithAdditionalKeys() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"}, \"a\":\"b\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "A bulk action object contained multiple keys. Additional keys are currently ignored but will be "
+                + "rejected in a future version."
+        );
+    }
+
+    public void testBulkActionWithTrailingData() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} } {\"a\":\"b\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "A bulk action contained trailing data after the closing brace. This is currently ignored "
+                + "but will be rejected in a future version."
+        );
+    }
+
+    public void testUnsupportedAction() throws Exception {
+        String bulkAction = "{ \"get\":{\"_index\":\"test\",\"_id\":\"1\"} }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "Unsupported action: [get]. Supported values are [create], [delete], [index], and [update]. "
+                + "Unsupported actions are currently accepted but will be rejected in a future version."
         );
     }
 }

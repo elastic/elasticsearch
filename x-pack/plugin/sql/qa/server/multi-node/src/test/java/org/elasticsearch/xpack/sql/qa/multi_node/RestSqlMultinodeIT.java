@@ -93,7 +93,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
             int a = 3 * i;
             int b = a + 1;
             int c = b + 1;
-            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}\n");
+            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
             bulk.append("{\"a\": " + a + ", \"b\": " + b + ", \"c\": " + c + "}\n");
         }
         request.setJsonEntity(bulk.toString());

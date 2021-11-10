@@ -92,6 +92,10 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         unzip.get().temporaryDir,
         false,
         "path.repo: ${repoLocation}"
+      if (version.onOrAfter('6.8.0') && Architecture.current() == Architecture.AARCH64) {
+        // We need to explicitly disable ML when running old ES versions on ARM
+        args 'xpack.ml.enabled: false'
+      }
       maxWaitInSeconds 60
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service

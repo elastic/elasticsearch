@@ -196,7 +196,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             return;
                         }
                         listener.onFailure(
-                            ExceptionsHelper.serverError(
+                            ExceptionsHelper.badRequestException(
                                 "[{}] job snapshot [{}] has min version before [{}], "
                                     + "please revert to a newer model snapshot or reset the job",
                                 jobParams.getJobId(),

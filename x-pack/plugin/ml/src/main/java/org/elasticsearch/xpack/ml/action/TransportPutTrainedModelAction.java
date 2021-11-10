@@ -159,7 +159,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description());
         if (hasModelDefinition) {
-            trainedModelConfigBuilder.setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
+            trainedModelConfigBuilder.setModelSize(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
                 .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations());
         }
         TrainedModelConfig trainedModelConfig = trainedModelConfigBuilder.build();

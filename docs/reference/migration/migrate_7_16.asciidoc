@@ -13,6 +13,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_716_tls_changes>>
 * <<breaking_716_ilm_changes>>
 * <<breaking_716_monitoring_changes>>
+* <<breaking_716_api_deprecations>>
 * <<breaking_716_settings_deprecations>>
 * <<breaking_716_indices_deprecations>>
 * <<breaking_716_cluster_deprecations>>
@@ -275,6 +276,21 @@ longer of any use.
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.index.template.create_legacy_templates` setting
 as it will no longer be recognized in the next major release.
+====
+
+[discrete]
+[[breaking_716_api_deprecations]]
+==== REST API deprecations
+
+.The `estimated_heap_memory_usage_bytes` property in the create trained models API is deprecated
+[%collapsible]
+====
+*Details* +
+The `estimated_heap_memory_usage_bytes` property in the
+{ref}/put-trained-models.html[create trained models API] is deprecated in 7.16.
+
+*Impact* +
+Use `model_size_bytes` instead. 
 ====
 
 [discrete]

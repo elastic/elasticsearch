@@ -34,7 +34,12 @@ public class CreateTokenResponseTests extends ESTestCase {
             true,
             new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7)),
             new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
-            "realm"
+            "realm",
+            null,
+            new AuthenticateResponse.ApiKeyInfo(
+                randomAlphaOfLength(16),                         // mandatory
+                randomBoolean() ? randomAlphaOfLength(20) : null // optional
+            )
         );
 
         final XContentType xContentType = randomFrom(XContentType.values());

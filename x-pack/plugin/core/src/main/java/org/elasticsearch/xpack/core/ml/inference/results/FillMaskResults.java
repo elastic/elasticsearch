@@ -10,41 +10,27 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class FillMaskResults extends ClassificationInferenceResults {
+public class FillMaskResults extends NlpClassificationInferenceResults {
 
     public static final String NAME = "fill_mask_result";
 
     private final String predictedSequence;
 
     public FillMaskResults(
-        double value,
         String classificationLabel,
         String predictedSequence,
         List<TopClassEntry> topClasses,
-        String topNumClassesField,
         String resultsField,
-        Double predictionProbability
+        Double predictionProbability,
+        boolean isTruncated
     ) {
-        super(
-            value,
-            classificationLabel,
-            topClasses,
-            List.of(),
-            topNumClassesField,
-            resultsField,
-            PredictionFieldType.STRING,
-            0,
-            predictionProbability,
-            null
-        );
+        super(classificationLabel, topClasses, resultsField, predictionProbability, isTruncated);
         this.predictedSequence = predictedSequence;
     }
 
@@ -54,8 +40,8 @@ public class FillMaskResults extends ClassificationInferenceResults {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    public void doWriteTo(StreamOutput out) throws IOException {
+        super.doWriteTo(out);
         out.writeString(predictedSequence);
     }
 
@@ -64,11 +50,9 @@ public class FillMaskResults extends ClassificationInferenceResults {
     }
 
     @Override
-    public Map<String, Object> asMap() {
-        Map<String, Object> map = new LinkedHashMap<>();
+    void addMapFields(Map<String, Object> map) {
+        super.addMapFields(map);
         map.put(resultsField + "_sequence", predictedSequence);
-        map.putAll(super.asMap());
-        return map;
     }
 
     @Override
@@ -77,8 +61,9 @@ public class FillMaskResults extends ClassificationInferenceResults {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return super.toXContent(builder, params).field(resultsField + "_sequence", predictedSequence);
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        super.doXContentBody(builder, params);
+        builder.field(resultsField + "_sequence", predictedSequence);
     }
 
     @Override

@@ -100,14 +100,4 @@ public interface XContent {
      * Creates a parser over the provided reader.
      */
     XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException;
-
-    /**
-     * Creates a parser over the provided reader.
-     * @deprecated Use {@link #createParser(XContentParserConfiguration, Reader)}
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, Reader reader)
-        throws IOException {
-        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), reader);
-    }
 }

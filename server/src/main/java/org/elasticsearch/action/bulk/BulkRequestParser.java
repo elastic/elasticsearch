@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import com.fasterxml.jackson.core.io.JsonEOFException;
+
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,6 +45,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
+    private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
+    private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -179,6 +184,14 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
+                if (SUPPORTED_ACTIONS.contains(action) == false) {
+                    deprecationLogger.compatibleCritical(
+                        STRICT_ACTION_PARSING_WARNING_KEY,
+                        "Unsupported action: [{}]. Supported values are [create], [delete], [index], and [update]. "
+                            + "Unsupported actions are currently accepted but will be rejected in a future version.",
+                        action
+                    );
+                }
 
                 String index = defaultIndex;
                 String type = null;
@@ -292,6 +305,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
+                checkBulkActionIsProperlyClosed(parser);
 
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
@@ -403,6 +417,35 @@ public final class BulkRequestParser {
                     from = nextMarker + 1;
                 }
             }
+        }
+    }
+
+    private void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        try {
+            token = parser.nextToken();
+        } catch (JsonEOFException ignore) {
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
+                    + "rejected in a future version."
+            );
+            return;
+        }
+        if (token != XContentParser.Token.END_OBJECT) {
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
+                    + "future version."
+            );
+            return;
+        }
+        if (parser.nextToken() != null) {
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
+                    + "future version."
+            );
         }
     }
 

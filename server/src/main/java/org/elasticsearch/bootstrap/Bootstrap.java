@@ -20,6 +20,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
+import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -150,6 +151,9 @@ final class Bootstrap {
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
+
+        // init filesystem natives
+        FileSystemNatives.init();
     }
 
     static void initializeProbes() {

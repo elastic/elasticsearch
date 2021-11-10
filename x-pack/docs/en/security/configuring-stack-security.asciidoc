@@ -1,89 +1,57 @@
 [[configuring-stack-security]]
 == Start the Elastic Stack with security enabled
 
-beta::[This functionality is in alpha and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Alpha features are not subject to the support SLA of official GA features.]
+beta::[This functionality is in beta and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features.]
 
-Before you start {es} for the first time, run the `elasticsearch-security-config`
-tool. This tool generates certificates and keys for the transport and HTTP
-layers of {es}, and writes the Transport Layer Security (TLS) configuration
-settings to `elasticsearch.yml`. These certificates allow you to connect a
-{kib} instance to your secured {es} cluster and encrypt internode communication.
+When you start {es} for the first time, the following security configuration
+occurs automatically:
 
-When you start {es} for the first time, passwords are automatically generated
-for the `elastic` and `kibana_system` users. Tools are available to reset these
-passwords if you misplace them or need to rotate passwords.
+* <<stack-security-certificates,Certificates and keys>> for TLS are
+generated for the transport and HTTP layers.
+* The TLS configuration settings are written to `elasticsearch.yml`.
+* A password is generated for the `elastic` user.
+* An enrollment token is generated for {kib}.
 
-You can then use the
-<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool to
-generate separate enrollment tokens for connecting a {kib} instance to your
-secured {es} cluster and enrolling additional nodes.
-
-When you complete the enrollment process for {kib}, it applies the security
-settings from your {es} cluster, authenticates to {es} with the `kibana_system`
-user, and writes the security configuration to `kibana.yml`. A security
-certificate is generated in the {kib} configuration directory. This
-file establishes trust between {kib} and the {es} Certificate Authority (CA) for
-the HTTP layer.
+You can then start {kib} and enter the enrollment token, which is valid for 30
+minutes. This token automatically applies the security settings from your {es} 
+cluster, authenticates to {es} with the built-in `kibana` service account, and writes the 
+security configuration to `kibana.yml`. 
 
 [discrete]
 === Prerequisites
 
 * https://www.elastic.co/downloads/elasticsearch#preview-release[Download] and
-unpack the `elasticsearch 8.0.0-alpha2` package distribution for your
+unpack the `elasticsearch 8.0.0-beta` package distribution for your
 environment.
 * https://www.elastic.co/downloads/kibana#preview-release[Download] and unpack
-the `kibana 8.0.0-alpha2` package distribution for your environment.
-
-[discrete]
-[[stack-generate-certificates]]
-=== Generate security certificates
-. Before starting {es} for the first time, run the
-`elasticsearch-security-config` tool from the directory where you downloaded
-the {es} package distribution:
-+
-[source,shell]
-----
-bin/elasticsearch-security-config
-----
-+
-The `elasticsearch-security-config` tool generates the following security
-certificates and keys in `config/tls_auto_config_<timestamp>`:
-+
---
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
-
-`http_keystore_local_node.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport_keystore_all_nodes.p12`::
-Keystore that contains the key and certificate for the transport layer for all the nodes in your cluster.
---
+the `kibana 8.0.0-beta` package distribution for your environment.
 
 [discrete]
 [[stack-start-with-security]]
 === Start {es} and enroll {kib} with security enabled
-. From the installation directory, start {es}. Passwords for the `elastic` and
-`kibana_system` users are generated and output to the terminal.
+
+. From the installation directory, start {es}. A password is generated for the 
+`elastic` user and output to the terminal, plus an enrollment token for
+enrolling {kib}.
 +
 [source,shell]
 ----
 bin/elasticsearch
 ----
 +
-TIP: You might need to scroll back a bit in the terminal to view the passwords.
+TIP: You might need to scroll back a bit in the terminal to view the password
+and enrollment token.
 
-. Copy the generated passwords and save them in a secure location. The passwords
-are shown only when you start {es} for the first time.
+. Copy the generated password and enrollment token and save them in a secure
+location. These values are shown only when you start {es} for the first time.
 +
-NOTE: If you need to reset the password for the `elastic` or the `kibana_system` user, run the
-<<reset-password,`elasticsearch-reset-password`>> tool,
-available in the {es} `/bin` directory.
+NOTE: If you need to reset the password for the `elastic` user or other
+built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
+This tool is available in the {es} `/bin` directory.
 
-. Open a new terminal and verify that you can connect to your {es} cluster by
-making an authenticated call. Enter the password for the `elastic` user when
-prompted:
+. (Optional) Open a new terminal and verify that you can connect to your {es} 
+cluster by making an authenticated call. Enter the password for the `elastic` 
+user when prompted:
 +
 [source,shell]
 ----
@@ -96,23 +64,11 @@ curl --cacert config/tls_auto_config_<timestamp>/http_ca.crt \
 `--cacert`::
 Path to the generated `http_ca.crt` certificate for the HTTP layer.
 
-. In your new terminal, navigate to the directory where you installed {es}, and
-run the <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
-to generate an enrollment token for {kib}.
+. From the directory where you installed {kib}, start {kib}.
 +
 [source,shell]
 ----
-bin/elasticsearch-create-enrollment-token -s kibana
-----
-+
-Copy the enrollment token, which you'll use to enroll {kib} with your {es}
-cluster.
-
-. From the directory where you installed {kib}, start {kib} in interactive mode.
-+
-[source,shell]
-----
-bin/kibana --interactiveSetup.enabled=true
+bin/kibana
 ----
 +
 This command generates a unique link to enroll your {kib} instance with {es}.
@@ -128,6 +84,7 @@ when you started {es}.
 [discrete]
 [[stack-enroll-nodes]]
 === Enroll additional nodes in your cluster
+
 . In a separate terminal from where {es} is running, navigate to the directory
 where you installed {es} and run the
 <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
@@ -141,28 +98,46 @@ bin/elasticsearch-create-enrollment-token -s node
 Copy the enrollment token, which you'll use to enroll additional nodes with
 your {es} cluster.
 
-. From the installation directory of your other node, run the
-`elasticsearch-enroll-node` tool and pass your enrollment token with the
-`--enrollment token` parameter.
+. From the installation directory of your other node, start {es} and pass the
+enrollment token with the `--enrollment-token` parameter.
 +
 [source,shell]
 ----
-bin/elasticsearch-enroll-node --enrollment token <enrollment-token>
+bin/elasticsearch --enrollment-token <enrollment-token>
 ----
++
+{es} automatically generates certificates and keys in the
+`config/tls_auto_config_node_<timestamp>` directory.
 
 . Repeat the previous step for any additional nodes that you want to enroll.
 
-. Start your new nodes, which {es} automatically enrolls into the existing
-cluster.
-+
-[source,shell]
-----
-bin/elasticsearch
-----
-
 [discrete]
 === What's next?
-Congratulations! You've successfully started the {stack} with security enabled. {es}
-and {kib} are secured with TLS on the HTTP layer, and internode communication
-is encrypted. If you want to enable HTTPS for web traffic, you
+Congratulations! You've successfully started the {stack} with security enabled.
+{es} and {kib} are secured with TLS on the HTTP layer, and internode
+communication is encrypted. If you want to enable HTTPS for web traffic, you
 can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.
+
+[discrete]
+[[stack-security-certificates]]
+=== Security certificates and keys
+
+When you start {es} for the first time, the following certificates and keys are
+generated in the `config/tls_auto_config_<timestamp>` directory,
+which are used to connect a {kib} instance to your secured {es} cluster and
+to encrypt internode communication. The files are listed here for reference.
+
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
+
+`http_keystore_local_node.p12`::
+Keystore that contains the key and certificate for the HTTP layer for this node.
+
+`transport_keystore_all_nodes.p12`::
+Keystore that contains the key and certificate for the transport layer for all
+the nodes in your cluster.
+
+Additionally, when you use the enrollment token to connect {kib} to a secured {es} cluster, a security certificate is retrieved from {es} and stored in the
+{kib} `/data` directory. This file establishes trust between {kib} and the {es}
+Certificate Authority (CA) for the HTTP layer.

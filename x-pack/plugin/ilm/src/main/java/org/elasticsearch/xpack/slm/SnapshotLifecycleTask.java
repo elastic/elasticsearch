@@ -33,9 +33,9 @@ import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
-import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem;
-import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.ilm.LifecyclePolicySecurityClient;
+import org.elasticsearch.xpack.slm.history.SnapshotHistoryItem;
+import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -137,7 +137,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         );
                         // Add each failed shard's exception as suppressed, the exception contains
                         // information about which shard failed
-                        snapInfo.shardFailures().forEach(failure -> e.addSuppressed(failure.getCause()));
+                        // TODO: this seems wrong, investigate whether we actually need all the shard level exception here given that we
+                        // could be dealing with tens of thousands of them at a time
+                        snapInfo.shardFailures().forEach(e::addSuppressed);
                         // Call the failure handler to register this as a failure and persist it
                         onFailure(e);
                     }

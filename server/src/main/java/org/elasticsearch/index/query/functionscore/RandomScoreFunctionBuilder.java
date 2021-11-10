@@ -146,7 +146,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             String fieldName;
             if (field == null) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.QUERIES,
                     "seed_requires_field",
                     "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set"

@@ -1359,7 +1359,9 @@ public class MetadataIndexTemplateService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis())
+                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis()),
+                // TODO: any way to get system names here?
+                alias -> false
             );
 
             // triggers inclusion of _timestamp field and its validation:

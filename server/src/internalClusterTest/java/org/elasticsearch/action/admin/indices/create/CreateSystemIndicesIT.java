@@ -100,7 +100,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     /**
      * Check that a template applying a system alias creates a hidden alias.
      */
-    public void testCreateSystemAliasViaTemplate() throws Exception {
+    public void testCreateSystemAliasViaV1Template() throws Exception {
         assertAcked(
             client().admin()
                 .indices()

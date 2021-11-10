@@ -217,7 +217,11 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt()
+                tempIndexService.dateMathExpressionResolverAt(),
+                // we don't have a system indices object here, so we assume
+                // the alias is not a system name.
+                // TODO: any way to get system names here?
+                aliasName -> false
             )
         );
 

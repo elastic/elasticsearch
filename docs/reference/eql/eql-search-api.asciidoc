@@ -206,18 +206,7 @@ returned.
 +
 A greater `fetch_size` value often increases search speed but uses more memory.
 
-`fields`::
-(Optional, array of strings and objects)
-Array of wildcard (`*`) patterns. The response returns values for field names
-matching these patterns in the `fields` property of each hit.
-+
-You can specify items in the array as a string or object.
-+
-.Properties of `fields` objects
-[%collapsible%open]
-====
-include::{es-repo-dir}/search/search.asciidoc[tag=fields-api-props]
-====
+include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
 
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)

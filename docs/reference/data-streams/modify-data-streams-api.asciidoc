@@ -40,7 +40,7 @@ POST _data_stream/_modify
     {
       "remove_backing_index": {
         "data_stream": "my-logs",
-        "index": ".ds-my-logs-2021.10.15-000001"
+        "index": ".ds-my-logs-2099.01.01-000001"
       }
     },
     {
@@ -52,7 +52,7 @@ POST _data_stream/_modify
   ]
 }
 ----
-// TEST[continued]
+// TEST[skip:cannot determine backing index name]
 
 ////
 [source,console]
@@ -89,7 +89,7 @@ Adds an existing index as a backing index for a data stream. The index is
 hidden as part of this operation.
 
 WARNING: Adding indices with the `add_backing_index` action
-can potentially result in improper data stream behavior. 
+can potentially result in improper data stream behavior.
 This should be considered an expert level API.
 
 `remove_backing_index`::

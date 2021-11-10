@@ -96,7 +96,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
-    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : 'microdnf',
+    'package_manager'    : base == DockerBase.DEFAULT ? 'apt-get' : (base == DockerBase.IRON_BANK ? 'yum' : 'microdnf'),
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",

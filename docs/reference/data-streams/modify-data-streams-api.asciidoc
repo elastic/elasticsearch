@@ -7,31 +7,6 @@
 Performs one or more data stream modification actions in a single atomic
 operation.
 
-////
-[source,console]
-----
-PUT /_index_template/template
-{
-  "index_patterns": ["my-logs*"],
-  "data_stream": { }
-}
-
-POST my-logs/_doc/
-{
-    "message" : "trying out DS modification",
-    "@timestamp": "2021-01-01"
-}
-
-POST my-logs/_rollover
-
-POST index-to-add/_doc/
-{
-    "description" : "this is the index to be added to a data stream",
-    "@timestamp": "2021-01-01"
-}
-----
-////
-
 [source,console]
 ----
 POST _data_stream/_modify
@@ -53,15 +28,6 @@ POST _data_stream/_modify
 }
 ----
 // TEST[skip:cannot determine backing index name]
-
-////
-[source,console]
------------------------------------
-DELETE /_data_stream/my-logs
-DELETE /_index_template/template
------------------------------------
-// TEST[continued]
-////
 
 [[modify-data-streams-api-request]]
 ==== {api-request-title}

@@ -35,7 +35,8 @@ public class JoinReasonService {
 
     private final LongSupplier relativeTimeInMillisSupplier;
 
-    // only used on cluster applier thread to detect changes, no need for synchronization, and deliberately an Object
+    // only used on cluster applier thread to detect changes, no need for synchronization, and deliberately an Object to remove temptation
+    // to use this field for other reasons
     private Object discoveryNodes;
 
     // keyed by persistent node ID to track nodes across restarts

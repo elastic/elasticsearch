@@ -1389,8 +1389,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
-        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        if (dimension && fields.isEmpty() == false) {
+        if (dimension && numericValue != null) {
             try {
                 // Extract the tsid part of the dimension field by using the long value.
                 // Dimension can only be one of byte, short, int, long
@@ -1400,6 +1399,7 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
             }
         }
+        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (stored || indexed)) {

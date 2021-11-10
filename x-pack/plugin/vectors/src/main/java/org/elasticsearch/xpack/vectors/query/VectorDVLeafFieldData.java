@@ -18,11 +18,14 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.xpack.vectors.query.BinaryDenseVectorScriptDocValues.BinaryDenseVectorSupplier;
+import org.elasticsearch.xpack.vectors.query.DenseVectorScriptDocValues.DenseVectorSupplier;
 import org.elasticsearch.xpack.vectors.query.KnnDenseVectorScriptDocValues.KnnDenseVectorSupplier;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.elasticsearch.xpack.vectors.query.DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE;
 
 final class VectorDVLeafFieldData implements LeafFieldData {
 
@@ -61,7 +64,22 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);
                 if (values == null || values == VectorValues.EMPTY) {
-                    return new DelegateDocValuesField(DenseVectorScriptDocValues.empty(null, dims), name);
+                    return new DelegateDocValuesField(DenseVectorScriptDocValues.empty(new DenseVectorSupplier<float[]>() {
+                        @Override
+                        public float[] getInternal() {
+                            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+                        }
+
+                        @Override
+                        public void setNextDocId(int docId) throws IOException {
+                            // do nothing
+                        }
+
+                        @Override
+                        public int size() {
+                            return 0;
+                        }
+                    }, dims), name);
                 }
                 return new DelegateDocValuesField(new KnnDenseVectorScriptDocValues(new KnnDenseVectorSupplier(values), dims), name);
             } else {

@@ -87,7 +87,7 @@ public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRe
 
             @Override
             public int size() {
-                return 0;
+                return supplier.size();
             }
         };
     }

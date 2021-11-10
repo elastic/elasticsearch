@@ -392,6 +392,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     public void source(SearchSourceBuilder source) {
+        if (source != null) {
+            source = source.minimalSourceForShardRequests();
+        }
         this.source = source;
     }
 

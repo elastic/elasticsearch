@@ -570,6 +570,26 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId, true);
     }
 
+    public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {
+        String modelId = "test_delete_model_with_used_deployment";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        ResponseException ex = expectThrows(ResponseException.class, () -> deleteModel(modelId, false));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot delete model [test_delete_model_with_used_deployment] as it is currently deployed;"
+                    + " use force to delete the model"
+            )
+        );
+
+        deleteModel(modelId, true);
+    }
+
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {
@@ -688,4 +708,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    private Response deleteModel(String modelId, boolean force) throws IOException {
+        Request request = new Request("DELETE", "/_ml/trained_models/" + modelId + "?force=" + force);
+        return client().performRequest(request);
+    }
 }

@@ -560,6 +560,121 @@ setup:
       catch: missing
       ml.delete_trained_model:
         model_id: "missing-trained-model"
+
+---
+"Test delete given model referenced by pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      catch: /Cannot delete model \[a-classification-model\] as it is still referenced by ingest processors; use force to delete the model/
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
+---
+"Test force delete given model referenced by pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+        force: true
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
+---
+"Test delete given model with alias referenced by pipeline":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "alias-to-a-classification-model"
+        model_id: "a-classification-model"
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "alias-to-a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      catch: /Cannot delete model \[a-classification-model\] as it has a model_alias \[alias-to-a-classification-model\] that is still referenced by ingest processors; use force to delete the model/
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
+---
+"Test force delete given model with alias referenced by pipeline":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "alias-to-a-classification-model"
+        model_id: "a-classification-model"
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "alias-to-a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+        force: true
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
 ---
 "Test get pre-packaged trained models":
   - do:

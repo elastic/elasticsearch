@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -94,10 +95,10 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
 
-        if (referencedModels.contains(id)) {
+        if (request.isForce() == false && referencedModels.contains(id)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Cannot delete model [{}] as it is still referenced by ingest processors",
+                    "Cannot delete model [{}] as it is still referenced by ingest processors; use force to delete the model",
                     RestStatus.CONFLICT,
                     id
                 )
@@ -105,29 +106,29 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             return;
         }
 
-        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(state);
-        final List<String> modelAliases = new ArrayList<>();
-        for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> modelAliasEntry : currentMetadata.modelAliases().entrySet()) {
-            if (modelAliasEntry.getValue().getModelId().equals(id)) {
-                modelAliases.add(modelAliasEntry.getKey());
-            }
-        }
-        for (String modelAlias : modelAliases) {
-            if (referencedModels.contains(modelAlias)) {
+        final List<String> modelAliases = getModelAliases(state, id);
+        if (request.isForce() == false) {
+            Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
+            if (referencedModelAlias.isPresent()) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors",
+                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors;"
+                            + " use force to delete the model",
                         RestStatus.CONFLICT,
                         id,
-                        modelAlias
+                        referencedModelAlias.get()
                     )
                 );
                 return;
             }
         }
-        if (TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
+        if (request.isForce() == false && TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
             listener.onFailure(
-                new ElasticsearchStatusException("Cannot delete model [{}] as it is currently deployed", RestStatus.CONFLICT, id)
+                new ElasticsearchStatusException(
+                    "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
+                    RestStatus.CONFLICT,
+                    id
+                )
             );
             return;
         }
@@ -193,6 +194,17 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             }
         }
         return allReferencedModelKeys;
+    }
+
+    private static List<String> getModelAliases(ClusterState clusterState, String modelId) {
+        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterState);
+        final List<String> modelAliases = new ArrayList<>();
+        for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> modelAliasEntry : currentMetadata.modelAliases().entrySet()) {
+            if (modelAliasEntry.getValue().getModelId().equals(modelId)) {
+                modelAliases.add(modelAliasEntry.getKey());
+            }
+        }
+        return modelAliases;
     }
 
     @Override

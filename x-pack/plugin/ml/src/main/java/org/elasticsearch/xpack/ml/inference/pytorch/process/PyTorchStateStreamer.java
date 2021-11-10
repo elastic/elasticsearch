@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -40,7 +41,8 @@ public class PyTorchStateStreamer {
     private final ExecutorService executorService;
     private final NamedXContentRegistry xContentRegistry;
     private volatile boolean isCancelled;
-    private int modelSize = -1;
+    private volatile int modelSize = -1;
+    private final AtomicInteger bytesWritten = new AtomicInteger();
 
     public PyTorchStateStreamer(Client client, ExecutorService executorService, NamedXContentRegistry xContentRegistry) {
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
@@ -70,6 +72,14 @@ public class PyTorchStateStreamer {
         restorer.setSearchSize(1);
         restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), success -> {
             logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+            if (bytesWritten.get() != modelSize) {
+                logger.error(
+                    "model [{}] restored state size [{}] does not equal the expected model size [{}]",
+                    modelId,
+                    bytesWritten,
+                    modelSize
+                );
+            }
             listener.onResponse(success);
         }, listener::onFailure);
     }
@@ -86,6 +96,7 @@ public class PyTorchStateStreamer {
         // The array backing the BytesReference may be bigger than what is
         // referred to so write only what is after the offset
         outputStream.write(doc.getBinaryData().array(), doc.getBinaryData().arrayOffset(), doc.getBinaryData().length());
+        bytesWritten.addAndGet(doc.getBinaryData().length());
         return true;
     }
 
@@ -128,10 +139,12 @@ public class PyTorchStateStreamer {
             throw new IllegalStateException(message);
         }
 
-        ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
+        final int NUM_BYTES = 4;
+        ByteBuffer lengthBuffer = ByteBuffer.allocate(NUM_BYTES);
         lengthBuffer.putInt(modelSizeBytes.intValue());
         outputStream.write(lengthBuffer.array());
 
+        bytesWritten.addAndGet(NUM_BYTES);
         return modelSizeBytes.intValue();
     }
 }

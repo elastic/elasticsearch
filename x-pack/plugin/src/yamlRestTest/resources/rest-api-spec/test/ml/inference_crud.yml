@@ -750,7 +750,7 @@ setup:
   - is_true: license_level
   - is_true: create_time
   - is_true: version
-  - is_true: estimated_heap_memory_usage_bytes
+  - is_true: model_size_bytes
 ---
 "Test PUT model where target type and inference config mismatch":
   - do:
@@ -985,14 +985,14 @@ setup:
             "description": "model for tests",
             "input": {"field_names": ["field1", "field2"]},
             "inference_config": {"classification": {}},
-            "estimated_heap_memory_usage_bytes": 1024,
+            "model_size_bytes": 1024,
             "compressed_definition": "H4sIAAAAAAAAAEy92a5mW26l9y55HWdj9o3u9RS+SMil4yrBUgpIpywY9fLmR3LMFSpI"
           }
 
 ---
 "Test put with defer_definition_decompression with invalid compression definition and no memory estimate":
   - do:
-      catch: /when \[defer_definition_decompression\] is true and a compressed definition is provided, estimated_heap_memory_usage_bytes must be set/
+      catch: /when \[defer_definition_decompression\] is true and a compressed definition is provided, model_size_bytes must be set/
       ml.put_trained_model:
         defer_definition_decompression: true
         model_id: my-regression-model-compressed-failed

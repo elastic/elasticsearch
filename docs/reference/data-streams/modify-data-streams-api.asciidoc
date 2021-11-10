@@ -1,7 +1,7 @@
 [[modify-data-streams-api]]
 === Modify data streams API
 ++++
-<titleabbrev>Modify data streams API</titleabbrev>
+<titleabbrev>Modify data streams</titleabbrev>
 ++++
 
 Performs one or more data stream modification actions in a single atomic

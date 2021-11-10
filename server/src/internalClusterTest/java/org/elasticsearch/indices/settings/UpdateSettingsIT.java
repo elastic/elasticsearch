@@ -919,6 +919,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertSame("foo", defaultFields.get(0));
         assertSame("bar", defaultFields.get(1));
         assertSame("bla", defaultFields.get(2));
+        for (String key : settings.keySet()) {
+            assertSame(key, key.intern());
+        }
     }
 
 }

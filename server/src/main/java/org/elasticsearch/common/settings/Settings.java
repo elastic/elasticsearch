@@ -110,27 +110,11 @@ public final class Settings implements ToXContentFragment {
                 @SuppressWarnings("unchecked")
                 List<String> valueList = (List<String>) value;
                 final int listSize = valueList.size();
-                int notInternedOffset = -1;
-                for (int i = 0; i < listSize; i++) {
-                    final String listValue = valueList.get(i);
-                    final String interned = internKeyOrValue(listValue);
-                    if (interned != listValue) {
-                        notInternedOffset = i;
-                        break;
-                    }
+                final String[] internedArr = new String[listSize];
+                for (int i = 0; i < valueList.size(); i++) {
+                    internedArr[i] = internKeyOrValue(valueList.get(i));
                 }
-                if (notInternedOffset >= 0) {
-                    final String[] internedArr = new String[listSize];
-                    for (int i = 0; i < notInternedOffset; i++) {
-                        internedArr[i] = valueList.get(i);
-                    }
-                    for (int i = notInternedOffset; i < valueList.size(); i++) {
-                        internedArr[i] = internKeyOrValue(valueList.get(i));
-                    }
-                    internedValue = List.of(internedArr);
-                } else {
-                    internedValue = List.copyOf(valueList);
-                }
+                internedValue = List.of(internedArr);
             } else {
                 internedValue = value;
             }

@@ -10,6 +10,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -47,8 +48,8 @@ import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResource
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -81,12 +82,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
 
     private final Settings exporterSettings = Settings.builder()
-            .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", createOldTemplates)
-            .build();
+        .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", createOldTemplates)
+        .build();
 
-    private final MultiHttpResource resources =
-            HttpExporter.createResources(
-                    new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
+    private final MultiHttpResource resources = HttpExporter.createResources(
+        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)
+    ).allResources;
 
     @Before
     public void setupResources() {
@@ -94,7 +95,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         if (createOldTemplates) {
             templateNames.addAll(
-                    Arrays.stream(OLD_TEMPLATE_IDS).map(MonitoringTemplateUtils::oldTemplateName).collect(Collectors.toList()));
+                Arrays.stream(OLD_TEMPLATE_IDS).map(MonitoringTemplateUtils::oldTemplateName).collect(Collectors.toList())
+            );
         }
 
         pipelineNames.addAll(Arrays.stream(PIPELINE_IDS).map(MonitoringTemplateUtils::pipelineName).collect(Collectors.toList()));
@@ -125,8 +127,14 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), is("/")), versionResponse);
 
         assertTrue(resources.isDirty());
-        awaitCheckAndPublish(resources, new ResourcePublishResult(false,
-            "version [3.0.0] < [7.0.0] and NOT supported for [xpack.monitoring.exporters._http]", HttpResource.State.DIRTY));
+        awaitCheckAndPublish(
+            resources,
+            new ResourcePublishResult(
+                false,
+                "version [3.0.0] < [7.0.0] and NOT supported for [xpack.monitoring.exporters._http]",
+                HttpResource.State.DIRTY
+            )
+        );
         // ensure it didn't magically become clean
         assertTrue(resources.isDirty());
 
@@ -162,8 +170,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             final List<Response> otherResponses = getTemplateResponses(1, successful, unsuccessful);
 
             // last check fails implies that N - 2 publishes succeeded!
-            whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")),
-                                        first, otherResponses, exception);
+            whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")), first, otherResponses, exception);
             whenSuccessfulPutTemplates(otherResponses.size() + 1);
 
             expectedGets += 1 + successful + unsuccessful;
@@ -205,8 +212,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             whenGetTemplates(successful, unsuccessful + 2);
 
             // previous publishes must have succeeded
-            whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_template/")),
-                                        firstSuccess, otherResponses, exception);
+            whenPerformRequestAsyncWith(
+                client,
+                new RequestMatcher(is("PUT"), startsWith("/_template/")),
+                firstSuccess,
+                otherResponses,
+                exception
+            );
 
             // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
             expectedGets += successful + unsuccessful + 1;
@@ -388,14 +400,19 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 final List<Response> otherResponses = getWatcherResponses(1, successful, unsuccessful);
 
                 // last check fails implies that N - 2 publishes succeeded!
-                whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_watcher/watch/")),
-                                            first, otherResponses, exception);
+                whenPerformRequestAsyncWith(
+                    client,
+                    new RequestMatcher(is("GET"), startsWith("/_watcher/watch/")),
+                    first,
+                    otherResponses,
+                    exception
+                );
                 whenSuccessfulPutWatches(otherResponses.size() + 1);
 
                 // +1 for the "first"
                 expectedGets += 1 + successful + unsuccessful;
                 expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
-            // deleting watches
+                // deleting watches
             } else {
                 // - 1 from necessary failure after it!
                 final int successful = randomIntBetween(1, EXPECTED_WATCHES - 1);
@@ -403,8 +420,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 // there is no form of an unsuccessful delete; only success or error
                 final List<Response> responses = successfulDeleteResponses(successful);
 
-                whenPerformRequestAsyncWith(client, new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
-                                            responses.get(0), responses.subList(1, responses.size()), exception);
+                whenPerformRequestAsyncWith(
+                    client,
+                    new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
+                    responses.get(0),
+                    responses.subList(1, responses.size()),
+                    exception
+                );
 
                 expectedGets += successful;
             }
@@ -466,8 +488,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             whenGetWatches(successful, unsuccessful + 2);
 
             // previous publishes must have succeeded
-            whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")),
-                                        firstSuccess, otherResponses, exception);
+            whenPerformRequestAsyncWith(
+                client,
+                new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")),
+                firstSuccess,
+                otherResponses,
+                exception
+            );
 
             // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
             expectedGets += successful + unsuccessful + 1;
@@ -518,8 +545,11 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         // Instead it tries to DELETE the watches ignoring them not existing.
         whenGetWatches(existingWatches, EXPECTED_WATCHES - existingWatches);
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/")), exception);
-        whenPerformRequestAsyncWith(client, new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
-            successfulDeleteResponses(EXPECTED_WATCHES));
+        whenPerformRequestAsyncWith(
+            client,
+            new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/")),
+            successfulDeleteResponses(EXPECTED_WATCHES)
+        );
 
         // Create resources that are configured to remove all watches
         Settings removalExporterSettings = Settings.builder()
@@ -527,7 +557,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             .put("xpack.monitoring.migration.decommission_alerts", true)
             .build();
         MultiHttpResource overrideResource = HttpExporter.createResources(
-            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState)).allResources;
+            new Exporter.Config("_http", "http", removalExporterSettings, clusterService, licenseState)
+        ).allResources;
 
         assertTrue(overrideResource.isDirty());
         awaitCheckAndPublish(overrideResource, true);
@@ -546,11 +577,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
 
         assertWarnings(
-            "[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
-                "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
-                "major version.",
-            "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be " +
-                "removed in a future release! See the breaking changes documentation for the next major version."
+            Level.WARN,
+            "[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in "
+                + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next "
+                + "major version.",
+            "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
         );
     }
 
@@ -609,9 +641,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         final ClusterState state = mockClusterState(false);
         final ClusterService clusterService = mockClusterService(state);
 
-        final MultiHttpResource resources =
-                HttpExporter.createResources(
-                        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
+        final MultiHttpResource resources = HttpExporter.createResources(
+            new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)
+        ).allResources;
 
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
@@ -639,9 +671,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyNoMoreInteractions(client);
 
-        assertWarnings("[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
-            "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
-            "major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in "
+                + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next "
+                + "major version."
+        );
     }
 
     private Exception failureGetException() {
@@ -671,6 +706,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         return response("GET", "/_watcher/watch/" + watchId, successfulCheckStatus(), goodEntity);
     }
+
     private Response unsuccessfulGetWatchResponse(final String watchId) {
         if (randomBoolean()) {
             final HttpEntity badEntity = entityForClusterAlert(false, ClusterAlertsUtil.LAST_UPDATED_VERSION);
@@ -697,8 +733,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         return unsuccessfulGetResponse();
     }
 
-    private List<Response> getResourceResponses(final String resourcePath, final List<String> resourceNames,
-                                                final int skip, final int successful, final int unsuccessful) {
+    private List<Response> getResourceResponses(
+        final String resourcePath,
+        final List<String> resourceNames,
+        final int skip,
+        final int successful,
+        final int unsuccessful
+    ) {
         final List<Response> responses = new ArrayList<>(successful + unsuccessful);
 
         for (int i = 0; i < successful; ++i) {
@@ -811,8 +852,10 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(validLicense);
 
-        final HttpEntity entity =
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}", ContentType.APPLICATION_JSON);
+        final HttpEntity entity = new StringEntity(
+            "{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}",
+            ContentType.APPLICATION_JSON
+        );
         final Response successfulGet = response("GET", "_xpack", successfulCheckStatus(), entity);
 
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), is("/_xpack")), successfulGet);
@@ -860,23 +903,31 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void verifyGetTemplates(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))::matches), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyPutTemplates(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches), any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyGetPipelines(final int called) {
         verify(client, times(called)).performRequestAsync(
-            argThat(new RequestMatcher(is("GET"), startsWith("/_ingest/pipeline/"))::matches), any(ResponseListener.class));
+            argThat(new RequestMatcher(is("GET"), startsWith("/_ingest/pipeline/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyPutPipelines(final int called) {
         verify(client, times(called)).performRequestAsync(
-            argThat(new RequestMatcher(is("PUT"), startsWith("/_ingest/pipeline/"))::matches), any(ResponseListener.class));
+            argThat(new RequestMatcher(is("PUT"), startsWith("/_ingest/pipeline/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyWatcherCheck() {
@@ -884,21 +935,24 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void verifyDeleteWatches(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))::matches),
-                                 any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("DELETE"), startsWith("/_watcher/watch/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyGetWatches(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))::matches),
-                any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("GET"), startsWith("/_watcher/watch/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private void verifyPutWatches(final int called) {
-        verify(client, times(called))
-            .performRequestAsync(argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))::matches),
-                any(ResponseListener.class));
+        verify(client, times(called)).performRequestAsync(
+            argThat(new RequestMatcher(is("PUT"), startsWith("/_watcher/watch/"))::matches),
+            any(ResponseListener.class)
+        );
     }
 
     private ClusterService mockClusterService(final ClusterState state) {

@@ -19,7 +19,6 @@ import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
@@ -27,6 +26,7 @@ import org.elasticsearch.plugin.noop.action.search.NoopSearchAction;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;

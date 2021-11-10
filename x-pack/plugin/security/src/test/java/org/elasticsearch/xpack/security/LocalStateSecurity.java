@@ -38,10 +38,14 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         });
         plugins.add(new Security(settings, configPath) {
             @Override
-            protected SSLService getSslService() { return thisVar.getSslService(); }
+            protected SSLService getSslService() {
+                return thisVar.getSslService();
+            }
 
             @Override
-            protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
         });
     }
 }

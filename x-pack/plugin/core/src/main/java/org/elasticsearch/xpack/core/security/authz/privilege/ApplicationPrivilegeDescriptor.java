@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,8 +43,11 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         PARSER.declareString(Builder::privilegeName, Fields.NAME);
         PARSER.declareStringArray(Builder::actions, Fields.ACTIONS);
         PARSER.declareObject(Builder::metadata, (parser, context) -> parser.map(), Fields.METADATA);
-        PARSER.declareField((parser, builder, allowType) -> builder.type(parser.text(), allowType), Fields.TYPE,
-            ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            (parser, builder, allowType) -> builder.type(parser.text(), allowType),
+            Fields.TYPE,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private String application;
@@ -119,8 +122,12 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
      * @param defaultName The privilege name to use if none is specified in the XContent body
      * @param allowType If true, accept a "type" field (for which the value must match {@link #DOC_TYPE_VALUE});
      */
-    public static ApplicationPrivilegeDescriptor parse(XContentParser parser, String defaultApplication, String defaultName,
-                                             boolean allowType) throws IOException {
+    public static ApplicationPrivilegeDescriptor parse(
+        XContentParser parser,
+        String defaultApplication,
+        String defaultName,
+        boolean allowType
+    ) throws IOException {
         final Builder builder = PARSER.parse(parser, allowType);
         if (builder.applicationName == null) {
             builder.applicationName(defaultApplication);
@@ -140,10 +147,10 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
             return false;
         }
         final ApplicationPrivilegeDescriptor that = (ApplicationPrivilegeDescriptor) o;
-        return Objects.equals(this.application, that.application) &&
-            Objects.equals(this.name, that.name) &&
-            Objects.equals(this.actions, that.actions) &&
-            Objects.equals(this.metadata, that.metadata);
+        return Objects.equals(this.application, that.application)
+            && Objects.equals(this.name, that.name)
+            && Objects.equals(this.actions, that.actions)
+            && Objects.equals(this.metadata, that.metadata);
     }
 
     @Override

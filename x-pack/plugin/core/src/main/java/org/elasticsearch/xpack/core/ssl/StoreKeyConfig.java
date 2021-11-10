@@ -7,13 +7,10 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
-
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -34,6 +31,9 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
+
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A key configuration that is backed by a {@link KeyStore}
@@ -58,8 +58,14 @@ class StoreKeyConfig extends KeyConfig {
      * @param keyStoreAlgorithm the algorithm for the keystore
      * @param trustStoreAlgorithm the algorithm to use when loading as a truststore
      */
-    StoreKeyConfig(String keyStorePath, String keyStoreType, SecureString keyStorePassword, SecureString keyPassword,
-                   String keyStoreAlgorithm, String trustStoreAlgorithm) {
+    StoreKeyConfig(
+        String keyStorePath,
+        String keyStoreType,
+        SecureString keyStorePassword,
+        SecureString keyPassword,
+        String keyStoreAlgorithm,
+        String trustStoreAlgorithm
+    ) {
         this.keyStorePath = keyStorePath;
         this.keyStoreType = Objects.requireNonNull(keyStoreType, "keystore type must be specified");
         // since we support reloading the keystore, we must store the passphrase in memory for the life of the node, so we
@@ -139,7 +145,7 @@ class StoreKeyConfig extends KeyConfig {
         try {
             KeyStore keyStore = getStore(environment, keyStorePath, keyStoreType, keyStorePassword);
             List<PrivateKey> privateKeys = new ArrayList<>();
-            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
+            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements();) {
                 final String alias = e.nextElement();
                 if (keyStore.isKeyEntry(alias)) {
                     Key key = keyStore.getKey(alias, keyPassword.getChars());
@@ -162,9 +168,9 @@ class StoreKeyConfig extends KeyConfig {
                 return;
             }
         }
-        final String message = null != keyStorePath ?
-            "the keystore [" + keyStorePath + "] does not contain a private key entry" :
-            "the configured PKCS#11 token does not contain a private key entry";
+        final String message = null != keyStorePath
+            ? "the keystore [" + keyStorePath + "] does not contain a private key entry"
+            : "the configured PKCS#11 token does not contain a private key entry";
         throw new IllegalArgumentException(message);
     }
 
@@ -192,10 +198,14 @@ class StoreKeyConfig extends KeyConfig {
 
     @Override
     public String toString() {
-        return "keyStorePath=[" + keyStorePath +
-                "], keyStoreType=[" + keyStoreType +
-                "], keyStoreAlgorithm=[" + keyStoreAlgorithm +
-                "], trustStoreAlgorithm=[" + trustStoreAlgorithm +
-                "]";
+        return "keyStorePath=["
+            + keyStorePath
+            + "], keyStoreType=["
+            + keyStoreType
+            + "], keyStoreAlgorithm=["
+            + keyStoreAlgorithm
+            + "], trustStoreAlgorithm=["
+            + trustStoreAlgorithm
+            + "]";
     }
 }

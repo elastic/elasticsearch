@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -21,8 +21,11 @@ import java.util.stream.Collectors;
 public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
 
     public void testDataSourceConfigurationWithSSLInURL() throws SQLException, URISyntaxException, IOException {
-        webServer().enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json").setBody(
-                XContentHelper.toXContent(createCurrentVersionMainResponse(), XContentType.JSON, false).utf8ToString()));
+        webServer().enqueue(
+            new MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(XContentHelper.toXContent(createCurrentVersionMainResponse(), XContentType.JSON, false).utf8ToString())
+        );
 
         Map<String, String> urlPropMap = JdbcConfigurationTests.sslProperties();
         Properties allProps = new Properties();

@@ -10,15 +10,14 @@ package org.elasticsearch.search.profile;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
-import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +41,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     private Map<String, SearchProfileShardResult> shardResults;
 
     public SearchProfileResults(Map<String, SearchProfileShardResult> shardResults) {
-        this.shardResults =  Collections.unmodifiableMap(shardResults);
+        this.shardResults = Collections.unmodifiableMap(shardResults);
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
@@ -126,8 +125,8 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         return new SearchProfileResults(profileResults);
     }
 
-    private static void parseProfileResultsEntry(XContentParser parser,
-            Map<String, SearchProfileShardResult> searchProfileResults) throws IOException {
+    private static void parseProfileResultsEntry(XContentParser parser, Map<String, SearchProfileShardResult> searchProfileResults)
+        throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();

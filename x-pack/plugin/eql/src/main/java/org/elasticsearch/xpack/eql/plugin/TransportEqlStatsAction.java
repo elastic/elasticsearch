@@ -23,24 +23,43 @@ import java.util.List;
 /**
  * Performs the stats operation.
  */
-public class TransportEqlStatsAction extends TransportNodesAction<EqlStatsRequest, EqlStatsResponse,
-        EqlStatsRequest.NodeStatsRequest, EqlStatsResponse.NodeStatsResponse> {
+public class TransportEqlStatsAction extends TransportNodesAction<
+    EqlStatsRequest,
+    EqlStatsResponse,
+    EqlStatsRequest.NodeStatsRequest,
+    EqlStatsResponse.NodeStatsResponse> {
 
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
 
     @Inject
-    public TransportEqlStatsAction(TransportService transportService, ClusterService clusterService,
-            ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
-        super(EqlStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              EqlStatsRequest::new, EqlStatsRequest.NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT,
-              EqlStatsResponse.NodeStatsResponse.class);
+    public TransportEqlStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor
+    ) {
+        super(
+            EqlStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            EqlStatsRequest::new,
+            EqlStatsRequest.NodeStatsRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            EqlStatsResponse.NodeStatsResponse.class
+        );
         this.planExecutor = planExecutor;
     }
 
     @Override
-    protected EqlStatsResponse newResponse(EqlStatsRequest request, List<EqlStatsResponse.NodeStatsResponse> nodes,
-                                           List<FailedNodeException> failures) {
+    protected EqlStatsResponse newResponse(
+        EqlStatsRequest request,
+        List<EqlStatsResponse.NodeStatsResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new EqlStatsResponse(clusterService.getClusterName(), nodes, failures);
     }
 

@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -41,12 +41,10 @@ public class LegacyDynamicMappingTests extends ESSingleNodeTestCase {
             createIndex("test", settings, "_default_", mapping);
         }
         try (XContentBuilder sourceBuilder = jsonBuilder().startObject().field("test", "test").endObject()) {
-            expectThrows(StrictDynamicMappingException.class, () -> client()
-                    .prepareIndex()
-                    .setIndex("test")
-                    .setType("type")
-                    .setSource(sourceBuilder)
-                    .get());
+            expectThrows(
+                StrictDynamicMappingException.class,
+                () -> client().prepareIndex().setIndex("test").setType("type").setSource(sourceBuilder).get()
+            );
 
             GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
             assertNull(getMappingsResponse.getMappings().get("test").get("type"));

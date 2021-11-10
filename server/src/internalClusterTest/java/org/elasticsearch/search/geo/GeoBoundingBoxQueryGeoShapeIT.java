@@ -17,10 +17,13 @@ public class GeoBoundingBoxQueryGeoShapeIT extends GeoBoundingBoxQueryIntegTestC
 
     @Override
     public XContentBuilder getMapping() throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location").field("type", "geo_shape");
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type1")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape");
         xContentBuilder.endObject().endObject().endObject().endObject();
         return xContentBuilder;
     }
 }
-

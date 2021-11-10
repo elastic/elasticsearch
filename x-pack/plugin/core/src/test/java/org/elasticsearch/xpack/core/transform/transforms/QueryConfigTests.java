@@ -7,21 +7,22 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedQueryBuilder;
 import org.junit.Before;
@@ -147,7 +148,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, false);
             assertNotNull(query.getQuery());
-            assertWarnings(MockDeprecatedQueryBuilder.DEPRECATION_MESSAGE);
+            assertWarnings(Level.WARN, MockDeprecatedQueryBuilder.DEPRECATION_MESSAGE);
         }
     }
 }

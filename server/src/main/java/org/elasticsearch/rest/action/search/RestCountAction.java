@@ -15,7 +15,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -24,6 +23,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,19 +37,21 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 
 public class RestCountAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in count requests is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in count requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_count"),
-            new Route(POST, "/_count"),
-            new Route(GET, "/{index}/_count"),
-            new Route(POST, "/{index}/_count"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_count"),
-            new Route(POST, "/{index}/{type}/_count")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_count"),
+                new Route(POST, "/_count"),
+                new Route(GET, "/{index}/_count"),
+                new Route(POST, "/{index}/_count"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_count"),
+                new Route(POST, "/{index}/{type}/_count")
+            )
+        );
     }
 
     @Override
@@ -96,8 +98,15 @@ public class RestCountAction extends BaseRestHandler {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
                 builder.field("count", response.getHits().getTotalHits().value);
-                buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
-                    0, response.getFailedShards(), response.getShardFailures());
+                buildBroadcastShardsHeader(
+                    builder,
+                    request,
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    0,
+                    response.getFailedShards(),
+                    response.getShardFailures()
+                );
 
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);

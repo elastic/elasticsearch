@@ -23,24 +23,43 @@ import java.util.List;
 /**
  * Performs the stats operation.
  */
-public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsRequest, SqlStatsResponse,
-        SqlStatsRequest.NodeStatsRequest, SqlStatsResponse.NodeStatsResponse> {
+public class TransportSqlStatsAction extends TransportNodesAction<
+    SqlStatsRequest,
+    SqlStatsResponse,
+    SqlStatsRequest.NodeStatsRequest,
+    SqlStatsResponse.NodeStatsResponse> {
 
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
 
     @Inject
-    public TransportSqlStatsAction(TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
-        super(SqlStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              SqlStatsRequest::new, SqlStatsRequest.NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT,
-              SqlStatsResponse.NodeStatsResponse.class);
+    public TransportSqlStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor
+    ) {
+        super(
+            SqlStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            SqlStatsRequest::new,
+            SqlStatsRequest.NodeStatsRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            SqlStatsResponse.NodeStatsResponse.class
+        );
         this.planExecutor = planExecutor;
     }
 
     @Override
-    protected SqlStatsResponse newResponse(SqlStatsRequest request, List<SqlStatsResponse.NodeStatsResponse> nodes,
-                                           List<FailedNodeException> failures) {
+    protected SqlStatsResponse newResponse(
+        SqlStatsRequest request,
+        List<SqlStatsResponse.NodeStatsResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new SqlStatsResponse(clusterService.getClusterName(), nodes, failures);
     }
 

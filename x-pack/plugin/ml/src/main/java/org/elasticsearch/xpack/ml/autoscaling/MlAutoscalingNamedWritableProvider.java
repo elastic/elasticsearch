@@ -15,13 +15,11 @@ import java.util.List;
 
 public final class MlAutoscalingNamedWritableProvider {
 
-    public MlAutoscalingNamedWritableProvider() { }
+    public MlAutoscalingNamedWritableProvider() {}
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
-            new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class,
-                MlScalingReason.NAME,
-                MlScalingReason::new)
+            new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
         );
     }
 }

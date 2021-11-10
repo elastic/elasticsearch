@@ -99,8 +99,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     @Nullable
     private final Version minCompatibleShardNode;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
-        IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -124,8 +123,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * Constructs a new search request from the provided search request
      */
     public SearchRequest(SearchRequest searchRequest) {
-        this(searchRequest, searchRequest.indices, searchRequest.localClusterAlias,
-            searchRequest.absoluteStartMillis, searchRequest.finalReduce);
+        this(
+            searchRequest,
+            searchRequest.indices,
+            searchRequest.localClusterAlias,
+            searchRequest.absoluteStartMillis,
+            searchRequest.finalReduce
+        );
     }
 
     /**
@@ -167,8 +171,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce whether the reduction should be final or not
      */
-    static SearchRequest subSearchRequest(TaskId parentTaskId, SearchRequest originalSearchRequest, String[] indices,
-                                          String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
+    static SearchRequest subSearchRequest(
+        TaskId parentTaskId,
+        SearchRequest originalSearchRequest,
+        String[] indices,
+        String clusterAlias,
+        long absoluteStartMillis,
+        boolean finalReduce
+    ) {
         Objects.requireNonNull(parentTaskId, "parentTaskId must be specified");
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
@@ -181,8 +191,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return request;
     }
 
-    private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis,
-                          boolean finalReduce) {
+    private SearchRequest(
+        SearchRequest searchRequest,
+        String[] indices,
+        String localClusterAlias,
+        long absoluteStartMillis,
+        boolean finalReduce
+    ) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
         this.ccsMinimizeRoundtrips = searchRequest.ccsMinimizeRoundtrips;
@@ -306,8 +321,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoints.isEmpty() == false) {
-            throw new IllegalArgumentException("Remote node version [" + out.getVersion() + " incompatible with " +
-                "wait_for_checkpoints. All nodes must be version [" + waitForCheckpointsVersion + "] or greater.");
+            throw new IllegalArgumentException(
+                "Remote node version ["
+                    + out.getVersion()
+                    + " incompatible with "
+                    + "wait_for_checkpoints. All nodes must be version ["
+                    + waitForCheckpointsVersion
+                    + "] or greater."
+            );
         }
     }
 
@@ -318,24 +339,23 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (scroll) {
             if (source != null) {
                 if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                    validationException =
-                        addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+                    validationException = addValidationError(
+                        "disabling [track_total_hits] is not allowed in a scroll context",
+                        validationException
+                    );
                 }
                 if (source.from() > 0) {
-                    validationException =
-                        addValidationError("using [from] is not allowed in a scroll context", validationException);
+                    validationException = addValidationError("using [from] is not allowed in a scroll context", validationException);
                 }
                 if (source.size() == 0) {
                     validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
                 }
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                    validationException =
-                        addValidationError("using [rescore] is not allowed in a scroll context", validationException);
+                    validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
                 }
             }
             if (requestCache != null && requestCache) {
-                validationException =
-                    addValidationError("[request_cache] cannot be used in a scroll context", validationException);
+                validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
         }
         if (source != null) {
@@ -350,16 +370,20 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else if (source != null && source.sorts() != null) {
             for (SortBuilder<?> sortBuilder : source.sorts()) {
                 if (sortBuilder instanceof FieldSortBuilder
-                        && ShardDocSortField.NAME.equals(((FieldSortBuilder) sortBuilder).getFieldName())) {
-                    validationException = addValidationError("[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME
-                        + "] sort field cannot be used without [point in time]", validationException);
+                    && ShardDocSortField.NAME.equals(((FieldSortBuilder) sortBuilder).getFieldName())) {
+                    validationException = addValidationError(
+                        "[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME + "] sort field cannot be used without [point in time]",
+                        validationException
+                    );
                 }
             }
         }
         if (minCompatibleShardNode() != null) {
             if (isCcsMinimizeRoundtrips()) {
-                validationException = addValidationError("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible "
-                    + "shard version", validationException);
+                validationException = addValidationError(
+                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible " + "shard version",
+                    validationException
+                );
             }
         }
         if (isFieldsOptionEmulationEnabled() && searchType().equals(SearchType.DFS_QUERY_THEN_FETCH)) {
@@ -785,14 +809,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
         // add a sort tiebreaker for PIT search requests if not explicitly set
         Object[] searchAfter = source.searchAfter();
-        if (source.pointInTimeBuilder() != null
-                && source.sorts() != null
-                && source.sorts().isEmpty() == false
-                // skip the tiebreaker if it is not provided in the search after values
-                && (searchAfter == null || searchAfter.length == source.sorts().size()+1)) {
+        if (source.pointInTimeBuilder() != null && source.sorts() != null && source.sorts().isEmpty() == false
+        // skip the tiebreaker if it is not provided in the search after values
+            && (searchAfter == null || searchAfter.length == source.sorts().size() + 1)) {
             SortBuilder<?> lastSort = source.sorts().get(source.sorts().size() - 1);
             if (lastSort instanceof FieldSortBuilder == false
-                    || FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(((FieldSortBuilder) lastSort).getFieldName()) == false) {
+                || FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(((FieldSortBuilder) lastSort).getFieldName()) == false) {
                 List<SortBuilder<?>> newSorts = new ArrayList<>(source.sorts());
                 newSorts.add(SortBuilders.pitTiebreaker().unmappedType("long"));
                 source = source.shallowCopy().sort(newSorts);
@@ -808,8 +830,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             // no matter what the value of track_total_hits is
             return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
         }
-        return source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo() == null ?
-            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
+        return source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : source.trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : source.trackTotalHitsUpTo();
     }
 
     @Override
@@ -846,24 +869,24 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             return false;
         }
         SearchRequest that = (SearchRequest) o;
-        return searchType == that.searchType &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(routing, that.routing) &&
-                Objects.equals(preference, that.preference) &&
-                Objects.equals(source, that.source) &&
-                Objects.equals(requestCache, that.requestCache)  &&
-                Objects.equals(scroll, that.scroll) &&
-                Arrays.equals(types, that.types) &&
-                Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
-                Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
-                Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
-                Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
-                Objects.equals(localClusterAlias, that.localClusterAlias) &&
-                absoluteStartMillis == that.absoluteStartMillis &&
-                ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips &&
-                enableFieldsEmulation == that.enableFieldsEmulation &&
-                Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode);
+        return searchType == that.searchType
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(routing, that.routing)
+            && Objects.equals(preference, that.preference)
+            && Objects.equals(source, that.source)
+            && Objects.equals(requestCache, that.requestCache)
+            && Objects.equals(scroll, that.scroll)
+            && Arrays.equals(types, that.types)
+            && Objects.equals(batchedReduceSize, that.batchedReduceSize)
+            && Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests)
+            && Objects.equals(preFilterShardSize, that.preFilterShardSize)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
+            && Objects.equals(localClusterAlias, that.localClusterAlias)
+            && absoluteStartMillis == that.absoluteStartMillis
+            && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
+            && enableFieldsEmulation == that.enableFieldsEmulation
+            && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode);
     }
 
     @Override
@@ -892,23 +915,43 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     @Override
     public String toString() {
-        return "SearchRequest{" +
-                "searchType=" + searchType +
-                ", indices=" + Arrays.toString(indices) +
-                ", indicesOptions=" + indicesOptions +
-                ", types=" + Arrays.toString(types) +
-                ", routing='" + routing + '\'' +
-                ", preference='" + preference + '\'' +
-                ", requestCache=" + requestCache +
-                ", scroll=" + scroll +
-                ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
-                ", batchedReduceSize=" + batchedReduceSize +
-                ", preFilterShardSize=" + preFilterShardSize +
-                ", allowPartialSearchResults=" + allowPartialSearchResults +
-                ", localClusterAlias=" + localClusterAlias +
-                ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
-                ", ccsMinimizeRoundtrips=" + ccsMinimizeRoundtrips +
-                ", enableFieldsEmulation=" + enableFieldsEmulation +
-                ", source=" + source + '}';
+        return "SearchRequest{"
+            + "searchType="
+            + searchType
+            + ", indices="
+            + Arrays.toString(indices)
+            + ", indicesOptions="
+            + indicesOptions
+            + ", types="
+            + Arrays.toString(types)
+            + ", routing='"
+            + routing
+            + '\''
+            + ", preference='"
+            + preference
+            + '\''
+            + ", requestCache="
+            + requestCache
+            + ", scroll="
+            + scroll
+            + ", maxConcurrentShardRequests="
+            + maxConcurrentShardRequests
+            + ", batchedReduceSize="
+            + batchedReduceSize
+            + ", preFilterShardSize="
+            + preFilterShardSize
+            + ", allowPartialSearchResults="
+            + allowPartialSearchResults
+            + ", localClusterAlias="
+            + localClusterAlias
+            + ", getOrCreateAbsoluteStartMillis="
+            + absoluteStartMillis
+            + ", ccsMinimizeRoundtrips="
+            + ccsMinimizeRoundtrips
+            + ", enableFieldsEmulation="
+            + enableFieldsEmulation
+            + ", source="
+            + source
+            + '}';
     }
 }

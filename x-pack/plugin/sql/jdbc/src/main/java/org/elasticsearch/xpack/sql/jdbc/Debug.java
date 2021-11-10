@@ -94,8 +94,7 @@ final class Debug {
 
         if (statement instanceof CallableStatement) {
             i = CallableStatement.class;
-        }
-        else if (statement instanceof PreparedStatement) {
+        } else if (statement instanceof PreparedStatement) {
             i = PreparedStatement.class;
         }
 
@@ -202,8 +201,7 @@ final class Debug {
                             d.print.close();
                         }
                     }
-                }
-                else {
+                } else {
                     OUTPUT_REFS.put(out, Integer.valueOf(r - 1));
                 }
             }

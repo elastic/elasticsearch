@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.dataframe.stats.classification;
 
 import org.elasticsearch.client.ml.dataframe.stats.common.FoldValues;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -23,9 +23,11 @@ public class ValidationLoss implements ToXContentObject {
     public static final ParseField FOLD_VALUES = new ParseField("fold_values");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ValidationLoss, Void> PARSER = new ConstructingObjectParser<>("classification_validation_loss",
+    public static ConstructingObjectParser<ValidationLoss, Void> PARSER = new ConstructingObjectParser<>(
+        "classification_validation_loss",
         true,
-        a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1]));
+        a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LOSS_TYPE);

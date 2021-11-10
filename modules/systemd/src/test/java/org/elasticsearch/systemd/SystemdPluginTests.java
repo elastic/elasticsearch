@@ -27,8 +27,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,8 +36,10 @@ import static org.mockito.Mockito.when;
 public class SystemdPluginTests extends ESTestCase {
 
     private final Build.Type randomPackageBuildType = randomFrom(Build.Type.DEB, Build.Type.RPM);
-    private final Build.Type randomNonPackageBuildType =
-        randomValueOtherThanMany(t -> t == Build.Type.DEB || t == Build.Type.RPM, () -> randomFrom(Build.Type.values()));
+    private final Build.Type randomNonPackageBuildType = randomValueOtherThanMany(
+        t -> t == Build.Type.DEB || t == Build.Type.RPM,
+        () -> randomFrom(Build.Type.values())
+    );
 
     final Scheduler.Cancellable extender = mock(Scheduler.Cancellable.class);
     final ThreadPool threadPool = mock(ThreadPool.class);
@@ -79,46 +81,38 @@ public class SystemdPluginTests extends ESTestCase {
     public void testInvalid() {
         final String esSDNotify = randomValueOtherThanMany(
             s -> Boolean.TRUE.toString().equals(s) || Boolean.FALSE.toString().equals(s),
-            () -> randomAlphaOfLength(4));
-        final RuntimeException e = expectThrows(RuntimeException.class,
-            () -> new SystemdPlugin(false, randomPackageBuildType, esSDNotify));
+            () -> randomAlphaOfLength(4)
+        );
+        final RuntimeException e = expectThrows(RuntimeException.class, () -> new SystemdPlugin(false, randomPackageBuildType, esSDNotify));
         assertThat(e, hasToString(containsString("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]")));
     }
 
     public void testOnNodeStartedSuccess() {
-        runTestOnNodeStarted(
-            Boolean.TRUE.toString(),
-            randomIntBetween(0, Integer.MAX_VALUE),
-            (maybe, plugin) -> {
-                assertThat(maybe, OptionalMatchers.isEmpty());
-                verify(plugin.extender()).cancel();
-            });
+        runTestOnNodeStarted(Boolean.TRUE.toString(), randomIntBetween(0, Integer.MAX_VALUE), (maybe, plugin) -> {
+            assertThat(maybe, OptionalMatchers.isEmpty());
+            verify(plugin.extender()).cancel();
+        });
     }
 
     public void testOnNodeStartedFailure() {
         final int rc = randomIntBetween(Integer.MIN_VALUE, -1);
-        runTestOnNodeStarted(
-            Boolean.TRUE.toString(),
-            rc,
-            (maybe, plugin) -> {
-                assertThat(maybe, OptionalMatchers.isPresent());
-                // noinspection OptionalGetWithoutIsPresent
-                assertThat(maybe.get(), instanceOf(RuntimeException.class));
-                assertThat(maybe.get(), hasToString(containsString("sd_notify returned error [" + rc + "]")));
-            });
+        runTestOnNodeStarted(Boolean.TRUE.toString(), rc, (maybe, plugin) -> {
+            assertThat(maybe, OptionalMatchers.isPresent());
+            // noinspection OptionalGetWithoutIsPresent
+            assertThat(maybe.get(), instanceOf(RuntimeException.class));
+            assertThat(maybe.get(), hasToString(containsString("sd_notify returned error [" + rc + "]")));
+        });
     }
 
     public void testOnNodeStartedNotEnabled() {
-        runTestOnNodeStarted(
-            Boolean.FALSE.toString(),
-            randomInt(),
-            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
+        runTestOnNodeStarted(Boolean.FALSE.toString(), randomInt(), (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
     }
 
     private void runTestOnNodeStarted(
         final String esSDNotify,
         final int rc,
-        final BiConsumer<Optional<Exception>, SystemdPlugin> assertions) {
+        final BiConsumer<Optional<Exception>, SystemdPlugin> assertions
+    ) {
         runTest(esSDNotify, rc, assertions, SystemdPlugin::onNodeStarted, "READY=1");
     }
 
@@ -126,27 +120,23 @@ public class SystemdPluginTests extends ESTestCase {
         runTestClose(
             Boolean.TRUE.toString(),
             randomIntBetween(1, Integer.MAX_VALUE),
-            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
+            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty())
+        );
     }
 
     public void testCloseFailure() {
         runTestClose(
             Boolean.TRUE.toString(),
             randomIntBetween(Integer.MIN_VALUE, -1),
-            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
+            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty())
+        );
     }
 
     public void testCloseNotEnabled() {
-        runTestClose(
-            Boolean.FALSE.toString(),
-            randomInt(),
-            (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
+        runTestClose(Boolean.FALSE.toString(), randomInt(), (maybe, plugin) -> assertThat(maybe, OptionalMatchers.isEmpty()));
     }
 
-    private void runTestClose(
-        final String esSDNotify,
-        final int rc,
-        final BiConsumer<Optional<Exception>, SystemdPlugin> assertions) {
+    private void runTestClose(final String esSDNotify, final int rc, final BiConsumer<Optional<Exception>, SystemdPlugin> assertions) {
         runTest(esSDNotify, rc, assertions, SystemdPlugin::close, "STOPPING=1");
     }
 
@@ -155,7 +145,8 @@ public class SystemdPluginTests extends ESTestCase {
         final int rc,
         final BiConsumer<Optional<Exception>, SystemdPlugin> assertions,
         final CheckedConsumer<SystemdPlugin, IOException> invocation,
-        final String expectedState) {
+        final String expectedState
+    ) {
         final AtomicBoolean invoked = new AtomicBoolean();
         final AtomicInteger invokedUnsetEnvironment = new AtomicInteger();
         final AtomicReference<String> invokedState = new AtomicReference<>();

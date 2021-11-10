@@ -22,9 +22,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,7 +50,7 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomLocal(getRepositoriesRequest::local, expectedParams);
 
         if (randomBoolean()) {
-            String[] entries = new String[]{"a", "b", "c"};
+            String[] entries = new String[] { "a", "b", "c" };
             getRepositoriesRequest.repositories(entries);
             endpoint.append("/" + String.join(",", entries));
         }
@@ -75,7 +75,8 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
                 .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
                 .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
                 .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                .build());
+                .build()
+        );
 
         Request request = SnapshotRequestConverters.createRepository(putRepositoryRequest);
         assertThat(request.getEndpoint(), equalTo(endpoint));

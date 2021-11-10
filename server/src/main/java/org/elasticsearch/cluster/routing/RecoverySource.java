@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,12 +52,18 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     public static RecoverySource readFrom(StreamInput in) throws IOException {
         Type type = Type.values()[in.readByte()];
         switch (type) {
-            case EMPTY_STORE: return EmptyStoreRecoverySource.INSTANCE;
-            case EXISTING_STORE: return ExistingStoreRecoverySource.read(in);
-            case PEER: return PeerRecoverySource.INSTANCE;
-            case SNAPSHOT: return new SnapshotRecoverySource(in);
-            case LOCAL_SHARDS: return LocalShardsRecoverySource.INSTANCE;
-            default: throw new IllegalArgumentException("unknown recovery type: " + type.name());
+            case EMPTY_STORE:
+                return EmptyStoreRecoverySource.INSTANCE;
+            case EXISTING_STORE:
+                return ExistingStoreRecoverySource.read(in);
+            case PEER:
+                return PeerRecoverySource.INSTANCE;
+            case SNAPSHOT:
+                return new SnapshotRecoverySource(in);
+            case LOCAL_SHARDS:
+                return LocalShardsRecoverySource.INSTANCE;
+            default:
+                throw new IllegalArgumentException("unknown recovery type: " + type.name());
         }
     }
 
@@ -184,8 +190,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final LocalShardsRecoverySource INSTANCE = new LocalShardsRecoverySource();
 
-        private LocalShardsRecoverySource() {
-        }
+        private LocalShardsRecoverySource() {}
 
         @Override
         public Type getType() {
@@ -298,8 +303,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             }
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
-            return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && index.equals(that.index) && version.equals(that.version);
+            return restoreUUID.equals(that.restoreUUID)
+                && snapshot.equals(that.snapshot)
+                && index.equals(that.index)
+                && version.equals(that.version);
         }
 
         @Override
@@ -316,8 +323,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final PeerRecoverySource INSTANCE = new PeerRecoverySource();
 
-        private PeerRecoverySource() {
-        }
+        private PeerRecoverySource() {}
 
         @Override
         public Type getType() {

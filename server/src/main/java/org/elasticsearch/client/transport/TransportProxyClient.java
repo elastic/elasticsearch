@@ -8,11 +8,11 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TransportActionNodeProxy;
 import org.elasticsearch.transport.TransportService;
 
@@ -27,7 +27,7 @@ final class TransportProxyClient {
     private final TransportClientNodesService nodesService;
     private final Map<ActionType<?>, TransportActionNodeProxy<?, ?>> proxies;
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     TransportProxyClient(TransportService transportService, TransportClientNodesService nodesService, List<ActionType<?>> actions) {
         this.nodesService = nodesService;
         Map<ActionType<?>, TransportActionNodeProxy<?, ?>> proxies = new HashMap<>();
@@ -37,9 +37,14 @@ final class TransportProxyClient {
         this.proxies = unmodifiableMap(proxies);
     }
 
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
-        ActionRequestBuilder<Request, Response>> void execute(final ActionType<Response> action,
-                                                                              final Request request, ActionListener<Response> listener) {
+    public <
+        Request extends ActionRequest,
+        Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response>> void execute(
+            final ActionType<Response> action,
+            final Request request,
+            ActionListener<Response> listener
+        ) {
         @SuppressWarnings("unchecked")
         final TransportActionNodeProxy<Request, Response> proxy = (TransportActionNodeProxy<Request, Response>) proxies.get(action);
         assert proxy != null : "no proxy found for action: " + action;

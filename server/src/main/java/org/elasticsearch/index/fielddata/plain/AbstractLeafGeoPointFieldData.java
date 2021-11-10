@@ -8,8 +8,8 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -43,8 +43,7 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public MultiGeoPointValues getGeoPointValues() {

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[sql-jdbc]]
 == SQL JDBC
 
@@ -94,11 +93,13 @@ Connection timeout (in milliseconds). That is the maximum amount of time waiting
 `network.timeout` (default `60000`)::
 Network timeout (in milliseconds). That is the maximum amount of time waiting for the network.
 
-`page.timeout` (default `45000`)::
-Page timeout (in milliseconds). That is the maximum amount of time waiting for a page.
-
 `page.size` (default `1000`)::
 Page size (in entries). The number of results returned per page by the server.
+
+`page.timeout` (default `45000`)::
+Page timeout (in milliseconds). Minimum retention period for the scroll cursor on the server. Queries that require
+a stateful scroll cursor on the server side might fail after this timeout. Hence, when scrolling through large result sets,
+processing `page.size` records should not take longer than `page.timeout` milliseconds.
 
 `query.timeout` (default `90000`)::
 Query timeout (in milliseconds). That is the maximum amount of time waiting for a query to return.

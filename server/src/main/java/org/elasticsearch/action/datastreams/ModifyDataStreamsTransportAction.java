@@ -22,8 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeAction<
-    ModifyDataStreamsAction.Request> {
+public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMasterNodeAction<ModifyDataStreamsAction.Request> {
 
     private final MetadataDataStreamsService metadataDataStreamsService;
 
@@ -53,7 +52,8 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
     protected void masterOperation(
         ModifyDataStreamsAction.Request request,
         ClusterState state,
-        ActionListener<AcknowledgedResponse> listener) throws Exception {
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         metadataDataStreamsService.modifyDataStream(request, listener);
     }
 
@@ -63,8 +63,8 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
         if (globalBlock != null) {
             return globalBlock;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 }

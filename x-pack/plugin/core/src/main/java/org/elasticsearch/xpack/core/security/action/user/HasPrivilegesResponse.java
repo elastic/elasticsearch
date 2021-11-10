@@ -41,7 +41,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     public HasPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
         completeMatch = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_6_0 )) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
         } else {
             cluster = Collections.emptyMap();
@@ -57,8 +57,13 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         }
     }
 
-    public HasPrivilegesResponse(String username, boolean completeMatch, Map<String, Boolean> cluster, Collection<ResourcePrivileges> index,
-                                 Map<String, Collection<ResourcePrivileges>> application) {
+    public HasPrivilegesResponse(
+        String username,
+        boolean completeMatch,
+        Map<String, Boolean> cluster,
+        Collection<ResourcePrivileges> index,
+        Map<String, Collection<ResourcePrivileges>> application
+    ) {
         super();
         this.username = username;
         this.completeMatch = completeMatch;
@@ -156,20 +161,28 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{"
-            + "username=" + username + ","
-            + "completeMatch=" + completeMatch + ","
-            + "cluster=" + cluster + ","
-            + "index=" + index + ","
-            + "application=" + application
+        return getClass().getSimpleName()
+            + "{"
+            + "username="
+            + username
+            + ","
+            + "completeMatch="
+            + completeMatch
+            + ","
+            + "cluster="
+            + cluster
+            + ","
+            + "index="
+            + index
+            + ","
+            + "application="
+            + application
             + "}";
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("username", username)
-            .field("has_all_requested", completeMatch);
+        builder.startObject().field("username", username).field("has_all_requested", completeMatch);
 
         builder.field("cluster");
         builder.map(cluster);
@@ -186,8 +199,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         return builder;
     }
 
-    private void appendResources(XContentBuilder builder, String field, Set<ResourcePrivileges> privileges)
-        throws IOException {
+    private void appendResources(XContentBuilder builder, String field, Set<ResourcePrivileges> privileges) throws IOException {
         builder.startObject(field);
         for (ResourcePrivileges privilege : privileges) {
             builder.field(privilege.getResource());

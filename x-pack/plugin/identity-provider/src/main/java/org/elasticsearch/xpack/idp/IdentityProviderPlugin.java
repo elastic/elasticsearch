@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -33,6 +32,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
@@ -84,12 +84,19 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     private Settings settings;
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
@@ -105,10 +112,17 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext, actionsResolver);
 
         final SamlServiceProviderFactory serviceProviderFactory = new SamlServiceProviderFactory(serviceProviderDefaults);
-        final SamlServiceProviderResolver registeredServiceProviderResolver
-            = new SamlServiceProviderResolver(settings, index, serviceProviderFactory);
-        final WildcardServiceProviderResolver wildcardServiceProviderResolver
-            = WildcardServiceProviderResolver.create(environment, resourceWatcherService, scriptService, serviceProviderFactory);
+        final SamlServiceProviderResolver registeredServiceProviderResolver = new SamlServiceProviderResolver(
+            settings,
+            index,
+            serviceProviderFactory
+        );
+        final WildcardServiceProviderResolver wildcardServiceProviderResolver = WildcardServiceProviderResolver.create(
+            environment,
+            resourceWatcherService,
+            scriptService,
+            serviceProviderFactory
+        );
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(registeredServiceProviderResolver, wildcardServiceProviderResolver)
             .fromSettings(environment)
             .serviceProviderDefaults(serviceProviderDefaults)
@@ -116,12 +130,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         final SamlFactory factory = new SamlFactory();
 
-        return Collections.unmodifiableList(Arrays.asList(
-            index,
-            idp,
-            factory,
-            userPrivilegeResolver
-        ));
+        return Collections.unmodifiableList(Arrays.asList(index, idp, factory, userPrivilegeResolver));
     }
 
     @Override
@@ -129,30 +138,39 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.unmodifiableList(Arrays.asList(
-            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
-            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
-            new ActionHandler<>(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
-            new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
-            new ActionHandler<>(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
-        ));
+        return Collections.unmodifiableList(
+            Arrays.asList(
+                new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
+                new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
+                new ActionHandler<>(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
+                new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
+                new ActionHandler<>(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
+            )
+        );
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return Collections.unmodifiableList(Arrays.asList(
-            new RestSamlInitiateSingleSignOnAction(getLicenseState()),
-            new RestSamlValidateAuthenticationRequestAction(getLicenseState()),
-            new RestSamlMetadataAction(getLicenseState()),
-            new RestPutSamlServiceProviderAction(getLicenseState()),
-            new RestDeleteSamlServiceProviderAction(getLicenseState())
-        ));
+        return Collections.unmodifiableList(
+            Arrays.asList(
+                new RestSamlInitiateSingleSignOnAction(getLicenseState()),
+                new RestSamlValidateAuthenticationRequestAction(getLicenseState()),
+                new RestSamlMetadataAction(getLicenseState()),
+                new RestPutSamlServiceProviderAction(getLicenseState()),
+                new RestDeleteSamlServiceProviderAction(getLicenseState())
+            )
+        );
     }
 
     @Override

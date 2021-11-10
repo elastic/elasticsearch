@@ -8,13 +8,13 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
@@ -34,8 +34,7 @@ public class RestGetLicenseAction extends XPackRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(GET, "/_license")
-                .replaces(GET, URI_BASE + "/license", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_license").replaces(GET, URI_BASE + "/license", RestApiVersion.V_7).build()
         );
     }
 
@@ -64,25 +63,27 @@ public class RestGetLicenseAction extends XPackRestHandler {
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
-        return channel -> client.es().admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest,
-                new RestBuilderListener<GetLicenseResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
-                        // Default to pretty printing, but allow ?pretty=false to disable
-                        if (request.hasParam("pretty") == false) {
-                            builder.prettyPrint().lfAtEnd();
-                        }
-                        boolean hasLicense = response.license() != null;
-                        builder.startObject();
-                        if (hasLicense) {
-                            builder.startObject("license");
-                            response.license().toInnerXContent(builder, params);
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                        return new BytesRestResponse(hasLicense ? OK : NOT_FOUND, builder);
+        return channel -> client.es()
+            .admin()
+            .cluster()
+            .execute(GetLicenseAction.INSTANCE, getLicenseRequest, new RestBuilderListener<GetLicenseResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
+                    // Default to pretty printing, but allow ?pretty=false to disable
+                    if (request.hasParam("pretty") == false) {
+                        builder.prettyPrint().lfAtEnd();
                     }
-                });
+                    boolean hasLicense = response.license() != null;
+                    builder.startObject();
+                    if (hasLicense) {
+                        builder.startObject("license");
+                        response.license().toInnerXContent(builder, params);
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    return new BytesRestResponse(hasLicense ? OK : NOT_FOUND, builder);
+                }
+            });
     }
 
 }

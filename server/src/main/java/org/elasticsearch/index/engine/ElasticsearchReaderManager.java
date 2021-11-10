@@ -8,15 +8,14 @@
 
 package org.elasticsearch.index.engine;
 
-import java.io.IOException;
-import java.util.function.BiConsumer;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
-
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.SuppressForbidden;
+
+import java.io.IOException;
+import java.util.function.BiConsumer;
 
 /**
  * Utility class to safely share {@link ElasticsearchDirectoryReader} instances across
@@ -38,8 +37,10 @@ class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectory
      * @param reader            the directoryReader to use for future reopens
      * @param refreshListener   A consumer that is called every time a new reader is opened
      */
-    ElasticsearchReaderManager(ElasticsearchDirectoryReader reader,
-                               BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener) {
+    ElasticsearchReaderManager(
+        ElasticsearchDirectoryReader reader,
+        BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener
+    ) {
         this.current = reader;
         this.refreshListener = refreshListener;
         refreshListener.accept(current, null);

@@ -18,11 +18,11 @@ import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
@@ -63,20 +63,21 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testQueryWithExpiredKeys() throws InterruptedException {
-        final String id1 = client().execute(CreateApiKeyAction.INSTANCE,
-                new CreateApiKeyRequest("expired-shortly", null, TimeValue.timeValueMillis(1), null))
-            .actionGet()
-            .getId();
-        final String id2 = client().execute(CreateApiKeyAction.INSTANCE,
-                new CreateApiKeyRequest("long-lived", null, TimeValue.timeValueDays(1), null))
-            .actionGet()
-            .getId();
+        final String id1 = client().execute(
+            CreateApiKeyAction.INSTANCE,
+            new CreateApiKeyRequest("expired-shortly", null, TimeValue.timeValueMillis(1), null)
+        ).actionGet().getId();
+        final String id2 = client().execute(
+            CreateApiKeyAction.INSTANCE,
+            new CreateApiKeyRequest("long-lived", null, TimeValue.timeValueDays(1), null)
+        ).actionGet().getId();
         Thread.sleep(10); // just to be 100% sure that the 1st key is expired when we search for it
 
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.idsQuery().addIds(id1, id2))
-                .filter(QueryBuilders.rangeQuery("expiration").from(Instant.now().toEpochMilli())));
+                .filter(QueryBuilders.rangeQuery("expiration").from(Instant.now().toEpochMilli()))
+        );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
         assertThat(queryApiKeyResponse.getItems().length, equalTo(1));
         assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getId(), equalTo(id2));
@@ -98,23 +99,40 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         grantApiKeyRequest.getGrant().setUsername(username);
         grantApiKeyRequest.getGrant().setPassword(password);
         grantApiKeyRequest.getApiKeyRequest().setName(randomAlphaOfLength(8));
-        grantApiKeyRequest.getApiKeyRequest().setRoleDescriptors(org.elasticsearch.core.List.of(
-            new RoleDescriptor("x", new String[] { "all" },
-                new RoleDescriptor.IndicesPrivileges[]{
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(true).build()
-                },
-                null, null, null, null, null)));
+        grantApiKeyRequest.getApiKeyRequest()
+            .setRoleDescriptors(
+                org.elasticsearch.core.List.of(
+                    new RoleDescriptor(
+                        "x",
+                        new String[] { "all" },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("*")
+                                .privileges("all")
+                                .allowRestrictedIndices(true)
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            );
         final CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
 
-        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-            (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString(
+                (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8)
+            );
 
         // No cluster access
         final ElasticsearchSecurityException e1 = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(org.elasticsearch.core.Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
                 .execute(MainAction.INSTANCE, new MainRequest())
-                .actionGet());
+                .actionGet()
+        );
         assertThat(e1.status().getStatus(), equalTo(403));
         assertThat(e1.getMessage(), containsString("is unauthorized for API key"));
 
@@ -122,46 +140,52 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final ElasticsearchSecurityException e2 = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(org.elasticsearch.core.Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
-                .execute(CreateIndexAction.INSTANCE, new CreateIndexRequest(
-                    randomFrom(randomAlphaOfLengthBetween(3, 8), SECURITY_MAIN_ALIAS)))
-                .actionGet());
+                .execute(
+                    CreateIndexAction.INSTANCE,
+                    new CreateIndexRequest(randomFrom(randomAlphaOfLengthBetween(3, 8), SECURITY_MAIN_ALIAS))
+                )
+                .actionGet()
+        );
         assertThat(e2.status().getStatus(), equalTo(403));
         assertThat(e2.getMessage(), containsString("is unauthorized for API key"));
     }
 
     public void testServiceAccountApiKey() throws IOException {
-        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", randomAlphaOfLength(8));
-        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
-            client().execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest).actionGet();
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
+            "elastic",
+            "fleet-server",
+            randomAlphaOfLength(8)
+        );
+        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse = client().execute(
+            CreateServiceAccountTokenAction.INSTANCE,
+            createServiceAccountTokenRequest
+        ).actionGet();
 
-        final CreateApiKeyResponse createApiKeyResponse =
-            client()
-                .filterWithHeader(org.elasticsearch.core.Map.of("Authorization", "Bearer " + createServiceAccountTokenResponse.getValue()))
-                .execute(CreateApiKeyAction.INSTANCE, new CreateApiKeyRequest(randomAlphaOfLength(8), null, null))
-                .actionGet();
+        final CreateApiKeyResponse createApiKeyResponse = client().filterWithHeader(
+            org.elasticsearch.core.Map.of("Authorization", "Bearer " + createServiceAccountTokenResponse.getValue())
+        ).execute(CreateApiKeyAction.INSTANCE, new CreateApiKeyRequest(randomAlphaOfLength(8), null, null)).actionGet();
 
         final Map<String, Object> apiKeyDocument = getApiKeyDocument(createApiKeyResponse.getId());
 
         @SuppressWarnings("unchecked")
-        final Map<String, Object> fleetServerRoleDescriptor =
-            (Map<String, Object>) apiKeyDocument.get("limited_by_role_descriptors");
+        final Map<String, Object> fleetServerRoleDescriptor = (Map<String, Object>) apiKeyDocument.get("limited_by_role_descriptors");
         assertThat(fleetServerRoleDescriptor.size(), equalTo(1));
         assertThat(fleetServerRoleDescriptor, hasKey("elastic/fleet-server"));
 
         @SuppressWarnings("unchecked")
         final Map<String, ?> descriptor = (Map<String, ?>) fleetServerRoleDescriptor.get("elastic/fleet-server");
 
-        final RoleDescriptor roleDescriptor = RoleDescriptor.parse("elastic/fleet-server",
+        final RoleDescriptor roleDescriptor = RoleDescriptor.parse(
+            "elastic/fleet-server",
             XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
             false,
-            XContentType.JSON);
+            XContentType.JSON
+        );
         assertThat(roleDescriptor, equalTo(ServiceAccountService.getServiceAccounts().get("elastic/fleet-server").roleDescriptor()));
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
-        final GetResponse getResponse =
-            client().execute(GetAction.INSTANCE, new GetRequest(".security-7", apiKeyId)).actionGet();
+        final GetResponse getResponse = client().execute(GetAction.INSTANCE, new GetRequest(".security-7", apiKeyId)).actionGet();
         return getResponse.getSource();
     }
 }

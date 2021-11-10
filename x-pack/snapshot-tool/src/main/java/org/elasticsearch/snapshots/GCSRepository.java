@@ -19,6 +19,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.Terminal;
@@ -52,35 +53,43 @@ public class GCSRepository extends AbstractRepository {
     private final String bucket;
     private final Storage storage;
 
-    protected GCSRepository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String bucket, String basePath,
-                            String base64Credentials, String endpoint, String tokenURI) throws IOException, GeneralSecurityException,
-            URISyntaxException {
+    protected GCSRepository(
+        Terminal terminal,
+        Long safetyGapMillis,
+        Integer parallelism,
+        String bucket,
+        String basePath,
+        String base64Credentials,
+        String endpoint,
+        String tokenURI
+    ) throws IOException, GeneralSecurityException, URISyntaxException {
         super(terminal, safetyGapMillis, parallelism, basePath);
         this.storage = buildGCSClient(base64Credentials, endpoint, tokenURI);
         this.bucket = bucket;
     }
 
-    private static Storage buildGCSClient(String base64Credentials, String endpoint, String tokenURI)
-            throws IOException, GeneralSecurityException, URISyntaxException {
+    private static Storage buildGCSClient(String base64Credentials, String endpoint, String tokenURI) throws IOException,
+        GeneralSecurityException, URISyntaxException {
         final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
         builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
         final HttpTransport httpTransport = builder.build();
 
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
-                .setHttpTransportFactory(() -> httpTransport)
-                .build();
+            .setHttpTransportFactory(() -> httpTransport)
+            .build();
 
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-                .setTransportOptions(httpTransportOptions)
-                .setHeaderProvider(() -> Collections.singletonMap("user-agent", "gcs_cleanup_tool"));
+            .setTransportOptions(httpTransportOptions)
+            .setHeaderProvider(() -> Collections.singletonMap("user-agent", "gcs_cleanup_tool"));
 
         if (Strings.hasLength(endpoint)) {
             storageOptionsBuilder.setHost(endpoint);
         }
 
         byte[] decodedCredentials = Base64.getDecoder().decode(base64Credentials);
-        ServiceAccountCredentials serviceAccountCredentials =
-                ServiceAccountCredentials.fromStream(new ByteArrayInputStream(decodedCredentials));
+        ServiceAccountCredentials serviceAccountCredentials = ServiceAccountCredentials.fromStream(
+            new ByteArrayInputStream(decodedCredentials)
+        );
         if (Strings.hasLength(tokenURI)) {
             serviceAccountCredentials = serviceAccountCredentials.toBuilder().setTokenServerUri(new URI(tokenURI)).build();
         }
@@ -101,8 +110,9 @@ public class GCSRepository extends AbstractRepository {
 
         final String indexFilePrefix = fullPath(BlobStoreRepository.INDEX_FILE_PREFIX);
 
-        for (Blob blob : storage.get(bucket).
-                list(Storage.BlobListOption.currentDirectory(), Storage.BlobListOption.prefix(indexFilePrefix)).iterateAll()) {
+        for (Blob blob : storage.get(bucket)
+            .list(Storage.BlobListOption.currentDirectory(), Storage.BlobListOption.prefix(indexFilePrefix))
+            .iterateAll()) {
             String generationStr = blob.getName().substring(indexFilePrefix.length());
             try {
                 long generation = Long.parseLong(generationStr);
@@ -111,8 +121,7 @@ public class GCSRepository extends AbstractRepository {
                     timestamp = new Date(blob.getCreateTime());
                 }
             } catch (NumberFormatException e) {
-                terminal.println(Terminal.Verbosity.VERBOSE,
-                        "Ignoring index file with unexpected name format " + blob.getName());
+                terminal.println(Terminal.Verbosity.VERBOSE, "Ignoring index file with unexpected name format " + blob.getName());
             }
         }
 
@@ -139,12 +148,12 @@ public class GCSRepository extends AbstractRepository {
         final String pathPrefix = fullPath("indices/");
 
         final Set<String> indices = new HashSet<>();
-        for (Blob blob :
-                storage.list(bucket, Storage.BlobListOption.currentDirectory(), Storage.BlobListOption.prefix(pathPrefix)).iterateAll()) {
+        for (Blob blob : storage.list(bucket, Storage.BlobListOption.currentDirectory(), Storage.BlobListOption.prefix(pathPrefix))
+            .iterateAll()) {
             if (blob.isDirectory()) {
                 final String blobName = blob.getName();
                 assert blobName.startsWith(pathPrefix);
-                indices.add(blobName.substring(pathPrefix.length(), blobName.length()-1));
+                indices.add(blobName.substring(pathPrefix.length(), blobName.length() - 1));
             }
         }
 
@@ -154,8 +163,9 @@ public class GCSRepository extends AbstractRepository {
     @Override
     public Date getIndexTimestamp(String indexDirectoryName) {
         final String pathPrefix = fullPath("indices/" + indexDirectoryName + "/");
-        for (Blob blob : storage.get(bucket).
-                list(Storage.BlobListOption.prefix(pathPrefix), Storage.BlobListOption.pageSize(1)).iterateAll()) {
+        for (Blob blob : storage.get(bucket)
+            .list(Storage.BlobListOption.prefix(pathPrefix), Storage.BlobListOption.pageSize(1))
+            .iterateAll()) {
             return new Date(blob.getCreateTime());
         }
 
@@ -171,22 +181,20 @@ public class GCSRepository extends AbstractRepository {
         final AtomicReference<StorageException> ioe = new AtomicReference<>();
         final StorageBatch batch = storage.batch();
         for (BlobId blob : blobIdsToDelete) {
-            batch.delete(blob).notify(
-                    new BatchResult.Callback<Boolean, StorageException>() {
-                        @Override
-                        public void success(Boolean result) {
-                        }
+            batch.delete(blob).notify(new BatchResult.Callback<Boolean, StorageException>() {
+                @Override
+                public void success(Boolean result) {}
 
-                        @Override
-                        public void error(StorageException exception) {
-                            if (exception.getCode() != HTTP_NOT_FOUND) {
-                                failedBlobs.add(blob);
-                                if (ioe.compareAndSet(null, exception) == false) {
-                                    ioe.get().addSuppressed(exception);
-                                }
-                            }
+                @Override
+                public void error(StorageException exception) {
+                    if (exception.getCode() != HTTP_NOT_FOUND) {
+                        failedBlobs.add(blob);
+                        if (ioe.compareAndSet(null, exception) == false) {
+                            ioe.get().addSuppressed(exception);
                         }
-                    });
+                    }
+                }
+            });
         }
         batch.submit();
 

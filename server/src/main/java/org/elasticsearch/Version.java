@@ -9,14 +9,14 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -46,22 +46,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
 
-    public static final Version V_6_0_0_alpha1 =
-        new Version(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_alpha2 =
-        new Version(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_beta1 =
-        new Version(6000026, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_beta2 =
-        new Version(6000027, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_rc1 =
-        new Version(6000051, org.apache.lucene.util.Version.LUCENE_7_0_0);
-    public static final Version V_6_0_0_rc2 =
-        new Version(6000052, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final Version V_6_0_0 =
-        new Version(6000099, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final Version V_6_0_1 =
-        new Version(6000199, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final Version V_6_0_0_alpha1 = new Version(6000001, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final Version V_6_0_0_alpha2 = new Version(6000002, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final Version V_6_0_0_beta1 = new Version(6000026, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final Version V_6_0_0_beta2 = new Version(6000027, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final Version V_6_0_0_rc1 = new Version(6000051, org.apache.lucene.util.Version.LUCENE_7_0_0);
+    public static final Version V_6_0_0_rc2 = new Version(6000052, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final Version V_6_0_0 = new Version(6000099, org.apache.lucene.util.Version.LUCENE_7_0_1);
+    public static final Version V_6_0_1 = new Version(6000199, org.apache.lucene.util.Version.LUCENE_7_0_1);
     public static final Version V_6_1_0 = new Version(6010099, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final Version V_6_1_1 = new Version(6010199, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final Version V_6_1_2 = new Version(6010299, org.apache.lucene.util.Version.LUCENE_7_1_0);
@@ -161,6 +153,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_15_0 = new Version(7150099, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version V_7_15_1 = new Version(7150199, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version V_7_15_2 = new Version(7150299, org.apache.lucene.util.Version.LUCENE_8_9_0);
+    public static final Version V_7_15_3 = new Version(7150399, org.apache.lucene.util.Version.LUCENE_8_9_0);
     public static final Version V_7_16_0 = new Version(7160099, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version CURRENT = V_7_16_0;
 
@@ -184,28 +177,28 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     if (Assertions.ENABLED) {
                         final String[] fields = fieldName.split("_");
                         if (fields.length == 5) {
-                            assert fields[1].equals("6") && fields[2].equals("0") :
-                                "field " + fieldName + " should not have a build qualifier";
+                            assert fields[1].equals("6") && fields[2].equals("0")
+                                : "field " + fieldName + " should not have a build qualifier";
                         } else {
                             final int major = Integer.valueOf(fields[1]) * 1000000;
                             final int minor = Integer.valueOf(fields[2]) * 10000;
                             final int revision = Integer.valueOf(fields[3]) * 100;
                             final int expectedId = major + minor + revision + 99;
-                            assert version.id == expectedId :
-                                "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
+                            assert version.id == expectedId
+                                : "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
                         }
                     }
                     final Version maybePrevious = builder.put(version.id, version);
                     builderByString.put(version.toString(), version);
-                    assert maybePrevious == null :
-                        "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
+                    assert maybePrevious == null
+                        : "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
                 } catch (final IllegalAccessException e) {
                     assert false : "Version field [" + fieldName + "] should be public";
                 }
             }
         }
-        assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
-            + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
+        assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST)
+            : "Version must be upgraded to [" + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
 
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
@@ -244,8 +237,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             // this version is older than any supported version, so we
             // assume it is the previous major to the oldest Lucene version
             // that we know about
-            luceneVersion = org.apache.lucene.util.Version.fromBits(
-                versions.get(0).luceneVersion.major - 1, 0, 0);
+            luceneVersion = org.apache.lucene.util.Version.fromBits(versions.get(0).luceneVersion.major - 1, 0, 0);
         } else {
             luceneVersion = versions.get(index).luceneVersion;
         }
@@ -266,7 +258,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     /**
      * Returns the maximum version between the 2
      */
-    public static Version max(Version version1, Version version2) { return version1.id > version2.id ? version1 : version2; }
+    public static Version max(Version version1, Version version2) {
+        return version1.id > version2.id ? version1 : version2;
+    }
 
     /**
      * Returns the version given its string representation, current version if the argument is null or empty
@@ -290,7 +284,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         String[] parts = version.split("[.-]");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException(
-                "the version needs to contain major, minor, and revision, and optionally the build: " + version);
+                "the version needs to contain major, minor, and revision, and optionally the build: " + version
+            );
         }
 
         try {
@@ -298,15 +293,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             if (rawMajor >= 5 && snapshot) { // we don't support snapshot as part of the version here anymore
                 throw new IllegalArgumentException("illegal version format - snapshots are only supported until version 2.x");
             }
-            if (rawMajor >=7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
+            if (rawMajor >= 7 && parts.length == 4) { // we don't support qualifier as part of the version anymore
                 throw new IllegalArgumentException("illegal version format - qualifiers are only supported until version 6.x");
             }
             final int betaOffset = rawMajor < 5 ? 0 : 25;
-            //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
+            // we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
             final int major = rawMajor * 1000000;
             final int minor = Integer.parseInt(parts[1]) * 10000;
             final int revision = Integer.parseInt(parts[2]) * 100;
-
 
             int build = 99;
             if (parts.length == 4) {
@@ -461,8 +455,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns <code>true</code> iff both version are compatible. Otherwise <code>false</code>
      */
     public boolean isCompatible(Version version) {
-        boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
-            && version.onOrAfter(minimumCompatibilityVersion());
+        boolean compatible = onOrAfter(version.minimumCompatibilityVersion()) && version.onOrAfter(minimumCompatibilityVersion());
 
         assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
@@ -478,7 +471,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             Build.CURRENT.type().displayName(),
             Build.CURRENT.hash(),
             Build.CURRENT.date(),
-            JvmInfo.jvmInfo().version());
+            JvmInfo.jvmInfo().version()
+        );
         System.out.println(versionOutput);
     }
 
@@ -495,7 +489,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             } else {
                 sb.append(".Beta");
             }
-            sb.append(major < 5 ? build : build-25);
+            sb.append(major < 5 ? build : build - 25);
         } else if (build < 99) {
             if (major >= 2) {
                 sb.append("-rc");
@@ -540,7 +534,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * have an alpha version.
      */
     public boolean isAlpha() {
-        return major < 5 ? false :  build < 25;
+        return major < 5 ? false : build < 25;
     }
 
     public boolean isRC() {

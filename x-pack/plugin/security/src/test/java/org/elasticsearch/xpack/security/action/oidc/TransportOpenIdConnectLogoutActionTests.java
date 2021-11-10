@@ -74,9 +74,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -92,18 +92,17 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
 
     @Before
     public void setup() throws Exception {
-        final Settings settings = getBasicRealmSettings()
-            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+        final Settings settings = getBasicRealmSettings().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
             .build();
         Settings.Builder sslSettingsBuilder = Settings.builder();
         if (inFipsJvm()) {
             sslSettingsBuilder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
-        final Settings sslSettings = sslSettingsBuilder
-            .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate")
-            .put("path.home", createTempDir())
-            .build();
+        final Settings sslSettings = sslSettingsBuilder.put(
+            "xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode",
+            "certificate"
+        ).put("path.home", createTempDir()).build();
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -143,8 +142,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
-            final IndexResponse response = new IndexResponse(
-                indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+            final IndexResponse response = new IndexResponse(indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).index(any(IndexRequest.class), anyActionListener());
@@ -154,7 +152,14 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
-                new ShardId("test", "test", 0), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                new ShardId("test", "test", 0),
+                indexRequest.type(),
+                indexRequest.id(),
+                1,
+                1,
+                1,
+                true
+            );
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
@@ -186,11 +191,26 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
 
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, new SecurityContext(settings, threadContext),
-                                        securityIndex, securityIndex, clusterService);
+        tokenService = new TokenService(
+            settings,
+            Clock.systemUTC(),
+            client,
+            licenseState,
+            new SecurityContext(settings, threadContext),
+            securityIndex,
+            securityIndex,
+            clusterService
+        );
 
-        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         final Realms realms = mock(Realms.class);
         action = new TransportOpenIdConnectLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 
@@ -199,21 +219,31 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
-        oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(sslSettings, env), mock(UserRoleMapper.class),
-            mock(ResourceWatcherService.class));
+        oidcRealm = new OpenIdConnectRealm(
+            realmConfig,
+            new SSLService(sslSettings, env),
+            mock(UserRoleMapper.class),
+            mock(ResourceWatcherService.class)
+        );
         when(realms.realm(realmConfig.name())).thenReturn(oidcRealm);
     }
 
     public void testLogoutInvalidatesTokens() throws Exception {
         final String subject = randomAlphaOfLength(8);
         final JWT signedIdToken = generateIdToken(subject, randomAlphaOfLength(8), randomAlphaOfLength(8));
-        final User user = new User("oidc-user", new String[]{"superuser"}, null, null, null, true);
+        final User user = new User("oidc-user", new String[] { "superuser" }, null, null, null, true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(oidcRealm.name(), OpenIdConnectRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", signedIdToken.serialize());
         tokenMetadata.put("oidc_realm", REALM_NAME);
-        final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
-            tokenMetadata);
+        final Authentication authentication = new Authentication(
+            user,
+            realmRef,
+            null,
+            null,
+            Authentication.AuthenticationType.REALM,
+            tokenMetadata
+        );
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();

@@ -14,6 +14,8 @@ import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent.MapParams;
@@ -21,8 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,8 +47,16 @@ public class IndicesOptionsTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
             Version version = randomVersionBetween(random(), Version.V_7_0_0, null);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean());
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
 
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(version);
@@ -83,8 +91,16 @@ public class IndicesOptionsTests extends ESTestCase {
         final Version maxVersion = Version.fromId(maxV6Id.getAsInt());
         for (int i = 0; i < iterations; i++) {
             Version version = randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), maxVersion);
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
 
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(version);
@@ -118,9 +134,17 @@ public class IndicesOptionsTests extends ESTestCase {
         final boolean ignoreAliases = randomBoolean();
         final boolean ignoreThrottled = randomBoolean();
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
-            expandToClosedIndices, expandToHiddenIndices, allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases,
-            ignoreThrottled);
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            ignoreUnavailable,
+            allowNoIndices,
+            expandToOpenIndices,
+            expandToClosedIndices,
+            expandToHiddenIndices,
+            allowAliasesToMultipleIndices,
+            forbidClosedIndices,
+            ignoreAliases,
+            ignoreThrottled
+        );
 
         assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
         assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
@@ -140,11 +164,25 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean expandToOpenIndices = randomBoolean();
         boolean expandToClosedIndices = randomBoolean();
 
-        IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions defaultOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
-                expandToClosedIndices, defaultOptions);
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            ignoreUnavailable,
+            allowNoIndices,
+            expandToOpenIndices,
+            expandToClosedIndices,
+            defaultOptions
+        );
 
         assertEquals(ignoreUnavailable, indicesOptions.ignoreUnavailable());
         assertEquals(allowNoIndices, indicesOptions.allowNoIndices());
@@ -189,11 +227,25 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean allowNoIndices = randomBoolean();
         String allowNoIndicesString = Boolean.toString(allowNoIndices);
 
-        IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions defaultOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
 
-        IndicesOptions updatedOptions = IndicesOptions.fromParameters(expandWildcardsString, ignoreUnavailableString,
-                allowNoIndicesString, ignoreThrottled, defaultOptions);
+        IndicesOptions updatedOptions = IndicesOptions.fromParameters(
+            expandWildcardsString,
+            ignoreUnavailableString,
+            allowNoIndicesString,
+            ignoreThrottled,
+            defaultOptions
+        );
 
         assertEquals(expandWildcardsOpen, updatedOptions.expandWildcardsOpen());
         assertEquals(expandWildcardsClosed, updatedOptions.expandWildcardsClosed());
@@ -206,13 +258,30 @@ public class IndicesOptionsTests extends ESTestCase {
     }
 
     public void testEqualityAndHashCode() {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(indicesOptions, opts -> {
-            return IndicesOptions.fromOptions(opts.ignoreUnavailable(), opts.allowNoIndices(), opts.expandWildcardsOpen(),
-                opts.expandWildcardsClosed(), opts.expandWildcardsHidden(), opts.allowAliasesToMultipleIndices(),
-                opts.forbidClosedIndices(), opts.ignoreAliases(), opts.ignoreThrottled());
+            return IndicesOptions.fromOptions(
+                opts.ignoreUnavailable(),
+                opts.allowNoIndices(),
+                opts.expandWildcardsOpen(),
+                opts.expandWildcardsClosed(),
+                opts.expandWildcardsHidden(),
+                opts.allowAliasesToMultipleIndices(),
+                opts.forbidClosedIndices(),
+                opts.ignoreAliases(),
+                opts.ignoreThrottled()
+            );
         }, opts -> {
             boolean mutated = false;
             boolean ignoreUnavailable = opts.ignoreUnavailable();
@@ -262,15 +331,23 @@ public class IndicesOptionsTests extends ESTestCase {
                     mutated = true;
                 }
             }
-            return IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, expandHidden,
-                allowAliasesToMulti, forbidClosed, ignoreAliases, ignoreThrottled);
+            return IndicesOptions.fromOptions(
+                ignoreUnavailable,
+                allowNoIndices,
+                expandOpen,
+                expandClosed,
+                expandHidden,
+                allowAliasesToMulti,
+                forbidClosed,
+                ignoreAliases,
+                ignoreThrottled
+            );
         });
     }
 
     public void testFromMap() {
         IndicesOptions defaults = IndicesOptions.strictExpandOpen();
-        Collection<String> wildcardStates = randomBoolean() ?
-                null : randomSubsetOf(Arrays.asList("open", "closed", "hidden"));
+        Collection<String> wildcardStates = randomBoolean() ? null : randomSubsetOf(Arrays.asList("open", "closed", "hidden"));
         Boolean ignoreUnavailable = randomBoolean() ? null : randomBoolean();
         Boolean allowNoIndices = randomBoolean() ? null : randomBoolean();
         Boolean ignoreThrottled = randomBoolean() ? null : randomBoolean();
@@ -312,14 +389,14 @@ public class IndicesOptionsTests extends ESTestCase {
         Collection<Option> options = randomSubsetOf(Arrays.asList(Option.values()));
 
         IndicesOptions indicesOptions = new IndicesOptions(
-                options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-                wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates));
+            options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
+            wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
+        );
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
         Map<String, Object> map;
-        try (XContentParser parser = type.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+        try (XContentParser parser = type.xContent().createParser(NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
             map = parser.mapOrdered();
         }
 
@@ -347,13 +424,16 @@ public class IndicesOptionsTests extends ESTestCase {
 
         IndicesOptions indicesOptions = new IndicesOptions(
             options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
-            wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates));
+            wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
+        );
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
         IndicesOptions fromXContentOptions;
-        try (XContentParser parser = type.xContent().createParser(
-            NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, xContentBytes.streamInput())) {
+        try (
+            XContentParser parser = type.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, xContentBytes.streamInput())
+        ) {
             fromXContentOptions = IndicesOptions.fromXContent(parser);
         }
 
@@ -381,8 +461,7 @@ public class IndicesOptionsTests extends ESTestCase {
         }
 
         IndicesOptions fromXContentOptions;
-        try (XContentParser parser = type.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+        try (XContentParser parser = type.xContent().createParser(NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
             fromXContentOptions = IndicesOptions.fromXContent(parser);
         }
         assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
@@ -400,8 +479,7 @@ public class IndicesOptionsTests extends ESTestCase {
             xContentBytes = BytesReference.bytes(builder);
         }
 
-        try (XContentParser parser = type.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+        try (XContentParser parser = type.xContent().createParser(NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
             fromXContentOptions = IndicesOptions.fromXContent(parser);
         }
         assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
@@ -415,10 +493,19 @@ public class IndicesOptionsTests extends ESTestCase {
         XContentType type = randomFrom(XContentType.values());
         final IndicesOptions defaults = IndicesOptions.LENIENT_EXPAND_OPEN;
         final boolean includeExpandWildcards = randomBoolean();
-        final EnumSet<WildcardStates> expectedWildcardStates = includeExpandWildcards ?
-            WildcardStates.parseParameter(randomFrom("all", "none", Arrays.asList("open", "closed"), Arrays.asList("open", "hidden"),
-                Collections.singletonList("closed"), Arrays.asList("closed", "hidden")), null) :
-            defaults.getExpandWildcards();
+        final EnumSet<WildcardStates> expectedWildcardStates = includeExpandWildcards
+            ? WildcardStates.parseParameter(
+                randomFrom(
+                    "all",
+                    "none",
+                    Arrays.asList("open", "closed"),
+                    Arrays.asList("open", "hidden"),
+                    Collections.singletonList("closed"),
+                    Arrays.asList("closed", "hidden")
+                ),
+                null
+            )
+            : defaults.getExpandWildcards();
         final boolean includeIgnoreUnavailable = randomBoolean();
         final boolean ignoreUnavailable = includeIgnoreUnavailable ? randomBoolean() : defaults.ignoreUnavailable();
         final boolean includeAllowNoIndices = randomBoolean();
@@ -446,8 +533,7 @@ public class IndicesOptionsTests extends ESTestCase {
         }
 
         IndicesOptions fromXContentOptions;
-        try (XContentParser parser = type.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+        try (XContentParser parser = type.xContent().createParser(NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
             fromXContentOptions = IndicesOptions.fromXContent(parser, defaults);
         }
         assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());

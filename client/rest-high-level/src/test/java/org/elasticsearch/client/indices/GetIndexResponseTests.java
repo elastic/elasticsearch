@@ -9,6 +9,7 @@
 package org.elasticsearch.client.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.GetAliasesResponseTests;
@@ -17,10 +18,10 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +35,8 @@ import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetIndexResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.admin.indices.get.GetIndexResponse,
+public class GetIndexResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.admin.indices.get.GetIndexResponse,
     GetIndexResponse> {
 
     @Override
@@ -47,14 +49,14 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
         ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
-        for (String index: indices) {
+        for (String index : indices) {
             ImmutableOpenMap.Builder<String, MappingMetadata> indexMapping = ImmutableOpenMap.builder();
             indexMapping.put(MapperService.SINGLE_MAPPING_NAME, createMappingsForIndex());
             mappings.put(index, indexMapping.build());
 
             List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
-            for (int i=0; i<aliasesNum; i++) {
+            for (int i = 0; i < aliasesNum; i++) {
                 aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
             }
             CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
@@ -72,8 +74,14 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
                 dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
             }
         }
-        return new org.elasticsearch.action.admin.indices.get.GetIndexResponse(indices,
-            mappings.build(), aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build());
+        return new org.elasticsearch.action.admin.indices.get.GetIndexResponse(
+            indices,
+            mappings.build(),
+            aliases.build(),
+            settings.build(),
+            defaultSettings.build(),
+            dataStreams.build()
+        );
     }
 
     @Override
@@ -82,8 +90,10 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<org.elastics
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.indices.get.GetIndexResponse serverTestInstance,
-                                   GetIndexResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.admin.indices.get.GetIndexResponse serverTestInstance,
+        GetIndexResponse clientInstance
+    ) {
         assertArrayEquals(serverTestInstance.getIndices(), clientInstance.getIndices());
         assertThat(serverTestInstance.getMappings().size(), equalTo(clientInstance.getMappings().size()));
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>> cursor : serverTestInstance.getMappings()) {

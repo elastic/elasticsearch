@@ -36,7 +36,7 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
 
         Reader reader = new StringReader("向日葵, one-two");
         tokenizer.setReader(reader);
-        assertTokenStreamContents(tokenizer, new String[]{"向日葵", "one", "two"});
+        assertTokenStreamContents(tokenizer, new String[] { "向日葵", "one", "two" });
     }
 
     public void testIcuCustomizeRuleFile() throws IOException {
@@ -45,13 +45,28 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
         // test the tokenizer with single rule file
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("user_rule_tokenizer");
         ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
-        Reader reader = new StringReader
-            ("One-two punch.  Brang-, not brung-it.  This one--not that one--is the right one, -ish.");
+        Reader reader = new StringReader("One-two punch.  Brang-, not brung-it.  This one--not that one--is the right one, -ish.");
 
         tokenizer.setReader(reader);
-        assertTokenStreamContents(tokenizer,
-            new String[]{"One-two", "punch", "Brang", "not", "brung-it",
-                "This", "one", "not", "that", "one", "is", "the", "right", "one", "ish"});
+        assertTokenStreamContents(
+            tokenizer,
+            new String[] {
+                "One-two",
+                "punch",
+                "Brang",
+                "not",
+                "brung-it",
+                "This",
+                "one",
+                "not",
+                "that",
+                "one",
+                "is",
+                "the",
+                "right",
+                "one",
+                "ish" }
+        );
     }
 
     public void testMultipleIcuCustomizeRuleFiles() throws IOException {
@@ -60,16 +75,14 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
         // test the tokenizer with two rule files
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("multi_rule_tokenizer");
         ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
-        StringReader reader = new StringReader
-            ("Some English.  Немного русский.  ข้อความภาษาไทยเล็ก ๆ น้อย ๆ  More English.");
+        StringReader reader = new StringReader("Some English.  Немного русский.  ข้อความภาษาไทยเล็ก ๆ น้อย ๆ  More English.");
 
         tokenizer.setReader(reader);
-        assertTokenStreamContents(tokenizer, new String[]{"Some", "English",
-            "Немного русский.  ",
-            "ข้อความภาษาไทยเล็ก ๆ น้อย ๆ  ",
-            "More", "English"});
+        assertTokenStreamContents(
+            tokenizer,
+            new String[] { "Some", "English", "Немного русский.  ", "ข้อความภาษาไทยเล็ก ๆ น้อย ๆ  ", "More", "English" }
+        );
     }
-
 
     private static TestAnalysis createTestAnalysis() throws IOException {
         InputStream keywords = IcuTokenizerFactoryTests.class.getResourceAsStream("KeywordTokenizer.rbbi");

@@ -6,12 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -26,6 +23,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * An X509 trust manager that only trusts connections from a restricted set of predefined network entities (nodes, clients, etc).
@@ -96,14 +96,29 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         final X509Certificate certificate = chain[0];
         Set<String> names = readCommonNames(certificate);
         if (verifyCertificateNames(names)) {
-            logger.debug(() -> new ParameterizedMessage("Trusting certificate [{}] [{}] with common-names [{}]",
-                    certificate.getSubjectDN(), certificate.getSerialNumber().toString(16), names));
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Trusting certificate [{}] [{}] with common-names [{}]",
+                    certificate.getSubjectDN(),
+                    certificate.getSerialNumber().toString(16),
+                    names
+                )
+            );
         } else {
-            logger.info("Rejecting certificate [{}] [{}] with common-names [{}]",
-                    certificate.getSubjectDN(), certificate.getSerialNumber().toString(16), names);
-            throw new CertificateException("Certificate for " + certificate.getSubjectDN() +
-                    " with common-names " + names
-                    + " does not match the trusted names " + trustRestrictions.getTrustedNames());
+            logger.info(
+                "Rejecting certificate [{}] [{}] with common-names [{}]",
+                certificate.getSubjectDN(),
+                certificate.getSerialNumber().toString(16),
+                names
+            );
+            throw new CertificateException(
+                "Certificate for "
+                    + certificate.getSubjectDN()
+                    + " with common-names "
+                    + names
+                    + " does not match the trusted names "
+                    + trustRestrictions.getTrustedNames()
+            );
         }
     }
 
@@ -120,11 +135,11 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
 
     private Set<String> readCommonNames(X509Certificate certificate) throws CertificateParsingException {
         return getSubjectAlternativeNames(certificate).stream()
-                .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
-                .map(pair -> pair.get(1))
-                .map(value -> decodeDerValue((byte[]) value, certificate))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+            .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
+            .map(pair -> pair.get(1))
+            .map(value -> decodeDerValue((byte[]) value, certificate))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -160,13 +175,11 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 logger.trace("Read cn [{}] from ASN1Sequence [{}]", cn, seq);
                 return cn;
             } else {
-                logger.debug("Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]",
-                        certificate.getSubjectDN(), seq, id);
+                logger.debug("Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]", certificate.getSubjectDN(), seq, id);
                 return null;
             }
         } catch (IOException e) {
-            logger.warn("Failed to read 'otherName' from certificate [{}]",
-                    certificate.getSubjectDN());
+            logger.warn("Failed to read 'otherName' from certificate [{}]", certificate.getSubjectDN());
             return null;
         }
     }
@@ -177,4 +190,3 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         return sans == null ? Collections.emptyList() : sans;
     }
 }
-

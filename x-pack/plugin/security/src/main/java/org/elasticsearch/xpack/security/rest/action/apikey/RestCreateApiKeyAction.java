@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
@@ -44,9 +44,7 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/_security/api_key"),
-            new Route(PUT, "/_security/api_key")));
+        return unmodifiableList(asList(new Route(POST, "/_security/api_key"), new Route(PUT, "/_security/api_key")));
     }
 
     @Override
@@ -58,10 +56,15 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             String refresh = request.param("refresh");
-            CreateApiKeyRequestBuilder builder = new SecurityClient(client)
-                    .prepareCreateApiKey(request.requiredContent(), request.getXContentType())
-                    .setRefreshPolicy((refresh != null) ? WriteRequest.RefreshPolicy.parse(request.param("refresh"))
-                            : CreateApiKeyRequest.DEFAULT_REFRESH_POLICY);
+            CreateApiKeyRequestBuilder builder = new SecurityClient(client).prepareCreateApiKey(
+                request.requiredContent(),
+                request.getXContentType()
+            )
+                .setRefreshPolicy(
+                    (refresh != null)
+                        ? WriteRequest.RefreshPolicy.parse(request.param("refresh"))
+                        : CreateApiKeyRequest.DEFAULT_REFRESH_POLICY
+                );
             return channel -> builder.execute(new RestToXContentListener<CreateApiKeyResponse>(channel));
         }
     }

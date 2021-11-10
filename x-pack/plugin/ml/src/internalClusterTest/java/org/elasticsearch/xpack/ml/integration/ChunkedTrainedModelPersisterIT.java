@@ -18,14 +18,15 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.process.ChunkedTrainedModelPersister;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefiniti
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -66,9 +66,8 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
     public void testStoreModelViaChunkedPersister() throws IOException {
         String modelId = "stored-chunked-model";
-        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder()
-            .setId(modelId)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
+        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder().setId(modelId)
+            .setSource(new DataFrameAnalyticsSource(new String[] { "my_source" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(new Regression("foo"))
             .build();
@@ -76,28 +75,27 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         TrainedModelConfig.Builder configBuilder = buildTrainedModelConfigBuilder(modelId);
         String compressedDefinition = configBuilder.build().getCompressedDefinition();
         int totalSize = compressedDefinition.length();
-        List<String> chunks = chunkStringWithSize(compressedDefinition, totalSize/3);
+        List<String> chunks = chunkStringWithSize(compressedDefinition, totalSize / 3);
 
-        ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(trainedModelProvider,
+        ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
+            trainedModelProvider,
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
             (ex) -> { throw new ElasticsearchException(ex); },
             new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 
-        //Accuracy for size is not tested here
+        // Accuracy for size is not tested here
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
         persister.createAndIndexInferenceModelConfig(modelSizeInfo);
         for (int i = 0; i < chunks.size(); i++) {
             persister.createAndIndexInferenceModelDoc(new TrainedModelDefinitionChunk(chunks.get(i), i, i == (chunks.size() - 1)));
         }
-        ModelMetadata modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
-            .limit(randomIntBetween(1, 10))
-            .collect(Collectors.toList()),
+        ModelMetadata modelMetadata = new ModelMetadata(
+            Stream.generate(TotalFeatureImportanceTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
             FeatureImportanceBaselineTests.randomInstance(),
-            Stream.generate(HyperparametersTests::randomInstance)
-            .limit(randomIntBetween(1, 10))
-            .collect(Collectors.toList()));
+            Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
         persister.createAndIndexInferenceModelMetadata(modelMetadata);
 
         PlainActionFuture<Tuple<Long, Map<String, Set<String>>>> getIdsFuture = new PlainActionFuture<>();
@@ -118,8 +116,8 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
         assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
-        assertThat(storedConfig.getEstimatedOperations(), equalTo((long)modelSizeInfo.numOperations()));
-        assertThat(storedConfig.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
+        assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
+        assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
         assertThat(storedConfig.getMetadata(), hasKey("feature_importance_baseline"));
         assertThat(storedConfig.getMetadata(), hasKey("hyperparameters"));
@@ -143,7 +141,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setModelId(modelId)
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setEstimatedHeapMemory(bytesUsed)
+            .setModelSize(bytesUsed)
             .setEstimatedOperations(operations)
             .setInput(TrainedModelInputTests.createRandomInput());
     }

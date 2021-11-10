@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
@@ -34,8 +34,14 @@ public class DataToProcessWriterFactoryTests extends ESTestCase {
     }
 
     private static DataToProcessWriter createWriter(DataDescription dataDescription) {
-        return DataToProcessWriterFactory.create(true, false, mock(AutodetectProcess.class),
-                dataDescription, AnalysisConfigTests.createRandomized().build(),
-                mock(DataCountsReporter.class), new NamedXContentRegistry(Collections.emptyList()));
+        return DataToProcessWriterFactory.create(
+            true,
+            false,
+            mock(AutodetectProcess.class),
+            dataDescription,
+            AnalysisConfigTests.createRandomized().build(),
+            mock(DataCountsReporter.class),
+            new NamedXContentRegistry(Collections.emptyList())
+        );
     }
 }

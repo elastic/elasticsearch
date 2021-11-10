@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.core.RestApiVersion;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
@@ -33,12 +33,14 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            Route.builder(GET, "/_watcher/stats")
-                .replaces(GET, URI_BASE + "/watcher/stats", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_watcher/stats/{metric}")
-                .replaces(GET, URI_BASE + "/watcher/stats/{metric}", RestApiVersion.V_7).build()
-        ));
+        return unmodifiableList(
+            asList(
+                Route.builder(GET, "/_watcher/stats").replaces(GET, URI_BASE + "/watcher/stats", RestApiVersion.V_7).build(),
+                Route.builder(GET, "/_watcher/stats/{metric}")
+                    .replaces(GET, URI_BASE + "/watcher/stats/{metric}", RestApiVersion.V_7)
+                    .build()
+            )
+        );
     }
 
     @Override
@@ -60,10 +62,12 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         }
 
         if (metrics.contains("pending_watches")) {
-            deprecationLogger.critical(DeprecationCategory.API, "pending_watches",
-                "The pending_watches parameter is deprecated, use queued_watches instead");
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "pending_watches",
+                "The pending_watches parameter is deprecated, use queued_watches instead"
+            );
         }
-
 
         return channel -> client.watcherStats(request, new RestActions.NodesResponseRestListener<>(channel));
     }

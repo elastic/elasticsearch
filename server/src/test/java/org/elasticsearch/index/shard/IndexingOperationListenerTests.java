@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.is;
 
-public class IndexingOperationListenerTests extends ESTestCase{
+public class IndexingOperationListenerTests extends ESTestCase {
 
     // this test also tests if calls are correct if one or more listeners throw exceptions
     public void testListenersAreExecuted() {
@@ -132,8 +132,10 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
         }
         Collections.shuffle(indexingOperationListeners, random());
-        IndexingOperationListener.CompositeListener compositeListener =
-            new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
+        IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(
+            indexingOperationListeners,
+            logger
+        );
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);

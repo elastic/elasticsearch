@@ -67,7 +67,7 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        deprecationLogger.critical(
+        deprecationLogger.warn(
             DeprecationCategory.OTHER,
             NAME,
             "[{}] query is deprecated, but used on [{}] index",

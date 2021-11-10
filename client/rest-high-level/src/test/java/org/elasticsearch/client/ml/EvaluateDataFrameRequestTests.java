@@ -14,11 +14,11 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classific
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetectionTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RegressionTests;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,8 +37,11 @@ public class EvaluateDataFrameRequestTests extends AbstractXContentTestCase<Eval
         QueryConfig queryConfig = randomBoolean()
             ? new QueryConfig(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)))
             : null;
-        Evaluation evaluation =
-            randomFrom(OutlierDetectionTests.createRandom(), ClassificationTests.createRandom(), RegressionTests.createRandom());
+        Evaluation evaluation = randomFrom(
+            OutlierDetectionTests.createRandom(),
+            ClassificationTests.createRandom(),
+            RegressionTests.createRandom()
+        );
         return new EvaluateDataFrameRequest(indices, queryConfig, evaluation);
     }
 

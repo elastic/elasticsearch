@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.watcher.trigger;
 
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 
 import java.io.IOException;
@@ -28,8 +28,7 @@ public abstract class TriggerEvent implements ToXContentObject {
         this.jobName = jobName;
         this.triggeredTime = triggeredTime;
         this.data = new HashMap<>();
-        data.put(Field.TRIGGERED_TIME.getPreferredName(),
-            new JodaCompatibleZonedDateTime(triggeredTime.toInstant(), ZoneOffset.UTC));
+        data.put(Field.TRIGGERED_TIME.getPreferredName(), new JodaCompatibleZonedDateTime(triggeredTime.toInstant(), ZoneOffset.UTC));
     }
 
     public String jobName() {
@@ -48,12 +47,17 @@ public abstract class TriggerEvent implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new StringBuilder("[")
-                .append("name=[").append(jobName).append("],")
-                .append("triggered_time=[").append(triggeredTime).append("],")
-                .append("data=[").append(data).append("]")
-                .append("]")
-                .toString();
+        return new StringBuilder("[").append("name=[")
+            .append(jobName)
+            .append("],")
+            .append("triggered_time=[")
+            .append(triggeredTime)
+            .append("],")
+            .append("data=[")
+            .append(data)
+            .append("]")
+            .append("]")
+            .toString();
     }
 
     public void recordXContent(XContentBuilder builder, Params params) throws IOException {

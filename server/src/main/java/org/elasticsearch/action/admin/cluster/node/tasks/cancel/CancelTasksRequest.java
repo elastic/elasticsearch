@@ -82,11 +82,17 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     @Override
     public String getDescription() {
-        return "reason[" + reason +
-            "], waitForCompletion[" + waitForCompletion +
-            "], taskId[" + getTaskId() +
-            "], parentTaskId[" + getParentTaskId() +
-            "], nodes" + Arrays.toString(getNodes()) +
-            ", actions" + Arrays.toString(getActions());
+        return "reason["
+            + reason
+            + "], waitForCompletion["
+            + waitForCompletion
+            + "], taskId["
+            + getTaskId()
+            + "], parentTaskId["
+            + getParentTaskId()
+            + "], nodes"
+            + Arrays.toString(getNodes())
+            + ", actions"
+            + Arrays.toString(getActions());
     }
 }

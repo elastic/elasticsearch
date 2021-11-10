@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,16 +33,28 @@ public class Phase implements ToXContentObject {
     static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", true,
-        (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
-            .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))));
+    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>(
+        "phase",
+        true,
+        (a, name) -> new Phase(
+            name,
+            (TimeValue) a[0],
+            ((List<LifecycleAction>) a[1]).stream().collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))
+        )
+    );
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE.getPreferredName()), MIN_AGE, ValueType.VALUE);
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
-                throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
-            }, ACTIONS_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE.getPreferredName()),
+            MIN_AGE,
+            ValueType.VALUE
+        );
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> p.namedObject(LifecycleAction.class, n, null),
+            v -> { throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported"); },
+            ACTIONS_FIELD
+        );
     }
 
     public static Phase parse(XContentParser parser, String name) {
@@ -120,9 +132,7 @@ public class Phase implements ToXContentObject {
             return false;
         }
         Phase other = (Phase) obj;
-        return Objects.equals(name, other.name) &&
-            Objects.equals(minimumAge, other.minimumAge) &&
-            Objects.equals(actions, other.actions);
+        return Objects.equals(name, other.name) && Objects.equals(minimumAge, other.minimumAge) && Objects.equals(actions, other.actions);
     }
 
     @Override

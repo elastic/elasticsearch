@@ -48,8 +48,10 @@ public class SpatialFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         SpatialStatsAction.Request request = new SpatialStatsAction.Request();
-        client.execute(SpatialStatsAction.INSTANCE, request,
-            ActionListener.wrap(r -> listener.onResponse(new SpatialFeatureSetUsage(r)),
-                listener::onFailure));
+        client.execute(
+            SpatialStatsAction.INSTANCE,
+            request,
+            ActionListener.wrap(r -> listener.onResponse(new SpatialFeatureSetUsage(r)), listener::onFailure)
+        );
     }
 }

@@ -13,13 +13,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,8 +60,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
     }
 
-    private FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap,
-                                      List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
+    private FieldCapabilitiesResponse(
+        String[] indices,
+        Map<String, Map<String, FieldCapabilities>> responseMap,
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        List<FieldCapabilitiesFailure> failures
+    ) {
         this.responseMap = Objects.requireNonNull(responseMap);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
@@ -179,16 +183,17 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER =
-        new ConstructingObjectParser<>("field_capabilities_response", true, a -> {
+    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "field_capabilities_response",
+        true,
+        a -> {
             Map<String, Map<String, FieldCapabilities>> responseMap = ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[0]).stream()
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
-            List<FieldCapabilitiesFailure> failures = a[2] == null
-                ? Collections.emptyList()
-                : (List<FieldCapabilitiesFailure>) a[2];
+            List<FieldCapabilitiesFailure> failures = a[2] == null ? Collections.emptyList() : (List<FieldCapabilitiesFailure>) a[2];
             return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new), responseMap, failures);
-        });
+        }
+    );
 
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
@@ -222,10 +227,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
-        return Arrays.equals(indices, that.indices) &&
-            Objects.equals(responseMap, that.responseMap) &&
-            Objects.equals(indexResponses, that.indexResponses) &&
-            Objects.equals(failures, that.failures);
+        return Arrays.equals(indices, that.indices)
+            && Objects.equals(responseMap, that.responseMap)
+            && Objects.equals(indexResponses, that.indexResponses)
+            && Objects.equals(failures, that.failures);
     }
 
     @Override

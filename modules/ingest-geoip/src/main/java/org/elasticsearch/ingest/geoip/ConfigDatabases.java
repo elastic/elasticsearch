@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -41,9 +41,9 @@ import static org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.DEFAULT_DATABASE_
  * 2) User provided databases from the ES_HOME/config/ingest-geoip directory. This directory is monitored
  *    and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
-final class LocalDatabases implements Closeable {
+final class ConfigDatabases implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(LocalDatabases.class);
+    private static final Logger LOGGER = LogManager.getLogger(ConfigDatabases.class);
 
     private final GeoIpCache cache;
     private final Path geoipConfigDir;
@@ -51,21 +51,22 @@ final class LocalDatabases implements Closeable {
     private final Map<String, DatabaseReaderLazyLoader> defaultDatabases;
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
-    LocalDatabases(Environment environment, GeoIpCache cache) {
+    ConfigDatabases(Environment environment, GeoIpCache cache) {
         this(
             // In GeoIpProcessorNonIngestNodeTests, ingest-geoip is loaded on the classpath.
             // This means that the plugin is never unbundled into a directory where the database files would live.
             // Therefore, we have to copy these database files ourselves. To do this, we need the ability to specify where
             // those database files would go. We do this by adding a plugin that registers ingest.geoip.database_path as an
             // actual setting. Otherwise, in production code, this setting is not registered and the database path is not configurable.
-            environment.settings().get("ingest.geoip.database_path") != null ?
-                getGeoipConfigDirectory(environment) :
-                environment.modulesFile().resolve("ingest-geoip"),
+            environment.settings().get("ingest.geoip.database_path") != null
+                ? getGeoipConfigDirectory(environment)
+                : environment.modulesFile().resolve("ingest-geoip"),
             environment.configFile().resolve("ingest-geoip"),
-            cache);
+            cache
+        );
     }
 
-    LocalDatabases(Path geoipModuleDir, Path geoipConfigDir, GeoIpCache cache) {
+    ConfigDatabases(Path geoipModuleDir, Path geoipConfigDir, GeoIpCache cache) {
         this.cache = cache;
         this.geoipConfigDir = geoipConfigDir;
         this.configDatabases = new ConcurrentHashMap<>();
@@ -79,8 +80,12 @@ final class LocalDatabases implements Closeable {
         watcher.addListener(new GeoipDirectoryListener());
         resourceWatcher.add(watcher, ResourceWatcherService.Frequency.HIGH);
 
-        LOGGER.info("initialized default databases [{}], config databases [{}] and watching [{}] for changes",
-            defaultDatabases.keySet(), configDatabases.keySet(), geoipConfigDir);
+        LOGGER.info(
+            "initialized default databases [{}], config databases [{}] and watching [{}] for changes",
+            defaultDatabases.keySet(),
+            configDatabases.keySet(),
+            geoipConfigDir
+        );
     }
 
     DatabaseReaderLazyLoader getDatabase(String name, boolean fallbackUsingDefaultDatabases) {

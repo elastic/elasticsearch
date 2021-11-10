@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -61,7 +60,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class MlLifeCycleServiceTests extends ESTestCase {
 
     private static final Set<DiscoveryNodeRole> ROLES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, MachineLearning.ML_ROLE)));
+        new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, MachineLearning.ML_ROLE))
+    );
 
     private Settings commonSettings;
     private ClusterService clusterService;
@@ -73,9 +73,9 @@ public class MlLifeCycleServiceTests extends ESTestCase {
     @Before
     public void setupMocks() {
         commonSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
-                .build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+            .build();
         clusterService = mock(ClusterService.class);
         datafeedRunner = mock(DatafeedRunner.class);
         autodetectProcessManager = mock(AutodetectProcessManager.class);
@@ -86,17 +86,30 @@ public class MlLifeCycleServiceTests extends ESTestCase {
     public void testIsNodeSafeToShutdown() {
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
 
-        tasksBuilder.addTask(MlTasks.jobTaskId("job-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("job-1"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("df1"), MlTasks.DATAFEED_TASK_NAME,
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId("job-1"),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams("job-1"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId("df1"),
+            MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams("df1", 0L),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
-        tasksBuilder.addTask(MlTasks.dataFrameAnalyticsTaskId("job-2"), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.dataFrameAnalyticsTaskId("job-2"),
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("foo-2", Version.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
-        tasksBuilder.addTask(MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"), MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
+            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job-3", "snapshot-3"),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment"));
+            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+        );
 
         Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
@@ -134,19 +147,33 @@ public class MlLifeCycleServiceTests extends ESTestCase {
     public void testIsNodeSafeToShutdownGivenFailedTasks() {
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
 
-        tasksBuilder.addTask(MlTasks.jobTaskId("job-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("job-1"),
-            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId("job-1"),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams("job-1"),
+            new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
+        );
         tasksBuilder.updateTaskState(MlTasks.jobTaskId("job-1"), new JobTaskState(JobState.FAILED, 1, "testing"));
-        tasksBuilder.addTask(MlTasks.dataFrameAnalyticsTaskId("job-2"), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+        tasksBuilder.addTask(
+            MlTasks.dataFrameAnalyticsTaskId("job-2"),
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("foo-2", Version.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment"));
-        tasksBuilder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId("job-2"),
-            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 2, "testing"));
-        tasksBuilder.addTask(MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"), MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+        );
+        tasksBuilder.updateTaskState(
+            MlTasks.dataFrameAnalyticsTaskId("job-2"),
+            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 2, "testing")
+        );
+        tasksBuilder.addTask(
+            MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
+            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job-3", "snapshot-3"),
-            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment"));
-        tasksBuilder.updateTaskState(MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
-            new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 3, "testing"));
+            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+        );
+        tasksBuilder.updateTaskState(
+            MlTasks.snapshotUpgradeTaskId("job-3", "snapshot-3"),
+            new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 3, "testing")
+        );
 
         Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
@@ -162,22 +189,53 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
     public void testSignalGracefulShutdownIncludingLocalNode() {
 
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(TestEnvironment.newEnvironment(commonSettings), clusterService,
-            datafeedRunner, autodetectProcessManager, analyticsManager, memoryTracker);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(
+            TestEnvironment.newEnvironment(commonSettings),
+            clusterService,
+            datafeedRunner,
+            autodetectProcessManager,
+            analyticsManager,
+            memoryTracker
+        );
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node-1-name", "node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                Collections.emptyMap(), ROLES, Version.CURRENT))
-            .add(new DiscoveryNode("node-2-name", "node-2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                Collections.emptyMap(), ROLES, Version.CURRENT))
-            .add(new DiscoveryNode("node-3-name", "node-3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                Collections.emptyMap(), ROLES, Version.CURRENT))
+            .add(
+                new DiscoveryNode(
+                    "node-1-name",
+                    "node-1",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Collections.emptyMap(),
+                    ROLES,
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "node-2-name",
+                    "node-2",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                    Collections.emptyMap(),
+                    ROLES,
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "node-3-name",
+                    "node-3",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                    Collections.emptyMap(),
+                    ROLES,
+                    Version.CURRENT
+                )
+            )
             .masterNodeId("node-1")
             .localNodeId("node-2");
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder).build();
 
-        Collection<String> shutdownNodeIds =
-            randomBoolean() ? Collections.singleton("node-2") : Arrays.asList("node-1", "node-2", "node-3");
+        Collection<String> shutdownNodeIds = randomBoolean()
+            ? Collections.singleton("node-2")
+            : Arrays.asList("node-1", "node-2", "node-3");
 
         final Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
         mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, clock);
@@ -195,21 +253,50 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
     public void testSignalGracefulShutdownExcludingLocalNode() {
 
-        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(TestEnvironment.newEnvironment(commonSettings), clusterService,
-            datafeedRunner, autodetectProcessManager, analyticsManager, memoryTracker);
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(
+            TestEnvironment.newEnvironment(commonSettings),
+            clusterService,
+            datafeedRunner,
+            autodetectProcessManager,
+            analyticsManager,
+            memoryTracker
+        );
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node-1-name", "node-1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                Collections.emptyMap(), ROLES, Version.CURRENT))
-            .add(new DiscoveryNode("node-2-name", "node-2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                Collections.emptyMap(), ROLES, Version.CURRENT))
-            .add(new DiscoveryNode("node-3-name", "node-3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                Collections.emptyMap(), ROLES, Version.CURRENT))
+            .add(
+                new DiscoveryNode(
+                    "node-1-name",
+                    "node-1",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Collections.emptyMap(),
+                    ROLES,
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "node-2-name",
+                    "node-2",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                    Collections.emptyMap(),
+                    ROLES,
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "node-3-name",
+                    "node-3",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                    Collections.emptyMap(),
+                    ROLES,
+                    Version.CURRENT
+                )
+            )
             .masterNodeId("node-1")
             .localNodeId("node-2");
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder).build();
 
-        Collection<String> shutdownNodeIds =
-            randomBoolean() ? Collections.singleton("node-1") : Arrays.asList("node-1", "node-3");
+        Collection<String> shutdownNodeIds = randomBoolean() ? Collections.singleton("node-1") : Arrays.asList("node-1", "node-3");
 
         mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, Clock.systemUTC());
         assertThat(mlLifeCycleService.getShutdownStartTime(), nullValue());

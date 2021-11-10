@@ -32,8 +32,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
         this.originalAliases = aliases;
     }
 
-    public GetAliasesRequest() {
-    }
+    public GetAliasesRequest() {}
 
     public GetAliasesRequest(StreamInput in) throws IOException {
         super(in);

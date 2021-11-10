@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
@@ -37,13 +38,15 @@ public class DateUtilsTests extends ESTestCase {
     // list of ignored timezones.
     // These should be cleaned up when all tested jdks (oracle, adoptopenjdk, openjdk etc) have the timezone db included
     // see when a timezone was included in jdk version here https://www.oracle.com/java/technologies/tzdata-versions.html
-    private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
-        "Eire", "Europe/Dublin", // dublin timezone in joda does not account for DST
-        "Asia/Qostanay", // part of tzdata2018h
-        "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
-        "America/Nuuk"// part of tzdata2020a
-    ));
-
+    private static final Set<String> IGNORE = new HashSet<>(
+        Arrays.asList(
+            "Eire",
+            "Europe/Dublin", // dublin timezone in joda does not account for DST
+            "Asia/Qostanay", // part of tzdata2018h
+            "America/Godthab", // part of tzdata2020a (maps to America/Nuuk)
+            "America/Nuuk"// part of tzdata2020a
+        )
+    );
 
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
@@ -53,10 +56,13 @@ public class DateUtilsTests extends ESTestCase {
             DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
             ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(jodaTz); // does not throw
             long now = 0;
-            assertThat(jodaId, zoneId.getRules().getOffset(Instant.ofEpochMilli(now)).getTotalSeconds() * 1000,
-                equalTo(jodaTz.getOffset(now)));
+            assertThat(
+                jodaId,
+                zoneId.getRules().getOffset(Instant.ofEpochMilli(now)).getTotalSeconds() * 1000,
+                equalTo(jodaTz.getOffset(now))
+            );
             if (DateUtils.DEPRECATED_SHORT_TIMEZONES.containsKey(jodaTz.getID())) {
-                assertWarnings("Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
+                assertWarnings(Level.WARN, "Use of short timezone id " + jodaId + " is deprecated. Use " + zoneId.getId() + " instead");
             }
             // roundtrip does not throw either
             assertNotNull(DateUtils.zoneIdToDateTimeZone(zoneId));
@@ -94,15 +100,15 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(toInstant(nowInNs), is(instant));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toInstant(-1));
-        assertThat(e.getMessage(),
-            is("nanoseconds [-1] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+        assertThat(e.getMessage(), is("nanoseconds [-1] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
 
         e = expectThrows(IllegalArgumentException.class, () -> toInstant(Long.MIN_VALUE));
-        assertThat(e.getMessage(),
-            is("nanoseconds [" + Long.MIN_VALUE + "] are before the epoch in 1970 and cannot be processed in nanosecond resolution"));
+        assertThat(
+            e.getMessage(),
+            is("nanoseconds [" + Long.MIN_VALUE + "] are before the epoch in 1970 and cannot be processed in nanosecond resolution")
+        );
 
-        assertThat(toInstant(Long.MAX_VALUE),
-            is(ZonedDateTime.parse("2262-04-11T23:47:16.854775807Z").toInstant()));
+        assertThat(toInstant(Long.MAX_VALUE), is(ZonedDateTime.parse("2262-04-11T23:47:16.854775807Z").toInstant()));
     }
 
     public void testClampToNanosRange() {
@@ -139,8 +145,7 @@ public class DateUtilsTests extends ESTestCase {
         long nowInMs = instant.toEpochMilli();
         assertThat(toNanoSeconds(nowInMs), equalTo(toLong(instant)));
 
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> toNanoSeconds(-1));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> toNanoSeconds(-1));
         assertThat(exc.getMessage(), containsString("before the epoch"));
 
         long millis = DateUtils.MAX_NANOSECOND_IN_MILLIS + randomLongBetween(0, 1000000);
@@ -157,8 +162,12 @@ public class DateUtilsTests extends ESTestCase {
     public void testRoundFloor() {
         assertThat(DateUtils.roundFloor(0, randomLongBetween(0, Long.MAX_VALUE)), is(0L));
 
-        ChronoField randomChronoField =
-            randomFrom(ChronoField.DAY_OF_MONTH, ChronoField.HOUR_OF_DAY, ChronoField.MINUTE_OF_HOUR, ChronoField.SECOND_OF_MINUTE);
+        ChronoField randomChronoField = randomFrom(
+            ChronoField.DAY_OF_MONTH,
+            ChronoField.HOUR_OF_DAY,
+            ChronoField.MINUTE_OF_HOUR,
+            ChronoField.SECOND_OF_MINUTE
+        );
         long unitMillis = randomChronoField.getBaseUnit().getDuration().toMillis();
 
         int year = randomIntBetween(-3000, 3000);
@@ -193,18 +202,29 @@ public class DateUtilsTests extends ESTestCase {
 
     public void testRoundQuarterOfYear() {
         assertThat(DateUtils.roundQuarterOfYear(0), is(0L));
-        long lastQuarter1969 = ZonedDateTime.of(1969, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC)
-            .toInstant().toEpochMilli();
+        long lastQuarter1969 = ZonedDateTime.of(1969, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         assertThat(DateUtils.roundQuarterOfYear(-1), is(lastQuarter1969));
 
         int year = randomIntBetween(1970, 2040);
         int month = randomIntBetween(1, 12);
         int day = randomIntBetween(1, YearMonth.of(year, month).lengthOfMonth());
 
-        ZonedDateTime randomZonedDateTime = ZonedDateTime.of(year, month, day,
-            randomIntBetween(0, 23), randomIntBetween(0, 59), randomIntBetween(0, 59), 999_999_999, ZoneOffset.UTC);
-        long quarterInMillis = Year.of(randomZonedDateTime.getYear()).atMonth(Month.of(month).firstMonthOfQuarter()).atDay(1)
-            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+        ZonedDateTime randomZonedDateTime = ZonedDateTime.of(
+            year,
+            month,
+            day,
+            randomIntBetween(0, 23),
+            randomIntBetween(0, 59),
+            randomIntBetween(0, 59),
+            999_999_999,
+            ZoneOffset.UTC
+        );
+        long quarterInMillis = Year.of(randomZonedDateTime.getYear())
+            .atMonth(Month.of(month).firstMonthOfQuarter())
+            .atDay(1)
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant()
+            .toEpochMilli();
         long result = DateUtils.roundQuarterOfYear(randomZonedDateTime.toInstant().toEpochMilli());
         assertThat(result, is(quarterInMillis));
     }
@@ -219,15 +239,12 @@ public class DateUtilsTests extends ESTestCase {
     public void testRoundYear() {
         assertThat(DateUtils.roundYear(0), is(0L));
         assertThat(DateUtils.roundYear(1), is(0L));
-        long startOf1969 = ZonedDateTime.of(1969, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
-            .toInstant().toEpochMilli();
+        long startOf1969 = ZonedDateTime.of(1969, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         assertThat(DateUtils.roundYear(-1), is(startOf1969));
-        long endOf1970 = ZonedDateTime.of(1970, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC)
-            .toInstant().toEpochMilli();
+        long endOf1970 = ZonedDateTime.of(1970, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1970), is(0L));
         // test with some leapyear
-        long endOf1996 = ZonedDateTime.of(1996, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC)
-            .toInstant().toEpochMilli();
+        long endOf1996 = ZonedDateTime.of(1996, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         long startOf1996 = Year.of(1996).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
     }

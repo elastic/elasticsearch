@@ -15,12 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -33,6 +28,11 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-
 
 /**
  * A response of a search request.
@@ -96,14 +95,30 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
     }
 
-    public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
-                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters) {
+    public SearchResponse(
+        SearchResponseSections internalResponse,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters
+    ) {
         this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
     }
 
-    public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
-                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters,
-                          String pointInTimeId) {
+    public SearchResponse(
+        SearchResponseSections internalResponse,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
@@ -114,8 +129,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
-        assert scrollId == null || pointInTimeId == null :
-            "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+        assert scrollId == null || pointInTimeId == null
+            : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
     @Override
@@ -184,7 +199,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public int getSuccessfulShards() {
         return successfulShards;
     }
-
 
     /**
      * The number of shards skipped due to pre-filtering
@@ -265,8 +279,15 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         if (getNumReducePhases() != 1) {
             builder.field(NUM_REDUCE_PHASES.getPreferredName(), getNumReducePhases());
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getSkippedShards(),
-            getFailedShards(), getShardFailures());
+        RestActions.buildBroadcastShardsHeader(
+            builder,
+            params,
+            getTotalShards(),
+            getSuccessfulShards(),
+            getSkippedShards(),
+            getFailedShards(),
+            getShardFailures()
+        );
         clusters.toXContent(builder, params);
         internalResponse.toXContent(builder, params);
         return builder;
@@ -342,7 +363,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             }
                         } else if (token == Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                while((token = parser.nextToken()) != Token.END_ARRAY) {
+                                while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
                             } else {
@@ -379,10 +400,26 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 }
             }
         }
-        SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
-                profile, numReducePhases);
-        return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters, searchContextId);
+        SearchResponseSections searchResponseSections = new SearchResponseSections(
+            hits,
+            aggs,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profile,
+            numReducePhases
+        );
+        return new SearchResponse(
+            searchResponseSections,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+            clusters,
+            searchContextId
+        );
     }
 
     @Override
@@ -430,9 +467,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
         public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0
-                    : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+                : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert successful <= total && skipped == total - successful
-                    : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+                : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
@@ -491,9 +528,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 return false;
             }
             Clusters clusters = (Clusters) o;
-            return total == clusters.total &&
-                    successful == clusters.successful &&
-                    skipped == clusters.skipped;
+            return total == clusters.total && successful == clusters.successful && skipped == clusters.skipped;
         }
 
         @Override
@@ -509,9 +544,25 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
-            InternalAggregations.EMPTY, null, null, false, null, 0);
-        return new SearchResponse(internalSearchResponse, null, 0, 0, 0, tookInMillisSupplier.get(),
-            ShardSearchFailure.EMPTY_ARRAY, clusters, null);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+            searchHits,
+            InternalAggregations.EMPTY,
+            null,
+            null,
+            false,
+            null,
+            0
+        );
+        return new SearchResponse(
+            internalSearchResponse,
+            null,
+            0,
+            0,
+            0,
+            tookInMillisSupplier.get(),
+            ShardSearchFailure.EMPTY_ARRAY,
+            clusters,
+            null
+        );
     }
 }

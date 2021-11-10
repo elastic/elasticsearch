@@ -30,12 +30,11 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
         final long rejections = randomIntBetween(1, 16);
 
         ThreadPool threadPool = null;
-        final Settings nodeSettings =
-            Settings.builder()
-                .put("node.name", "testRejectedExecutionCounter")
-                .put("thread_pool." + threadPoolName + ".size", size)
-                .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
-                .build();
+        final Settings nodeSettings = Settings.builder()
+            .put("node.name", "testRejectedExecutionCounter")
+            .put("thread_pool." + threadPoolName + ".size", size)
+            .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
+            .build();
         try {
             threadPool = new ThreadPool(nodeSettings);
 
@@ -82,14 +81,16 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
         }
 
         if (Names.LISTENER.equals(threadPoolName)) {
-            assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.queue_size",
-                "thread_pool.listener.size"));
+            assertSettingDeprecationsAndWarnings(
+                getDeprecatedSettingsForSettingNames("thread_pool.listener.queue_size", "thread_pool.listener.size")
+            );
         }
     }
 
     private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
-        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
-            Setting.Property.Deprecated)).toArray(Setting[]::new);
+        return Arrays.stream(settingNames)
+            .map(settingName -> Setting.intSetting(settingName, randomInt(), Setting.Property.Deprecated))
+            .toArray(Setting[]::new);
     }
 
 }

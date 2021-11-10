@@ -27,8 +27,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 public class WatcherRestartIT extends AbstractUpgradeTestCase {
-    private static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     private static final String templatePrefix = ".watch-history-";
 
@@ -121,7 +120,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
             true
         );
 
-        List<Map<String,Object>> templates = (List<Map<String,Object>>) responseMap.get("index_templates");
+        List<Map<String, Object>> templates = (List<Map<String, Object>>) responseMap.get("index_templates");
 
         final List<String> templateNames = templates.stream().map(each -> (String) each.get("name")).collect(Collectors.toList());
 

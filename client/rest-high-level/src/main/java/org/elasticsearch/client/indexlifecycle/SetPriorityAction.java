@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,16 +27,22 @@ public class SetPriorityAction implements LifecycleAction, ToXContentObject {
     private static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-        a -> new SetPriorityAction((Integer) a[0]));
+    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        a -> new SetPriorityAction((Integer) a[0])
+    );
 
-    //package private for testing
+    // package private for testing
     final Integer recoveryPriority;
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue()
-            , RECOVERY_PRIORITY_FIELD, ObjectParser.ValueType.INT_OR_NULL);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            RECOVERY_PRIORITY_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
     }
 
     public static SetPriorityAction parse(XContentParser parser) {

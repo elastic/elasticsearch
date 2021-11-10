@@ -17,8 +17,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -48,8 +48,11 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
 
     public void testMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput deflateStream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(
-                    Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput deflateStream = new OutputStreamStreamOutput(
+                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < 10000; ++i) {
                     deflateStream.writeInt(i);
                 }
@@ -77,8 +80,11 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
 
     public void testIncrementalMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput deflateStream = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput deflateStream = new OutputStreamStreamOutput(
+                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < 10000; ++i) {
                     deflateStream.writeInt(i);
                 }

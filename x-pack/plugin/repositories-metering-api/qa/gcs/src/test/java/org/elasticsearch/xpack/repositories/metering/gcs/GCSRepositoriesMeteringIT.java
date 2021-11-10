@@ -18,10 +18,13 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
 
     @BeforeClass
     public static void skipJava8() {
-        assumeFalse("This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used " +
-            "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, " +
-            "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 " +
-            "for more background on this issue.", JavaVersion.current().equals(JavaVersion.parse("8")));
+        assumeFalse(
+            "This test is flaky on jdk8 - we suspect a JDK bug to trigger some assertion in the HttpServer implementation used "
+                + "to emulate the server side logic of Google Cloud Storage. See https://bugs.openjdk.java.net/browse/JDK-8180754, "
+                + "https://github.com/elastic/elasticsearch/pull/51933 and https://github.com/elastic/elasticsearch/issues/52906 "
+                + "for more background on this issue.",
+            JavaVersion.current().equals(JavaVersion.parse("8"))
+        );
     }
 
     @Override
@@ -31,12 +34,7 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
 
     @Override
     protected Map<String, String> repositoryLocation() {
-        return org.elasticsearch.core.Map.of(
-            "bucket",
-            getProperty("test.gcs.bucket"),
-            "base_path",
-            getProperty("test.gcs.base_path")
-        );
+        return org.elasticsearch.core.Map.of("bucket", getProperty("test.gcs.bucket"), "base_path", getProperty("test.gcs.base_path"));
     }
 
     @Override

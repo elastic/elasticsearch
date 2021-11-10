@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.client.ml.job.config.JobTests;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -18,9 +18,9 @@ public class PreviewDatafeedRequestTests extends AbstractXContentTestCase<Previe
 
     @Override
     protected PreviewDatafeedRequest createTestInstance() {
-        return randomBoolean() ?
-            new PreviewDatafeedRequest(DatafeedConfigTests.randomValidDatafeedId()) :
-            new PreviewDatafeedRequest(DatafeedConfigTests.createRandom(), randomBoolean() ? null : JobTests.createRandomizedJob());
+        return randomBoolean()
+            ? new PreviewDatafeedRequest(DatafeedConfigTests.randomValidDatafeedId())
+            : new PreviewDatafeedRequest(DatafeedConfigTests.createRandom(), randomBoolean() ? null : JobTests.createRandomizedJob());
     }
 
     @Override

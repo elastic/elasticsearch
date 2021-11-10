@@ -13,8 +13,13 @@ public class SingleClassReservoirTrainTestSplitter extends AbstractReservoirTrai
 
     private final SampleInfo sampleInfo;
 
-    SingleClassReservoirTrainTestSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent,
-                                          long randomizeSeed, long classCount) {
+    SingleClassReservoirTrainTestSplitter(
+        List<String> fieldNames,
+        String dependentVariable,
+        double trainingPercent,
+        long randomizeSeed,
+        long classCount
+    ) {
         super(fieldNames, dependentVariable, trainingPercent, randomizeSeed);
         sampleInfo = new SampleInfo(classCount);
     }

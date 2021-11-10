@@ -38,17 +38,21 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     final Provider<T> provider;
     final Set<InjectionPoint> injectionPoints;
 
-    public InstanceBindingImpl(Injector injector, Key<T> key, Object source,
-                               InternalFactory<? extends T> internalFactory, Set<InjectionPoint> injectionPoints,
-                               T instance) {
+    public InstanceBindingImpl(
+        Injector injector,
+        Key<T> key,
+        Object source,
+        InternalFactory<? extends T> internalFactory,
+        Set<InjectionPoint> injectionPoints,
+        T instance
+    ) {
         super(injector, key, source, internalFactory, Scoping.UNSCOPED);
         this.injectionPoints = injectionPoints;
         this.instance = instance;
         this.provider = Providers.of(instance);
     }
 
-    public InstanceBindingImpl(Object source, Key<T> key, Scoping scoping,
-                               Set<InjectionPoint> injectionPoints, T instance) {
+    public InstanceBindingImpl(Object source, Key<T> key, Scoping scoping, Set<InjectionPoint> injectionPoints, T instance) {
         super(source, key, scoping);
         this.injectionPoints = injectionPoints;
         this.instance = instance;
@@ -78,8 +82,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     @Override
     public Set<Dependency<?>> getDependencies() {
         return instance instanceof HasDependencies
-                ? unmodifiableSet(new HashSet<>((((HasDependencies) instance).getDependencies())))
-                : Dependency.forInjectionPoints(injectionPoints);
+            ? unmodifiableSet(new HashSet<>((((HasDependencies) instance).getDependencies())))
+            : Dependency.forInjectionPoints(injectionPoints);
     }
 
     @Override
@@ -100,10 +104,9 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
 
     @Override
     public String toString() {
-        return new ToStringBuilder(InstanceBinding.class)
-                .add("key", getKey())
-                .add("source", getSource())
-                .add("instance", instance)
-                .toString();
+        return new ToStringBuilder(InstanceBinding.class).add("key", getKey())
+            .add("source", getSource())
+            .add("instance", instance)
+            .toString();
     }
 }

@@ -30,15 +30,20 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     public void testPluginSettingIssues() {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
-        TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
+        TransportDeprecationInfoAction.pluginSettingIssues(
+            Arrays.asList(
                 new NamedChecker("foo", Collections.emptyList(), false),
-                new NamedChecker("bar",
-                    singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", false,
-                        singletonMap("key", "value"))),
-                    false)),
+                new NamedChecker(
+                    "bar",
+                    singletonList(
+                        new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", false, singletonMap("key", "value"))
+                    ),
+                    false
+                )
+            ),
             components,
             future
-            );
+        );
         Map<String, List<DeprecationIssue>> issueMap = future.actionGet();
         assertThat(issueMap.size(), equalTo(2));
         assertThat(issueMap.get("foo"), is(empty()));
@@ -51,11 +56,15 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     public void testPluginSettingIssuesWithFailures() {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
-        TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
-            new NamedChecker("foo", emptyList(), false),
-            new NamedChecker("bar",
-                singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false, null)),
-                true)),
+        TransportDeprecationInfoAction.pluginSettingIssues(
+            Arrays.asList(
+                new NamedChecker("foo", emptyList(), false),
+                new NamedChecker(
+                    "bar",
+                    singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false, null)),
+                    true
+                )
+            ),
             components,
             future
         );

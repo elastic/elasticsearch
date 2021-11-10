@@ -12,9 +12,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
@@ -28,10 +28,11 @@ public class FeatureAwareCheckTests extends ESTestCase {
 
     public void testClusterStateCustomViolation() throws IOException {
         runCustomViolationTest(
-                ClusterStateCustomViolation.class,
-                getClass(),
-                ClusterState.Custom.class,
-                XPackPlugin.XPackClusterStateCustom.class);
+            ClusterStateCustomViolation.class,
+            getClass(),
+            ClusterState.Custom.class,
+            XPackPlugin.XPackClusterStateCustom.class
+        );
     }
 
     public void testClusterStateCustom() throws IOException {
@@ -41,10 +42,11 @@ public class FeatureAwareCheckTests extends ESTestCase {
     public void testClusterStateCustomMarkerInterface() throws IOException {
         // marker interfaces do not implement the marker interface but should not fail the feature aware check
         runCustomTest(
-                XPackPlugin.XPackClusterStateCustom.class,
-                XPackPlugin.class,
-                ClusterState.Custom.class,
-                XPackPlugin.XPackClusterStateCustom.class);
+            XPackPlugin.XPackClusterStateCustom.class,
+            XPackPlugin.class,
+            ClusterState.Custom.class,
+            XPackPlugin.XPackClusterStateCustom.class
+        );
     }
 
     public void testMetadataCustomViolation() throws IOException {
@@ -58,18 +60,20 @@ public class FeatureAwareCheckTests extends ESTestCase {
     public void testMetadataCustomMarkerInterface() throws IOException {
         // marker interfaces do not implement the marker interface but should not fail the feature aware check
         runCustomTest(
-                XPackPlugin.XPackMetadataCustom.class,
-                XPackPlugin.class,
-                Metadata.Custom.class,
-                XPackPlugin.XPackMetadataCustom.class);
+            XPackPlugin.XPackMetadataCustom.class,
+            XPackPlugin.class,
+            Metadata.Custom.class,
+            XPackPlugin.XPackMetadataCustom.class
+        );
     }
 
     public void testPersistentTaskParamsViolation() throws IOException {
         runCustomViolationTest(
-                PersistentTaskParamsViolation.class,
-                getClass(),
-                PersistentTaskParams.class,
-                XPackPlugin.XPackPersistentTaskParams.class);
+            PersistentTaskParamsViolation.class,
+            getClass(),
+            PersistentTaskParams.class,
+            XPackPlugin.XPackPersistentTaskParams.class
+        );
     }
 
     public void testPersistentTaskParams() throws IOException {
@@ -79,10 +83,11 @@ public class FeatureAwareCheckTests extends ESTestCase {
     public void testPersistentTaskParamsMarkerInterface() throws IOException {
         // marker interfaces do not implement the marker interface but should not fail the feature aware check
         runCustomTest(
-                XPackPlugin.XPackPersistentTaskParams.class,
-                XPackPlugin.class,
-                PersistentTaskParams.class,
-                XPackPlugin.XPackPersistentTaskParams.class);
+            XPackPlugin.XPackPersistentTaskParams.class,
+            XPackPlugin.class,
+            PersistentTaskParams.class,
+            XPackPlugin.XPackPersistentTaskParams.class
+        );
     }
 
     abstract class ClusterStateCustomFeatureAware implements ClusterState.Custom {
@@ -270,10 +275,11 @@ public class FeatureAwareCheckTests extends ESTestCase {
      * @throws IOException if an I/O error occurs reading the class
      */
     private void runCustomViolationTest(
-            final Class<? extends ClusterState.FeatureAware> clazz,
-            final Class<?> outerClazz,
-            final Class<? extends ClusterState.FeatureAware> interfaceClazz,
-            final Class<? extends ClusterState.FeatureAware> expectedInterfaceClazz) throws IOException {
+        final Class<? extends ClusterState.FeatureAware> clazz,
+        final Class<?> outerClazz,
+        final Class<? extends ClusterState.FeatureAware> interfaceClazz,
+        final Class<? extends ClusterState.FeatureAware> expectedInterfaceClazz
+    ) throws IOException {
         runTest(clazz, outerClazz, interfaceClazz, expectedInterfaceClazz, true);
     }
 
@@ -287,10 +293,11 @@ public class FeatureAwareCheckTests extends ESTestCase {
      * @throws IOException if an I/O error occurs reading the class
      */
     private void runCustomTest(
-            final Class<? extends ClusterState.FeatureAware> clazz,
-            final Class<?> outerClazz,
-            final Class<? extends ClusterState.FeatureAware> interfaceClazz,
-            final Class<? extends ClusterState.FeatureAware> expectedInterfaceClazz) throws IOException {
+        final Class<? extends ClusterState.FeatureAware> clazz,
+        final Class<?> outerClazz,
+        final Class<? extends ClusterState.FeatureAware> interfaceClazz,
+        final Class<? extends ClusterState.FeatureAware> expectedInterfaceClazz
+    ) throws IOException {
         runTest(clazz, outerClazz, interfaceClazz, expectedInterfaceClazz, false);
     }
 
@@ -306,17 +313,18 @@ public class FeatureAwareCheckTests extends ESTestCase {
      * @throws IOException if an I/O error occurs reading the class
      */
     private void runTest(
-            final Class<? extends ClusterState.FeatureAware> clazz,
-            final Class<?> outerClazz,
-            final Class<? extends ClusterState.FeatureAware> interfaceClazz,
-            final Class<? extends ClusterState.FeatureAware> expectedInterfaceClazz,
-            final boolean violation) throws IOException {
+        final Class<? extends ClusterState.FeatureAware> clazz,
+        final Class<?> outerClazz,
+        final Class<? extends ClusterState.FeatureAware> interfaceClazz,
+        final Class<? extends ClusterState.FeatureAware> expectedInterfaceClazz,
+        final boolean violation
+    ) throws IOException {
         final String name = clazz.getName();
-        final FeatureAwareViolationConsumer callback =
-                new FeatureAwareViolationConsumer(
-                        FeatureAwareCheck.formatClassName(clazz),
-                        FeatureAwareCheck.formatClassName(interfaceClazz),
-                        FeatureAwareCheck.formatClassName(expectedInterfaceClazz));
+        final FeatureAwareViolationConsumer callback = new FeatureAwareViolationConsumer(
+            FeatureAwareCheck.formatClassName(clazz),
+            FeatureAwareCheck.formatClassName(interfaceClazz),
+            FeatureAwareCheck.formatClassName(expectedInterfaceClazz)
+        );
         FeatureAwareCheck.checkClass(outerClazz.getResourceAsStream(name.substring(1 + name.lastIndexOf(".")) + ".class"), callback);
         assertThat(callback.called.get(), equalTo(violation));
     }

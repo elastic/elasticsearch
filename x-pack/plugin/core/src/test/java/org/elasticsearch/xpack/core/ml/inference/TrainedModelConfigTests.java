@@ -12,16 +12,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.license.License;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
@@ -63,12 +63,12 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setModelId(modelId)
             .setCreatedBy(randomAlphaOfLength(10))
             .setDescription(randomBoolean() ? null : randomAlphaOfLength(100))
-            .setEstimatedHeapMemory(randomNonNegativeLong())
+            .setModelSize(randomNonNegativeLong())
             .setEstimatedOperations(randomNonNegativeLong())
-            .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(),
-                License.OperationMode.BASIC.description()))
-            .setInferenceConfig(randomFrom(ClassificationConfigTests.randomClassificationConfig(),
-                RegressionConfigTests.randomRegressionConfig()))
+            .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(), License.OperationMode.BASIC.description()))
+            .setInferenceConfig(
+                randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig())
+            )
             .setTags(tags);
     }
 
@@ -128,8 +128,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     }
 
     public void testToXContentWithParams() throws IOException {
-        TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
-            .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
+        TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition.fromParsedDefinition(
+            TrainedModelDefinitionTests.createRandomBuilder().build()
+        );
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -143,33 +144,40 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             "platinum",
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10))
+            randomBoolean()
+                ? null
+                : Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
-            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig())
+        );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
 
-        reference = XContentHelper.toXContent(config,
+        reference = XContentHelper.toXContent(
+            config,
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
-            false);
+            false
+        );
         assertThat(reference.utf8ToString(), not(containsString("definition")));
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
 
-        reference = XContentHelper.toXContent(config,
+        reference = XContentHelper.toXContent(
+            config,
             XContentType.JSON,
             new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "true")),
-            false);
+            false
+        );
         assertThat(reference.utf8ToString(), containsString("\"definition\""));
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
 
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
-        TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
-            .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
+        TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition.fromParsedDefinition(
+            TrainedModelDefinitionTests.createRandomBuilder().build()
+        );
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -183,101 +191,121 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             "platinum",
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10))
+            randomBoolean()
+                ? null
+                : Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
-            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig())
+        );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();
 
         objectMap.put(TrainedModelConfig.DEFINITION.getPreferredName(), config.getModelDefinition());
 
-        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(objectMap);
-            XContentParser parser = XContentType.JSON
-                .xContent()
-                .createParser(xContentRegistry(),
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(objectMap);
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    xContentRegistry(),
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    BytesReference.bytes(xContentBuilder).streamInput())) {
+                    BytesReference.bytes(xContentBuilder).streamInput()
+                )
+        ) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> TrainedModelConfig.fromXContent(parser, true));
             assertThat(ex.getCause().getMessage(), equalTo("both [compressed_definition] and [definition] cannot be set."));
         }
     }
 
     public void testValidateWithNullDefinition() {
-        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
-            () -> TrainedModelConfig.builder().validate());
+        ActionRequestValidationException ex = expectThrows(
+            ActionRequestValidationException.class,
+            () -> TrainedModelConfig.builder().validate()
+        );
         assertThat(ex.getMessage(), containsString("[definition] must not be null."));
     }
 
     public void testValidateWithInvalidID() {
         String modelId = "InvalidID-";
-        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
+        ActionRequestValidationException ex = expectThrows(
+            ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
-                .setModelId(modelId).validate());
+                .setModelId(modelId)
+                .validate()
+        );
         assertThat(ex.getMessage(), containsString(Messages.getMessage(Messages.INVALID_ID, "model_id", modelId)));
     }
 
     public void testValidateWithLongID() {
         String modelId = IntStream.range(0, 100).mapToObj(x -> "a").collect(Collectors.joining());
-        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
+        ActionRequestValidationException ex = expectThrows(
+            ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
-                .setModelId(modelId).validate());
-        assertThat(ex.getMessage(),
-            containsString(Messages.getMessage(Messages.ID_TOO_LONG, "model_id", modelId, MlStrings.ID_LENGTH_LIMIT)));
+                .setModelId(modelId)
+                .validate()
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString(Messages.getMessage(Messages.ID_TOO_LONG, "model_id", modelId, MlStrings.ID_LENGTH_LIMIT))
+        );
     }
 
     public void testValidateWithIllegallyUserProvidedFields() {
         String modelId = "simplemodel";
-        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
+        ActionRequestValidationException ex = expectThrows(
+            ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreateTime(Instant.now())
-                .setModelId(modelId).validate(true));
+                .setModelId(modelId)
+                .validate(true)
+        );
         assertThat(ex.getMessage(), containsString("illegal to set [create_time] at inference model creation"));
 
-        ex = expectThrows(ActionRequestValidationException.class,
+        ex = expectThrows(
+            ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setVersion(Version.CURRENT)
-                .setModelId(modelId).validate(true));
+                .setModelId(modelId)
+                .validate(true)
+        );
         assertThat(ex.getMessage(), containsString("illegal to set [version] at inference model creation"));
 
-        ex = expectThrows(ActionRequestValidationException.class,
+        ex = expectThrows(
+            ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreatedBy("ml_user")
-                .setModelId(modelId).validate(true));
+                .setModelId(modelId)
+                .validate(true)
+        );
         assertThat(ex.getMessage(), containsString("illegal to set [created_by] at inference model creation"));
     }
 
     public void testSerializationWithLazyDefinition() throws IOException {
-        xContentTester(this::createParser,
-            () -> {
+        xContentTester(this::createParser, () -> {
             try {
                 String compressedString = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
-                return createTestInstance(randomAlphaOfLength(10))
-                    .setDefinitionFromString(compressedString)
-                    .build();
+                return createTestInstance(randomAlphaOfLength(10)).setDefinitionFromString(compressedString).build();
             } catch (IOException ex) {
                 fail(ex.getMessage());
                 return null;
             }
-            },
-            ToXContent.EMPTY_PARAMS,
-            (p) -> TrainedModelConfig.fromXContent(p, true).build())
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+        }, ToXContent.EMPTY_PARAMS, (p) -> TrainedModelConfig.fromXContent(p, true).build()).numberOfTestRuns(NUMBER_OF_TEST_RUNS)
             .supportsUnknownFields(false)
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .assertEqualsConsumer((def1, def2) -> {
                 try {
-                    assertThat(def1.ensureParsedDefinition(xContentRegistry()).getModelDefinition(),
-                        equalTo(def2.ensureParsedDefinition(xContentRegistry()).getModelDefinition()));
-                } catch(IOException ex) {
+                    assertThat(
+                        def1.ensureParsedDefinition(xContentRegistry()).getModelDefinition(),
+                        equalTo(def2.ensureParsedDefinition(xContentRegistry()).getModelDefinition())
+                    );
+                } catch (IOException ex) {
                     fail(ex.getMessage());
                 }
             })
@@ -286,30 +314,28 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     }
 
     public void testSerializationWithCompressedLazyDefinition() throws IOException {
-        xContentTester(this::createParser,
-            () -> {
-                try {
-                    String compressedString =
-                        InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
-                    return createTestInstance(randomAlphaOfLength(10))
-                        .setDefinitionFromString(compressedString)
-                        .build();
-                } catch (IOException ex) {
-                    fail(ex.getMessage());
-                    return null;
-                }
-            },
+        xContentTester(this::createParser, () -> {
+            try {
+                String compressedString = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
+                return createTestInstance(randomAlphaOfLength(10)).setDefinitionFromString(compressedString).build();
+            } catch (IOException ex) {
+                fail(ex.getMessage());
+                return null;
+            }
+        },
             new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "false")),
-            (p) -> TrainedModelConfig.fromXContent(p, true).build())
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            (p) -> TrainedModelConfig.fromXContent(p, true).build()
+        ).numberOfTestRuns(NUMBER_OF_TEST_RUNS)
             .supportsUnknownFields(false)
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .assertEqualsConsumer((def1, def2) -> {
                 try {
-                    assertThat(def1.ensureParsedDefinition(xContentRegistry()).getModelDefinition(),
-                        equalTo(def2.ensureParsedDefinition(xContentRegistry()).getModelDefinition()));
-                } catch(IOException ex) {
+                    assertThat(
+                        def1.ensureParsedDefinition(xContentRegistry()).getModelDefinition(),
+                        equalTo(def2.ensureParsedDefinition(xContentRegistry()).getModelDefinition())
+                    );
+                } catch (IOException ex) {
                     fail(ex.getMessage());
                 }
             })

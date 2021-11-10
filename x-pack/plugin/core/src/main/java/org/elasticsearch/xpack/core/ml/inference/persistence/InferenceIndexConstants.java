@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.inference.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 /**
@@ -26,8 +26,11 @@ public final class InferenceIndexConstants {
      *
      * version: 7.10.0: 000003
      *  - adds trained_model_metadata object
+     *
+     * version: 7.16.0: 000004
+     *  - adds model_size_bytes field as a estimated_heap_memory_usage_bytes replacement
      */
-    public static final String INDEX_VERSION = "000003";
+    public static final String INDEX_VERSION = "000004";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
     public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;
@@ -39,7 +42,8 @@ public final class InferenceIndexConstants {
         return TemplateUtils.loadTemplate(
             "/org/elasticsearch/xpack/core/ml/inference_index_mappings.json",
             Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE);
+            MAPPINGS_VERSION_VARIABLE
+        );
     }
 
     public static Settings settings() {

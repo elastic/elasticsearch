@@ -35,18 +35,15 @@ public class HeaderWarningAppender extends AbstractAppender {
             String messagePattern = esLogMessage.getMessagePattern();
             Object[] arguments = esLogMessage.getArguments();
 
-            HeaderWarning.addWarning(event.getLevel(), messagePattern, arguments);
+            HeaderWarning.addWarning(messagePattern, arguments);
         } else {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            HeaderWarning.addWarning(event.getLevel(), formattedMessage);
+            HeaderWarning.addWarning(formattedMessage);
         }
     }
 
     @PluginFactory
-    public static HeaderWarningAppender createAppender(
-        @PluginAttribute("name") String name,
-        @PluginElement("filter") Filter filter
-    ) {
+    public static HeaderWarningAppender createAppender(@PluginAttribute("name") String name, @PluginElement("filter") Filter filter) {
         return new HeaderWarningAppender(name, filter);
     }
 }

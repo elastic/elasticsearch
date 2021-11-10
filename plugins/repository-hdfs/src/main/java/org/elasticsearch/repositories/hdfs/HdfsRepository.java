@@ -22,15 +22,15 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -57,10 +57,18 @@ public final class HdfsRepository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final Environment environment,
         final NamedXContentRegistry namedXContentRegistry,
-        final ClusterService clusterService, BigArrays bigArrays,
-        final RecoverySettings recoverySettings) {
-        super(metadata, metadata.settings().getAsBoolean("compress", false), namedXContentRegistry, clusterService,
-                bigArrays, recoverySettings);
+        final ClusterService clusterService,
+        BigArrays bigArrays,
+        final RecoverySettings recoverySettings
+    ) {
+        super(
+            metadata,
+            metadata.settings().getAsBoolean("compress", false),
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings
+        );
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
@@ -71,14 +79,24 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
         uri = URI.create(uriSetting);
         if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
-                uri.getScheme(),
-                uriSetting));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
+                    uri.getScheme(),
+                    uriSetting
+                )
+            );
         }
         if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore",
+                    uri.getPath(),
+                    uriSetting
+                )
+            );
         }
 
         pathSetting = getMetadata().settings().get("path");
@@ -88,7 +106,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
     }
 
-    private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings)  {
+    private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings) {
         Configuration hadoopConfiguration = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
@@ -124,10 +142,12 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
         });
 
-        logger.debug("Using file-system [{}] for URI [{}], path [{}]",
+        logger.debug(
+            "Using file-system [{}] for URI [{}], path [{}]",
             fileContext.getDefaultFileSystem(),
             fileContext.getDefaultFileSystem().getUri(),
-            path);
+            path
+        );
 
         try {
             return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
@@ -139,9 +159,8 @@ public final class HdfsRepository extends BlobStoreRepository {
     private UserGroupInformation login(Configuration hadoopConfiguration, Settings repositorySettings) {
         // Validate the authentication method:
         AuthenticationMethod authMethod = SecurityUtil.getAuthenticationMethod(hadoopConfiguration);
-        if (authMethod.equals(AuthenticationMethod.SIMPLE) == false
-            && authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
-            throw new RuntimeException("Unsupported authorization mode ["+authMethod+"]");
+        if (authMethod.equals(AuthenticationMethod.SIMPLE) == false && authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
+            throw new RuntimeException("Unsupported authorization mode [" + authMethod + "]");
         }
 
         // Check if the user added a principal to use, and that there is a keytab file provided
@@ -149,13 +168,18 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         // Check to see if the authentication method is compatible
         if (kerberosPrincipal != null && authMethod.equals(AuthenticationMethod.SIMPLE)) {
-            logger.warn("Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is " +
-                "specified. Continuing with [KERBEROS] authentication.");
+            logger.warn(
+                "Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is "
+                    + "specified. Continuing with [KERBEROS] authentication."
+            );
             SecurityUtil.setAuthenticationMethod(AuthenticationMethod.KERBEROS, hadoopConfiguration);
         } else if (kerberosPrincipal == null && authMethod.equals(AuthenticationMethod.KERBEROS)) {
-            throw new RuntimeException("HDFS Repository does not support [KERBEROS] authentication without " +
-                "a valid Kerberos principal and keytab. Please specify a principal in the repository settings with [" +
-                CONF_SECURITY_PRINCIPAL + "].");
+            throw new RuntimeException(
+                "HDFS Repository does not support [KERBEROS] authentication without "
+                    + "a valid Kerberos principal and keytab. Please specify a principal in the repository settings with ["
+                    + CONF_SECURITY_PRINCIPAL
+                    + "]."
+            );
         }
 
         // Now we can initialize the UGI with the configuration.
@@ -191,8 +215,11 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
 
             if (originalPrincipal.equals(finalPrincipal) == false) {
-                logger.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
-                    originalPrincipal, finalPrincipal);
+                logger.debug(
+                    "Found service principal. Converted original principal name [{}] to server principal [{}]",
+                    originalPrincipal,
+                    finalPrincipal
+                );
             }
         }
         return finalPrincipal;
@@ -216,9 +243,9 @@ public final class HdfsRepository extends BlobStoreRepository {
     protected HdfsBlobStore createBlobStore() {
         // initialize our blobstore using elevated privileges.
         SpecialPermission.check();
-        final HdfsBlobStore blobStore =
-            AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
-                () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
+        final HdfsBlobStore blobStore = AccessController.doPrivileged(
+            (PrivilegedAction<HdfsBlobStore>) () -> createBlobstore(uri, pathSetting, getMetadata().settings())
+        );
         return blobStore;
     }
 

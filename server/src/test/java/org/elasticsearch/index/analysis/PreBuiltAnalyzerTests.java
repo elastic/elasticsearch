@@ -11,14 +11,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -49,38 +49,44 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
-        assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_6_0_0)));
+        assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT), is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_6_0_0)));
     }
 
     public void testThatInstancesAreCachedAndReused() {
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT), PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
         // same es version should be cached
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1));
-        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_0),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_1));
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1), PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1));
+        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_0), PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_1));
 
         // Same Lucene version should be cached:
-        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_1),
-            PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_2));
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_1), PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_2));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {
-        int randomInt = randomInt(PreBuiltAnalyzers.values().length-1);
+        int randomInt = randomInt(PreBuiltAnalyzers.values().length - 1);
         PreBuiltAnalyzers randomPreBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
         Version randomVersion = randomVersion(random());
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
 
-        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX,
-            randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(
+            analyzerName,
+            AnalyzerScope.INDEX,
+            randomPreBuiltAnalyzer.getAnalyzer(randomVersion)
+        ).get();
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "text")
-                .field("analyzer", analyzerName).endObject().endObject().endObject().endObject();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", analyzerName)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
         MapperService mapperService = createIndex("test", indexSettings, "type", mapping).mapperService();
 
         MappedFieldType fieldType = mapperService.fieldType("field");

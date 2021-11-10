@@ -104,7 +104,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         public static final DocValueFormat INSTANCE = new RawDocValueFormat();
 
-        private RawDocValueFormat() { }
+        private RawDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -112,8 +112,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public Long format(long value) {
@@ -184,13 +183,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(BytesRef value) {
-            return Base64.getEncoder()
-                    .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
+            return Base64.getEncoder().encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
         }
 
         @Override
@@ -202,8 +199,7 @@ public interface DocValueFormat extends NamedWriteable {
     static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
         if (format instanceof DateTime) {
             DateTime dateTime = (DateTime) format;
-            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS,
-                dateTime.formatSortValues);
+            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS, dateTime.formatSortValues);
         } else {
             throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
         }
@@ -252,7 +248,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
             final boolean isJoda;
             if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                //if stream is from 7.7 Node it will have a flag indicating if format is joda
+                // if stream is from 7.7 Node it will have a flag indicating if format is joda
                 isJoda = in.readBoolean();
             } else {
                 /*
@@ -290,8 +286,8 @@ public interface DocValueFormat extends NamedWriteable {
                 out.writeVInt(resolution.ordinal());
             }
             if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                //in order not to loose information if the formatter is a joda we send a flag
-                out.writeBoolean(formatter instanceof JodaDateFormatter);//todo pg consider refactor to isJoda method..
+                // in order not to loose information if the formatter is a joda we send a flag
+                out.writeBoolean(formatter instanceof JodaDateFormatter);// todo pg consider refactor to isJoda method..
             }
             if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeBoolean(formatSortValues);
@@ -355,8 +351,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(long value) {
@@ -370,6 +365,7 @@ public interface DocValueFormat extends NamedWriteable {
     };
 
     DocValueFormat GEOTILE = GeoTileDocValueFormat.INSTANCE;
+
     class GeoTileDocValueFormat implements DocValueFormat {
 
         public static final DocValueFormat INSTANCE = new GeoTileDocValueFormat();
@@ -382,8 +378,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(long value) {
@@ -418,8 +413,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public Boolean format(long value) {
@@ -434,10 +428,10 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
             switch (value) {
-            case "false":
-                return 0;
-            case "true":
-                return 1;
+                case "false":
+                    return 0;
+                case "true":
+                    return 1;
             }
             throw new IllegalArgumentException("Cannot parse boolean [" + value + "], expected either [true] or [false]");
         }
@@ -465,8 +459,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String format(BytesRef value) {
@@ -595,7 +588,8 @@ public interface DocValueFormat extends NamedWriteable {
             return Objects.hash(pattern);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return pattern;
         }
     };
@@ -618,8 +612,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public String toString() {

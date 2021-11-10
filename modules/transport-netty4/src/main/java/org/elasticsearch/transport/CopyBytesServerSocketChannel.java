@@ -24,6 +24,7 @@ package org.elasticsearch.transport;
 
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.internal.SocketUtils;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

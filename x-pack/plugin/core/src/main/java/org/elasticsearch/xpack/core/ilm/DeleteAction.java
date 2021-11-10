@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -29,8 +29,10 @@ public class DeleteAction implements LifecycleAction {
 
     public static final ParseField DELETE_SEARCHABLE_SNAPSHOT_FIELD = new ParseField("delete_searchable_snapshot");
 
-    private static final ConstructingObjectParser<DeleteAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new DeleteAction(a[0] == null ? true : (boolean) a[0]));
+    private static final ConstructingObjectParser<DeleteAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new DeleteAction(a[0] == null ? true : (boolean) a[0])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_SEARCHABLE_SNAPSHOT_FIELD);

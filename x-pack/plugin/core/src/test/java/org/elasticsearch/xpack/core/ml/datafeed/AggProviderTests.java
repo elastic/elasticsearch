@@ -15,15 +15,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
@@ -33,7 +33,6 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-
 
 public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
 
@@ -74,13 +73,12 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
     }
 
     public static AggProvider createRandomValidAggProvider(String name, String field) {
-        Map<String, Object> agg = Collections.singletonMap(name,
-            Collections.singletonMap("avg", Collections.singletonMap("field", field)));
+        Map<String, Object> agg = Collections.singletonMap(name, Collections.singletonMap("avg", Collections.singletonMap("field", field)));
         try {
             SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-            AggregatorFactories.Builder aggs =
-                XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
-                    .fromMap(agg);
+            AggregatorFactories.Builder aggs = XContentObjectTransformer.aggregatorTransformer(
+                new NamedXContentRegistry(searchModule.getNamedXContents())
+            ).fromMap(agg);
             return new AggProvider(agg, aggs, null);
         } catch (IOException ex) {
             fail(ex.getMessage());
@@ -91,8 +89,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
     public void testEmptyAggMap() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{}");
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> AggProvider.fromXContent(parser, false));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> AggProvider.fromXContent(parser, false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Datafeed aggregations are not parsable"));
     }
@@ -133,18 +130,22 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
         }
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            AggProvider aggProviderWithEx = new AggProvider(validAggProvider.getAggs(),
+            AggProvider aggProviderWithEx = new AggProvider(
+                validAggProvider.getAggs(),
                 validAggProvider.getParsedAggs(),
-                new IOException("bad parsing"));
+                new IOException("bad parsing")
+            );
             output.setVersion(Version.V_6_0_0);
             IOException ex = expectThrows(IOException.class, () -> aggProviderWithEx.writeTo(output));
             assertThat(ex.getMessage(), equalTo("bad parsing"));
         }
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            AggProvider aggProviderWithEx = new AggProvider(validAggProvider.getAggs(),
+            AggProvider aggProviderWithEx = new AggProvider(
+                validAggProvider.getAggs(),
                 validAggProvider.getParsedAggs(),
-                new ElasticsearchException("bad parsing"));
+                new ElasticsearchException("bad parsing")
+            );
             output.setVersion(Version.V_6_0_0);
             ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> aggProviderWithEx.writeTo(output));
             assertNotNull(ex.getCause());
@@ -168,9 +169,9 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
                 parsingException = parsingException == null ? new IOException("failed parsing") : null;
                 break;
             case 1:
-                parsedAggs = parsedAggs == null ?
-                    XContentObjectTransformer.aggregatorTransformer(xContentRegistry()).fromMap(instance.getAggs()) :
-                    null;
+                parsedAggs = parsedAggs == null
+                    ? XContentObjectTransformer.aggregatorTransformer(xContentRegistry()).fromMap(instance.getAggs())
+                    : null;
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

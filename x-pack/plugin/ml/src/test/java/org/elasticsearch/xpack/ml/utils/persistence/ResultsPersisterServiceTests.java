@@ -60,8 +60,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -75,32 +75,50 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
-    private static final SearchResponse SEARCH_RESPONSE_SUCCESS =
-        new SearchResponse(null, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-    private static final SearchResponse SEARCH_RESPONSE_FAILURE =
-        new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+    private static final SearchResponse SEARCH_RESPONSE_SUCCESS = new SearchResponse(
+        null,
+        null,
+        1,
+        1,
+        0,
+        0,
+        ShardSearchFailure.EMPTY_ARRAY,
+        null
+    );
+    private static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
+        null,
+        null,
+        1,
+        0,
+        0,
+        0,
+        ShardSearchFailure.EMPTY_ARRAY,
+        null
+    );
 
     // Constants for bulkIndexWithRetry tests
-    private static final IndexRequest INDEX_REQUEST_SUCCESS =
-        new IndexRequest("my-index").id("success").source(Collections.singletonMap("data", "success"));
-    private static final IndexRequest INDEX_REQUEST_FAILURE =
-        new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
-    private static final BulkItemResponse BULK_ITEM_RESPONSE_SUCCESS =
-        BulkItemResponse.success(
+    private static final IndexRequest INDEX_REQUEST_SUCCESS = new IndexRequest("my-index").id("success")
+        .source(Collections.singletonMap("data", "success"));
+    private static final IndexRequest INDEX_REQUEST_FAILURE = new IndexRequest("my-index").id("fail")
+        .source(Collections.singletonMap("data", "fail"));
+    private static final BulkItemResponse BULK_ITEM_RESPONSE_SUCCESS = BulkItemResponse.success(
+        1,
+        DocWriteRequest.OpType.INDEX,
+        new IndexResponse(
+            new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
+            "_doc",
+            INDEX_REQUEST_SUCCESS.id(),
+            0,
+            0,
             1,
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
-                "_doc",
-                INDEX_REQUEST_SUCCESS.id(),
-                0,
-                0,
-                1,
-                true));
-    private static final BulkItemResponse BULK_ITEM_RESPONSE_FAILURE =
-        BulkItemResponse.failure(
-            2,
-            DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "_doc", "fail", new Exception("boom")));
+            true
+        )
+    );
+    private static final BulkItemResponse BULK_ITEM_RESPONSE_FAILURE = BulkItemResponse.failure(
+        2,
+        DocWriteRequest.OpType.INDEX,
+        new BulkItemResponse.Failure("my-index", "_doc", "fail", new Exception("boom"))
+    );
 
     private Client client;
     private OriginSettingClient originSettingClient;
@@ -114,8 +132,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_ImmediateSuccess() {
-        doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
@@ -126,8 +143,8 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_SuccessAfterRetry() {
-        doAnswerWithResponses(SEARCH_RESPONSE_FAILURE, SEARCH_RESPONSE_SUCCESS)
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswerWithResponses(SEARCH_RESPONSE_FAILURE, SEARCH_RESPONSE_SUCCESS).when(client)
+            .execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
@@ -138,9 +155,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_SuccessAfterRetryDueToException() {
-        doAnswer(withFailure(new IndexPrimaryShardNotAllocatedException(new Index("my-index", "UUID"))))
-            .doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withFailure(new IndexPrimaryShardNotAllocatedException(new Index("my-index", "UUID")))).doAnswer(
+            withResponse(SEARCH_RESPONSE_SUCCESS)
+        ).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
@@ -153,14 +170,13 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     private void testSearchWithRetries_FailureAfterTooManyRetries(int maxFailureRetries) {
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
-        ElasticsearchException e =
-            expectThrows(
-                ElasticsearchException.class,
-                () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add)
+        );
         assertThat(e.getMessage(), containsString("search failed with status"));
         assertThat(messages, hasSize(maxFailureRetries));
 
@@ -180,14 +196,13 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_Failure_ShouldNotRetryFromTheBeginning() {
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
-        ElasticsearchException e =
-            expectThrows(
-                ElasticsearchException.class,
-                () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> false, messages::add));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> false, messages::add)
+        );
         assertThat(e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, empty());
 
@@ -198,17 +213,15 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         int maxFailureRetries = 10;
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
         int maxRetries = randomIntBetween(1, maxFailureRetries);
         List<String> messages = new ArrayList<>();
-        ElasticsearchException e =
-            expectThrows(
-                ElasticsearchException.class,
-                () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, shouldRetryUntil(maxRetries), messages::add));
-        assertThat(
-            e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, shouldRetryUntil(maxRetries), messages::add)
+        );
+        assertThat(e.getMessage(), containsString("search failed with status SERVICE_UNAVAILABLE"));
         assertThat(messages, hasSize(maxRetries));
 
         verify(client, times(maxRetries + 1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -217,13 +230,13 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     public void testSearchWithRetries_FailureOnIrrecoverableError() {
         resultsPersisterService.setMaxFailureRetries(5);
 
-        doAnswer(withFailure(new ElasticsearchStatusException("bad search request", RestStatus.BAD_REQUEST)))
-            .when(client).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
+        doAnswer(withFailure(new ElasticsearchStatusException("bad search request", RestStatus.BAD_REQUEST))).when(client)
+            .execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
 
-        ElasticsearchException e =
-            expectThrows(
-                ElasticsearchException.class,
-                () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {}));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, (s) -> {})
+        );
         assertThat(e.getMessage(), containsString("bad search request"));
 
         verify(client, times(1)).execute(eq(SearchAction.INSTANCE), eq(SEARCH_REQUEST), any());
@@ -232,6 +245,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     private static Supplier<Boolean> shouldRetryUntil(int maxRetries) {
         return new Supplier<Boolean>() {
             int retries = 0;
+
             @Override
             public Boolean get() {
                 return ++retries <= maxRetries;
@@ -241,9 +255,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public void testBulkRequestChangeOnFailures() {
         doAnswerWithResponses(
-                new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
-                new BulkResponse(new BulkItemResponse[0], 0L))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+            new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -253,7 +267,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
 
-        ArgumentCaptor<BulkRequest> captor =  ArgumentCaptor.forClass(BulkRequest.class);
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
 
         List<BulkRequest> requests = captor.getAllValues();
@@ -269,18 +283,21 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         BulkItemResponse irrecoverable = BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", "_doc", "fail", new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST)));
+            new BulkItemResponse.Failure("my-index", "_doc", "fail", new ElasticsearchStatusException("boom", RestStatus.BAD_REQUEST))
+        );
         doAnswerWithResponses(
-            new BulkResponse(new BulkItemResponse[]{irrecoverable, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
-            new BulkResponse(new BulkItemResponse[0], 0L))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+            new BulkResponse(new BulkItemResponse[] { irrecoverable, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
         bulkRequest.add(INDEX_REQUEST_SUCCESS);
 
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s)->{}));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {})
+        );
 
         verify(client).execute(eq(BulkAction.INSTANCE), any(), any());
         assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
@@ -288,9 +305,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public void testBulkRequestDoesNotRetryWhenSupplierIsFalse() {
         doAnswerWithResponses(
-                new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
-                new BulkResponse(new BulkItemResponse[0], 0L))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+            new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -298,8 +315,10 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         AtomicReference<String> lastMessage = new AtomicReference<>();
 
-        expectThrows(ElasticsearchException.class,
-            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> false, lastMessage::set));
+        expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> false, lastMessage::set)
+        );
         verify(client, times(1)).execute(eq(BulkAction.INSTANCE), any(), any());
 
         assertThat(lastMessage.get(), is(nullValue()));
@@ -309,16 +328,18 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         int maxFailureRetries = 10;
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE}, 0L)))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE }, 0L))).when(client)
+            .execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
 
         AtomicReference<String> lastMessage = new AtomicReference<>();
 
-        expectThrows(ElasticsearchException.class,
-            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set));
+        expectThrows(
+            ElasticsearchException.class,
+            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set)
+        );
         verify(client, times(maxFailureRetries + 1)).execute(eq(BulkAction.INSTANCE), any(), any());
 
         assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again"));
@@ -326,9 +347,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public void testBulkRequestRetriesMsgHandlerIsCalled() {
         doAnswerWithResponses(
-                new BulkResponse(new BulkItemResponse[]{BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS}, 0L),
-                new BulkResponse(new BulkItemResponse[0], 0L))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+            new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -338,7 +359,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
 
-        ArgumentCaptor<BulkRequest> captor =  ArgumentCaptor.forClass(BulkRequest.class);
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
 
         List<BulkRequest> requests = captor.getAllValues();
@@ -372,14 +393,20 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
         ThreadPool tp = mock(ThreadPool.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-                ClusterService.USER_DEFINED_METADATA,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+                    ClusterService.USER_DEFINED_METADATA,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
         ExecutorService executor = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
@@ -390,9 +417,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(
-            any(Runnable.class), any(TimeValue.class), any(String.class)
-        );
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }
 }

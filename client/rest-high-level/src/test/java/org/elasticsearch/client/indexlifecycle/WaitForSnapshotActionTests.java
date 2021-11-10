@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static org.hamcrest.Matchers.is;
 

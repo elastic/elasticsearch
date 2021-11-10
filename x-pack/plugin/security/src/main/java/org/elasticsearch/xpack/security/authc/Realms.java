@@ -131,9 +131,9 @@ public class Realms implements Iterable<Realm> {
 
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
-            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
-                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
-            });
+            activeRealms.stream()
+                .filter(r -> licensedRealms.contains(r) == false)
+                .forEach(realm -> { handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot); });
         }
 
         activeRealms = licensedRealms;
@@ -142,11 +142,12 @@ public class Realms implements Iterable<Realm> {
     // Can be overridden in testing
     protected void handleDisabledRealmDueToLicenseChange(Realm realm, XPackLicenseState licenseStateSnapshot) {
         final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(realm.type());
-        assert feature != null : "Realm ["
-            + realm
-            + "] with no licensed feature became inactive due to change to license mode ["
-            + licenseStateSnapshot.getOperationMode()
-            + "]";
+        assert feature != null
+            : "Realm ["
+                + realm
+                + "] with no licensed feature became inactive due to change to license mode ["
+                + licenseStateSnapshot.getOperationMode()
+                + "]";
         feature.stopTracking(licenseStateSnapshot, realm.name());
         logger.warn(
             "The [{}.{}] realm has been automatically disabled due to a change in license [{}]",
@@ -512,7 +513,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
         if (false == realmIdentifiers.isEmpty()) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "realm_name_with_reserved_prefix",
                 "Found realm "

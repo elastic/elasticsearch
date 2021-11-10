@@ -36,10 +36,14 @@ public class GraphClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">Graph API
      * on elastic.co</a>.
      */
-    public final GraphExploreResponse explore(GraphExploreRequest graphExploreRequest,
-                                                             RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
-                options, GraphExploreResponse::fromXContent, emptySet());
+    public final GraphExploreResponse explore(GraphExploreRequest graphExploreRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            graphExploreRequest,
+            GraphRequestConverters::explore,
+            options,
+            GraphExploreResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -49,11 +53,19 @@ public class GraphClient {
      * on elastic.co</a>.
      * @return cancellable that may be used to cancel the request
      */
-    public final Cancellable exploreAsync(GraphExploreRequest graphExploreRequest,
-                                          RequestOptions options,
-                                          ActionListener<GraphExploreResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
-            options, GraphExploreResponse::fromXContent, listener, emptySet());
+    public final Cancellable exploreAsync(
+        GraphExploreRequest graphExploreRequest,
+        RequestOptions options,
+        ActionListener<GraphExploreResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            graphExploreRequest,
+            GraphRequestConverters::explore,
+            options,
+            GraphExploreResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
 }

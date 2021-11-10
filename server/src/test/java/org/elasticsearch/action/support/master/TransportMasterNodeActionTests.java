@@ -98,15 +98,31 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode("local_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
-        remoteNode = new DiscoveryNode("remote_node", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
-        allNodes = new DiscoveryNode[]{localNode, remoteNode};
+        localNode = new DiscoveryNode(
+            "local_node",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        remoteNode = new DiscoveryNode(
+            "remote_node",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
+        allNodes = new DiscoveryNode[] { localNode, remoteNode };
     }
 
     @After
@@ -197,19 +213,29 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     class Action extends TransportMasterNodeAction<Request, Response> {
-        Action(String actionName, TransportService transportService, ClusterService clusterService,
-               ThreadPool threadPool) {
+        Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
             this(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
         }
 
-        Action(String actionName, TransportService transportService, ClusterService clusterService,
-               ThreadPool threadPool, String executor) {
-            super(actionName, transportService, clusterService, threadPool,
-                new ActionFilters(new HashSet<>()), Request::new,
-                TestIndexNameExpressionResolver.newInstance(), Response::new,
-                executor);
+        Action(
+            String actionName,
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            String executor
+        ) {
+            super(
+                actionName,
+                transportService,
+                clusterService,
+                threadPool,
+                new ActionFilters(new HashSet<>()),
+                Request::new,
+                TestIndexNameExpressionResolver.newInstance(),
+                Response::new,
+                executor
+            );
         }
-
 
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
@@ -270,10 +296,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(unblockBeforeTimeout ? 60 : 0));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        ClusterBlock block = new ClusterBlock(1, "", retryableBlock, true,
-            false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterBlock block = new ClusterBlock(1, "", retryableBlock, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block))
+            .build();
         setState(clusterService, stateWithBlock);
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
@@ -286,8 +312,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         if (retryableBlock && unblockBeforeTimeout) {
             assertFalse(listener.isDone());
-            setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
+            setState(
+                clusterService,
+                ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                    .build()
+            );
             assertTrue(listener.isDone());
             listener.get();
             return;
@@ -312,10 +342,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(60));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        ClusterBlock block = new ClusterBlock(1, "", true, true,
-            false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-            .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block))
+            .build();
         setState(clusterService, stateWithBlock);
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
@@ -334,8 +364,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertListenerThrows("checkBlock has thrown exception", listener, RuntimeException.class);
         } else {
             assertFalse(listener.isDone());
-            setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
+            setState(
+                clusterService,
+                ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                    .build()
+            );
             assertListenerThrows("checkBlock has thrown exception", listener, RuntimeException.class);
         }
     }
@@ -418,8 +452,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
-            transport.handleRemoteError(capturedRequest.requestId,
-                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode));
+            transport.handleRemoteError(
+                capturedRequest.requestId,
+                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode)
+            );
             assertFalse(listener.isDone());
             if (randomBoolean()) {
                 // simulate master node removal
@@ -482,14 +518,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
 
-        new Action( "internal:testAction", transportService, clusterService, threadPool) {
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
             protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
-                        ? new FailedToCommitClusterStateException("Fake error")
-                        : new NotMasterException("Fake error");
+                    ? new FailedToCommitClusterStateException("Fake error")
+                    : new NotMasterException("Fake error");
                 listener.onFailure(failure);
             }
         }.execute(request, listener);
@@ -506,16 +542,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public void testTaskCancellation() {
-        ClusterBlock block = new ClusterBlock(1,
-            "",
-            true,
-            true,
-            false,
-            randomFrom(RestStatus.values()),
-            ClusterBlockLevel.ALL
-        );
+        ClusterBlock block = new ClusterBlock(1, "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-            .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block))
+            .build();
 
         // Update the cluster state with a block so the request waits until it's unblocked
         setState(clusterService, stateWithBlock);
@@ -578,7 +608,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         final Runnable releaseBlockedThreads = blockAllThreads(executorName);
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool, executorName),
+        ActionTestUtils.execute(
+            new Action("internal:testAction", transportService, clusterService, threadPool, executorName),
             task,
             request,
             listener
@@ -597,10 +628,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         String indexRequestName = "my-index";
         request.indices(indexRequestName);
 
-        ClusterState stateWithBlockWithoutIndexMetadata =
-            ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
-                .build();
+        ClusterState stateWithBlockWithoutIndexMetadata = ClusterState.builder(
+            ClusterStateCreationUtils.state(localNode, localNode, allNodes)
+        ).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
         setState(clusterService, stateWithBlockWithoutIndexMetadata);
 
         Action action = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME) {
@@ -608,8 +638,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
             @Override
             protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-                return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-                    indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request));
+                return state.blocks()
+                    .indicesBlockedException(
+                        ClusterBlockLevel.METADATA_READ,
+                        indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request)
+                    );
             }
 
         };
@@ -618,11 +651,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         ActionTestUtils.execute(action, null, request, listener);
 
         assertFalse(listener.isDone());
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexRequestName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexRequestName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
         ClusterState clusterStateWithoutBlocks = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
             .metadata(Metadata.builder().put(indexMetadataBuilder).build())
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
@@ -632,15 +664,14 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         listener.get();
     }
 
-    public void testGlobalBlocksAreCheckedAfterIndexNotFoundExceptionTimesOutIfIndexIsNotFound()  {
+    public void testGlobalBlocksAreCheckedAfterIndexNotFoundExceptionTimesOutIfIndexIsNotFound() {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueMillis(50));
         String indexRequestName = "my-index";
         request.indices(indexRequestName);
 
-        ClusterState stateWithBlockWithoutIndexMetadata =
-            ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
-                .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
-                .build();
+        ClusterState stateWithBlockWithoutIndexMetadata = ClusterState.builder(
+            ClusterStateCreationUtils.state(localNode, localNode, allNodes)
+        ).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
         setState(clusterService, stateWithBlockWithoutIndexMetadata);
 
         Action action = new Action("internal:testAction", transportService, clusterService, threadPool, ThreadPool.Names.SAME) {
@@ -648,8 +679,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
             @Override
             protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-                return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-                    indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request));
+                return state.blocks()
+                    .indicesBlockedException(
+                        ClusterBlockLevel.METADATA_READ,
+                        indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request)
+                    );
             }
 
         };

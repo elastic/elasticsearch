@@ -31,10 +31,10 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
     private static final SystemIndices.Feature FEATURE = getFeature();
 
     public void testGetFeatureStatus() {
-        GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status =
-            TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(
-                CLUSTER_STATE,
-                FEATURE);
+        GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status = TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(
+            CLUSTER_STATE,
+            FEATURE
+        );
 
         assertThat(status.getUpgradeStatus(), equalTo(MIGRATION_NEEDED));
         assertThat(status.getFeatureName(), equalTo("test-feature"));
@@ -43,8 +43,10 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
     }
 
     public void testGetIndexInfos() {
-        List<GetFeatureUpgradeStatusResponse.IndexInfo> versions =
-            TransportGetFeatureUpgradeStatusAction.getIndexInfos(CLUSTER_STATE, FEATURE);
+        List<GetFeatureUpgradeStatusResponse.IndexInfo> versions = TransportGetFeatureUpgradeStatusAction.getIndexInfos(
+            CLUSTER_STATE,
+            FEATURE
+        );
 
         assertThat(versions.size(), equalTo(2));
 
@@ -67,10 +69,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
         descriptors.add(descriptor);
 
         // system indices feature object
-        SystemIndices.Feature feature = new SystemIndices.Feature(
-            "test-feature",
-            "feature for tests",
-            descriptors);
+        SystemIndices.Feature feature = new SystemIndices.Feature("test-feature", "feature for tests", descriptors);
         return feature;
     }
 
@@ -87,14 +86,14 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE)
-            .metadata(new Metadata.Builder()
-                .indices(ImmutableOpenMap.<String, IndexMetadata>builder()
+        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(
+            new Metadata.Builder().indices(
+                ImmutableOpenMap.<String, IndexMetadata>builder()
                     .fPut(".test-index-1", indexMetadata1)
                     .fPut(".test-index-2", indexMetadata2)
-                    .build())
-                .build())
-            .build();
+                    .build()
+            ).build()
+        ).build();
         return clusterState;
     }
 }

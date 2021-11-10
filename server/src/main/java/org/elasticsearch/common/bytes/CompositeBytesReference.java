@@ -66,8 +66,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
             references,
             offsets,
             offset,
-            ramBytesUsed
-                + (Integer.BYTES * offsets.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // offsets
+            ramBytesUsed + (Integer.BYTES * offsets.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // offsets
                 + (references.length * RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // references
                 + Integer.BYTES // length
                 + Long.BYTES// ramBytesUsed
@@ -91,7 +90,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     private CompositeBytesReference(BytesReference[] references, int[] offsets, int length, long ramBytesUsed) {
         assert references != null && offsets != null;
         assert references.length > 1
-                : "Should not build composite reference from less than two references but received [" + references.length + "]";
+            : "Should not build composite reference from less than two references but received [" + references.length + "]";
         assert Arrays.stream(references).allMatch(r -> r != null && r.length() > 0);
         assert offsets[0] == 0;
         assert IntStream.range(1, references.length).allMatch(i -> offsets[i] - offsets[i - 1] == references[i - 1].length());
@@ -168,7 +167,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         }
         // now adjust slices in front and at the end
         inSlice[0] = inSlice[0].slice(inSliceOffset, inSlice[0].length() - inSliceOffset);
-        inSlice[inSlice.length-1] = inSlice[inSlice.length-1].slice(0, to - offsets[limit]);
+        inSlice[inSlice.length - 1] = inSlice[inSlice.length - 1].slice(0, to - offsets[limit]);
         return CompositeBytesReference.ofMultiple(inSlice);
     }
 
@@ -225,6 +224,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public long ramBytesUsed() {
-       return ramBytesUsed;
+        return ramBytesUsed;
     }
 }

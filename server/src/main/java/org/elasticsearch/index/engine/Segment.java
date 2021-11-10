@@ -10,19 +10,19 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedNumericSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -208,11 +208,9 @@ public class Segment implements Writeable {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                fields[i] = new SortedSetSortField(field, reverse,
-                    max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+                fields[i] = new SortedSetSortField(field, reverse, max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
                 if (missingFirst != null) {
-                    fields[i].setMissingValue(missingFirst ?
-                        SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
                 }
             } else {
                 Object missing = in.readGenericValue();
@@ -233,11 +231,14 @@ public class Segment implements Writeable {
                         numericType = SortField.Type.LONG;
                         break;
                     default:
-                        throw new IOException("invalid index sort type:[" + type +
-                            "] for numeric field:[" + field + "]");
+                        throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
                 }
-                fields[i] = new SortedNumericSortField(field, numericType, reverse, max ?
-                    SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN);
+                fields[i] = new SortedNumericSortField(
+                    field,
+                    numericType,
+                    reverse,
+                    max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
+                );
                 if (missing != null) {
                     fields[i].setMissingValue(missing);
                 }
@@ -256,8 +257,7 @@ public class Segment implements Writeable {
             out.writeString(field.getField());
             if (field instanceof SortedSetSortField) {
                 out.writeByte((byte) 0);
-                out.writeOptionalBoolean(field.getMissingValue() == null ?
-                    null : field.getMissingValue() == SortField.STRING_FIRST);
+                out.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
                 out.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
                 out.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
@@ -313,20 +313,35 @@ public class Segment implements Writeable {
 
     @Override
     public String toString() {
-        return "Segment{" +
-                "name='" + name + '\'' +
-                ", generation=" + generation +
-                ", committed=" + committed +
-                ", search=" + search +
-                ", sizeInBytes=" + sizeInBytes +
-                ", docCount=" + docCount +
-                ", delDocCount=" + delDocCount +
-                ", version='" + version + '\'' +
-                ", compound=" + compound +
-                ", mergeId='" + mergeId + '\'' +
-                ", memoryInBytes=" + memoryInBytes +
-                (segmentSort != null ? ", sort=" + segmentSort : "") +
-                ", attributes=" + attributes +
-                '}';
+        return "Segment{"
+            + "name='"
+            + name
+            + '\''
+            + ", generation="
+            + generation
+            + ", committed="
+            + committed
+            + ", search="
+            + search
+            + ", sizeInBytes="
+            + sizeInBytes
+            + ", docCount="
+            + docCount
+            + ", delDocCount="
+            + delDocCount
+            + ", version='"
+            + version
+            + '\''
+            + ", compound="
+            + compound
+            + ", mergeId='"
+            + mergeId
+            + '\''
+            + ", memoryInBytes="
+            + memoryInBytes
+            + (segmentSort != null ? ", sort=" + segmentSort : "")
+            + ", attributes="
+            + attributes
+            + '}';
     }
 }

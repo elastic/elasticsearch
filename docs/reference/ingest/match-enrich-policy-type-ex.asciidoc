@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[match-enrich-policy-type]]
 === Example: Enrich your data based on exact values
 
@@ -147,6 +146,8 @@ The API returns the following response:
 --------------------------------------------------
 DELETE /_ingest/pipeline/user_lookup
 DELETE /_enrich/policy/users-policy
+DELETE /my-index-000001
+DELETE /users
 --------------------------------------------------
 // TEST[continued]
 ////

@@ -10,13 +10,13 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -29,8 +29,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/some_type/some_id/_termvectors")
             .build();
 
@@ -41,11 +40,8 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
         assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
-     public void testTypeInBody() throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
-            .field("_type", "some_type")
-            .field("_id", 1)
-        .endObject();
+    public void testTypeInBody() throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject().field("_type", "some_type").field("_id", 1).endObject();
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_termvectors/some_id")

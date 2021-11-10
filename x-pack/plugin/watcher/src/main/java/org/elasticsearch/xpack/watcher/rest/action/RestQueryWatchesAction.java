@@ -24,10 +24,7 @@ public class RestQueryWatchesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_watcher/_query/watches"),
-            new Route(POST, "/_watcher/_query/watches")
-        ));
+        return unmodifiableList(asList(new Route(GET, "/_watcher/_query/watches"), new Route(POST, "/_watcher/_query/watches")));
     }
 
     @Override

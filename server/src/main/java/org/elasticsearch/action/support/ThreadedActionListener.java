@@ -38,7 +38,7 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
         public Wrapper(Logger logger, Settings settings, ThreadPool threadPool) {
             this.logger = logger;
             this.threadPool = threadPool;
-             // Should the action listener be threaded or not by default. Action listeners are automatically threaded for
+            // Should the action listener be threaded or not by default. Action listeners are automatically threaded for
             // the transport client in order to make sure client side code is not executed on IO threads.
             this.threadedListener = TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(settings));
         }
@@ -64,8 +64,13 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
     private final String executor;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(Logger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
-                                  boolean forceExecution) {
+    public ThreadedActionListener(
+        Logger logger,
+        ThreadPool threadPool,
+        String executor,
+        ActionListener<Response> listener,
+        boolean forceExecution
+    ) {
         super(listener);
         this.logger = logger;
         this.threadPool = threadPool;

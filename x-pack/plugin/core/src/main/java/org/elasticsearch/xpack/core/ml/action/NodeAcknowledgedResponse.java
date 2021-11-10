@@ -62,8 +62,7 @@ public class NodeAcknowledgedResponse extends AcknowledgedResponse {
             return false;
         }
         NodeAcknowledgedResponse that = (NodeAcknowledgedResponse) o;
-        return isAcknowledged() == that.isAcknowledged()
-            && Objects.equals(node, that.node);
+        return isAcknowledged() == that.isAcknowledged() && Objects.equals(node, that.node);
     }
 
     @Override

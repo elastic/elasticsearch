@@ -109,19 +109,16 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         startDataFrameJob("feature_reset_data_frame_analytics_job");
         putTrainedModelIngestPipeline("feature_reset_inference_pipeline");
         createdPipelines.add("feature_reset_inference_pipeline");
-        for(int i = 0; i < 100; i ++) {
+        for (int i = 0; i < 100; i++) {
             indexDocForInference("feature_reset_inference_pipeline");
         }
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_inference_pipeline")).actionGet();
         createdPipelines.remove("feature_reset_inference_pipeline");
 
-        assertBusy(() ->
-            assertThat(countNumberInferenceProcessors(client().admin().cluster().prepareState().get().getState()), equalTo(0))
+        assertBusy(
+            () -> assertThat(countNumberInferenceProcessors(client().admin().cluster().prepareState().get().getState()), equalTo(0))
         );
-        client().execute(
-            ResetFeatureStateAction.INSTANCE,
-            new ResetFeatureStateRequest()
-        ).actionGet();
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
         assertBusy(() -> assertThat(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices(), emptyArray()));
         assertThat(isResetMode(), is(false));
         // If we have succeeded, clear the jobs and datafeeds so that the delete API doesn't recreate the notifications index
@@ -132,10 +129,10 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     public void testMLFeatureResetFailureDueToPipelines() throws Exception {
         putTrainedModelIngestPipeline("feature_reset_failure_inference_pipeline");
         createdPipelines.add("feature_reset_failure_inference_pipeline");
-        Exception ex = expectThrows(Exception.class, () -> client().execute(
-            ResetFeatureStateAction.INSTANCE,
-            new ResetFeatureStateRequest()
-        ).actionGet());
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet()
+        );
         assertThat(
             ex.getMessage(),
             containsString(
@@ -158,7 +155,11 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         ClassificationIT.createIndex(sourceIndex, false);
         ClassificationIT.indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
 
-        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            jobId,
+            sourceIndex,
+            destIndex,
+            null,
             new Classification(
                 KEYWORD_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
@@ -168,7 +169,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 null,
                 null,
                 null,
-                null));
+                null
+            )
+        );
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
 
@@ -184,9 +187,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void startRealtime(String jobId) throws Exception {
-        client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
-            .get();
+        client().admin().indices().prepareCreate("data").addMapping("type", "time", "type=date").get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long lastWeek = now - 604800000;
@@ -218,17 +219,17 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             new PutPipelineRequest(
                 pipelineId,
                 new BytesArray(
-                    "{\n" +
-                    "    \"processors\": [\n" +
-                        "      {\n" +
-                        "        \"inference\": {\n" +
-                        "          \"inference_config\": {\"classification\":{}},\n" +
-                        "          \"model_id\": \"lang_ident_model_1\",\n" +
-                        "          \"field_map\": {}\n" +
-                        "        }\n" +
-                        "      }\n" +
-                        "    ]\n" +
-                        "  }"
+                    "{\n"
+                        + "    \"processors\": [\n"
+                        + "      {\n"
+                        + "        \"inference\": {\n"
+                        + "          \"inference_config\": {\"classification\":{}},\n"
+                        + "          \"model_id\": \"lang_ident_model_1\",\n"
+                        + "          \"field_map\": {}\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    ]\n"
+                        + "  }"
                 ),
                 XContentType.JSON
             )

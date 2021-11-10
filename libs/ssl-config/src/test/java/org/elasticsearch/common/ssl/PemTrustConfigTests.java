@@ -148,7 +148,7 @@ public class PemTrustConfigTests extends ESTestCase {
          * ArrayIndexOutOfBoundsException. This check ensures that when we create random stream of bytes we do not create ASN.1 SEQUENCE
          * followed by zero length which fails the test intermittently.
          */
-        while(checkRandomGeneratedBytesRepresentZeroLengthDerSequenceCausingArrayIndexOutOfBound(bytes)) {
+        while (checkRandomGeneratedBytesRepresentZeroLengthDerSequenceCausingArrayIndexOutOfBound(bytes)) {
             bytes = randomByteArrayOfLength(length);
         }
         return bytes;

@@ -41,10 +41,12 @@ public class RestStopDataFrameAnalyticsAction extends BaseRestHandler {
             request = StopDataFrameAnalyticsAction.Request.parseRequest(id, restRequest.contentOrSourceParamParser());
         } else {
             request = new StopDataFrameAnalyticsAction.Request(id);
-            request.setTimeout(restRequest.paramAsTime(StopDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(),
-                request.getTimeout()));
-            request.setAllowNoMatch(restRequest.paramAsBoolean(StopDataFrameAnalyticsAction.Request.ALLOW_NO_MATCH.getPreferredName(),
-                request.allowNoMatch()));
+            request.setTimeout(
+                restRequest.paramAsTime(StopDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(), request.getTimeout())
+            );
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(StopDataFrameAnalyticsAction.Request.ALLOW_NO_MATCH.getPreferredName(), request.allowNoMatch())
+            );
             request.setForce(restRequest.paramAsBoolean(StopDataFrameAnalyticsAction.Request.FORCE.getPreferredName(), request.isForce()));
         }
         return channel -> client.execute(StopDataFrameAnalyticsAction.INSTANCE, request, new RestToXContentListener<>(channel));

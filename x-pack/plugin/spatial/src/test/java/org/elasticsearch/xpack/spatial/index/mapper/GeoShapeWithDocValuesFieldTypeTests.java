@@ -27,15 +27,20 @@ import java.util.Map;
 public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper
-            = new GeoShapeFieldMapper.Builder("field", true, true)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType mapper = new GeoShapeFieldMapper.Builder("field", true, true).build(MapperBuilderContext.ROOT).fieldType();
 
-        Map<String, Object> jsonLineString = org.elasticsearch.core.Map.of("type", "LineString", "coordinates",
-            org.elasticsearch.core.List.of(org.elasticsearch.core.List.of(42.0, 27.1), org.elasticsearch.core.List.of(30.0, 50.0)));
-        Map<String, Object> jsonPoint = org.elasticsearch.core.Map.of("type", "Point", "coordinates",
-            org.elasticsearch.core.List.of(14.0, 15.0));
+        Map<String, Object> jsonLineString = org.elasticsearch.core.Map.of(
+            "type",
+            "LineString",
+            "coordinates",
+            org.elasticsearch.core.List.of(org.elasticsearch.core.List.of(42.0, 27.1), org.elasticsearch.core.List.of(30.0, 50.0))
+        );
+        Map<String, Object> jsonPoint = org.elasticsearch.core.Map.of(
+            "type",
+            "Point",
+            "coordinates",
+            org.elasticsearch.core.List.of(14.0, 15.0)
+        );
         Map<String, Object> jsonMalformed = org.elasticsearch.core.Map.of("type", "Point", "coordinates", "foo");
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.0 15.0)";
@@ -94,11 +99,15 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     private void fetchVectorTile(Geometry geometry) throws IOException {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
-            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories());
-        final MappedFieldType mapper
-            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, geoFormatterFactory)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
+        );
+        final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
+            "field",
+            Version.CURRENT,
+            false,
+            false,
+            geoFormatterFactory
+        ).build(MapperBuilderContext.ROOT).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);

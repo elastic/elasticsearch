@@ -12,8 +12,8 @@ import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -39,10 +39,10 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
 
     @Before
     public void defineApplicationPrivileges() throws IOException {
-        super.createApplicationPrivileges("elastic-cloud", org.elasticsearch.core.Map.of(
-            "deployment_admin", Set.of("sso:admin"),
-            "deployment_viewer", Set.of("sso:viewer")
-        ));
+        super.createApplicationPrivileges(
+            "elastic-cloud",
+            org.elasticsearch.core.Map.of("deployment_admin", Set.of("sso:admin"), "deployment_viewer", Set.of("sso:viewer"))
+        );
     }
 
     public void testGetWildcardServiceProviderMetadata() throws Exception {
@@ -67,7 +67,9 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         final User user = createUser(username, password, roleName);
 
         final ApplicationResourcePrivileges applicationPrivilege = new ApplicationResourcePrivileges(
-            "elastic-cloud", Collections.singletonList("sso:admin"), Collections.singletonList("sso:" + entityId)
+            "elastic-cloud",
+            Collections.singletonList("sso:admin"),
+            Collections.singletonList("sso:" + entityId)
         );
         createRole(roleName, Collections.emptyList(), Collections.emptyList(), Collections.singletonList(applicationPrivilege));
 
@@ -101,8 +103,14 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
     private String initSso(String entityId, String acs, UsernamePasswordToken secondaryAuth) throws IOException {
         final Request request = new Request("POST", "/_idp/saml/init/");
         request.setJsonEntity(toJson(MapBuilder.<String, Object>newMapBuilder().put("entity_id", entityId).put("acs", acs).map()));
-        request.setOptions(request.getOptions().toBuilder().addHeader("es-secondary-authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())));
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    "es-secondary-authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())
+                )
+        );
         Response response = client().performRequest(request);
 
         final Map<String, Object> map = entityAsMap(response);

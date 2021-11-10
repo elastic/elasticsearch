@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPInterface;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,8 +58,14 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
         }
     }
 
-    protected static List<String> resolveBlocking(GroupsResolver resolver, LDAPInterface ldapConnection, String dn, TimeValue timeLimit,
-                                                  Logger logger, Collection<Attribute> attributes) {
+    protected static List<String> resolveBlocking(
+        GroupsResolver resolver,
+        LDAPInterface ldapConnection,
+        String dn,
+        TimeValue timeLimit,
+        Logger logger,
+        Collection<Attribute> attributes
+    ) {
         PlainActionFuture<List<String>> future = new PlainActionFuture<>();
         resolver.resolve(ldapConnection, dn, timeLimit, logger, attributes, future);
         return future.actionGet();

@@ -67,7 +67,7 @@ public class DeleteJobRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-       return null;
+        return null;
     }
 
     @Override

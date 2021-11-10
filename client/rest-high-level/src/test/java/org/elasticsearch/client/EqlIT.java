@@ -55,8 +55,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < RECORD_COUNT; i++) {
             final IndexRequest indexRequest = new IndexRequest(INDEX_NAME);
-            indexRequest.source(jsonBuilder()
-                    .startObject()
+            indexRequest.source(
+                jsonBuilder().startObject()
                     .field("event_subtype_full", "already_running")
                     .startObject("event")
                     .field("category", "process")
@@ -70,7 +70,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
                     .field("subtype", "create")
                     .field("@timestamp", String.format(Locale.ROOT, "2018-01-01T00:00:%02dZ", i))
                     .field("unique_pid", ((i % DIVIDER) == 0) ? 101 : 0)
-                    .endObject());
+                    .endObject()
+            );
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -129,8 +130,10 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
     public void testEqualsInFilterConditionSearch() throws Exception {
         EqlClient eql = highLevelClient().eql();
 
-        EqlSearchRequest request = new EqlSearchRequest("index",
-                "process where event_type_full == \"process_event\" and serial_event_id in (1,3,5)");
+        EqlSearchRequest request = new EqlSearchRequest(
+            "index",
+            "process where event_type_full == \"process_event\" and serial_event_id in (1,3,5)"
+        );
 
         EqlSearchResponse response = execute(request, eql::search, eql::searchAsync);
         assertResponse(response, 3);
@@ -167,7 +170,6 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
 
         client().performRequest(doc1);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
-
 
         EqlClient eql = highLevelClient().eql();
         EqlSearchRequest request = new EqlSearchRequest(index, "process where true");

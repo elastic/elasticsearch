@@ -11,55 +11,61 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
 
     @Override
     protected void createMapping(String indexName, String type, String fieldName, Settings settings) throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties").startObject(fieldName)
+        XContentBuilder xcb = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(fieldName)
             .field("type", "geo_point")
-            .endObject().endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
         client().admin().indices().prepareCreate(defaultIndexName).addMapping(type, xcb).get();
     }
 
     public void testFieldAlias() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject(defaultGeoFieldName)
-            .field("type", "geo_point")
-            .endObject()
-            .startObject("alias")
-            .field("type", "alias")
-            .field("path", defaultGeoFieldName)
-            .endObject()
-            .endObject()
-            .endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject(defaultGeoFieldName)
+                .field("type", "geo_point")
+                .endObject()
+                .startObject("alias")
+                .field("type", "alias")
+                .field("path", defaultGeoFieldName)
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         client().admin().indices().prepareCreate(defaultIndexName).addMapping(defaultType, mapping, XContentType.JSON).get();
         ensureGreen();
 
         Point point = GeometryTestUtils.randomPoint(false);
-        client().prepareIndex(defaultIndexName, defaultType).setId("1")
+        client().prepareIndex(defaultIndexName, defaultType)
+            .setId("1")
             .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
-            .setRefreshPolicy(IMMEDIATE).get();
-
-        SearchResponse response = client().prepareSearch(defaultIndexName)
-            .setQuery(geoShapeQuery("alias", point))
+            .setRefreshPolicy(IMMEDIATE)
             .get();
+
+        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", point)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
     }
 }

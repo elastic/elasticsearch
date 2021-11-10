@@ -27,11 +27,9 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(source(b -> b.field("_ignored", 1))));
+        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_ignored", 1))));
 
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [_ignored] is a metadata field and cannot be added inside a document"));
+        assertThat(e.getCause().getMessage(), containsString("Field [_ignored] is a metadata field and cannot be added inside a document"));
     }
 
     public void testDefaults() throws IOException {
@@ -46,23 +44,23 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testFetchIgnoredFieldValue() throws IOException {
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 3))
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 3)));
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc()); },
+            iw -> {
+                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+                when(searchExecutionContext.lookup()).thenReturn(lookup);
+                IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
+                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+                IndexSearcher searcher = newSearcher(iw);
+                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+                lookup.source().setSegmentAndDocument(context, 0);
+                valueFetcher.setNextReader(context);
+                assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), List.of()));
+            }
         );
-        withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc());
-        }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
-            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchExecutionContext.lookup()).thenReturn(lookup);
-            IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
-            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
-            IndexSearcher searcher = newSearcher(iw);
-            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
-            valueFetcher.setNextReader(context);
-            assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), List.of()));
-        });
     }
 
 }

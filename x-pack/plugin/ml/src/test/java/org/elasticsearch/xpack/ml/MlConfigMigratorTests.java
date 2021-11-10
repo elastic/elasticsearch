@@ -17,10 +17,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -70,33 +70,39 @@ public class MlConfigMigratorTests extends ESTestCase {
         Job jobWithoutAllocation = JobTests.buildJobBuilder("jobwithoutallocation").build();
         Job openJob = JobTests.buildJobBuilder("openjob").build();
 
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(closedJob, false)
-                .putJob(jobWithoutAllocation, false)
-                .putJob(openJob, false)
-                .putDatafeed(createCompatibleDatafeed(closedJob.getId()), Collections.emptyMap(), xContentRegistry());
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(closedJob, false)
+            .putJob(jobWithoutAllocation, false)
+            .putJob(openJob, false)
+            .putDatafeed(createCompatibleDatafeed(closedJob.getId()), Collections.emptyMap(), xContentRegistry());
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
-        tasksBuilder.addTask(MlTasks.jobTaskId("jobwithoutallocation"), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams("jobwithoutallocation"),
-                new PersistentTasksCustomMetadata.Assignment(null, "test assignment"));
-        tasksBuilder.addTask(MlTasks.jobTaskId("openjob"), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams("openjob"),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"));
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId("jobwithoutallocation"),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams("jobwithoutallocation"),
+            new PersistentTasksCustomMetadata.Assignment(null, "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId("openjob"),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams("openjob"),
+            new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+        );
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                .localNodeId("node1")
-                .masterNodeId("node1")
-                .build();
+            .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+            .localNodeId("node1")
+            .masterNodeId("node1")
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metadata(Metadata.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build())
-                )
-                .nodes(nodes)
-                .build();
+            .metadata(
+                Metadata.builder()
+                    .putCustom(MlMetadata.TYPE, mlMetadata.build())
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build())
+            )
+            .nodes(nodes)
+            .build();
 
         assertThat(MlConfigMigrator.closedOrUnallocatedJobs(clusterState), containsInAnyOrder(closedJob, jobWithoutAllocation));
     }
@@ -109,38 +115,46 @@ public class MlConfigMigratorTests extends ESTestCase {
         DatafeedConfig datafeedWithoutAllocation = createCompatibleDatafeed(job2.getId());
         DatafeedConfig startedDatafeed = createCompatibleDatafeed(job3.getId());
 
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(job1, false)
-                .putJob(job2, false)
-                .putJob(job3, false)
-                .putDatafeed(stopppedDatafeed, Collections.emptyMap(), xContentRegistry())
-                .putDatafeed(datafeedWithoutAllocation, Collections.emptyMap(), xContentRegistry())
-                .putDatafeed(startedDatafeed, Collections.emptyMap(), xContentRegistry());
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job1, false)
+            .putJob(job2, false)
+            .putJob(job3, false)
+            .putDatafeed(stopppedDatafeed, Collections.emptyMap(), xContentRegistry())
+            .putDatafeed(datafeedWithoutAllocation, Collections.emptyMap(), xContentRegistry())
+            .putDatafeed(startedDatafeed, Collections.emptyMap(), xContentRegistry());
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
-        tasksBuilder.addTask(MlTasks.datafeedTaskId(stopppedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
-                new StartDatafeedAction.DatafeedParams(stopppedDatafeed.getId(), 0L),
-                new PersistentTasksCustomMetadata.Assignment(null, "test assignment"));
-        tasksBuilder.addTask(MlTasks.datafeedTaskId(startedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
-                new StartDatafeedAction.DatafeedParams(stopppedDatafeed.getId(), 0L),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"));
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId(stopppedDatafeed.getId()),
+            MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams(stopppedDatafeed.getId(), 0L),
+            new PersistentTasksCustomMetadata.Assignment(null, "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId(startedDatafeed.getId()),
+            MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams(stopppedDatafeed.getId(), 0L),
+            new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+        );
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                .localNodeId("node1")
-                .masterNodeId("node1")
-                .build();
+            .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+            .localNodeId("node1")
+            .masterNodeId("node1")
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
-                .metadata(Metadata.builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build())
-                )
-                .nodes(nodes)
-                .build();
+            .metadata(
+                Metadata.builder()
+                    .putCustom(MlMetadata.TYPE, mlMetadata.build())
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build())
+            )
+            .nodes(nodes)
+            .build();
 
-        assertThat(MlConfigMigrator.stoppedOrUnallocatedDatafeeds(clusterState),
-                containsInAnyOrder(stopppedDatafeed, datafeedWithoutAllocation));
+        assertThat(
+            MlConfigMigrator.stoppedOrUnallocatedDatafeeds(clusterState),
+            containsInAnyOrder(stopppedDatafeed, datafeedWithoutAllocation)
+        );
     }
 
     public void testUpdateJobForMigration() {
@@ -177,8 +191,10 @@ public class MlConfigMigratorTests extends ESTestCase {
         jobs.add(JobTests.buildJobBuilder("baz").build());
 
         assertThat(MlConfigMigrator.filterFailedJobConfigWrites(Collections.emptySet(), jobs), hasSize(3));
-        assertThat(MlConfigMigrator.filterFailedJobConfigWrites(Collections.singleton(Job.documentId("bar")), jobs),
-                contains(jobs.get(0), jobs.get(2)));
+        assertThat(
+            MlConfigMigrator.filterFailedJobConfigWrites(Collections.singleton(Job.documentId("bar")), jobs),
+            contains(jobs.get(0), jobs.get(2))
+        );
     }
 
     public void testFilterFailedDatafeedConfigWrites() {
@@ -188,8 +204,10 @@ public class MlConfigMigratorTests extends ESTestCase {
         datafeeds.add(createCompatibleDatafeed("baz"));
 
         assertThat(MlConfigMigrator.filterFailedDatafeedConfigWrites(Collections.emptySet(), datafeeds), hasSize(3));
-        assertThat(MlConfigMigrator.filterFailedDatafeedConfigWrites(Collections.singleton(DatafeedConfig.documentId("df-foo")), datafeeds),
-                contains(datafeeds.get(1), datafeeds.get(2)));
+        assertThat(
+            MlConfigMigrator.filterFailedDatafeedConfigWrites(Collections.singleton(DatafeedConfig.documentId("df-foo")), datafeeds),
+            contains(datafeeds.get(1), datafeeds.get(2))
+        );
     }
 
     public void testDocumentsNotWritten() {
@@ -203,7 +221,7 @@ public class MlConfigMigratorTests extends ESTestCase {
         when(failure.getCause()).thenReturn(mock(IllegalStateException.class));
         when(failed.getFailure()).thenReturn(failure);
 
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] {ok, failed}, 1L);
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] { ok, failed }, 1L);
         Set<String> docsIds = MlConfigMigrator.documentsNotWritten(bulkResponse);
         assertThat(docsIds, contains("failed-doc-id"));
     }
@@ -213,14 +231,16 @@ public class MlConfigMigratorTests extends ESTestCase {
         Job job2 = JobTests.buildJobBuilder("job2").build();
         DatafeedConfig datafeedConfig1 = createCompatibleDatafeed(job1.getId());
         DatafeedConfig datafeedConfig2 = createCompatibleDatafeed(job2.getId());
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(job1, false)
-                .putJob(job2, false)
-                .putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry())
-                .putDatafeed(datafeedConfig2, Collections.emptyMap(), xContentRegistry());
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job1, false)
+            .putJob(job2, false)
+            .putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry())
+            .putDatafeed(datafeedConfig2, Collections.emptyMap(), xContentRegistry());
 
         MlConfigMigrator.RemovalResult removalResult = MlConfigMigrator.removeJobsAndDatafeeds(
-                Arrays.asList(job1, job2), Arrays.asList(datafeedConfig1, datafeedConfig2), mlMetadata.build());
+            Arrays.asList(job1, job2),
+            Arrays.asList(datafeedConfig1, datafeedConfig2),
+            mlMetadata.build()
+        );
 
         assertThat(removalResult.mlMetadata.getJobs().keySet(), empty());
         assertThat(removalResult.mlMetadata.getDatafeeds().keySet(), empty());
@@ -232,14 +252,15 @@ public class MlConfigMigratorTests extends ESTestCase {
         Job job1 = JobTests.buildJobBuilder("job1").build();
         Job job2 = JobTests.buildJobBuilder("job2").build();
         DatafeedConfig datafeedConfig1 = createCompatibleDatafeed(job1.getId());
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder()
-                .putJob(job1, false)
-                .putJob(job2, false)
-                .putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder().putJob(job1, false)
+            .putJob(job2, false)
+            .putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
 
         MlConfigMigrator.RemovalResult removalResult = MlConfigMigrator.removeJobsAndDatafeeds(
-                Arrays.asList(job1, JobTests.buildJobBuilder("job-none").build()),
-                Collections.singletonList(createCompatibleDatafeed("job-none")), mlMetadata.build());
+            Arrays.asList(job1, JobTests.buildJobBuilder("job-none").build()),
+            Collections.singletonList(createCompatibleDatafeed("job-none")),
+            mlMetadata.build()
+        );
 
         assertThat(removalResult.mlMetadata.getJobs().keySet(), contains("job2"));
         assertThat(removalResult.mlMetadata.getDatafeeds().keySet(), contains("df-job1"));
@@ -256,7 +277,7 @@ public class MlConfigMigratorTests extends ESTestCase {
         Map<String, Job> jobs = new HashMap<>();
 
         int numDatafeeds = MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2;
-        for (int i=0; i<numDatafeeds; i++) {
+        for (int i = 0; i < numDatafeeds; i++) {
             String jobId = "job" + i;
             jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
             datafeeds.add(createCompatibleDatafeed(jobId));
@@ -272,7 +293,7 @@ public class MlConfigMigratorTests extends ESTestCase {
         Map<String, Job> jobs = new HashMap<>();
 
         int numDatafeeds = MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2 + 10;
-        for (int i=0; i<numDatafeeds; i++) {
+        for (int i = 0; i < numDatafeeds; i++) {
             String jobId = "job" + i;
             jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
             datafeeds.add(createCompatibleDatafeed(jobId));
@@ -294,13 +315,13 @@ public class MlConfigMigratorTests extends ESTestCase {
         Map<String, Job> jobs = new HashMap<>();
 
         int numDatafeeds = MlConfigMigrator.MAX_BULK_WRITE_SIZE / 2 - 10;
-        for (int i=0; i<numDatafeeds; i++) {
+        for (int i = 0; i < numDatafeeds; i++) {
             String jobId = "job" + i;
             jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
             datafeeds.add(createCompatibleDatafeed(jobId));
         }
 
-        for (int i=numDatafeeds; i<numDatafeeds + 40; i++) {
+        for (int i = numDatafeeds; i < numDatafeeds + 40; i++) {
             String jobId = "job" + i;
             jobs.put(jobId, JobTests.buildJobBuilder(jobId).build());
         }
@@ -341,67 +362,85 @@ public class MlConfigMigratorTests extends ESTestCase {
         datafeeds.put(unallocatedDatafeed.getId(), unallocatedDatafeed);
         datafeeds.put(allocatedDatafeed.getId(), allocatedDatafeed);
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         // job tasks
-        tasksBuilder.addTask(MlTasks.jobTaskId(unallocatedJob.getId()), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams(unallocatedJob.getId()),
-                new PersistentTasksCustomMetadata.Assignment(null, "no assignment"));
-        tasksBuilder.addTask(MlTasks.jobTaskId(allocatedJob.getId()), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams(allocatedJob.getId()),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"));
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId(unallocatedJob.getId()),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams(unallocatedJob.getId()),
+            new PersistentTasksCustomMetadata.Assignment(null, "no assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId(allocatedJob.getId()),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams(allocatedJob.getId()),
+            new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+        );
         // datafeed tasks
-        tasksBuilder.addTask(MlTasks.datafeedTaskId(unallocatedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
-                new StartDatafeedAction.DatafeedParams(unallocatedDatafeed.getId(), 0L),
-                new PersistentTasksCustomMetadata.Assignment(null, "no assignment"));
-        tasksBuilder.addTask(MlTasks.datafeedTaskId(allocatedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
-                new StartDatafeedAction.DatafeedParams(allocatedDatafeed.getId(), 0L),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"));
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId(unallocatedDatafeed.getId()),
+            MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams(unallocatedDatafeed.getId(), 0L),
+            new PersistentTasksCustomMetadata.Assignment(null, "no assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId(allocatedDatafeed.getId()),
+            MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams(allocatedDatafeed.getId(), 0L),
+            new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+        );
 
         PersistentTasksCustomMetadata originalTasks = tasksBuilder.build();
         OpenJobAction.JobParams originalUnallocatedTaskParams = (OpenJobAction.JobParams) originalTasks.getTask(
-                MlTasks.jobTaskId(unallocatedJob.getId())).getParams();
+            MlTasks.jobTaskId(unallocatedJob.getId())
+        ).getParams();
         assertNull(originalUnallocatedTaskParams.getJob());
         StartDatafeedAction.DatafeedParams originalUnallocatedDatafeedParams = (StartDatafeedAction.DatafeedParams) originalTasks.getTask(
-                MlTasks.datafeedTaskId(unallocatedDatafeed.getId())).getParams();
+            MlTasks.datafeedTaskId(unallocatedDatafeed.getId())
+        ).getParams();
         assertNull(originalUnallocatedDatafeedParams.getJobId());
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                .localNodeId("node1")
-                .masterNodeId("node1")
-                .build();
+            .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+            .localNodeId("node1")
+            .masterNodeId("node1")
+            .build();
 
         PersistentTasksCustomMetadata modifedTasks = MlConfigMigrator.rewritePersistentTaskParams(jobs, datafeeds, originalTasks, nodes);
 
         // The unallocated task should be modifed
-        OpenJobAction.JobParams modifedUnallocatedTaskParams =
-                (OpenJobAction.JobParams) modifedTasks.getTask(MlTasks.jobTaskId(unallocatedJob.getId())).getParams();
+        OpenJobAction.JobParams modifedUnallocatedTaskParams = (OpenJobAction.JobParams) modifedTasks.getTask(
+            MlTasks.jobTaskId(unallocatedJob.getId())
+        ).getParams();
         assertNotEquals(originalUnallocatedTaskParams, modifedUnallocatedTaskParams);
         assertEquals(unallocatedJob, modifedUnallocatedTaskParams.getJob());
 
         // the allocated task should not be modified
-        OpenJobAction.JobParams allocatedJobParams =
-                (OpenJobAction.JobParams) modifedTasks.getTask(MlTasks.jobTaskId(allocatedJob.getId())).getParams();
+        OpenJobAction.JobParams allocatedJobParams = (OpenJobAction.JobParams) modifedTasks.getTask(MlTasks.jobTaskId(allocatedJob.getId()))
+            .getParams();
         assertEquals(null, allocatedJobParams.getJob());
-        OpenJobAction.JobParams originalAllocatedJobParams =
-                (OpenJobAction.JobParams) originalTasks.getTask(MlTasks.jobTaskId(allocatedJob.getId())).getParams();
+        OpenJobAction.JobParams originalAllocatedJobParams = (OpenJobAction.JobParams) originalTasks.getTask(
+            MlTasks.jobTaskId(allocatedJob.getId())
+        ).getParams();
         assertEquals(originalAllocatedJobParams, allocatedJobParams);
-
 
         // unallocated datafeed should be updated
         StartDatafeedAction.DatafeedParams modifiedUnallocatedDatafeedParams = (StartDatafeedAction.DatafeedParams) modifedTasks.getTask(
-                MlTasks.datafeedTaskId(unallocatedDatafeed.getId())).getParams();
+            MlTasks.datafeedTaskId(unallocatedDatafeed.getId())
+        ).getParams();
         assertNotEquals(originalUnallocatedDatafeedParams, modifiedUnallocatedDatafeedParams);
         assertEquals(unallocatedDatafeed.getJobId(), modifiedUnallocatedDatafeedParams.getJobId());
         assertEquals(unallocatedDatafeed.getIndices(), modifiedUnallocatedDatafeedParams.getDatafeedIndices());
 
         // allocated datafeed will not be updated
         StartDatafeedAction.DatafeedParams allocatedDatafeedParams = (StartDatafeedAction.DatafeedParams) modifedTasks.getTask(
-                MlTasks.datafeedTaskId(allocatedDatafeed.getId())).getParams();
+            MlTasks.datafeedTaskId(allocatedDatafeed.getId())
+        ).getParams();
         assertNull(allocatedDatafeedParams.getJobId());
         assertThat(allocatedDatafeedParams.getDatafeedIndices(), empty());
         StartDatafeedAction.DatafeedParams originalAllocatedDatafeedParams = (StartDatafeedAction.DatafeedParams) originalTasks.getTask(
-                MlTasks.datafeedTaskId(allocatedDatafeed.getId())).getParams();
+            MlTasks.datafeedTaskId(allocatedDatafeed.getId())
+        ).getParams();
         assertEquals(originalAllocatedDatafeedParams, allocatedDatafeedParams);
     }
 
@@ -414,19 +453,25 @@ public class MlConfigMigratorTests extends ESTestCase {
         DatafeedConfig allocatedDatafeed = createCompatibleDatafeed(allocatedJob.getId());
         datafeeds.put(allocatedDatafeed.getId(), allocatedDatafeed);
 
-        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
-        tasksBuilder.addTask(MlTasks.jobTaskId(allocatedJob.getId()), MlTasks.JOB_TASK_NAME,
-                new OpenJobAction.JobParams(allocatedJob.getId()),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"));
-        tasksBuilder.addTask(MlTasks.datafeedTaskId(allocatedDatafeed.getId()), MlTasks.DATAFEED_TASK_NAME,
-                new StartDatafeedAction.DatafeedParams(allocatedDatafeed.getId(), 0L),
-                new PersistentTasksCustomMetadata.Assignment("node1", "test assignment"));
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId(allocatedJob.getId()),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams(allocatedJob.getId()),
+            new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId(allocatedDatafeed.getId()),
+            MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams(allocatedDatafeed.getId(), 0L),
+            new PersistentTasksCustomMetadata.Assignment("node1", "test assignment")
+        );
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                .localNodeId("node1")
-                .masterNodeId("node1")
-                .build();
+            .add(new DiscoveryNode("node1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
+            .localNodeId("node1")
+            .masterNodeId("node1")
+            .build();
 
         PersistentTasksCustomMetadata originalTasks = tasksBuilder.build();
         PersistentTasksCustomMetadata modifedTasks = MlConfigMigrator.rewritePersistentTaskParams(jobs, datafeeds, originalTasks, nodes);

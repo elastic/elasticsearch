@@ -8,12 +8,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.core.List;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.List;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -35,8 +35,9 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
 
     @Override
     protected ToXContent.Params getToXContentParams() {
-        return randomBoolean() ? new ToXContent.MapParams(Map.of("binary", randomBoolean() ? "true" : "false")) :
-            super.getToXContentParams();
+        return randomBoolean()
+            ? new ToXContent.MapParams(Map.of("binary", randomBoolean() ? "true" : "false"))
+            : super.getToXContentParams();
     }
 
     @Override
@@ -91,15 +92,23 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
         }
         // noop update to filter:
         {
-            DataStreamAlias alias =
-                new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, Map.of("term", Map.of("field", "value")));
+            DataStreamAlias alias = new DataStreamAlias(
+                "my-alias",
+                List.of("ds-1", "ds-2"),
+                null,
+                Map.of("term", Map.of("field", "value"))
+            );
             DataStreamAlias result = alias.update("ds-2", null, Map.of("term", Map.of("field", "value")));
             assertThat(result, sameInstance(alias));
         }
         // update filter:
         {
-            DataStreamAlias alias =
-                new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, Map.of("term", Map.of("field", "value")));
+            DataStreamAlias alias = new DataStreamAlias(
+                "my-alias",
+                List.of("ds-1", "ds-2"),
+                null,
+                Map.of("term", Map.of("field", "value"))
+            );
             DataStreamAlias result = alias.update("ds-2", null, Map.of("term", Map.of("field", "value1")));
             assertThat(result, not(sameInstance(alias)));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
@@ -109,8 +118,12 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
         }
         // Filter not specified, keep existing filter:
         {
-            DataStreamAlias alias =
-                new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, Map.of("term", Map.of("field", "value")));
+            DataStreamAlias alias = new DataStreamAlias(
+                "my-alias",
+                List.of("ds-1", "ds-2"),
+                null,
+                Map.of("term", Map.of("field", "value"))
+            );
             DataStreamAlias result = alias.update("ds-2", null, null);
             assertThat(result, sameInstance(alias));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));

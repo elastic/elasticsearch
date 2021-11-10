@@ -8,12 +8,12 @@
 
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 /**
  * A REST based action listener that requires the response to implement {@link ToXContentObject} and automatically
@@ -26,7 +26,7 @@ public class RestToXContentListener<Response extends ToXContentObject> extends R
     }
 
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        assert response.isFragment() == false; //would be nice if we could make default methods final
+        assert response.isFragment() == false; // would be nice if we could make default methods final
         response.toXContent(builder, channel.request());
 
         return new BytesRestResponse(getStatus(response), builder);

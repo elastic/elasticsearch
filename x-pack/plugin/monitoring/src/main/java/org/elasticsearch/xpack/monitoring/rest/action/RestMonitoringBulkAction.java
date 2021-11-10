@@ -10,11 +10,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
@@ -45,20 +45,22 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
     );
 
-    private static final Map<MonitoredSystem, List<String>> SUPPORTED_API_VERSIONS =
-        Collections.unmodifiableMap(MapBuilder.<MonitoredSystem, List<String>>newMapBuilder()
+    private static final Map<MonitoredSystem, List<String>> SUPPORTED_API_VERSIONS = Collections.unmodifiableMap(
+        MapBuilder.<MonitoredSystem, List<String>>newMapBuilder()
             .put(MonitoredSystem.KIBANA, ALL_VERSIONS)
             .put(MonitoredSystem.LOGSTASH, ALL_VERSIONS)
             .put(MonitoredSystem.BEATS, ALL_VERSIONS)
-            .map());
+            .map()
+    );
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            Route.builder(POST, "/_monitoring/bulk")
-                .replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_monitoring/bulk")
-                .replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()));
+        return unmodifiableList(
+            asList(
+                Route.builder(POST, "/_monitoring/bulk").replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
+                Route.builder(PUT, "/_monitoring/bulk").replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()
+            )
+        );
     }
 
     @Override
@@ -90,8 +92,9 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
 
         final MonitoredSystem system = MonitoredSystem.fromSystem(id);
         if (isSupportedSystemVersion(system, version) == false) {
-            throw new IllegalArgumentException(MONITORING_VERSION + " [" + version + "] is not supported by "
-                    + MONITORING_ID + " [" + id + "]");
+            throw new IllegalArgumentException(
+                MONITORING_VERSION + " [" + version + "] is not supported by " + MONITORING_ID + " [" + id + "]"
+            );
         }
 
         final long timestamp = System.currentTimeMillis();

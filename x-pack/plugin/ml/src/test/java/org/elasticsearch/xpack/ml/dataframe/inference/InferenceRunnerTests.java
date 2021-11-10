@@ -14,11 +14,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -50,7 +50,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -68,10 +68,9 @@ public class InferenceRunnerTests extends ESTestCase {
     public void setupTests() {
         client = mock(Client.class);
         resultsPersisterService = mock(ResultsPersisterService.class);
-        config = new DataFrameAnalyticsConfig.Builder()
-            .setId("test")
+        config = new DataFrameAnalyticsConfig.Builder().setId("test")
             .setAnalysis(RegressionTests.createRandom())
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", "test_results_field"))
             .build();
         progressTracker = ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference());
@@ -83,7 +82,8 @@ public class InferenceRunnerTests extends ESTestCase {
         ExtractedFields extractedFields = new ExtractedFields(
             Collections.singletonList(new SourceField("key", Collections.singleton("integer"))),
             Collections.emptyList(),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
 
         Map<String, Object> doc1 = new HashMap<>();
         doc1.put("key", 1);
@@ -95,20 +95,10 @@ public class InferenceRunnerTests extends ESTestCase {
         when(testDocsIterator.getTotalHits()).thenReturn(2L);
         InferenceConfig config = ClassificationConfig.EMPTY_PARAMS;
 
-        LocalModel localModel = localModelInferences(new ClassificationInferenceResults(1.0,
-                "foo",
-                Collections.emptyList(),
-                Collections.emptyList(),
-                config,
-                1.0,
-                1.0),
-            new ClassificationInferenceResults(0.0,
-                "bar",
-                Collections.emptyList(),
-                Collections.emptyList(),
-                config,
-                .5,
-                .7));
+        LocalModel localModel = localModelInferences(
+            new ClassificationInferenceResults(1.0, "foo", Collections.emptyList(), Collections.emptyList(), config, 1.0, 1.0),
+            new ClassificationInferenceResults(0.0, "bar", Collections.emptyList(), Collections.emptyList(), config, .5, .7)
+        );
 
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
 
@@ -121,8 +111,8 @@ public class InferenceRunnerTests extends ESTestCase {
 
         BulkRequest bulkRequest = argumentCaptor.getAllValues().get(0);
         List<DocWriteRequest<?>> indexRequests = bulkRequest.requests();
-        Map<String, Object> doc1Source = ((IndexRequest)indexRequests.get(0)).sourceAsMap();
-        Map<String, Object> doc2Source = ((IndexRequest)indexRequests.get(1)).sourceAsMap();
+        Map<String, Object> doc1Source = ((IndexRequest) indexRequests.get(0)).sourceAsMap();
+        Map<String, Object> doc2Source = ((IndexRequest) indexRequests.get(1)).sourceAsMap();
 
         Map<String, Object> expectedResultsField1 = new HashMap<>();
         expectedResultsField1.put("predicted_value", "foo");
@@ -165,7 +155,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private static BytesReference fromMap(Map<String, Object> map) {
-        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(map)) {
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(map)) {
             return BytesReference.bytes(xContentBuilder);
         } catch (IOException ex) {
             throw new ElasticsearchException(ex);
@@ -179,7 +169,16 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private InferenceRunner createInferenceRunner(ExtractedFields extractedFields) {
-        return new InferenceRunner(Settings.EMPTY, client, modelLoadingService,  resultsPersisterService, parentTaskId, config,
-            extractedFields, progressTracker, new DataCountsTracker(new DataCounts(config.getId())));
+        return new InferenceRunner(
+            Settings.EMPTY,
+            client,
+            modelLoadingService,
+            resultsPersisterService,
+            parentTaskId,
+            config,
+            extractedFields,
+            progressTracker,
+            new DataCountsTracker(new DataCounts(config.getId()))
+        );
     }
 }

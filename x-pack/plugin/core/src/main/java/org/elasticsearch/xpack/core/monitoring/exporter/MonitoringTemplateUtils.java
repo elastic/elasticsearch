@@ -58,14 +58,14 @@ public final class MonitoringTemplateUtils {
      * instances will attempt to create a named template based on the templates that they expect (e.g., ".monitoring-es-2") and not the
      * ones that we are creating.
      */
-    public static final String[] OLD_TEMPLATE_IDS = { "data", "es", "kibana", "logstash" }; //excluding alerts since 6.x watches use it
+    public static final String[] OLD_TEMPLATE_IDS = { "data", "es", "kibana", "logstash" }; // excluding alerts since 6.x watches use it
 
     /**
      * IDs of pipelines that can be used with
      */
     public static final String[] PIPELINE_IDS = { TEMPLATE_VERSION, OLD_TEMPLATE_VERSION };
 
-    private MonitoringTemplateUtils() { }
+    private MonitoringTemplateUtils() {}
 
     /**
      * Get a template name for any template ID.
@@ -152,32 +152,45 @@ public final class MonitoringTemplateUtils {
      */
     static XContentBuilder pipelineForApiVersion6(final XContentType type) {
         try {
-            return XContentBuilder.builder(type.xContent()).startObject()
-                    .field("description", "This pipeline upgrades documents from the older version of the Monitoring API to " +
-                        "the newer version (" + TEMPLATE_VERSION + ") by fixing breaking " +
-                        "changes in those older documents before they are indexed from the older version (" +
-                        OLD_TEMPLATE_VERSION + ").")
-                    .field("version", LAST_UPDATED_VERSION)
-                    .startArray("processors")
-                        .startObject()
-                            // remove the type
-                            .startObject("script")
-                                .field("source","ctx._type = null" )
-                            .endObject()
-                        .endObject()
-                        .startObject()
-                            // ensure the data lands in the correct index
-                            .startObject("gsub")
-                                .field("field", "_index")
-                                .field("pattern", "(.monitoring-\\w+-)6(-.+)")
-                                .field("replacement", "$1" + TEMPLATE_VERSION + "$2")
-                            .endObject()
-                        .endObject()
-                    .endArray()
+            return XContentBuilder.builder(type.xContent())
+                .startObject()
+                .field(
+                    "description",
+                    "This pipeline upgrades documents from the older version of the Monitoring API to "
+                        + "the newer version ("
+                        + TEMPLATE_VERSION
+                        + ") by fixing breaking "
+                        + "changes in those older documents before they are indexed from the older version ("
+                        + OLD_TEMPLATE_VERSION
+                        + ")."
+                )
+                .field("version", LAST_UPDATED_VERSION)
+                .startArray("processors")
+                .startObject()
+                // remove the type
+                .startObject("script")
+                .field("source", "ctx._type = null")
+                .endObject()
+                .endObject()
+                .startObject()
+                // ensure the data lands in the correct index
+                .startObject("gsub")
+                .field("field", "_index")
+                .field("pattern", "(.monitoring-\\w+-)6(-.+)")
+                .field("replacement", "$1" + TEMPLATE_VERSION + "$2")
+                .endObject()
+                .endObject()
+                .endArray()
                 .endObject();
         } catch (final IOException e) {
-            throw new RuntimeException("Failed to create pipeline to upgrade from older version [" + OLD_TEMPLATE_VERSION +
-                "] to the newer version [" + TEMPLATE_VERSION + "].", e);
+            throw new RuntimeException(
+                "Failed to create pipeline to upgrade from older version ["
+                    + OLD_TEMPLATE_VERSION
+                    + "] to the newer version ["
+                    + TEMPLATE_VERSION
+                    + "].",
+                e
+            );
         }
     }
 
@@ -193,13 +206,19 @@ public final class MonitoringTemplateUtils {
     public static XContentBuilder emptyPipeline(final XContentType type) {
         try {
             // For now: We prepend the API version to the string so that it's easy to parse in the future; if we ever add metadata
-            //  to pipelines, then it would better serve this use case
-            return XContentBuilder.builder(type.xContent()).startObject()
-                    .field("description", "This is a placeholder pipeline for Monitoring API version " + TEMPLATE_VERSION +
-                                                " so that future versions may fix breaking changes.")
-                    .field("version", LAST_UPDATED_VERSION)
-                    .startArray("processors").endArray()
-                    .endObject();
+            // to pipelines, then it would better serve this use case
+            return XContentBuilder.builder(type.xContent())
+                .startObject()
+                .field(
+                    "description",
+                    "This is a placeholder pipeline for Monitoring API version "
+                        + TEMPLATE_VERSION
+                        + " so that future versions may fix breaking changes."
+                )
+                .field("version", LAST_UPDATED_VERSION)
+                .startArray("processors")
+                .endArray()
+                .endObject();
         } catch (final IOException e) {
             throw new RuntimeException("Failed to create empty pipeline", e);
         }

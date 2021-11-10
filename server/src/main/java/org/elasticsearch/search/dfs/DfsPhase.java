@@ -9,6 +9,7 @@
 package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
@@ -73,9 +74,10 @@ public class DfsPhase {
                 termStatistics[i] = stats.get(terms[i]);
             }
 
-            context.dfsResult().termsStatistics(terms, termStatistics)
-                    .fieldStatistics(fieldStatistics)
-                    .maxDoc(context.searcher().getIndexReader().maxDoc());
+            context.dfsResult()
+                .termsStatistics(terms, termStatistics)
+                .fieldStatistics(fieldStatistics)
+                .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }

@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,11 +34,14 @@ public class RestNodesUsageAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_nodes/usage"),
-            new Route(GET, "/_nodes/{nodeId}/usage"),
-            new Route(GET, "/_nodes/usage/{metric}"),
-            new Route(GET, "/_nodes/{nodeId}/usage/{metric}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_nodes/usage"),
+                new Route(GET, "/_nodes/{nodeId}/usage"),
+                new Route(GET, "/_nodes/usage/{metric}"),
+                new Route(GET, "/_nodes/{nodeId}/usage/{metric}")
+            )
+        );
     }
 
     @Override
@@ -52,8 +55,14 @@ public class RestNodesUsageAction extends BaseRestHandler {
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesUsageRequest.all();
         } else if (metrics.contains("_all")) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "request [%s] contains _all and individual metrics [%s]",
-                    request.path(), request.param("metric")));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "request [%s] contains _all and individual metrics [%s]",
+                    request.path(),
+                    request.param("metric")
+                )
+            );
         } else {
             nodesUsageRequest.clear();
             nodesUsageRequest.restActions(metrics.contains("rest_actions"));

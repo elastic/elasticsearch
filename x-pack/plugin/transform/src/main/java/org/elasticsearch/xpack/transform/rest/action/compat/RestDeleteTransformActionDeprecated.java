@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
-
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
@@ -29,7 +28,8 @@ public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build()
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -45,8 +45,7 @@ public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
 
         DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force, timeout);
 
-        return channel -> client.execute(DeleteTransformActionDeprecated.INSTANCE, request,
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

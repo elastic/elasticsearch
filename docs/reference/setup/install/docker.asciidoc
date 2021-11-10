@@ -1,12 +1,10 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images.
-The images use https://hub.docker.com/_/centos/[centos:8] as the base image.
-
-A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source files
-are in
+{es} is also available as Docker images. A list of all published Docker
+images and tags is available at
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files are
+in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 include::license.asciidoc[]
@@ -232,7 +230,7 @@ chgrp 0 esdatadir
 --------------------------------------------
 
 You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, data` and `logs` directories, you must pass
+bind-mount each of the `config`, `data` and `logs` directories, you must pass
 the command line option `--group-add 0` to `docker run`. This ensures that the user
 under which {es} is running is also a member of the `root` (GID 0) group inside the
 container.
@@ -254,7 +252,7 @@ To check the Docker daemon defaults for ulimits, run:
 
 [source,sh]
 --------------------------------------------
-docker run --rm centos:8 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm docker.elastic.co/elasticsearch/elasticsearch:{version} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.
@@ -276,7 +274,10 @@ https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Do
 or explicitly set for the container as shown in the  <<docker-compose-file, sample compose file>>.
 When using `docker run`, you can specify:
 
-  -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+[source,sh]
+----
+-e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+----
 
 ===== Randomize published ports
 
@@ -394,6 +395,11 @@ For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify
 --------------------------------------------
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
+
+If you bind-mount a custom `elasticsearch.yml` file, ensure it includes the
+`network.host: 0.0.0.0` setting. This setting ensures the node is reachable for
+HTTP and transport traffic, provided its ports are exposed. The Docker image's
+built-in `elasticsearch.yml` file includes this setting by default.
 
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
 uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,

@@ -14,10 +14,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -69,8 +69,12 @@ public class TemplateHttpResource extends PublishableHttpResource {
      * @param templateName The name of the template (e.g., ".template123").
      * @param template The template provider.
      */
-    public TemplateHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout,
-                                final String templateName, final Supplier<String> template) {
+    public TemplateHttpResource(
+        final String resourceOwnerName,
+        @Nullable final TimeValue masterTimeout,
+        final String templateName,
+        final Supplier<String> template
+    ) {
         super(resourceOwnerName, masterTimeout, PARAMETERS);
 
         this.templateName = Objects.requireNonNull(templateName);
@@ -84,10 +88,18 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
-        versionCheckForResource(client, listener, logger,
-                                "/_template", templateName, "monitoring template",
-                                resourceOwnerName, "monitoring cluster",
-                                XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
+        versionCheckForResource(
+            client,
+            listener,
+            logger,
+            "/_template",
+            templateName,
+            "monitoring template",
+            resourceOwnerName,
+            "monitoring cluster",
+            XContentType.JSON.xContent(),
+            MonitoringTemplateUtils.LAST_UPDATED_VERSION
+        );
     }
 
     /**
@@ -95,9 +107,18 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
-        putResource(client, listener, logger,
-                    "/_template", templateName, Collections.emptyMap(), this::templateToHttpEntity, "monitoring template",
-                    resourceOwnerName, "monitoring cluster");
+        putResource(
+            client,
+            listener,
+            logger,
+            "/_template",
+            templateName,
+            Collections.emptyMap(),
+            this::templateToHttpEntity,
+            "monitoring template",
+            resourceOwnerName,
+            "monitoring cluster"
+        );
     }
 
     /**
@@ -105,11 +126,13 @@ public class TemplateHttpResource extends PublishableHttpResource {
      *
      * @return Never {@code null}.
      */
-     HttpEntity templateToHttpEntity() {
+    HttpEntity templateToHttpEntity() {
         // the internal representation of a template has type nested under mappings.
         // this uses xContent to help remove the type before sending to the remote cluster
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template.get())) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template.get())
+        ) {
             XContentBuilder builder = JsonXContent.contentBuilder();
             IndexTemplateMetadata.Builder.removeType(IndexTemplateMetadata.Builder.fromXContent(parser, templateName), builder);
             return new StringEntity(BytesReference.bytes(builder).utf8ToString(), ContentType.APPLICATION_JSON);

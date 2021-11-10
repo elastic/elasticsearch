@@ -1,22 +1,11 @@
 [role="xpack"]
-[testenv="gold"]
 [[collecting-monitoring-data]]
 == Collecting monitoring data using legacy collectors
 ++++
 <titleabbrev>Legacy collection methods</titleabbrev>
 ++++
 
-[IMPORTANT]
-=========================
-{metricbeat} is the recommended method for collecting and shipping monitoring
-data to a monitoring cluster.
-
-If you have previously configured legacy collection methods, you should migrate
-to using {metricbeat} collection methods. Use either {metricbeat} collection or
-legacy collection methods; do not use both.
-
-Learn more about <<configuring-metricbeat>>.
-=========================
+include::{es-ref-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-deprecation-notice]
 
 This method for collecting metrics about {es} involves sending the metrics to
 the monitoring cluster by using exporters. For the recommended method, see <<configuring-metricbeat>>.

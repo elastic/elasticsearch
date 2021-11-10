@@ -11,8 +11,8 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -138,6 +138,5 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     }
 
     @Override
-    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {
-    }
+    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {}
 }

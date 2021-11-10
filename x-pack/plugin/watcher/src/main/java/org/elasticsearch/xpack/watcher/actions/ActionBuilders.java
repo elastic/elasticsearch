@@ -24,8 +24,7 @@ import java.util.Map;
 
 public final class ActionBuilders {
 
-    private ActionBuilders() {
-    }
+    private ActionBuilders() {}
 
     public static EmailAction.Builder emailAction(EmailTemplate.Builder email) {
         return emailAction(email.build());

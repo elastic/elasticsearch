@@ -10,15 +10,15 @@ package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -50,8 +50,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     private GetResult getResult;
 
     // TODO(talevy): remove dependency on empty constructor from ExplainResponseTests
-    ExplainResponse() {
-    }
+    ExplainResponse() {}
 
     public ExplainResponse(String index, String type, String id, boolean exists) {
         this.index = index;
@@ -145,15 +144,26 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         }
     }
 
-    private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>("explain", true,
-        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], (String) arg[2], exists, (Explanation) arg[3],
-            (GetResult) arg[4]));
+    private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>(
+        "explain",
+        true,
+        (arg, exists) -> new ExplainResponse(
+            (String) arg[0],
+            (String) arg[1],
+            (String) arg[2],
+            exists,
+            (Explanation) arg[3],
+            (GetResult) arg[4]
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _INDEX);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _TYPE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _ID);
-        final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>("explanation", true,
+        final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>(
+            "explanation",
+            true,
             arg -> {
                 @SuppressWarnings("unchecked")
                 final Collection<Explanation> details = (Collection<Explanation>) arg[2];
@@ -162,7 +172,8 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
                 } else {
                     return Explanation.noMatch((String) arg[1], details);
                 }
-            });
+            }
+        );
         explanationParser.declareFloat(ConstructingObjectParser.constructorArg(), VALUE);
         explanationParser.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION);
         explanationParser.declareObjectArray(ConstructingObjectParser.constructorArg(), explanationParser, DETAILS);

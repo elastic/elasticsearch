@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -42,19 +42,21 @@ public final class StatsCollector extends Collector {
     private final CcrClient ccrClient;
 
     public StatsCollector(
-            final Settings settings,
-            final ClusterService clusterService,
-            final XPackLicenseState licenseState,
-            final Client client) {
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final Client client
+    ) {
         this(settings, clusterService, licenseState, new XPackClient(client).ccr(), client.threadPool().getThreadContext());
     }
 
     StatsCollector(
-            final Settings settings,
-            final ClusterService clusterService,
-            final XPackLicenseState licenseState,
-            final CcrClient ccrClient,
-            final ThreadContext threadContext) {
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final CcrClient ccrClient,
+        final ThreadContext threadContext
+    ) {
         super(TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
         this.settings = settings;
         this.ccrClient = ccrClient;
@@ -65,17 +67,14 @@ public final class StatsCollector extends Collector {
     protected boolean shouldCollect(final boolean isElectedMaster) {
         // this can only run when monitoring is allowed and CCR is enabled and allowed, but also only on the elected master node
         return isElectedMaster
-                && super.shouldCollect(isElectedMaster)
-                && XPackSettings.CCR_ENABLED_SETTING.get(settings)
-                && CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState);
+            && super.shouldCollect(isElectedMaster)
+            && XPackSettings.CCR_ENABLED_SETTING.get(settings)
+            && CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState);
     }
 
-
     @Override
-    protected Collection<MonitoringDoc> doCollect(
-            final MonitoringDoc.Node node,
-            final long interval,
-            final ClusterState clusterState) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState)
+        throws Exception {
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(MONITORING_ORIGIN)) {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
@@ -83,12 +82,16 @@ public final class StatsCollector extends Collector {
             final CcrStatsAction.Request request = new CcrStatsAction.Request();
             final CcrStatsAction.Response response = ccrClient.stats(request).actionGet(getCollectionTimeout());
 
-            final AutoFollowStatsMonitoringDoc autoFollowStatsDoc =
-                new AutoFollowStatsMonitoringDoc(clusterUuid, timestamp, interval, node, response.getAutoFollowStats());
+            final AutoFollowStatsMonitoringDoc autoFollowStatsDoc = new AutoFollowStatsMonitoringDoc(
+                clusterUuid,
+                timestamp,
+                interval,
+                node,
+                response.getAutoFollowStats()
+            );
 
             Set<String> collectionIndices = new HashSet<>(Arrays.asList(getCollectionIndices()));
-            List<MonitoringDoc> docs = response
-                .getFollowStats()
+            List<MonitoringDoc> docs = response.getFollowStats()
                 .getStatsResponses()
                 .stream()
                 .filter(statsResponse -> collectionIndices.isEmpty() || collectionIndices.contains(statsResponse.status().followerIndex()))

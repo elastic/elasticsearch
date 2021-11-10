@@ -58,10 +58,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @Override
     protected Settings repositorySettings(String repoName) {
         Settings.Builder settingsBuilder = Settings.builder()
-                .put(super.repositorySettings(repoName))
-                .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
-                .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
-                .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test");
+            .put(super.repositorySettings(repoName))
+            .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
+            .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
+            .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test");
         if (randomBoolean()) {
             settingsBuilder.put(AzureRepository.Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
         }
@@ -75,8 +75,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/" + DEFAULT_ACCOUNT_NAME,
-            new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler(DEFAULT_ACCOUNT_NAME, "container")));
+        return Collections.singletonMap(
+            "/" + DEFAULT_ACCOUNT_NAME,
+            new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler(DEFAULT_ACCOUNT_NAME, "container"))
+        );
     }
 
     @Override
@@ -116,9 +118,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             return new AzureStorageService(settings, azureClientProvider) {
                 @Override
                 RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
-                    return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
-                        azureStorageSettings.getMaxRetries() + 1, 60,
-                        50L, 100L, null);
+                    return new RequestRetryOptions(
+                        RetryPolicyType.EXPONENTIAL,
+                        azureStorageSettings.getMaxRetries() + 1,
+                        60,
+                        50L,
+                        100L,
+                        null
+                    );
                 }
 
                 @Override
@@ -164,9 +171,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         protected String requestUniqueId(final HttpExchange exchange) {
             final String requestId = exchange.getRequestHeaders().getFirst("X-ms-client-request-id");
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-            return exchange.getRequestMethod()
-                + " " + requestId
-                + (range != null ? " " + range : "");
+            return exchange.getRequestMethod() + " " + requestId + (range != null ? " " + range : "");
         }
     }
 

@@ -50,19 +50,17 @@ class TransformClusterStateListener implements ClusterStateListener {
         // The atomic flag prevents multiple simultaneous attempts to run alias creation
         // if there is a flurry of cluster state updates in quick succession
         if (event.localNodeMaster() && isIndexCreationInProgress.compareAndSet(false, true)) {
-            createAuditAliasForDataFrameBWC(event.state(), client, ActionListener.wrap(
-                r -> {
-                    isIndexCreationInProgress.set(false);
-                    if (r) {
-                        logger.info("Created alias for deprecated data frame notifications index");
-                    } else {
-                        logger.debug("Skipped creating alias for deprecated data frame notifications index");
-                    }
-                },
-                e -> {
-                    isIndexCreationInProgress.set(false);
-                    logger.error("Error creating alias for deprecated data frame notifications index", e);
-                }));
+            createAuditAliasForDataFrameBWC(event.state(), client, ActionListener.wrap(r -> {
+                isIndexCreationInProgress.set(false);
+                if (r) {
+                    logger.info("Created alias for deprecated data frame notifications index");
+                } else {
+                    logger.debug("Skipped creating alias for deprecated data frame notifications index");
+                }
+            }, e -> {
+                isIndexCreationInProgress.set(false);
+                logger.error("Error creating alias for deprecated data frame notifications index", e);
+            }));
         }
     }
 
@@ -75,8 +73,12 @@ class TransformClusterStateListener implements ClusterStateListener {
         }
 
         Metadata metadata = state.metadata();
-        if (state.getMetadata().getIndicesLookup().get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED).getIndices().stream()
-                .anyMatch(name -> metadata.index(name).getAliases().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))) {
+        if (state.getMetadata()
+            .getIndicesLookup()
+            .get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
+            .getIndices()
+            .stream()
+            .anyMatch(name -> metadata.index(name).getAliases().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))) {
             finalListener.onResponse(false);
             return;
         }
@@ -89,13 +91,15 @@ class TransformClusterStateListener implements ClusterStateListener {
             aliasAction.isHidden(true);
         }
 
-        final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                .addAliasAction(aliasAction)
-                .request();
+        final IndicesAliasesRequest request = client.admin().indices().prepareAliases().addAliasAction(aliasAction).request();
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), TRANSFORM_ORIGIN, request,
-                ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
-                client.admin().indices()::aliases);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            TRANSFORM_ORIGIN,
+            request,
+            ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
+            client.admin().indices()::aliases
+        );
     }
 
 }

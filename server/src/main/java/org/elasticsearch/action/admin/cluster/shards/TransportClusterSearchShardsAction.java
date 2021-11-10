@@ -32,29 +32,47 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportClusterSearchShardsAction extends
-    TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
+public class TransportClusterSearchShardsAction extends TransportMasterNodeReadAction<
+    ClusterSearchShardsRequest,
+    ClusterSearchShardsResponse> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportClusterSearchShardsAction(TransportService transportService, ClusterService clusterService,
-                                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                              IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClusterSearchShardsRequest::new, indexNameExpressionResolver, ClusterSearchShardsResponse::new, ThreadPool.Names.SAME);
+    public TransportClusterSearchShardsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ClusterSearchShardsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ClusterSearchShardsRequest::new,
+            indexNameExpressionResolver,
+            ClusterSearchShardsResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.indicesService = indicesService;
     }
 
     @Override
     protected ClusterBlockException checkBlock(ClusterSearchShardsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state,
-                                   final ActionListener<ClusterSearchShardsResponse> listener) {
+    protected void masterOperation(
+        final ClusterSearchShardsRequest request,
+        final ClusterState state,
+        final ActionListener<ClusterSearchShardsResponse> listener
+    ) {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
@@ -62,8 +80,14 @@ public class TransportClusterSearchShardsAction extends
         Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
         for (String index : concreteIndices) {
             final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases);
-            final String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index,
-                aliasMetadata -> true, dataStreamAlias -> true, true, indicesAndAliases);
+            final String[] aliases = indexNameExpressionResolver.indexAliases(
+                clusterState,
+                index,
+                aliasMetadata -> true,
+                dataStreamAlias -> true,
+                true,
+                indicesAndAliases
+            );
             indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));
         }
 

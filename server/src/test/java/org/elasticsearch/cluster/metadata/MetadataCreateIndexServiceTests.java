@@ -126,42 +126,64 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         aliasValidator = new AliasValidator();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        searchExecutionContext = new SearchExecutionContext(0, 0,
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        searchExecutionContext = new SearchExecutionContext(
+            0,
+            0,
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
-            null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap());
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> randomNonNegativeLong(),
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
         int numRoutingShards = settings.getAsInt(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), numShards);
         Metadata.Builder metaBuilder = Metadata.builder();
-        IndexMetadata indexMetadata = IndexMetadata.builder(name).settings(settings(Version.CURRENT)
-            .put(settings))
-            .numberOfShards(numShards).numberOfReplicas(numReplicas)
-            .setRoutingNumShards(numRoutingShards).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(name)
+            .settings(settings(Version.CURRENT).put(settings))
+            .numberOfShards(numShards)
+            .numberOfReplicas(numReplicas)
+            .setRoutingNumShards(numRoutingShards)
+            .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.addAsNew(metadata.index(name));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY))
-            .metadata(metadata).routingTable(routingTable).blocks(ClusterBlocks.builder().addBlocks(indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(routingTable).blocks(ClusterBlocks.builder().addBlocks(indexMetadata)).build();
         return clusterState;
     }
 
     public static boolean isShrinkable(int source, int target) {
         int x = source / target;
-        assert source > target : source  + " <= " + target;
+        assert source > target : source + " <= " + target;
         return target * x == source;
     }
 
     public static boolean isSplitable(int source, int target) {
         int x = target / source;
-        assert source < target : source  + " >= " + target;
+        assert source < target : source + " >= " + target;
         return source * x == target;
     }
 
@@ -169,7 +191,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         {
             final Version versionCreated = VersionUtils.randomVersionBetween(
                 random(),
-                Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+                Version.V_6_0_0_alpha1,
+                VersionUtils.getPreviousVersion(Version.V_7_0_0)
+            );
             final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
             assertThat(MetadataCreateIndexService.getNumberOfShards(indexSettingsBuilder), equalTo(5));
         }
@@ -182,57 +206,101 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
-        ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
-            Settings.builder().put("index.blocks.write", true).build());
+        ClusterState state = createClusterState(
+            "source",
+            numShards,
+            randomIntBetween(0, 10),
+            Settings.builder().put("index.blocks.write", true).build()
+        );
 
-        assertEquals("index [source] already exists",
-            expectThrows(ResourceAlreadyExistsException.class, () ->
-                MetadataCreateIndexService.validateShrinkIndex(state, "target", "source", Settings.EMPTY)
-            ).getMessage());
+        assertEquals(
+            "index [source] already exists",
+            expectThrows(
+                ResourceAlreadyExistsException.class,
+                () -> MetadataCreateIndexService.validateShrinkIndex(state, "target", "source", Settings.EMPTY)
+            ).getMessage()
+        );
 
-        assertEquals("no such index [no_such_index]",
-            expectThrows(IndexNotFoundException.class, () ->
-                MetadataCreateIndexService.validateShrinkIndex(state, "no_such_index", "target", Settings.EMPTY)
-            ).getMessage());
+        assertEquals(
+            "no such index [no_such_index]",
+            expectThrows(
+                IndexNotFoundException.class,
+                () -> MetadataCreateIndexService.validateShrinkIndex(state, "no_such_index", "target", Settings.EMPTY)
+            ).getMessage()
+        );
 
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).build();
-        assertEquals("can't shrink an index with only one shard",
-            expectThrows(IllegalArgumentException.class, () -> MetadataCreateIndexService.validateShrinkIndex(createClusterState("source",
-                1, 0, Settings.builder().put("index.blocks.write", true).build()), "source", "target", targetSettings)).getMessage());
+        assertEquals(
+            "can't shrink an index with only one shard",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataCreateIndexService.validateShrinkIndex(
+                    createClusterState("source", 1, 0, Settings.builder().put("index.blocks.write", true).build()),
+                    "source",
+                    "target",
+                    targetSettings
+                )
+            ).getMessage()
+        );
 
-        assertEquals("the number of target shards [10] must be less that the number of source shards [5]",
-            expectThrows(IllegalArgumentException.class, () -> MetadataCreateIndexService.validateShrinkIndex(createClusterState("source",
-                5, 0, Settings.builder().put("index.blocks.write", true).build()), "source",
-                "target", Settings.builder().put("index.number_of_shards", 10).build())).getMessage());
+        assertEquals(
+            "the number of target shards [10] must be less that the number of source shards [5]",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataCreateIndexService.validateShrinkIndex(
+                    createClusterState("source", 5, 0, Settings.builder().put("index.blocks.write", true).build()),
+                    "source",
+                    "target",
+                    Settings.builder().put("index.number_of_shards", 10).build()
+                )
+            ).getMessage()
+        );
 
+        assertEquals(
+            "index source must be read-only to resize index. use \"index.blocks.write=true\"",
+            expectThrows(
+                IllegalStateException.class,
+                () -> MetadataCreateIndexService.validateShrinkIndex(
+                    createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
+                    "source",
+                    "target",
+                    targetSettings
+                )
+            ).getMessage()
+        );
 
-        assertEquals("index source must be read-only to resize index. use \"index.blocks.write=true\"",
-            expectThrows(IllegalStateException.class, () ->
-                    MetadataCreateIndexService.validateShrinkIndex(
-                        createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
-                        "source", "target", targetSettings)
-            ).getMessage());
+        assertEquals(
+            "index source must have all shards allocated on the same node to shrink index",
+            expectThrows(
+                IllegalStateException.class,
+                () -> MetadataCreateIndexService.validateShrinkIndex(state, "source", "target", targetSettings)
 
-        assertEquals("index source must have all shards allocated on the same node to shrink index",
-            expectThrows(IllegalStateException.class, () ->
-                MetadataCreateIndexService.validateShrinkIndex(state, "source", "target", targetSettings)
-
-            ).getMessage());
-        assertEquals("the number of source shards [8] must be a multiple of [3]",
-            expectThrows(IllegalArgumentException.class, () ->
-                    MetadataCreateIndexService.validateShrinkIndex(createClusterState("source", 8, randomIntBetween(0, 10),
-                        Settings.builder().put("index.blocks.write", true).build()), "source", "target",
-                        Settings.builder().put("index.number_of_shards", 3).build())
-            ).getMessage());
+            ).getMessage()
+        );
+        assertEquals(
+            "the number of source shards [8] must be a multiple of [3]",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataCreateIndexService.validateShrinkIndex(
+                    createClusterState("source", 8, randomIntBetween(0, 10), Settings.builder().put("index.blocks.write", true).build()),
+                    "source",
+                    "target",
+                    Settings.builder().put("index.number_of_shards", 3).build()
+                )
+            ).getMessage()
+        );
 
         // create one that won't fail
-        ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
-            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
-            .build();
-        AllocationService service = new AllocationService(new AllocationDeciders(
-            singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE);
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState("source", numShards, 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        AllocationService service = new AllocationService(
+            new AllocationDeciders(singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -241,61 +309,100 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int targetShards;
         do {
-            targetShards = randomIntBetween(1, numShards/2);
+            targetShards = randomIntBetween(1, numShards / 2);
         } while (isShrinkable(numShards, targetShards) == false);
-        MetadataCreateIndexService.validateShrinkIndex(clusterState, "source", "target",
-            Settings.builder().put("index.number_of_shards", targetShards).build());
+        MetadataCreateIndexService.validateShrinkIndex(
+            clusterState,
+            "source",
+            "target",
+            Settings.builder().put("index.number_of_shards", targetShards).build()
+        );
     }
 
     public void testValidateSplitIndex() {
         int numShards = randomIntBetween(1, 42);
         Settings targetSettings = Settings.builder().put("index.number_of_shards", numShards * 2).build();
-        ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
-            Settings.builder().put("index.blocks.write", true).build());
+        ClusterState state = createClusterState(
+            "source",
+            numShards,
+            randomIntBetween(0, 10),
+            Settings.builder().put("index.blocks.write", true).build()
+        );
 
-        assertEquals("index [source] already exists",
-            expectThrows(ResourceAlreadyExistsException.class, () ->
-                MetadataCreateIndexService.validateSplitIndex(state, "target", "source", targetSettings)
-            ).getMessage());
+        assertEquals(
+            "index [source] already exists",
+            expectThrows(
+                ResourceAlreadyExistsException.class,
+                () -> MetadataCreateIndexService.validateSplitIndex(state, "target", "source", targetSettings)
+            ).getMessage()
+        );
 
-        assertEquals("no such index [no_such_index]",
-            expectThrows(IndexNotFoundException.class, () ->
-                MetadataCreateIndexService.validateSplitIndex(state, "no_such_index", "target", targetSettings)
-            ).getMessage());
+        assertEquals(
+            "no such index [no_such_index]",
+            expectThrows(
+                IndexNotFoundException.class,
+                () -> MetadataCreateIndexService.validateSplitIndex(state, "no_such_index", "target", targetSettings)
+            ).getMessage()
+        );
 
-        assertEquals("the number of source shards [10] must be less that the number of target shards [5]",
-            expectThrows(IllegalArgumentException.class, () -> MetadataCreateIndexService.validateSplitIndex(createClusterState("source",
-                10, 0, Settings.builder().put("index.blocks.write", true).build()), "source",
-                "target", Settings.builder().put("index.number_of_shards", 5).build())
-            ).getMessage());
+        assertEquals(
+            "the number of source shards [10] must be less that the number of target shards [5]",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataCreateIndexService.validateSplitIndex(
+                    createClusterState("source", 10, 0, Settings.builder().put("index.blocks.write", true).build()),
+                    "source",
+                    "target",
+                    Settings.builder().put("index.number_of_shards", 5).build()
+                )
+            ).getMessage()
+        );
 
+        assertEquals(
+            "index source must be read-only to resize index. use \"index.blocks.write=true\"",
+            expectThrows(
+                IllegalStateException.class,
+                () -> MetadataCreateIndexService.validateSplitIndex(
+                    createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
+                    "source",
+                    "target",
+                    targetSettings
+                )
+            ).getMessage()
+        );
 
-        assertEquals("index source must be read-only to resize index. use \"index.blocks.write=true\"",
-            expectThrows(IllegalStateException.class, () ->
-                MetadataCreateIndexService.validateSplitIndex(
-                    createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY)
-                    , "source", "target", targetSettings)
-            ).getMessage());
-
-
-        assertEquals("the number of source shards [3] must be a factor of [4]",
-            expectThrows(IllegalArgumentException.class, () ->
-                MetadataCreateIndexService.validateSplitIndex(createClusterState("source", 3, randomIntBetween(0, 10),
-                    Settings.builder().put("index.blocks.write", true).build()), "source", "target",
-                    Settings.builder().put("index.number_of_shards", 4).build())
-            ).getMessage());
+        assertEquals(
+            "the number of source shards [3] must be a factor of [4]",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataCreateIndexService.validateSplitIndex(
+                    createClusterState("source", 3, randomIntBetween(0, 10), Settings.builder().put("index.blocks.write", true).build()),
+                    "source",
+                    "target",
+                    Settings.builder().put("index.number_of_shards", 4).build()
+                )
+            ).getMessage()
+        );
 
         int targetShards;
         do {
-            targetShards = randomIntBetween(numShards+1, 100);
+            targetShards = randomIntBetween(numShards + 1, 100);
         } while (isSplitable(numShards, targetShards) == false);
-        ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
-            Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
-            .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        AllocationService service = new AllocationService(new AllocationDeciders(
-            singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE);
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState(
+                "source",
+                numShards,
+                0,
+                Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()
+            )
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        AllocationService service = new AllocationService(
+            new AllocationDeciders(singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -303,8 +410,12 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        MetadataCreateIndexService.validateSplitIndex(clusterState, "source", "target",
-            Settings.builder().put("index.number_of_shards", targetShards).build());
+        MetadataCreateIndexService.validateSplitIndex(
+            clusterState,
+            "source",
+            "target",
+            Settings.builder().put("index.number_of_shards", targetShards).build()
+        );
     }
 
     public void testPrepareResizeIndexSettings() {
@@ -312,87 +423,85 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         versions.sort(Comparator.comparingLong(l -> l.id));
         final Version version = versions.get(0);
         final Version upgraded = versions.get(1);
-        final Settings.Builder indexSettingsBuilder =
-                Settings.builder()
-                        .put("index.version.created", version)
-                        .put("index.similarity.default.type", "BM25")
-                        .put("index.analysis.analyzer.default.tokenizer", "keyword")
-                        .put("index.soft_deletes.enabled", "true");
+        final Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put("index.version.created", version)
+            .put("index.similarity.default.type", "BM25")
+            .put("index.analysis.analyzer.default.tokenizer", "keyword")
+            .put("index.soft_deletes.enabled", "true");
         if (randomBoolean()) {
             indexSettingsBuilder.put("index.allocation.max_retries", randomIntBetween(1, 1000));
         }
-        runPrepareResizeIndexSettingsTest(
-                indexSettingsBuilder.build(),
-                Settings.EMPTY,
-                emptyList(),
-                randomBoolean(),
-                settings -> {
-                    assertThat("similarity settings must be copied", settings.get("index.similarity.default.type"), equalTo("BM25"));
-                    assertThat(
-                            "analysis settings must be copied",
-                            settings.get("index.analysis.analyzer.default.tokenizer"),
-                            equalTo("keyword"));
-                    assertThat(settings.get("index.routing.allocation.initial_recovery._id"), equalTo("node1"));
-                    assertThat(settings.get("index.allocation.max_retries"), nullValue());
-                    assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
-                    assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
-                });
+        runPrepareResizeIndexSettingsTest(indexSettingsBuilder.build(), Settings.EMPTY, emptyList(), randomBoolean(), settings -> {
+            assertThat("similarity settings must be copied", settings.get("index.similarity.default.type"), equalTo("BM25"));
+            assertThat("analysis settings must be copied", settings.get("index.analysis.analyzer.default.tokenizer"), equalTo("keyword"));
+            assertThat(settings.get("index.routing.allocation.initial_recovery._id"), equalTo("node1"));
+            assertThat(settings.get("index.allocation.max_retries"), nullValue());
+            assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
+            assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
+        });
     }
 
     public void testPrepareResizeIndexSettingsCopySettings() {
         final int maxMergeCount = randomIntBetween(1, 16);
         final int maxThreadCount = randomIntBetween(1, 16);
-        final Setting<String> nonCopyableExistingIndexSetting =
-                Setting.simpleString("index.non_copyable.existing", Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
-        final Setting<String> nonCopyableRequestIndexSetting =
-                Setting.simpleString("index.non_copyable.request", Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
+        final Setting<String> nonCopyableExistingIndexSetting = Setting.simpleString(
+            "index.non_copyable.existing",
+            Setting.Property.IndexScope,
+            Setting.Property.NotCopyableOnResize
+        );
+        final Setting<String> nonCopyableRequestIndexSetting = Setting.simpleString(
+            "index.non_copyable.request",
+            Setting.Property.IndexScope,
+            Setting.Property.NotCopyableOnResize
+        );
         runPrepareResizeIndexSettingsTest(
-                Settings.builder()
-                        .put("index.merge.scheduler.max_merge_count", maxMergeCount)
-                        .put("index.non_copyable.existing", "existing")
-                        .build(),
-                Settings.builder()
-                        .put("index.blocks.write", (String) null)
-                        .put("index.merge.scheduler.max_thread_count", maxThreadCount)
-                        .put("index.non_copyable.request", "request")
-                        .build(),
-                Arrays.asList(nonCopyableExistingIndexSetting, nonCopyableRequestIndexSetting),
-                true,
-                settings -> {
-                    assertNull(settings.getAsBoolean("index.blocks.write", null));
-                    assertThat(settings.get("index.routing.allocation.require._name"), equalTo("node1"));
-                    assertThat(settings.getAsInt("index.merge.scheduler.max_merge_count", null), equalTo(maxMergeCount));
-                    assertThat(settings.getAsInt("index.merge.scheduler.max_thread_count", null), equalTo(maxThreadCount));
-                    assertNull(settings.get("index.non_copyable.existing"));
-                    assertThat(settings.get("index.non_copyable.request"), equalTo("request"));
-                });
+            Settings.builder()
+                .put("index.merge.scheduler.max_merge_count", maxMergeCount)
+                .put("index.non_copyable.existing", "existing")
+                .build(),
+            Settings.builder()
+                .put("index.blocks.write", (String) null)
+                .put("index.merge.scheduler.max_thread_count", maxThreadCount)
+                .put("index.non_copyable.request", "request")
+                .build(),
+            Arrays.asList(nonCopyableExistingIndexSetting, nonCopyableRequestIndexSetting),
+            true,
+            settings -> {
+                assertNull(settings.getAsBoolean("index.blocks.write", null));
+                assertThat(settings.get("index.routing.allocation.require._name"), equalTo("node1"));
+                assertThat(settings.getAsInt("index.merge.scheduler.max_merge_count", null), equalTo(maxMergeCount));
+                assertThat(settings.getAsInt("index.merge.scheduler.max_thread_count", null), equalTo(maxThreadCount));
+                assertNull(settings.get("index.non_copyable.existing"));
+                assertThat(settings.get("index.non_copyable.request"), equalTo("request"));
+            }
+        );
     }
 
     public void testPrepareResizeIndexSettingsAnalysisSettings() {
         // analysis settings from the request are not overwritten
         runPrepareResizeIndexSettingsTest(
-                Settings.EMPTY,
-                Settings.builder().put("index.analysis.analyzer.default.tokenizer", "whitespace").build(),
-                emptyList(),
-                randomBoolean(),
-                settings ->
-                    assertThat(
-                            "analysis settings are not overwritten",
-                            settings.get("index.analysis.analyzer.default.tokenizer"),
-                            equalTo("whitespace"))
-                );
+            Settings.EMPTY,
+            Settings.builder().put("index.analysis.analyzer.default.tokenizer", "whitespace").build(),
+            emptyList(),
+            randomBoolean(),
+            settings -> assertThat(
+                "analysis settings are not overwritten",
+                settings.get("index.analysis.analyzer.default.tokenizer"),
+                equalTo("whitespace")
+            )
+        );
 
     }
 
     public void testPrepareResizeIndexSettingsSimilaritySettings() {
         // similarity settings from the request are not overwritten
         runPrepareResizeIndexSettingsTest(
-                Settings.EMPTY,
-                Settings.builder().put("index.similarity.sim.type", "DFR").build(),
-                emptyList(),
-                randomBoolean(),
-                settings ->
-                        assertThat("similarity settings are not overwritten", settings.get("index.similarity.sim.type"), equalTo("DFR")));
+            Settings.EMPTY,
+            Settings.builder().put("index.similarity.sim.type", "DFR").build(),
+            emptyList(),
+            randomBoolean(),
+            settings -> assertThat("similarity settings are not overwritten", settings.get("index.similarity.sim.type"), equalTo("DFR"))
+        );
 
     }
 
@@ -402,64 +511,69 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Settings.builder().put("index.soft_deletes.enabled", "true").build(),
             emptyList(),
             randomBoolean(),
-            settings -> assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true")));
+            settings -> assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"))
+        );
     }
 
     private void runPrepareResizeIndexSettingsTest(
-            final Settings sourceSettings,
-            final Settings requestSettings,
-            final Collection<Setting<?>> additionalIndexScopedSettings,
-            final boolean copySettings,
-            final Consumer<Settings> consumer) {
+        final Settings sourceSettings,
+        final Settings requestSettings,
+        final Collection<Setting<?>> additionalIndexScopedSettings,
+        final boolean copySettings,
+        final Consumer<Settings> consumer
+    ) {
         final String indexName = randomAlphaOfLength(10);
 
         final Settings indexSettings = Settings.builder()
-                .put("index.blocks.write", true)
-                .put("index.routing.allocation.require._name", "node1")
-                .put(sourceSettings)
-                .build();
+            .put("index.blocks.write", true)
+            .put("index.routing.allocation.require._name", "node1")
+            .put(sourceSettings)
+            .build();
 
-        final ClusterState initialClusterState =
-                ClusterState
-                        .builder(createClusterState(indexName, randomIntBetween(2, 10), 0, indexSettings))
-                        .nodes(DiscoveryNodes.builder().add(newNode("node1")))
-                        .build();
+        final ClusterState initialClusterState = ClusterState.builder(
+            createClusterState(indexName, randomIntBetween(2, 10), 0, indexSettings)
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
         final AllocationService service = new AllocationService(
-                new AllocationDeciders(singleton(new MaxRetryAllocationDecider())),
-                new TestGatewayAllocator(),
-                new BalancedShardsAllocator(Settings.EMPTY),
-                EmptyClusterInfoService.INSTANCE,
-                EmptySnapshotsInfoService.INSTANCE);
+            new AllocationDeciders(singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
 
         final RoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute").routingTable();
         final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
 
         // now we start the shard
-        final RoutingTable routingTable
-            = ESAllocationTestCase.startInitializingShardsAndReroute(service, routingTableClusterState, indexName).routingTable();
+        final RoutingTable routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(
+            service,
+            routingTableClusterState,
+            indexName
+        ).routingTable();
         final ClusterState clusterState = ClusterState.builder(routingTableClusterState).routingTable(routingTable).build();
 
         final Settings.Builder indexSettingsBuilder = Settings.builder().put("index.number_of_shards", 1).put(requestSettings);
-        final Set<Setting<?>> settingsSet =
-                Stream.concat(
-                        IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.stream(),
-                        additionalIndexScopedSettings.stream())
-                        .collect(Collectors.toSet());
+        final Set<Setting<?>> settingsSet = Stream.concat(
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.stream(),
+            additionalIndexScopedSettings.stream()
+        ).collect(Collectors.toSet());
         MetadataCreateIndexService.prepareResizeIndexSettings(
-                clusterState,
-                indexSettingsBuilder,
-                clusterState.metadata().index(indexName).getIndex(),
-                "target",
-                ResizeType.SHRINK,
-                copySettings,
-                new IndexScopedSettings(Settings.EMPTY, settingsSet));
+            clusterState,
+            indexSettingsBuilder,
+            clusterState.metadata().index(indexName).getIndex(),
+            "target",
+            ResizeType.SHRINK,
+            copySettings,
+            new IndexScopedSettings(Settings.EMPTY, settingsSet)
+        );
         consumer.accept(indexSettingsBuilder.build());
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        final Set<DiscoveryNodeRole> roles =
-                Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)));
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 
@@ -471,7 +585,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService), null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                null,
                 null,
                 threadPool,
                 null,
@@ -495,9 +610,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
-        InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
-            () -> metadataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-                .getDefault(Settings.EMPTY)).build()));
+        InvalidIndexNameException e = expectThrows(
+            InvalidIndexNameException.class,
+            () -> metadataCreateIndexService.validateIndexName(
+                indexName,
+                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build()
+            )
+        );
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
@@ -513,8 +632,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0);
         int numShards = randomIntBetween(1, 1000);
         assertEquals(numShards, MetadataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
-        assertEquals(numShards, MetadataCreateIndexService.calculateNumRoutingShards(numShards,
-            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), latestV6)));
+        assertEquals(
+            numShards,
+            MetadataCreateIndexService.calculateNumRoutingShards(
+                numShards,
+                VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), latestV6)
+            )
+        );
 
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);
@@ -528,7 +652,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
             double ratio = numRoutingShards / randomNumShards;
             int intRatio = (int) ratio;
-            assertEquals(ratio, (double)(intRatio), 0.0d);
+            assertEquals(ratio, (double) (intRatio), 0.0d);
             assertTrue(1 < ratio);
             assertTrue(ratio <= 1024);
             assertEquals(0, intRatio % 2);
@@ -549,18 +673,23 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService), null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                null,
                 null,
                 threadPool,
                 null,
-                new SystemIndices(Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature",
-                    systemIndexDescriptors))),
+                new SystemIndices(
+                    Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
+                ),
                 false
             );
             // Check deprecations
             assertFalse(checkerService.validateDotIndex(".test2", false));
-            assertWarnings("index name [.test2] starts with a dot '.', in the next major version, index " +
-                "names starting with a dot are reserved for hidden indices and system indices");
+            assertWarnings(
+                Level.WARN,
+                "index name [.test2] starts with a dot '.', in the next major version, index "
+                    + "names starting with a dot are reserved for hidden indices and system indices"
+            );
 
             // Check non-system hidden indices don't trigger a warning
             assertFalse(checkerService.validateDotIndex(".test2", true));
@@ -584,8 +713,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         });
         request.mappings(singletonMap("type", createMapping("mapping_from_request", "text").string()));
 
-        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(request.mappings(),
-            Collections.singletonList(convertMappings(templateMetadata.getMappings())), NamedXContentRegistry.EMPTY);
+        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            request.mappings(),
+            Collections.singletonList(convertMappings(templateMetadata.getMappings())),
+            NamedXContentRegistry.EMPTY
+        );
 
         assertThat(parsedMappings, hasKey("type"));
         Map<String, Object> mappingType = parsedMappings.get("type");
@@ -598,21 +730,28 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testAggregateSettingsAppliesSettingsFromTemplatesAndRequest() {
-        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
-            builder.settings(Settings.builder().put("template_setting", "value1"));
-        });
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
+            builder -> { builder.settings(Settings.builder().put("template_setting", "value1")); }
+        );
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templatesBuilder = ImmutableOpenMap.builder();
         templatesBuilder.put("template_1", templateMetadata);
         Metadata metadata = new Metadata.Builder().templates(templatesBuilder.build()).build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).build();
         request.settings(Settings.builder().put("request_setting", "value2").build());
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
@@ -623,9 +762,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         String aliasName = randomFrom(invalidAliasNames);
         request.aliases(singleton(new Alias(aliasName)));
 
-        expectThrows(InvalidAliasNameException.class, () ->
-            resolveAndValidateAliases(request.index(), request.aliases(), emptyList(), Metadata.builder().build(), aliasValidator,
-                xContentRegistry(), searchExecutionContext, indexNameExpressionResolver::resolveDateMathExpression)
+        expectThrows(
+            InvalidAliasNameException.class,
+            () -> resolveAndValidateAliases(
+                request.index(),
+                request.aliases(),
+                emptyList(),
+                Metadata.builder().build(),
+                aliasValidator,
+                xContentRegistry(),
+                searchExecutionContext,
+                indexNameExpressionResolver::resolveDateMathExpression
+            )
         );
     }
 
@@ -634,11 +782,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         request.aliases(Collections.singleton(new Alias(aliasName)));
 
-        List<AliasMetadata> aliasMetadata = resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression);
+        List<AliasMetadata> aliasMetadata = resolveAndValidateAliases(
+            request.index(),
+            request.aliases(),
+            Collections.emptyList(),
+            Metadata.builder().build(),
+            aliasValidator,
+            xContentRegistry(),
+            searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression
+        );
 
-        assertEquals("date-math-based-2021-01-01", aliasMetadata.get(0).alias() );
+        assertEquals("date-math-based-2021-01-01", aliasMetadata.get(0).alias());
     }
 
     @SuppressWarnings("unchecked")
@@ -646,25 +801,42 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         CompressedXContent templateMapping = createMapping("test", "text");
         CompressedXContent reqMapping = createMapping("test", "keyword");
 
-        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> builder
-            .putAlias(AliasMetadata.builder("alias").searchRouting("fromTemplate").build())
-            .putMapping("type", templateMapping)
-            .settings(Settings.builder().put("key1", "templateValue"))
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
+            builder -> builder.putAlias(AliasMetadata.builder("alias").searchRouting("fromTemplate").build())
+                .putMapping("type", templateMapping)
+                .settings(Settings.builder().put("key1", "templateValue"))
         );
 
         request.mappings(singletonMap("type", reqMapping.string()));
         request.aliases(singleton(new Alias("alias").searchRouting("fromRequest")));
         request.settings(Settings.builder().put("key1", "requestValue").build());
 
-        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(request.mappings(),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
-        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
+        Map<String, Map<String, Object>> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            request.mappings(),
+            Collections.singletonList(convertMappings(templateMetadata.mappings())),
+            xContentRegistry()
+        );
+        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(
+            request.index(),
+            request.aliases(),
             MetadataIndexTemplateService.resolveAliases(Collections.singletonList(templateMetadata)),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression);
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+            Metadata.builder().build(),
+            aliasValidator,
+            xContentRegistry(),
+            searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression
+        );
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            templateMetadata.settings(),
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
         assertThat(aggregatedIndexSettings.get("key1"), equalTo("requestValue"));
@@ -679,46 +851,82 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testDefaultSettings() {
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() {
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(), Collections.emptySet(), randomBoolean());
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
     }
 
-    public void testTemplateOrder() throws  Exception {
+    public void testTemplateOrder() throws Exception {
         List<IndexTemplateMetadata> templates = new ArrayList<>(3);
-        templates.add(addMatchingTemplate(builder -> builder
-            .order(3)
-            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 12))
-            .putAlias(AliasMetadata.builder("alias1").writeIndex(true).searchRouting("3").build())
-        ));
-        templates.add(addMatchingTemplate(builder -> builder
-            .order(2)
-            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 11))
-            .putAlias(AliasMetadata.builder("alias1").searchRouting("2").build())
-        ));
-        templates.add(addMatchingTemplate(builder -> builder
-            .order(1)
-            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10))
-            .putAlias(AliasMetadata.builder("alias1").searchRouting("1").build())
-        ));
+        templates.add(
+            addMatchingTemplate(
+                builder -> builder.order(3)
+                    .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 12))
+                    .putAlias(AliasMetadata.builder("alias1").writeIndex(true).searchRouting("3").build())
+            )
+        );
+        templates.add(
+            addMatchingTemplate(
+                builder -> builder.order(2)
+                    .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 11))
+                    .putAlias(AliasMetadata.builder("alias1").searchRouting("2").build())
+            )
+        );
+        templates.add(
+            addMatchingTemplate(
+                builder -> builder.order(1)
+                    .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10))
+                    .putAlias(AliasMetadata.builder("alias1").searchRouting("1").build())
+            )
+        );
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request,
-            MetadataIndexTemplateService.resolveSettings(templates), null, Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet(), randomBoolean());
-        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            MetadataIndexTemplateService.resolveSettings(templates),
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
+        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(
+            request.index(),
+            request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression);
+            Metadata.builder().build(),
+            aliasValidator,
+            xContentRegistry(),
+            searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression
+        );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
         AliasMetadata alias = resolvedAliases.get(0);
@@ -728,26 +936,38 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testResolvedAliasInTemplate() {
         List<IndexTemplateMetadata> templates = new ArrayList<>(3);
-        templates.add(addMatchingTemplate(builder -> builder
-            .order(3)
-            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
-            .putAlias(AliasMetadata.builder("<jan-{2021-01-07||/M{yyyy-MM-dd}}>").build())
-        ));
-        templates.add(addMatchingTemplate(builder -> builder
-            .order(2)
-            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
-            .putAlias(AliasMetadata.builder("<feb-{2021-02-28||/M{yyyy-MM-dd}}>").build())
-        ));
-        templates.add(addMatchingTemplate(builder -> builder
-            .order(1)
-            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
-            .putAlias(AliasMetadata.builder("<mar-{2021-03-07||/M{yyyy-MM-dd}}>").build())
-        ));
+        templates.add(
+            addMatchingTemplate(
+                builder -> builder.order(3)
+                    .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
+                    .putAlias(AliasMetadata.builder("<jan-{2021-01-07||/M{yyyy-MM-dd}}>").build())
+            )
+        );
+        templates.add(
+            addMatchingTemplate(
+                builder -> builder.order(2)
+                    .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
+                    .putAlias(AliasMetadata.builder("<feb-{2021-02-28||/M{yyyy-MM-dd}}>").build())
+            )
+        );
+        templates.add(
+            addMatchingTemplate(
+                builder -> builder.order(1)
+                    .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
+                    .putAlias(AliasMetadata.builder("<mar-{2021-03-07||/M{yyyy-MM-dd}}>").build())
+            )
+        );
 
-        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
+        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(
+            request.index(),
+            request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression);
+            Metadata.builder().build(),
+            aliasValidator,
+            xContentRegistry(),
+            searchExecutionContext,
+            indexNameExpressionResolver::resolveDateMathExpression
+        );
 
         assertThat(resolvedAliases.get(0).alias(), equalTo("jan-2021-01-01"));
         assertThat(resolvedAliases.get(1).alias(), equalTo("feb-2021-02-01"));
@@ -757,22 +977,28 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testAggregateIndexSettingsIgnoresTemplatesOnCreateFromSourceIndex() throws Exception {
         CompressedXContent templateMapping = createMapping("test", "text");
 
-        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> builder
-            .putAlias(AliasMetadata.builder("alias").searchRouting("fromTemplate").build())
-            .putMapping("_doc", templateMapping)
-            .settings(Settings.builder().put("templateSetting", "templateValue"))
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
+            builder -> builder.putAlias(AliasMetadata.builder("alias").searchRouting("fromTemplate").build())
+                .putMapping("_doc", templateMapping)
+                .settings(Settings.builder().put("templateSetting", "templateValue"))
         );
 
         request.settings(Settings.builder().put("requestSetting", "requestValue").build());
         request.resizeType(ResizeType.SPLIT);
         request.recoverFrom(new Index("sourceIndex", UUID.randomUUID().toString()));
-        ClusterState clusterState =
-            createClusterState("sourceIndex", 1, 0,
-                Settings.builder().put("index.blocks.write", true).build());
+        ClusterState clusterState = createClusterState("sourceIndex", 1, 0, Settings.builder().put("index.blocks.write", true).build());
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
-            clusterState.metadata().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService(), Collections.emptySet(), randomBoolean());
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            clusterState.metadata().index("sourceIndex"),
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
 
         assertThat(aggregatedIndexSettings.get("templateSetting"), is(nullValue()));
         assertThat(aggregatedIndexSettings.get("requestSetting"), is("requestValue"));
@@ -780,10 +1006,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testClusterStateCreateIndexThrowsWriteIndexValidationException() throws Exception {
         IndexMetadata existingWriteIndex = IndexMetadata.builder("test2")
-            .settings(settings(Version.CURRENT)).putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
-            .numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState currentClusterState =
-            ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(existingWriteIndex, false).build()).build();
+            .settings(settings(Version.CURRENT))
+            .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(existingWriteIndex, false).build())
+            .build();
 
         IndexMetadata newIndex = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
@@ -793,16 +1023,22 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         assertThat(
-            expectThrows(IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, org.elasticsearch.core.Set.of(), newIndex,
-                    (state, reason) -> state, null)).getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> clusterStateCreateIndex(
+                    currentClusterState,
+                    org.elasticsearch.core.Set.of(),
+                    newIndex,
+                    (state, reason) -> state,
+                    null
+                )
+            ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
     }
 
     public void testClusterStateCreateIndex() {
-        ClusterState currentClusterState =
-            ClusterState.builder(ClusterState.EMPTY_STATE).build();
+        ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
 
         IndexMetadata newIndexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
@@ -818,8 +1054,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             return clusterState;
         };
 
-        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState,
-            org.elasticsearch.core.Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata, rerouteRoutingTable, null);
+        ClusterState updatedClusterState = clusterStateCreateIndex(
+            currentClusterState,
+            org.elasticsearch.core.Set.of(INDEX_READ_ONLY_BLOCK),
+            newIndexMetadata,
+            rerouteRoutingTable,
+            null
+        );
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         assertThat(allocationRerouted.get(), is(true));
@@ -827,11 +1068,15 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testClusterStateCreateIndexWithMetadataTransaction() {
         ClusterState currentClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder("my-index")
-                    .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexMetadata.builder("my-index")
+                            .settings(settings(Version.CURRENT).put(SETTING_READ_ONLY, true))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                    )
+            )
             .build();
 
         IndexMetadata newIndexMetadata = IndexMetadata.builder("test")
@@ -848,12 +1093,19 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
 
-        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, org.elasticsearch.core.Set.of(
-            INDEX_READ_ONLY_BLOCK), newIndexMetadata, (clusterState, y) -> clusterState, metadataTransformer);
-        assertTrue(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).containsKey("my-index"));
-        assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index"));
-        assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index").get(0).alias(),
-            equalTo("alias1"));
+        ClusterState updatedClusterState = clusterStateCreateIndex(
+            currentClusterState,
+            org.elasticsearch.core.Set.of(INDEX_READ_ONLY_BLOCK),
+            newIndexMetadata,
+            (clusterState, y) -> clusterState,
+            metadataTransformer
+        );
+        assertTrue(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
+        assertNotNull(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index"));
+        assertNotNull(
+            updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).get("my-index").get(0).alias(),
+            equalTo("alias1")
+        );
     }
 
     public void testParseMappingsWithTypedTemplateAndTypelessIndexMapping() throws Exception {
@@ -865,22 +1117,27 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             }
         });
 
-        Map<String, Map<String, Object>> mappings = parseV1Mappings(singletonMap(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\":{}}"),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
+        Map<String, Map<String, Object>> mappings = parseV1Mappings(
+            singletonMap(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\":{}}"),
+            Collections.singletonList(convertMappings(templateMetadata.mappings())),
+            xContentRegistry()
+        );
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
     public void testParseMappingsWithTypedTemplate() throws Exception {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             try {
-                builder.putMapping("type",
-                    "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
+                builder.putMapping("type", "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
             } catch (IOException e) {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseV1Mappings(emptyMap(),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
+        Map<String, Map<String, Object>> mappings = parseV1Mappings(
+            emptyMap(),
+            Collections.singletonList(convertMappings(templateMetadata.mappings())),
+            xContentRegistry()
+        );
         assertThat(mappings, Matchers.hasKey("type"));
     }
 
@@ -892,16 +1149,17 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Map<String, Object>> mappings = parseV1Mappings(emptyMap(),
-            Collections.singletonList(convertMappings(templateMetadata.mappings())), xContentRegistry());
+        Map<String, Map<String, Object>> mappings = parseV1Mappings(
+            emptyMap(),
+            Collections.singletonList(convertMappings(templateMetadata.mappings())),
+            xContentRegistry()
+        );
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
     public void testBuildIndexMetadata() {
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
-            .settings(Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .build())
+            .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .primaryTerm(0, 3L)
@@ -914,8 +1172,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetadata> aliases = singletonList(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata =
-            buildIndexMetadata("test", aliases, () -> null, () -> null, indexSettings, 4, sourceIndexMetadata, false);
+        IndexMetadata indexMetadata = buildIndexMetadata(
+            "test",
+            aliases,
+            () -> null,
+            () -> null,
+            indexSettings,
+            4,
+            sourceIndexMetadata,
+            false
+        );
 
         assertThat(indexMetadata.getSettings().getAsBoolean(INDEX_SOFT_DELETES_SETTING.getKey(), true), is(false));
         assertThat(indexMetadata.getAliases().size(), is(1));
@@ -929,8 +1195,12 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
             .build();
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
-        assertThat("When the target routing number of shards is not specified the expected value is the configured number of shards " +
-            "multiplied by 2 at most ten times (ie. 3 * 2^8)", targetRoutingNumberOfShards, is(768));
+        assertThat(
+            "When the target routing number of shards is not specified the expected value is the configured number of shards "
+                + "multiplied by 2 at most ten times (ie. 3 * 2^8)",
+            targetRoutingNumberOfShards,
+            is(768)
+        );
     }
 
     public void testGetIndexNumberOfRoutingShardsWhenExplicitlyConfigured() {
@@ -944,21 +1214,17 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testGetIndexNumberOfRoutingShardsNullVsNotDefined() {
         int numberOfPrimaryShards = randomIntBetween(1, 16);
-        Settings indexSettings = settings(Version.CURRENT)
-            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
+        Settings indexSettings = settings(Version.CURRENT).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards)
             .build();
         int targetRoutingNumberOfShardsWithNull = getIndexNumberOfRoutingShards(indexSettings, null);
-        indexSettings = settings(Version.CURRENT)
-            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards)
-            .build();
+        indexSettings = settings(Version.CURRENT).put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numberOfPrimaryShards).build();
         int targetRoutingNumberOfShardsWithNotDefined = getIndexNumberOfRoutingShards(indexSettings, null);
         assertThat(targetRoutingNumberOfShardsWithNull, is(targetRoutingNumberOfShardsWithNotDefined));
     }
 
     public void testGetIndexNumberOfRoutingShardsNull() {
-        Settings indexSettings = settings(Version.CURRENT)
-            .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
+        Settings indexSettings = settings(Version.CURRENT).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), (String) null)
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
             .build();
         int targetRoutingNumberOfShardsWithNull = getIndexNumberOfRoutingShards(indexSettings, null);
@@ -966,14 +1232,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testGetIndexNumberOfRoutingShardsYieldsSourceNumberOfShards() {
-        Settings indexSettings = Settings.builder()
-            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
-            .build();
+        Settings indexSettings = Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3).build();
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
-            .settings(Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .build())
+            .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
             .numberOfShards(6)
             .numberOfReplicas(0)
             .build();
@@ -982,8 +1244,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(targetRoutingNumberOfShards, is(6));
     }
 
-    private Optional<String> aggregatedTierPreference(Settings settings, boolean isDataStream,
-                                                      boolean enforceDefaultTierPreference) {
+    private Optional<String> aggregatedTierPreference(Settings settings, boolean isDataStream, boolean enforceDefaultTierPreference) {
         Settings templateSettings = Settings.EMPTY;
         request.settings(Settings.EMPTY);
 
@@ -1004,17 +1265,34 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             clusterState = DataTierTests.clusterStateWithoutAllDataRoles();
         }
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateSettings,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            org.elasticsearch.core.Set.of(new DataTier.DefaultHotAllocationSettingProvider()), enforceDefaultTierPreference);
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateSettings,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            org.elasticsearch.core.Set.of(new DataTier.DefaultHotAllocationSettingProvider()),
+            enforceDefaultTierPreference
+        );
 
         if (aggregatedIndexSettings.keySet().contains(DataTier.TIER_PREFERENCE)) {
             return Optional.of(aggregatedIndexSettings.get(DataTier.TIER_PREFERENCE));
         } else {
             if (clusterState != ClusterState.EMPTY_STATE) {
-                assertWarnings(true, new DeprecationWarning(Level.WARN, "[" + request.index() +
-                    "] creating index with an empty [" + DataTier.TIER_PREFERENCE + "] setting, in 8.0 this setting will be required for " +
-                    "all indices"));
+                assertWarnings(
+                    true,
+                    new DeprecationWarning(
+                        Level.WARN,
+                        "["
+                            + request.index()
+                            + "] creating index with an empty ["
+                            + DataTier.TIER_PREFERENCE
+                            + "] setting, in 8.0 this setting will be required for "
+                            + "all indices"
+                    )
+                );
             }
 
             return Optional.empty();
@@ -1044,10 +1322,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         String includeRoutingSetting = randomFrom(
             IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
             IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX,
-            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX) + "." + randomAlphaOfLength(10);
-        settings = Settings.builder()
-            .put(includeRoutingSetting, randomAlphaOfLength(10))
-            .build();
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX
+        ) + "." + randomAlphaOfLength(10);
+        settings = Settings.builder().put(includeRoutingSetting, randomAlphaOfLength(10)).build();
         tier = aggregatedTierPreference(settings, false, true);
         assertEquals(DataTier.DATA_CONTENT, tier.get());
         // (continued from above) but not if we aren't
@@ -1072,18 +1349,36 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testSoftDeletesDisabledDeprecation() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
-        assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
-            + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test].");
+        aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
+        assertWarnings(
+            "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
+                + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test]."
+        );
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         if (randomBoolean()) {
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         }
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
+        aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
     }
 
     public void testValidateTranslogRetentionSettings() {
@@ -1095,11 +1390,21 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         request.settings(settings.build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
-        assertWarnings("Translog retention settings [index.translog.retention.age] "
-            + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+        aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
+        assertWarnings(
+            "Translog retention settings [index.translog.retention.age] "
+                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version."
+        );
     }
 
     public void testDeprecateSimpleFS() {
@@ -1108,12 +1413,22 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey());
 
         request.settings(settings.build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), randomBoolean());
-        assertWarnings("[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
-            "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
-            "as it offers superior or equivalent performance to [simplefs].");
+        aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            randomBoolean()
+        );
+        assertWarnings(
+            "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. "
+                + "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type "
+                + "as it offers superior or equivalent performance to [simplefs]."
+        );
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
@@ -1123,23 +1438,23 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private IndexTemplateMetadata.Builder templateMetadataBuilder(String name, String pattern) {
-        return IndexTemplateMetadata
-            .builder(name)
-            .patterns(singletonList(pattern));
+        return IndexTemplateMetadata.builder(name).patterns(singletonList(pattern));
     }
 
     private CompressedXContent createMapping(String fieldName, String fieldType) {
         try {
-            final String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject(fieldName)
-                .field("type", fieldType)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject());
+            final String mapping = Strings.toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
+                    .startObject(fieldName)
+                    .field("type", fieldType)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            );
 
             return new CompressedXContent(mapping);
         } catch (IOException e) {
@@ -1154,8 +1469,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
         return converted;
     }
+
     private ShardLimitValidator randomShardLimitService() {
-        return createTestShardLimitService(randomIntBetween(10,10000));
+        return createTestShardLimitService(randomIntBetween(10, 10000));
     }
 
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {

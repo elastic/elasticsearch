@@ -16,8 +16,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.net.InetAddress;
 import java.util.Collections;
@@ -64,8 +64,9 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {
-        InetAddress inetAddress = randomBoolean() ? InetAddress.getByName("192.0.2.1") :
-            InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        InetAddress inetAddress = randomBoolean()
+            ? InetAddress.getByName("192.0.2.1")
+            : InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
         assertEquals(transportAddress.address().getHostString(), node.getHostName());
@@ -73,7 +74,7 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeSerializationKeepsHost() throws Exception {
-        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
 
@@ -91,7 +92,7 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeRoleWithOldVersion() throws Exception {
-        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+        InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
         DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true) {
@@ -110,8 +111,14 @@ public class DiscoveryNodeTests extends ESTestCase {
             }
         };
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
-            Collections.singleton(customRole), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode(
+            "name1",
+            "id1",
+            transportAddress,
+            emptyMap(),
+            Collections.singleton(customRole),
+            Version.CURRENT
+        );
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -121,8 +128,10 @@ public class DiscoveryNodeTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
             in.setVersion(Version.CURRENT);
             DiscoveryNode serialized = new DiscoveryNode(in);
-            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
-                equalTo("data_custom_role"));
+            assertThat(
+                serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
+                equalTo("data_custom_role")
+            );
         }
 
         {
@@ -133,15 +142,20 @@ public class DiscoveryNodeTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
             in.setVersion(Version.V_7_10_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
-            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()),
-                equalTo("data"));
+            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()), equalTo("data"));
         }
 
         {
             // a pre 7.3.0 node will only understand legacy roles so let's test a custom data containing node role is mapped onto the
             // `DATA` role
-            DiscoveryNode nodeToWrite = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
-                org.elasticsearch.core.Set.of(customRole, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+            DiscoveryNode nodeToWrite = new DiscoveryNode(
+                "name1",
+                "id1",
+                transportAddress,
+                emptyMap(),
+                org.elasticsearch.core.Set.of(customRole, DiscoveryNodeRole.MASTER_ROLE),
+                Version.CURRENT
+            );
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
             streamOutput.setVersion(Version.V_7_2_0);
@@ -150,8 +164,10 @@ public class DiscoveryNodeTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
             in.setVersion(Version.V_7_2_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
-            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(",")),
-                equalTo("data,master"));
+            assertThat(
+                serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(",")),
+                equalTo("data,master")
+            );
         }
     }
 
@@ -178,8 +194,13 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeDescriptionWithoutAttributes() {
-        final DiscoveryNode node = new DiscoveryNode("test-id", buildNewFakeTransportAddress(),
-                Collections.singletonMap("test-attr", "val"), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        final DiscoveryNode node = new DiscoveryNode(
+            "test-id",
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("test-attr", "val"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
         final StringBuilder stringBuilder = new StringBuilder();
         node.appendDescriptionWithoutAttributes(stringBuilder);
         final String descriptionWithoutAttributes = stringBuilder.toString();
@@ -191,15 +212,16 @@ public class DiscoveryNodeTests extends ESTestCase {
     public void testDiscoveryNodeToXContent() {
         final TransportAddress transportAddress = buildNewFakeTransportAddress();
         final DiscoveryNode node = new DiscoveryNode(
-                "test-name",
-                "test-id",
-                "test-ephemeral-id",
-                "test-hostname",
-                "test-hostaddr",
-                transportAddress,
-                Collections.singletonMap("test-attr", "val"),
-                DiscoveryNodeRole.BUILT_IN_ROLES,
-                Version.CURRENT);
+            "test-name",
+            "test-id",
+            "test-ephemeral-id",
+            "test-hostname",
+            "test-hostaddr",
+            transportAddress,
+            Collections.singletonMap("test-attr", "val"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
 
         final String jsonString = Strings.toString(node, randomBoolean(), randomBoolean());
         final Map<String, Object> topLevelMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), jsonString, randomBoolean());

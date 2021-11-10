@@ -21,9 +21,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
+import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationFunction;
 import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
-import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,9 +40,7 @@ public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
         int[] isCat = new int[10000];
         int[] isDog = new int[10000];
 
-        client().admin().indices().prepareCreate("data")
-            .addMapping("_doc", "metric", "type=double", "term", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate("data").addMapping("_doc", "metric", "type=double", "term", "type=keyword").get();
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("data", "_doc");
         for (int i = 0; i < 5000; i++) {
             IndexRequest indexRequest = new IndexRequest("data");
@@ -71,14 +69,9 @@ public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
         double dogCorrelation = pearsonCorrelation(xs, isDog);
 
         AtomicLong counter = new AtomicLong();
-        double[] steps = Stream.generate(() -> counter.getAndAdd(2L)).limit(50).mapToDouble(l -> (double)l).toArray();
+        double[] steps = Stream.generate(() -> counter.getAndAdd(2L)).limit(50).mapToDouble(l -> (double) l).toArray();
         SearchResponse percentilesSearch = client().prepareSearch("data")
-            .addAggregation(
-                AggregationBuilders
-                    .percentiles("percentiles")
-                    .field("metric")
-                    .percentiles(steps)
-            )
+            .addAggregation(AggregationBuilders.percentiles("percentiles").field("metric").percentiles(steps))
             .setSize(0)
             .setTrackTotalHits(true)
             .get();
@@ -91,16 +84,10 @@ public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
             "metric"
         );
 
-        SearchResponse countCorrelations = client()
-            .prepareSearch("data")
+        SearchResponse countCorrelations = client().prepareSearch("data")
             .setSize(0)
             .setTrackTotalHits(false)
-            .addAggregation(AggregationBuilders
-                .terms("buckets")
-                .field("term")
-                .subAggregation(aggs.v1())
-                .subAggregation(aggs.v2())
-            )
+            .addAggregation(AggregationBuilders.terms("buckets").field("term").subAggregation(aggs.v1()).subAggregation(aggs.v2()))
             .get();
 
         Terms terms = countCorrelations.getAggregations().get("buckets");
@@ -138,7 +125,7 @@ public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
                 percentiles.add(percentile_r);
             }
         }
-        fractions.add(2.0/100);
+        fractions.add(2.0 / 100);
         double[] expectations = new double[percentiles.size() + 1];
         expectations[0] = percentile_0;
         for (int i = 1; i < percentiles.size(); i++) {
@@ -166,7 +153,7 @@ public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
 
     private double pearsonCorrelation(double[] xs, int[] ys) {
         double meanX = MovingFunctions.unweightedAvg(xs);
-        double meanY = sum(ys)/(double)ys.length;
+        double meanY = sum(ys) / (double) ys.length;
         double varX = Math.pow(MovingFunctions.stdDev(xs, meanX), 2.0);
         double varY = 0.0;
         for (int y : ys) {
@@ -180,9 +167,9 @@ public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
 
         double corXY = 0.0;
         for (int i = 0; i < xs.length; i++) {
-            corXY += (((xs[i] - meanX)*(ys[i] - meanY))/Math.sqrt(varX*varY));
+            corXY += (((xs[i] - meanX) * (ys[i] - meanY)) / Math.sqrt(varX * varY));
         }
-        return corXY/xs.length;
+        return corXY / xs.length;
     }
 
     private static int sum(int[] xs) {
@@ -194,9 +181,7 @@ public class MlAggregationsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void sendAndMaybeFail(BulkRequestBuilder bulkRequestBuilder) {
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {

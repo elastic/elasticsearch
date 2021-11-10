@@ -52,18 +52,32 @@ public class ShardStateActionIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         if (randomBoolean()) {
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-                .put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), randomPriority())));
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(
+                        Settings.builder().put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), randomPriority())
+                    )
+            );
         }
 
         createIndex("test");
-        final ClusterHealthResponse clusterHealthResponse
-            = client().admin().cluster().prepareHealth().setWaitForNoInitializingShards(true).setWaitForEvents(Priority.LANGUID).get();
+        final ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForNoInitializingShards(true)
+            .setWaitForEvents(Priority.LANGUID)
+            .get();
         assertFalse(clusterHealthResponse.isTimedOut());
         assertThat(clusterHealthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .putNull(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey())));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey()))
+        );
     }
 
     public void testFollowupRerouteCanBeSetToHigherPriority() {
@@ -73,31 +87,34 @@ public class ShardStateActionIT extends ESIntegTestCase {
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), "urgent")));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), "urgent"))
+        );
 
         // ensure that the master always has a HIGH priority pending task
         final AtomicBoolean stopSpammingMaster = new AtomicBoolean();
         final ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-        masterClusterService.submitStateUpdateTask("spam",
-            new ClusterStateUpdateTask(Priority.HIGH) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return currentState;
-                }
+        masterClusterService.submitStateUpdateTask("spam", new ClusterStateUpdateTask(Priority.HIGH) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return currentState;
+            }
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    throw new AssertionError(source, e);
-                }
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(source, e);
+            }
 
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    if (stopSpammingMaster.get() == false) {
-                        masterClusterService.submitStateUpdateTask("spam", this);
-                    }
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (stopSpammingMaster.get() == false) {
+                    masterClusterService.submitStateUpdateTask("spam", this);
                 }
-            });
+            }
+        });
 
         // even with the master under such pressure, all shards of the index can be assigned; in particular, after the primaries have
         // started there's a follow-up reroute at a higher priority than the spam
@@ -107,17 +124,25 @@ public class ShardStateActionIT extends ESIntegTestCase {
         stopSpammingMaster.set(true);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .putNull(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey())));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey()))
+        );
     }
 
     public void testFollowupRerouteRejectsInvalidPriorities() {
         final String invalidPriority = randomFrom("IMMEDIATE", "LOW", "LANGUID");
-        final ActionFuture<ClusterUpdateSettingsResponse> responseFuture = client().admin().cluster().prepareUpdateSettings()
+        final ActionFuture<ClusterUpdateSettingsResponse> responseFuture = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), invalidPriority))
             .execute();
-        assertThat(expectThrows(IllegalArgumentException.class, responseFuture::actionGet).getMessage(),
-            allOf(containsString(invalidPriority), containsString(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey())));
+        assertThat(
+            expectThrows(IllegalArgumentException.class, responseFuture::actionGet).getMessage(),
+            allOf(containsString(invalidPriority), containsString(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey()))
+        );
     }
 
     private String randomPriority() {

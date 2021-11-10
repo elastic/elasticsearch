@@ -16,11 +16,11 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
@@ -101,7 +101,8 @@ public final class EngineConfig {
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
+                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s
+                    );
                 }
                 return s;
         }
@@ -114,8 +115,12 @@ public final class EngineConfig {
      * this setting won't be reflected re-enabled optimization until the engine is restarted or the index is closed and reopened.
      * The default is <code>true</code>
      */
-    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting("index.optimize_auto_generated_id", true,
-        Property.IndexScope, Property.Dynamic);
+    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
+        "index.optimize_auto_generated_id",
+        true,
+        Property.IndexScope,
+        Property.Dynamic
+    );
 
     private final TranslogConfig translogConfig;
 
@@ -123,29 +128,30 @@ public final class EngineConfig {
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
     public EngineConfig(
-            ShardId shardId,
-            ThreadPool threadPool,
-            IndexSettings indexSettings,
-            Engine.Warmer warmer,
-            Store store,
-            MergePolicy mergePolicy,
-            Analyzer analyzer,
-            Similarity similarity,
-            CodecService codecService,
-            Engine.EventListener eventListener,
-            QueryCache queryCache,
-            QueryCachingPolicy queryCachingPolicy,
-            TranslogConfig translogConfig,
-            TimeValue flushMergesAfter,
-            List<ReferenceManager.RefreshListener> externalRefreshListener,
-            List<ReferenceManager.RefreshListener> internalRefreshListener,
-            Sort indexSort,
-            CircuitBreakerService circuitBreakerService,
-            LongSupplier globalCheckpointSupplier,
-            Supplier<RetentionLeases> retentionLeasesSupplier,
-            LongSupplier primaryTermSupplier,
-            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-            Comparator<LeafReader> leafSorter) {
+        ShardId shardId,
+        ThreadPool threadPool,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecService codecService,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+        Comparator<LeafReader> leafSorter
+    ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -287,7 +293,9 @@ public final class EngineConfig {
     /**
      * Returns the engines shard ID
      */
-    public ShardId getShardId() { return shardId; }
+    public ShardId getShardId() {
+        return shardId;
+    }
 
     /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
@@ -329,7 +337,9 @@ public final class EngineConfig {
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
-    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+    public TimeValue getFlushMergesAfter() {
+        return flushMergesAfter;
+    }
 
     /**
      * The refresh listeners to add to Lucene for externally visible refreshes
@@ -341,8 +351,9 @@ public final class EngineConfig {
     /**
      * The refresh listeners to add to Lucene for internally visible refreshes. These listeners will also be invoked on external refreshes
      */
-    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() { return internalRefreshListener;}
-
+    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() {
+        return internalRefreshListener;
+    }
 
     /**
      * returns true if the engine is allowed to optimize indexing operations with an auto-generated ID

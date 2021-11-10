@@ -49,13 +49,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 
-public class TransportClusterStatsAction extends TransportNodesAction<ClusterStatsRequest, ClusterStatsResponse,
-        TransportClusterStatsAction.ClusterStatsNodeRequest, ClusterStatsNodeResponse> {
+public class TransportClusterStatsAction extends TransportNodesAction<
+    ClusterStatsRequest,
+    ClusterStatsResponse,
+    TransportClusterStatsAction.ClusterStatsNodeRequest,
+    ClusterStatsNodeResponse> {
 
-    private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
-        CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache,
-        CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
+    private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
+        CommonStatsFlags.Flag.Docs,
+        CommonStatsFlags.Flag.Store,
+        CommonStatsFlags.Flag.FieldData,
+        CommonStatsFlags.Flag.QueryCache,
+        CommonStatsFlags.Flag.Completion,
+        CommonStatsFlags.Flag.Segments
+    );
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
@@ -64,23 +73,42 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache = new MetadataStatsCache<>(AnalysisStats::of);
 
     @Inject
-    public TransportClusterStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                       NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, ClusterStatsRequest::new,
-                ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
+    public TransportClusterStatsAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        NodeService nodeService,
+        IndicesService indicesService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            ClusterStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            ClusterStatsRequest::new,
+            ClusterStatsNodeRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            ThreadPool.Names.MANAGEMENT,
+            ClusterStatsNodeResponse.class
+        );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }
 
     @Override
     protected void newResponseAsync(
-            final Task task,
-            final ClusterStatsRequest request,
-            final List<ClusterStatsNodeResponse> responses,
-            final List<FailedNodeException> failures,
-            final ActionListener<ClusterStatsResponse> listener) {
-        assert Transports.assertNotTransportThread("Computation of mapping/analysis stats runs expensive computations on mappings found in "
-                + "the cluster state that are too slow for a transport thread");
+        final Task task,
+        final ClusterStatsRequest request,
+        final List<ClusterStatsNodeResponse> responses,
+        final List<FailedNodeException> failures,
+        final ActionListener<ClusterStatsResponse> listener
+    ) {
+        assert Transports.assertNotTransportThread(
+            "Computation of mapping/analysis stats runs expensive computations on mappings found in "
+                + "the cluster state that are too slow for a transport thread"
+        );
         assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.MANAGEMENT + "]") : Thread.currentThread().getName();
         assert task instanceof CancellableTask;
         final CancellableTask cancellableTask = (CancellableTask) task;
@@ -91,9 +119,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         final StepListener<AnalysisStats> analysisStatsStep = new StepListener<>();
         mappingStatsCache.get(metadata, cancellableTask::isCancelled, mappingStatsStep);
         analysisStatsCache.get(metadata, cancellableTask::isCancelled, analysisStatsStep);
-        mappingStatsStep.whenComplete(mappingStats -> analysisStatsStep.whenComplete(analysisStats -> ActionListener.completeWith(
-                listener,
-                () -> new ClusterStatsResponse(
+        mappingStatsStep.whenComplete(
+            mappingStats -> analysisStatsStep.whenComplete(
+                analysisStats -> ActionListener.completeWith(
+                    listener,
+                    () -> new ClusterStatsResponse(
                         System.currentTimeMillis(),
                         metadata.clusterUUID(),
                         clusterService.getClusterName(),
@@ -101,15 +131,21 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                         failures,
                         mappingStats,
                         analysisStats,
-                        VersionStats.of(metadata, responses))
-        ), listener::onFailure), listener::onFailure);
+                        VersionStats.of(metadata, responses)
+                    )
+                ),
+                listener::onFailure
+            ),
+            listener::onFailure
+        );
     }
 
     @Override
     protected ClusterStatsResponse newResponse(
-            ClusterStatsRequest request,
-            List<ClusterStatsNodeResponse> responses,
-            List<FailedNodeException> failures) {
+        ClusterStatsRequest request,
+        List<ClusterStatsNodeResponse> responses,
+        List<FailedNodeException> failures
+    ) {
         assert false;
         throw new UnsupportedOperationException("use newResponseAsync instead");
     }
@@ -135,8 +171,23 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         assert task instanceof CancellableTask;
         final CancellableTask cancellableTask = (CancellableTask) task;
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false);
-        NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE,
-                true, true, true, false, true, false, false, false, false, false, true, false, false, false);
+        NodeStats nodeStats = nodeService.stats(
+            CommonStatsFlags.NONE,
+            true,
+            true,
+            true,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+        );
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
@@ -157,13 +208,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                         retentionLeaseStats = null;
                     }
                     shardsStats.add(
-                            new ShardStats(
-                                    indexShard.routingEntry(),
-                                    indexShard.shardPath(),
-                                    new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
-                                    commitStats,
-                                    seqNoStats,
-                                    retentionLeaseStats));
+                        new ShardStats(
+                            indexShard.routingEntry(),
+                            indexShard.shardPath(),
+                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+                            commitStats,
+                            seqNoStats,
+                            retentionLeaseStats
+                        )
+                    );
                 }
             }
         }
@@ -173,8 +226,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()]));
+        return new ClusterStatsNodeResponse(
+            nodeInfo.getNode(),
+            clusterStatus,
+            nodeInfo,
+            nodeStats,
+            shardsStats.toArray(new ShardStats[shardsStats.size()])
+        );
 
     }
 
@@ -211,7 +269,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         }
 
         @Override
-        protected void refresh(Metadata metadata, Runnable ensureNotCancelled, ActionListener<T> listener) {
+        protected void refresh(
+            Metadata metadata,
+            Runnable ensureNotCancelled,
+            BooleanSupplier supersedeIfStale,
+            ActionListener<T> listener
+        ) {
             ActionListener.completeWith(listener, () -> function.apply(metadata, ensureNotCancelled));
         }
 

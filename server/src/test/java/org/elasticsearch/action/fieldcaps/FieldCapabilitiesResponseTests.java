@@ -15,11 +15,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -83,8 +83,14 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 break;
         }
 
-        return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
-            randomBoolean(), randomBoolean(), randomBoolean(), meta);
+        return new IndexFieldCapabilities(
+            fieldName,
+            randomAlphaOfLengthBetween(5, 20),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            meta
+        );
     }
 
     @Override
@@ -96,9 +102,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         switch (mutation) {
             case 0:
                 String toAdd = randomAlphaOfLength(10);
-                mutatedResponses.put(toAdd, Collections.singletonMap(
-                    randomAlphaOfLength(10),
-                    FieldCapabilitiesTests.randomFieldCaps(toAdd)));
+                mutatedResponses.put(
+                    toAdd,
+                    Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toAdd))
+                );
                 break;
             case 1:
                 String toRemove = randomFrom(mutatedResponses.keySet());
@@ -106,9 +113,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 break;
             case 2:
                 String toReplace = randomFrom(mutatedResponses.keySet());
-                mutatedResponses.put(toReplace, Collections.singletonMap(
-                    randomAlphaOfLength(10),
-                    FieldCapabilitiesTests.randomFieldCaps(toReplace)));
+                mutatedResponses.put(
+                    toReplace,
+                    Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
+                );
                 break;
         }
         return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
@@ -189,7 +197,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             // minimum version set to 7.6 because the nested FieldCapabilities had another serialization change there
             in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, VersionUtils.getPreviousVersion(Version.V_7_13_0)));
             FieldCapabilitiesResponse deserialized = new FieldCapabilitiesResponse(in);
-            assertArrayEquals(new String[]{"some-index"}, deserialized.getIndices());
+            assertArrayEquals(new String[] { "some-index" }, deserialized.getIndices());
             assertEquals(2, deserialized.get().size());
             assertNotNull(deserialized.get().get("field-1").get("keyword"));
             assertNotNull(deserialized.get().get("field-2").get("keyword"));
@@ -226,7 +234,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         List<FieldCapabilitiesFailure> failures = new ArrayList<>();
         for (String index : indices) {
             if (randomBoolean() || failures.size() == 0) {
-                failures.add(new FieldCapabilitiesFailure(new String[] {index}, ElasticsearchExceptionTests.randomExceptions().v2()));
+                failures.add(new FieldCapabilitiesFailure(new String[] { index }, ElasticsearchExceptionTests.randomExceptions().v2()));
             } else {
                 failures.get(failures.size() - 1).addIndex(index);
             }

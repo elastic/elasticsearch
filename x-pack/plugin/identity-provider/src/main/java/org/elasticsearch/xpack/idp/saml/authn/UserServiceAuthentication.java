@@ -29,9 +29,15 @@ public class UserServiceAuthentication {
     private final Set<AuthenticationMethod> authenticationMethods;
     private final Set<NetworkControl> networkControls;
 
-    public UserServiceAuthentication(String principal, String name, String email, Set<String> roles,
-                                     SamlServiceProvider serviceProvider,
-                                     Set<AuthenticationMethod> authenticationMethods, Set<NetworkControl> networkControls) {
+    public UserServiceAuthentication(
+        String principal,
+        String name,
+        String email,
+        Set<String> roles,
+        SamlServiceProvider serviceProvider,
+        Set<AuthenticationMethod> authenticationMethods,
+        Set<NetworkControl> networkControls
+    ) {
         this.principal = principal;
         this.name = name;
         this.email = email;
@@ -42,8 +48,15 @@ public class UserServiceAuthentication {
     }
 
     public UserServiceAuthentication(String principal, String name, String email, Set<String> roles, SamlServiceProvider serviceProvider) {
-        this(principal, name, email, roles, serviceProvider, new HashSet<>(Collections.singletonList(AuthenticationMethod.PASSWORD)),
-            new HashSet<>(Collections.singletonList(NetworkControl.TLS)));
+        this(
+            principal,
+            name,
+            email,
+            roles,
+            serviceProvider,
+            new HashSet<>(Collections.singletonList(AuthenticationMethod.PASSWORD)),
+            new HashSet<>(Collections.singletonList(NetworkControl.TLS))
+        );
     }
 
     public String getPrincipal() {
@@ -76,14 +89,25 @@ public class UserServiceAuthentication {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" +
-            "principal='" + principal + '\'' +
-            ", name='" + name + '\'' +
-            ", email='" + email + '\'' +
-            ", roles=" + roles +
-            ", serviceProvider=" + serviceProvider +
-            ", authenticationMethods=" + authenticationMethods +
-            ", networkControls=" + networkControls +
-            '}';
+        return getClass().getSimpleName()
+            + "{"
+            + "principal='"
+            + principal
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", email='"
+            + email
+            + '\''
+            + ", roles="
+            + roles
+            + ", serviceProvider="
+            + serviceProvider
+            + ", authenticationMethods="
+            + authenticationMethods
+            + ", networkControls="
+            + networkControls
+            + '}';
     }
 }

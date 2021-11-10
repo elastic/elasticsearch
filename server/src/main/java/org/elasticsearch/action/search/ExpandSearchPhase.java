@@ -47,9 +47,9 @@ final class ExpandSearchPhase extends SearchPhase {
      */
     private boolean isCollapseRequest() {
         final SearchRequest searchRequest = context.getRequest();
-        return searchRequest.source() != null &&
-            searchRequest.source().collapse() != null &&
-            searchRequest.source().collapse().getInnerHits().isEmpty() == false;
+        return searchRequest.source() != null
+            && searchRequest.source().collapse() != null
+            && searchRequest.source().collapse().getInnerHits().isEmpty() == false;
     }
 
     @Override
@@ -76,35 +76,32 @@ final class ExpandSearchPhase extends SearchPhase {
                 }
                 for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
                     CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
-                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder)
-                        .query(groupQuery)
-                        .postFilter(searchRequest.source().postFilter())
-                        .runtimeMappings(searchRequest.source().runtimeMappings());
+                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder).query(
+                        groupQuery
+                    ).postFilter(searchRequest.source().postFilter()).runtimeMappings(searchRequest.source().runtimeMappings());
                     SearchRequest groupRequest = new SearchRequest(searchRequest);
                     groupRequest.source(sourceBuilder);
                     multiRequest.add(groupRequest);
                 }
             }
-            context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(),
-                ActionListener.wrap(response -> {
-                    Iterator<MultiSearchResponse.Item> it = response.iterator();
-                    for (SearchHit hit : searchResponse.hits.getHits()) {
-                        for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
-                            MultiSearchResponse.Item item = it.next();
-                            if (item.isFailure()) {
-                                context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
-                                return;
-                            }
-                            SearchHits innerHits = item.getResponse().getHits();
-                            if (hit.getInnerHits() == null) {
-                                hit.setInnerHits(new HashMap<>(innerHitBuilders.size()));
-                            }
-                            hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
+            context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(), ActionListener.wrap(response -> {
+                Iterator<MultiSearchResponse.Item> it = response.iterator();
+                for (SearchHit hit : searchResponse.hits.getHits()) {
+                    for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
+                        MultiSearchResponse.Item item = it.next();
+                        if (item.isFailure()) {
+                            context.onPhaseFailure(this, "failed to expand hits", item.getFailure());
+                            return;
                         }
+                        SearchHits innerHits = item.getResponse().getHits();
+                        if (hit.getInnerHits() == null) {
+                            hit.setInnerHits(new HashMap<>(innerHitBuilders.size()));
+                        }
+                        hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                     }
-                    context.sendSearchResponse(searchResponse, queryResults);
-                }, context::onFailure)
-            );
+                }
+                context.sendSearchResponse(searchResponse, queryResults);
+            }, context::onFailure));
         } else {
             context.sendSearchResponse(searchResponse, queryResults);
         }
@@ -118,12 +115,10 @@ final class ExpandSearchPhase extends SearchPhase {
             options.getSorts().forEach(groupSource::sort);
         }
         if (options.getFetchSourceContext() != null) {
-            if (options.getFetchSourceContext().includes().length == 0 &&
-                    options.getFetchSourceContext().excludes().length == 0) {
+            if (options.getFetchSourceContext().includes().length == 0 && options.getFetchSourceContext().excludes().length == 0) {
                 groupSource.fetchSource(options.getFetchSourceContext().fetchSource());
             } else {
-                groupSource.fetchSource(options.getFetchSourceContext().includes(),
-                    options.getFetchSourceContext().excludes());
+                groupSource.fetchSource(options.getFetchSourceContext().includes(), options.getFetchSourceContext().excludes());
             }
         }
         if (options.getFetchFields() != null) {

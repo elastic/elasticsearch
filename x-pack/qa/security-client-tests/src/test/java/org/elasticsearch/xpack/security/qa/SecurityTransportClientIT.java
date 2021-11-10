@@ -18,8 +18,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportInfo;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.SecurityField;
 
 import java.util.Collection;
@@ -41,9 +41,9 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), ADMIN_USER_PW)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
-                .build();
+            .put(SecurityField.USER_SETTING.getKey(), ADMIN_USER_PW)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
+            .build();
     }
 
     @Override
@@ -60,9 +60,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientAuthenticationWithTransportClientRole() throws Exception {
-        Settings settings = Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_USER_PW)
-                .build();
+        Settings settings = Settings.builder().put(SecurityField.USER_SETTING.getKey(), TRANSPORT_USER_PW).build();
         try (TransportClient client = transportClient(settings)) {
             assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()), 5L, TimeUnit.SECONDS);
 
@@ -79,17 +77,20 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
     public void testTransportClientWithAdminUser() throws Exception {
         final boolean useTransportUser = randomBoolean();
         Settings settings = Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), useTransportUser ? TRANSPORT_USER_PW : ADMIN_USER_PW)
-                .build();
+            .put(SecurityField.USER_SETTING.getKey(), useTransportUser ? TRANSPORT_USER_PW : ADMIN_USER_PW)
+            .build();
         try (TransportClient client = transportClient(settings)) {
             assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()), 5L, TimeUnit.SECONDS);
 
             // this checks that the transport client is really running in a limited state
             ClusterHealthResponse response;
             if (useTransportUser) {
-                response = client.filterWithHeader(Collections.singletonMap("Authorization",
-                        basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()))))
-                        .admin().cluster().prepareHealth().get();
+                response = client.filterWithHeader(
+                    Collections.singletonMap(
+                        "Authorization",
+                        basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()))
+                    )
+                ).admin().cluster().prepareHealth().get();
             } else {
                 response = client.admin().cluster().prepareHealth().get();
             }
@@ -105,10 +106,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
-        Settings settings = Settings.builder()
-                .put(extraSettings)
-                .put("cluster.name", clusterName)
-                .build();
+        Settings settings = Settings.builder().put(extraSettings).put("cluster.name", clusterName).build();
 
         TransportClient client = new PreBuiltXPackTransportClient(settings);
         client.addTransportAddress(publishAddress);

@@ -19,8 +19,8 @@ import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * A special kind of {@link SystemIndexDescriptor} that can toggle what kind of mappings it
@@ -40,9 +40,24 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .build();
 
     TestSystemIndexDescriptor() {
-        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", getOldMappings(), SETTINGS, INDEX_NAME, 0, "version", "stack",
-            SINGLE_MAPPING_NAME, Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_MANAGED, emptyList(), emptyList(), null,
-            false);
+        super(
+            INDEX_NAME + "*",
+            PRIMARY_INDEX_NAME,
+            "Test system index",
+            getOldMappings(),
+            SETTINGS,
+            INDEX_NAME,
+            0,
+            "version",
+            "stack",
+            SINGLE_MAPPING_NAME,
+            Version.CURRENT.minimumCompatibilityVersion(),
+            Type.INTERNAL_MANAGED,
+            emptyList(),
+            emptyList(),
+            null,
+            false
+        );
     }
 
     @Override

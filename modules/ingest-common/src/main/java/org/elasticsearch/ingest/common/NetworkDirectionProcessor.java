@@ -284,7 +284,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
                 throw newConfigurationException(
                     TYPE,
                     processorTag,
-                    "internal_networks", "and [internal_networks_field] cannot both be used in the same processor"
+                    "internal_networks",
+                    "and [internal_networks_field] cannot both be used in the same processor"
                 );
             }
 

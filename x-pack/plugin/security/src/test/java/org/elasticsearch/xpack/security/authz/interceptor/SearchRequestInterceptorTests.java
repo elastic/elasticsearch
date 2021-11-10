@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -82,10 +82,14 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         final String[] localIndices = randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
-        final String[] remoteIndices = randomArray(0, 3, String[]::new,
-            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8));
-        final ArrayList<String> allIndices =
-            Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices)).collect(Collectors.toCollection(ArrayList::new));
+        final String[] remoteIndices = randomArray(
+            0,
+            3,
+            String[]::new,
+            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
+        );
+        final ArrayList<String> allIndices = Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices))
+            .collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(allIndices, random());
         when(searchRequest.indices()).thenReturn(allIndices.toArray(new String[0]));
 
@@ -103,10 +107,14 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         final String[] localIndices = randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
-        final String[] remoteIndices = randomArray(0, 3, String[]::new,
-            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8));
-        final ArrayList<String> allIndices =
-            Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices)).collect(Collectors.toCollection(ArrayList::new));
+        final String[] remoteIndices = randomArray(
+            0,
+            3,
+            String[]::new,
+            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
+        );
+        final ArrayList<String> allIndices = Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices))
+            .collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(allIndices, random());
         when(searchRequest.indices()).thenReturn(allIndices.toArray(new String[0]));
 

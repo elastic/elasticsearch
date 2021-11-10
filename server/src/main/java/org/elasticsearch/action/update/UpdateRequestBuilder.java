@@ -15,15 +15,16 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
-        implements WriteRequestBuilder<UpdateRequestBuilder> {
+    implements
+        WriteRequestBuilder<UpdateRequestBuilder> {
 
     public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
@@ -346,7 +347,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         request.detectNoop(detectNoop);
         return this;
     }
-
 
     /**
      * Sets whether the script should be run in the case of an insert

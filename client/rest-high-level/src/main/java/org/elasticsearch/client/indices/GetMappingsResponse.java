@@ -9,10 +9,10 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,9 +37,7 @@ public class GetMappingsResponse {
             parser.nextToken();
         }
 
-        XContentParserUtils.ensureExpectedToken(parser.currentToken(),
-            XContentParser.Token.START_OBJECT,
-            parser);
+        XContentParserUtils.ensureExpectedToken(parser.currentToken(), XContentParser.Token.START_OBJECT, parser);
 
         Map<String, Object> parts = parser.map();
 
@@ -49,8 +47,9 @@ public class GetMappingsResponse {
             assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
 
             @SuppressWarnings("unchecked")
-            final Map<String, Object> fieldMappings = (Map<String, Object>) ((Map<String, ?>) entry.getValue())
-                    .get(MAPPINGS.getPreferredName());
+            final Map<String, Object> fieldMappings = (Map<String, Object>) ((Map<String, ?>) entry.getValue()).get(
+                MAPPINGS.getPreferredName()
+            );
 
             mappings.put(indexName, new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, fieldMappings));
         }

@@ -39,21 +39,26 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         this.shardSnapshotsService = shardSnapshotsService;
     }
 
-    public void computeRecoveryPlan(ShardId shardId,
-                                    @Nullable String shardStateIdentifier,
-                                    Store.MetadataSnapshot sourceMetadata,
-                                    Store.MetadataSnapshot targetMetadata,
-                                    long startingSeqNo,
-                                    int translogOps,
-                                    Version targetVersion,
-                                    boolean useSnapshots,
-                                    ActionListener<ShardRecoveryPlan> listener) {
+    public void computeRecoveryPlan(
+        ShardId shardId,
+        @Nullable String shardStateIdentifier,
+        Store.MetadataSnapshot sourceMetadata,
+        Store.MetadataSnapshot targetMetadata,
+        long startingSeqNo,
+        int translogOps,
+        Version targetVersion,
+        boolean useSnapshots,
+        ActionListener<ShardRecoveryPlan> listener
+    ) {
         // Fallback to source only recovery if the target node is in an incompatible version
         boolean canUseSnapshots = useSnapshots && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
 
-        fetchLatestSnapshotsIgnoringErrors(shardId, canUseSnapshots, latestSnapshotOpt ->
-            ActionListener.completeWith(listener, () ->
-                computeRecoveryPlanWithSnapshots(
+        fetchLatestSnapshotsIgnoringErrors(
+            shardId,
+            canUseSnapshots,
+            latestSnapshotOpt -> ActionListener.completeWith(
+                listener,
+                () -> computeRecoveryPlanWithSnapshots(
                     shardStateIdentifier,
                     sourceMetadata,
                     targetMetadata,
@@ -65,30 +70,37 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         );
     }
 
-    private ShardRecoveryPlan computeRecoveryPlanWithSnapshots(@Nullable String shardStateIdentifier,
-                                                               Store.MetadataSnapshot sourceMetadata,
-                                                               Store.MetadataSnapshot targetMetadata,
-                                                               long startingSeqNo,
-                                                               int translogOps,
-                                                               Optional<ShardSnapshot> latestSnapshotOpt) {
+    private ShardRecoveryPlan computeRecoveryPlanWithSnapshots(
+        @Nullable String shardStateIdentifier,
+        Store.MetadataSnapshot sourceMetadata,
+        Store.MetadataSnapshot targetMetadata,
+        long startingSeqNo,
+        int translogOps,
+        Optional<ShardSnapshot> latestSnapshotOpt
+    ) {
         Store.RecoveryDiff sourceTargetDiff = sourceMetadata.recoveryDiff(targetMetadata);
         List<StoreFileMetadata> filesMissingInTarget = concatLists(sourceTargetDiff.missing, sourceTargetDiff.different);
 
         if (latestSnapshotOpt.isPresent() == false) {
-            // If we couldn't find any valid  snapshots, fallback to the source
+            // If we couldn't find any valid snapshots, fallback to the source
             return getRecoveryPlanUsingSourceNode(sourceMetadata, sourceTargetDiff, filesMissingInTarget, startingSeqNo, translogOps);
         }
 
         ShardSnapshot latestSnapshot = latestSnapshotOpt.get();
 
         // Primary failed over after the snapshot was taken
-        if (latestSnapshot.isLogicallyEquivalent(shardStateIdentifier) &&
-            latestSnapshot.hasDifferentPhysicalFiles(sourceMetadata) &&
-            isSnapshotVersionCompatible(latestSnapshot) &&
-            sourceTargetDiff.identical.isEmpty()) {
+        if (latestSnapshot.isLogicallyEquivalent(shardStateIdentifier)
+            && latestSnapshot.hasDifferentPhysicalFiles(sourceMetadata)
+            && isSnapshotVersionCompatible(latestSnapshot)
+            && sourceTargetDiff.identical.isEmpty()) {
             // Use the current primary as a fallback if the download fails half-way
-            ShardRecoveryPlan fallbackPlan =
-                getRecoveryPlanUsingSourceNode(sourceMetadata, sourceTargetDiff, filesMissingInTarget, startingSeqNo, translogOps);
+            ShardRecoveryPlan fallbackPlan = getRecoveryPlanUsingSourceNode(
+                sourceMetadata,
+                sourceTargetDiff,
+                filesMissingInTarget,
+                startingSeqNo,
+                translogOps
+            );
 
             ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(
                 latestSnapshot.getIndexId(),
@@ -96,7 +108,8 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
                 latestSnapshot.getSnapshotFiles()
             );
 
-            return new ShardRecoveryPlan(snapshotFilesToRecover,
+            return new ShardRecoveryPlan(
+                snapshotFilesToRecover,
                 Collections.emptyList(),
                 Collections.emptyList(),
                 startingSeqNo,
@@ -112,12 +125,15 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         if (snapshotDiff.identical.isEmpty()) {
             snapshotFilesToRecover = ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY;
         } else {
-            snapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(latestSnapshot.getIndexId(),
+            snapshotFilesToRecover = new ShardRecoveryPlan.SnapshotFilesToRecover(
+                latestSnapshot.getIndexId(),
                 latestSnapshot.getRepository(),
-                latestSnapshot.getSnapshotFilesMatching(snapshotDiff.identical));
+                latestSnapshot.getSnapshotFilesMatching(snapshotDiff.identical)
+            );
         }
 
-        return new ShardRecoveryPlan(snapshotFilesToRecover,
+        return new ShardRecoveryPlan(
+            snapshotFilesToRecover,
             concatLists(snapshotDiff.missing, snapshotDiff.different),
             sourceTargetDiff.identical,
             startingSeqNo,
@@ -139,12 +155,15 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         return commitVersion.onOrBefore(Version.CURRENT);
     }
 
-    private ShardRecoveryPlan getRecoveryPlanUsingSourceNode(Store.MetadataSnapshot sourceMetadata,
-                                                             Store.RecoveryDiff sourceTargetDiff,
-                                                             List<StoreFileMetadata> filesMissingInTarget,
-                                                             long startingSeqNo,
-                                                             int translogOps) {
-        return new ShardRecoveryPlan(ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
+    private ShardRecoveryPlan getRecoveryPlanUsingSourceNode(
+        Store.MetadataSnapshot sourceMetadata,
+        Store.RecoveryDiff sourceTargetDiff,
+        List<StoreFileMetadata> filesMissingInTarget,
+        long startingSeqNo,
+        int translogOps
+    ) {
+        return new ShardRecoveryPlan(
+            ShardRecoveryPlan.SnapshotFilesToRecover.EMPTY,
             filesMissingInTarget,
             sourceTargetDiff.identical,
             startingSeqNo,
@@ -177,9 +196,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
 
     private Store.MetadataSnapshot toMetadataSnapshot(List<StoreFileMetadata> files) {
         return new Store.MetadataSnapshot(
-            files
-                .stream()
-                .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity())),
+            files.stream().collect(Collectors.toMap(StoreFileMetadata::name, Function.identity())),
             emptyMap(),
             0
         );

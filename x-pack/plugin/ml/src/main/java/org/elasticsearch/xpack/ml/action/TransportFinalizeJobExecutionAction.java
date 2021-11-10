@@ -44,46 +44,64 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
     private final Client client;
 
     @Inject
-    public TransportFinalizeJobExecutionAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Client client) {
-        super(FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                FinalizeJobExecutionAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportFinalizeJobExecutionAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
+    ) {
+        super(
+            FinalizeJobExecutionAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            FinalizeJobExecutionAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        FinalizeJobExecutionAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         String jobIdString = String.join(",", request.getJobIds());
         logger.debug("finalizing jobs [{}]", jobIdString);
 
-        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.executor(
-                MachineLearning.UTILITY_THREAD_POOL_NAME), true);
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            true
+        );
 
         Map<String, Object> update = Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date());
 
-        for (String jobId: request.getJobIds()) {
+        for (String jobId : request.getJobIds()) {
             UpdateRequest updateRequest = new UpdateRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
             updateRequest.retryOnConflict(3);
             updateRequest.doc(update);
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             voidChainTaskExecutor.add(chainedListener -> {
-                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, ActionListener.wrap(
-                        updateResponse -> chainedListener.onResponse(null),
-                        chainedListener::onFailure
-                ));
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    UpdateAction.INSTANCE,
+                    updateRequest,
+                    ActionListener.wrap(updateResponse -> chainedListener.onResponse(null), chainedListener::onFailure)
+                );
             });
         }
 
-        voidChainTaskExecutor.execute(ActionListener.wrap(
-                aVoids ->  {
-                    logger.debug("finalized job [{}]", jobIdString);
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                },
-                listener::onFailure
-        ));
+        voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> {
+            logger.debug("finalized job [{}]", jobIdString);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }, listener::onFailure));
     }
 
     @Override

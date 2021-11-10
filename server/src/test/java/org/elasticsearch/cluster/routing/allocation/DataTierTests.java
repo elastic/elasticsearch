@@ -52,41 +52,47 @@ public class DataTierTests extends ESTestCase {
     public void testNodeSelection() {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
-        final String[] dataNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DiscoveryNode::canContainData)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] dataNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::canContainData)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] contentNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isContentNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] contentNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isContentNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] hotNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isHotNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] hotNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isHotNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] warmNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isWarmNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] warmNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isWarmNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] coldNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isColdNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] coldNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isColdNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] frozenNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isFrozenNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] frozenNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isFrozenNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(dataNodes));
         assertThat(discoveryNodes.resolveNodes("data_content:true"), arrayContainingInAnyOrder(contentNodes));
@@ -126,7 +132,7 @@ public class DataTierTests extends ESTestCase {
         assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
         assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
         assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { DiscoveryNodeRole.DATA_ROLE.legacySetting() });
     }
 
     public void testDisablingLegacyDataRoleDisablesTieredDataRoles() {
@@ -136,7 +142,7 @@ public class DataTierTests extends ESTestCase {
         assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)));
         assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)));
         assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { DiscoveryNodeRole.DATA_ROLE.legacySetting() });
     }
 
     public void testGetPreferredTiersConfiguration() {
@@ -151,19 +157,25 @@ public class DataTierTests extends ESTestCase {
         ClusterState clusterState = clusterStateWithoutAllDataRoles();
         Set<DiscoveryNode> nodes = DataTier.dataNodesWithoutAllDataRoles(clusterState);
         assertThat(nodes, hasSize(2));
-        assertThat(nodes, hasItem(both(hasProperty("name", is("name_3")))
-            .and(hasProperty("roles", contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))));
+        assertThat(
+            nodes,
+            hasItem(both(hasProperty("name", is("name_3"))).and(hasProperty("roles", contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))))
+        );
         assertThat(nodes, hasItem(hasProperty("name", is("name_4"))));
     }
 
     public static ClusterState clusterStateWithoutAllDataRoles() {
         Set<DiscoveryNodeRole> allDataRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
-            .filter(role -> ALL_DATA_TIERS.contains(role.roleName())).collect(Collectors.toSet());
+            .filter(role -> ALL_DATA_TIERS.contains(role.roleName()))
+            .collect(Collectors.toSet());
 
-        Collection<String> allButOneDataTiers = randomValueOtherThan(ALL_DATA_TIERS,
-            () -> randomSubsetOf(randomIntBetween(1, ALL_DATA_TIERS.size() - 1), ALL_DATA_TIERS));
+        Collection<String> allButOneDataTiers = randomValueOtherThan(
+            ALL_DATA_TIERS,
+            () -> randomSubsetOf(randomIntBetween(1, ALL_DATA_TIERS.size() - 1), ALL_DATA_TIERS)
+        );
         Set<DiscoveryNodeRole> allButOneDataRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
-            .filter(role -> allButOneDataTiers.contains(role.roleName())).collect(Collectors.toSet());
+            .filter(role -> allButOneDataTiers.contains(role.roleName()))
+            .collect(Collectors.toSet());
 
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
@@ -195,8 +207,7 @@ public class DataTierTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
-            Version.CURRENT);
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {

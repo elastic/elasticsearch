@@ -18,13 +18,13 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
@@ -46,12 +46,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
 import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
 import static org.elasticsearch.test.rest.ESRestTestCase.ensureHealth;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,8 +64,7 @@ public final class TimeSeriesRestDriver {
 
     private static final Logger logger = LogManager.getLogger(TimeSeriesRestDriver.class);
 
-    private TimeSeriesRestDriver() {
-    }
+    private TimeSeriesRestDriver() {}
 
     public static Step.StepKey getStepKeyForIndex(RestClient client, String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(client, indexName);
@@ -87,8 +86,8 @@ public final class TimeSeriesRestDriver {
         return explain(client, indexName, false, false).get(indexName);
     }
 
-    public static Map<String, Map<String, Object>> explain(RestClient client, String indexPattern, boolean onlyErrors,
-                                                           boolean onlyManaged) throws IOException {
+    public static Map<String, Map<String, Object>> explain(RestClient client, String indexPattern, boolean onlyErrors, boolean onlyManaged)
+        throws IOException {
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
         explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
@@ -98,8 +97,8 @@ public final class TimeSeriesRestDriver {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
 
-        @SuppressWarnings("unchecked") Map<String, Map<String, Object>> indexResponse =
-            ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
         return indexResponse;
     }
 
@@ -130,25 +129,39 @@ public final class TimeSeriesRestDriver {
         createNewSingletonPolicy(client, policyName, phaseName, action, (RequestOptions) null);
     }
 
-    public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action,
-                                                RequestOptions requestOptions)
-        throws IOException {
+    public static void createNewSingletonPolicy(
+        RestClient client,
+        String policyName,
+        String phaseName,
+        LifecycleAction action,
+        RequestOptions requestOptions
+    ) throws IOException {
         createNewSingletonPolicy(client, policyName, phaseName, action, TimeValue.ZERO, requestOptions);
     }
 
-    public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action,
-                                                TimeValue after) throws IOException {
+    public static void createNewSingletonPolicy(
+        RestClient client,
+        String policyName,
+        String phaseName,
+        LifecycleAction action,
+        TimeValue after
+    ) throws IOException {
         createNewSingletonPolicy(client, policyName, phaseName, action, after, null);
     }
 
-    public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action,
-                                                TimeValue after, RequestOptions requestOptions) throws IOException {
+    public static void createNewSingletonPolicy(
+        RestClient client,
+        String policyName,
+        String phaseName,
+        LifecycleAction action,
+        TimeValue after,
+        RequestOptions requestOptions
+    ) throws IOException {
         Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
-        final StringEntity entity = new StringEntity(
-            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
         if (requestOptions != null) {
@@ -162,12 +175,14 @@ public final class TimeSeriesRestDriver {
         XContentBuilder builder = jsonBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         StringEntity templateJSON = new StringEntity(
-            String.format(Locale.ROOT, "{\n" +
-                "  \"index_patterns\": \"%s\",\n" +
-                "  \"data_stream\": {},\n" +
-                "  \"template\": %s\n" +
-                "}", indexPattern, Strings.toString(builder)),
-            ContentType.APPLICATION_JSON);
+            String.format(
+                Locale.ROOT,
+                "{\n" + "  \"index_patterns\": \"%s\",\n" + "  \"data_stream\": {},\n" + "  \"template\": %s\n" + "}",
+                indexPattern,
+                Strings.toString(builder)
+            ),
+            ContentType.APPLICATION_JSON
+        );
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);
@@ -175,12 +190,7 @@ public final class TimeSeriesRestDriver {
 
     public static void rolloverMaxOneDocCondition(RestClient client, String indexAbstractionName) throws IOException {
         Request rolloverRequest = new Request("POST", "/" + indexAbstractionName + "/_rollover");
-        rolloverRequest.setJsonEntity("{\n" +
-            "  \"conditions\": {\n" +
-            "    \"max_docs\": \"1\"\n" +
-            "  }\n" +
-            "}"
-        );
+        rolloverRequest.setJsonEntity("{\n" + "  \"conditions\": {\n" + "    \"max_docs\": \"1\"\n" + "  }\n" + "}");
         client.performRequest(rolloverRequest);
     }
 
@@ -191,15 +201,29 @@ public final class TimeSeriesRestDriver {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(1, null, singletonMap("_name", "javaRestTest-0,javaRestTest-1," +
-            "javaRestTest-2," +
-            "javaRestTest-3"), null, null));
+        warmActions.put(
+            AllocateAction.NAME,
+            new AllocateAction(
+                1,
+                null,
+                singletonMap("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
+                null,
+                null
+            )
+        );
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, singletonMap("_name", "javaRestTest-0,javaRestTest-1," +
-            "javaRestTest-2," +
-            "javaRestTest-3"), null, null));
+        coldActions.put(
+            AllocateAction.NAME,
+            new AllocateAction(
+                0,
+                null,
+                singletonMap("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
+                null,
+                null
+            )
+        );
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
@@ -209,23 +233,34 @@ public final class TimeSeriesRestDriver {
         // PUT policy
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
-        final StringEntity entity = new StringEntity(
-            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
         client.performRequest(request);
     }
 
-    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
-                                    @Nullable Phase warmPhase, @Nullable Phase coldPhase,
-                                    @Nullable Phase frozenPhase, @Nullable Phase deletePhase) throws IOException {
+    public static void createPolicy(
+        RestClient client,
+        String policyName,
+        @Nullable Phase hotPhase,
+        @Nullable Phase warmPhase,
+        @Nullable Phase coldPhase,
+        @Nullable Phase frozenPhase,
+        @Nullable Phase deletePhase
+    ) throws IOException {
         createPolicy(client, policyName, hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase, null);
     }
 
-    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
-                                    @Nullable Phase warmPhase, @Nullable Phase coldPhase,
-                                    @Nullable Phase frozenPhase, @Nullable Phase deletePhase, @Nullable RequestOptions requestOptions)
-        throws IOException {
+    public static void createPolicy(
+        RestClient client,
+        String policyName,
+        @Nullable Phase hotPhase,
+        @Nullable Phase warmPhase,
+        @Nullable Phase coldPhase,
+        @Nullable Phase frozenPhase,
+        @Nullable Phase deletePhase,
+        @Nullable RequestOptions requestOptions
+    ) throws IOException {
         if (hotPhase == null && warmPhase == null && coldPhase == null && deletePhase == null) {
             throw new IllegalArgumentException("specify at least one phase");
         }
@@ -248,8 +283,7 @@ public final class TimeSeriesRestDriver {
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
-        final StringEntity entity = new StringEntity(
-            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
         if (requestOptions != null) {
@@ -260,17 +294,20 @@ public final class TimeSeriesRestDriver {
 
     public static void createSnapshotRepo(RestClient client, String repoName, boolean compress) throws IOException {
         Request request = new Request("PUT", "/_snapshot/" + repoName);
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "fs")
-                .startObject("settings")
-                .field("compress", compress)
-                //random location to avoid clash with other snapshots
-                .field("location", System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10))
-                .field("max_snapshot_bytes_per_sec", "100m")
-                .endObject()
-                .endObject()));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("type", "fs")
+                    .startObject("settings")
+                    .field("compress", compress)
+                    // random location to avoid clash with other snapshots
+                    .field("location", System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10))
+                    .field("max_snapshot_bytes_per_sec", "100m")
+                    .endObject()
+                    .endObject()
+            )
+        );
         client.performRequest(request);
     }
 
@@ -294,16 +331,28 @@ public final class TimeSeriesRestDriver {
         createIndexWithSettings(client, index, alias, settings, randomBoolean());
     }
 
-    public static void createIndexWithSettings(RestClient client, String index, String alias, Settings.Builder settings,
-                                               boolean useWriteIndex) throws IOException {
+    public static void createIndexWithSettings(
+        RestClient client,
+        String index,
+        String alias,
+        Settings.Builder settings,
+        boolean useWriteIndex
+    ) throws IOException {
         Request request = new Request("PUT", "/" + index);
 
         String writeIndexSnippet = "";
         if (useWriteIndex) {
             writeIndexSnippet = "\"is_write_index\": true";
         }
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build())
-            + ", \"aliases\" : { \"" + alias + "\": { " + writeIndexSnippet + " } } }");
+        request.setJsonEntity(
+            "{\n \"settings\": "
+                + Strings.toString(settings.build())
+                + ", \"aliases\" : { \""
+                + alias
+                + "\": { "
+                + writeIndexSnippet
+                + " } } }"
+        );
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
@@ -328,8 +377,11 @@ public final class TimeSeriesRestDriver {
     public static Integer getNumberOfSegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
-            response.getEntity().getContent(), false);
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(
+            entityContentType.xContent(),
+            response.getEntity().getContent(),
+            false
+        );
         responseEntity = (Map<String, Object>) responseEntity.get("indices");
         responseEntity = (Map<String, Object>) responseEntity.get(index);
         responseEntity = (Map<String, Object>) responseEntity.get("shards");
@@ -339,8 +391,10 @@ public final class TimeSeriesRestDriver {
 
     public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {
         Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
-        final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
-            ContentType.APPLICATION_JSON);
+        final StringEntity changePolicyEntity = new StringEntity(
+            "{ \"index.lifecycle.name\": \"" + policy + "\" }",
+            ContentType.APPLICATION_JSON
+        );
         changePolicyRequest.setEntity(changePolicyEntity);
         assertOK(client.performRequest(changePolicyRequest));
     }
@@ -365,8 +419,10 @@ public final class TimeSeriesRestDriver {
         waitUntil(() -> {
             try {
                 // we're including here the case where the original index was already deleted and we have to look for the shrunken index
-                Request explainRequest = new Request("GET", SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
-                    + "/_ilm/explain");
+                Request explainRequest = new Request(
+                    "GET",
+                    SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex + "/_ilm/explain"
+                );
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);
@@ -377,7 +433,7 @@ public final class TimeSeriesRestDriver {
 
                 Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
                 Map<String, Object> explainIndexResponse = indexResponse.get(originalIndex);
-                if(explainIndexResponse == null) {
+                if (explainIndexResponse == null) {
                     // maybe we swapped the alias from the original index to the shrunken one already
                     for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
                         // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix

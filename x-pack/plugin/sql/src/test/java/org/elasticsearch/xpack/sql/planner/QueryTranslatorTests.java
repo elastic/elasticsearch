@@ -150,7 +150,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         private PhysicalPlan optimizeAndPlan(LogicalPlan plan) {
-            return planner.plan(optimizer.optimize(plan),true);
+            return planner.plan(optimizer.optimize(plan), true);
         }
 
         private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
@@ -250,21 +250,21 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testMathFunctionHavingClause() {
-        MathOperation operation =
-            (MathOperation) randomFrom(Stream.of(MathOperation.values()).filter(o -> o != PI && o != E).toArray());
+        MathOperation operation = (MathOperation) randomFrom(Stream.of(MathOperation.values()).filter(o -> o != PI && o != E).toArray());
 
-        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING " +
-            operation.name() + "(max(int)) > 10");
+        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING " + operation.name() + "(max(int)) > 10");
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         assertFalse(condition.foldable());
         QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils." +
-                operation.name().toLowerCase(Locale.ROOT) +
-                "(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)),params.v1))",
-            aggFilter.scriptTemplate().toString());
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils."
+                + operation.name().toLowerCase(Locale.ROOT)
+                + "(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)),params.v1))",
+            aggFilter.scriptTemplate().toString()
+        );
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
@@ -284,9 +284,13 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
         assertEquals(1, eqe.output().size());
-        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
-            "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
-                + "\"lang\":\"painless\",\"params\":{\"v0\":0}}"));
+        assertThat(
+            eqe.queryContainer().toString().replaceAll("\\s+", ""),
+            containsString(
+                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
+                    + "\"lang\":\"painless\",\"params\":{\"v0\":0}}"
+            )
+        );
     }
 
     public void testScriptsInsideAggregateFunctions() {
@@ -325,9 +329,8 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testScriptsInsideAggregateFunctionsWithHaving() {
         for (FunctionDefinition fd : defaultTestContext.sqlFunctionRegistry.listFunctions()) {
-            if (AggregateFunction.class.isAssignableFrom(fd.clazz())
-                && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)
-                // First/Last don't support having: https://github.com/elastic/elasticsearch/issues/37938
+            if (AggregateFunction.class.isAssignableFrom(fd.clazz()) && (MatrixStatsEnclosed.class.isAssignableFrom(fd.clazz()) == false)
+            // First/Last don't support having: https://github.com/elastic/elasticsearch/issues/37938
                 && (TopHits.class.isAssignableFrom(fd.clazz()) == false)) {
                 String aggFunction = fd.name() + "(ABS((int * 10) / 3) + 1";
                 if (fd.clazz() == Percentile.class || fd.clazz() == PercentileRank.class) {
@@ -363,10 +366,14 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testFoldingWithParamsWithoutIndex() {
-        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ?, ? FROM test",
-            new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("integer", 200)));
+        PhysicalPlan p = optimizeAndPlan(
+            parameterizedSql(
+                "SELECT ?, ?, ? FROM test",
+                new SqlTypedParamValue("integer", 100),
+                new SqlTypedParamValue("integer", 100),
+                new SqlTypedParamValue("integer", 200)
+            )
+        );
         assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
         assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
@@ -375,8 +382,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testSameAliasForParamAndField() {
-        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, int as \"?\" FROM test",
-            new SqlTypedParamValue("integer", 100)));
+        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, int as \"?\" FROM test", new SqlTypedParamValue("integer", 100)));
         assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
         assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
@@ -391,9 +397,9 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testFoldingWithMixedParamsWithoutAlias() {
-        PhysicalPlan p = optimizeAndPlan(parameterizedSql("SELECT ?, ? FROM test",
-            new SqlTypedParamValue("integer", 100),
-            new SqlTypedParamValue("text", "200")));
+        PhysicalPlan p = optimizeAndPlan(
+            parameterizedSql("SELECT ?, ? FROM test", new SqlTypedParamValue("integer", 100), new SqlTypedParamValue("text", "200"))
+        );
         assertThat(p.output(), everyItem(instanceOf(ReferenceAttribute.class)));
         assertThat(p.output().get(0).toString(), startsWith("?{r}#"));
         assertThat(p.output().get(1).toString(), startsWith("?{r}#"));
@@ -503,78 +509,68 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testDateRangeWithCurrentTimestamp() {
         Integer nanoPrecision = randomPrecision();
         testDateRangeWithCurrentFunctions(
-                functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
-                DATE_FORMAT,
-                nanoPrecision,
-                TEST_CFG.now()
+            functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
+            DATE_FORMAT,
+            nanoPrecision,
+            TEST_CFG.now()
         );
         testDateRangeWithCurrentFunctionsAndRangeOptimization(
-                functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
-                DATE_FORMAT,
-                nanoPrecision,
-                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+            functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
+            DATE_FORMAT,
+            nanoPrecision,
+            TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+            TEST_CFG.now().plusDays(1L).plusSeconds(1L)
         );
     }
 
     public void testDateRangeWithCurrentDate() {
         testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
         testDateRangeWithCurrentFunctionsAndRangeOptimization(
-                "CURRENT_DATE()",
-                DATE_FORMAT,
-                null,
-                DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+            "CURRENT_DATE()",
+            DATE_FORMAT,
+            null,
+            DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+            DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
         );
     }
 
     public void testDateRangeWithToday() {
         testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
         testDateRangeWithCurrentFunctionsAndRangeOptimization(
-                "TODAY()",
-                DATE_FORMAT,
-                null,
-                DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+            "TODAY()",
+            DATE_FORMAT,
+            null,
+            DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+            DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
         );
     }
 
     public void testDateRangeWithNow() {
         Integer nanoPrecision = randomPrecision();
-        testDateRangeWithCurrentFunctions(
-                functionWithPrecision("NOW", nanoPrecision),
-                DATE_FORMAT,
-                nanoPrecision,
-                TEST_CFG.now()
-        );
+        testDateRangeWithCurrentFunctions(functionWithPrecision("NOW", nanoPrecision), DATE_FORMAT, nanoPrecision, TEST_CFG.now());
         testDateRangeWithCurrentFunctionsAndRangeOptimization(
-                functionWithPrecision("NOW", nanoPrecision),
-                DATE_FORMAT,
-                nanoPrecision,
-                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+            functionWithPrecision("NOW", nanoPrecision),
+            DATE_FORMAT,
+            nanoPrecision,
+            TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+            TEST_CFG.now().plusDays(1L).plusSeconds(1L)
         );
     }
 
     public void testDateRangeWithCurrentTime() {
         Integer nanoPrecision = randomPrecision();
-        testDateRangeWithCurrentFunctions(
-                functionWithPrecision("CURRENT_TIME", nanoPrecision),
-                TIME_FORMAT,
-                nanoPrecision,
-                TEST_CFG.now()
-        );
+        testDateRangeWithCurrentFunctions(functionWithPrecision("CURRENT_TIME", nanoPrecision), TIME_FORMAT, nanoPrecision, TEST_CFG.now());
         testDateRangeWithCurrentFunctionsAndRangeOptimization(
-                functionWithPrecision("CURRENT_TIME", nanoPrecision),
-                TIME_FORMAT,
-                nanoPrecision,
-                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+            functionWithPrecision("CURRENT_TIME", nanoPrecision),
+            TIME_FORMAT,
+            nanoPrecision,
+            TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+            TEST_CFG.now().plusDays(1L).plusSeconds(1L)
         );
     }
 
     private Integer randomPrecision() {
-        return randomFrom(new Integer[] {null, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+        return randomFrom(new Integer[] { null, 1, 2, 3, 4, 5, 6, 7, 8, 9 });
     }
 
     private String functionWithPrecision(String function, Integer precision) {
@@ -604,12 +600,18 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", rq.field());
 
         if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) {
-            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(
-                    nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))), rq.upper());
+            assertEquals(
+                DateFormatter.forPattern(pattern)
+                    .format(now.withNano(DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))),
+                rq.upper()
+            );
         }
         if (operator.contains(">") || operator.equals("=") || operator.equals("!=")) {
-            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(
-                    nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))), rq.lower());
+            assertEquals(
+                DateFormatter.forPattern(pattern)
+                    .format(now.withNano(DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))),
+                rq.lower()
+            );
         }
 
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals("<="), rq.includeUpper());
@@ -618,19 +620,29 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private void testDateRangeWithCurrentFunctionsAndRangeOptimization(
-            String function,
-            String pattern,
-            Integer nanoPrecision,
-            ZonedDateTime lowerValue,
-            ZonedDateTime upperValue
+        String function,
+        String pattern,
+        Integer nanoPrecision,
+        ZonedDateTime lowerValue,
+        ZonedDateTime upperValue
     ) {
         String lowerOperator = randomFrom("<", "<=");
         String upperOperator = randomFrom(">", ">=");
         // use both date-only interval (1 DAY) and time-only interval (1 second) to cover CURRENT_TIMESTAMP and TODAY scenarios
         String interval = "(INTERVAL 1 DAY + INTERVAL 1 SECOND)";
 
-        PhysicalPlan p = optimizeAndPlan("SELECT some.string FROM test WHERE date" + lowerOperator + function + " + " + interval
-                + " AND date " + upperOperator + function + " - " + interval);
+        PhysicalPlan p = optimizeAndPlan(
+            "SELECT some.string FROM test WHERE date"
+                + lowerOperator
+                + function
+                + " + "
+                + interval
+                + " AND date "
+                + upperOperator
+                + function
+                + " - "
+                + interval
+        );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertEquals(1, eqe.output().size());
@@ -644,12 +656,24 @@ public class QueryTranslatorTests extends ESTestCase {
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
 
-        assertEquals(DateFormatter.forPattern(pattern)
-                .format(upperValue.withNano(DateUtils.getNanoPrecision(
-                        nanoPrecision == null ? null : literal(nanoPrecision), upperValue.getNano()))), rq.upper());
-        assertEquals(DateFormatter.forPattern(pattern)
-                .format(lowerValue.withNano(DateUtils.getNanoPrecision(
-                        nanoPrecision == null ? null : literal(nanoPrecision), lowerValue.getNano()))), rq.lower());
+        assertEquals(
+            DateFormatter.forPattern(pattern)
+                .format(
+                    upperValue.withNano(
+                        DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), upperValue.getNano())
+                    )
+                ),
+            rq.upper()
+        );
+        assertEquals(
+            DateFormatter.forPattern(pattern)
+                .format(
+                    lowerValue.withNano(
+                        DateUtils.getNanoPrecision(nanoPrecision == null ? null : literal(nanoPrecision), lowerValue.getNano())
+                    )
+                ),
+            rq.lower()
+        );
 
         assertEquals(lowerOperator.equals("<="), rq.includeUpper());
         assertEquals(upperOperator.equals(">="), rq.includeLower());
@@ -702,7 +726,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testInExpressionWhereClauseDatetime() {
         ZoneId zoneId = randomZone();
-        String[] dates = {"2002-02-02T02:02:02.222Z", "2003-03-03T03:03:03.333Z"};
+        String[] dates = { "2002-02-02T02:02:02.222Z", "2003-03-03T03:03:03.333Z" };
         LogicalPlan p = plan("SELECT * FROM test WHERE date IN ('" + dates[0] + "'::datetime, '" + dates[1] + "'::datetime)", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
@@ -716,10 +740,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(bq.isAnd());
         assertTrue(bq.left() instanceof RangeQuery);
         assertTrue(bq.right() instanceof RangeQuery);
-        List<Tuple<String, RangeQuery>> tuples = asList(new Tuple<>(dates[0], (RangeQuery)bq.left()),
-            new Tuple<>(dates[1], (RangeQuery) bq.right()));
+        List<Tuple<String, RangeQuery>> tuples = asList(
+            new Tuple<>(dates[0], (RangeQuery) bq.left()),
+            new Tuple<>(dates[1], (RangeQuery) bq.right())
+        );
 
-        for (Tuple<String, RangeQuery> t: tuples) {
+        for (Tuple<String, RangeQuery> t : tuples) {
             String date = t.v1();
             RangeQuery rq = t.v2();
 
@@ -738,7 +764,10 @@ public class QueryTranslatorTests extends ESTestCase {
         PhysicalPlan p = optimizeAndPlan(
             "SELECT "
                 + randomFunction.name()
-                + "(date + INTERVAL 1 YEAR) FROM test GROUP BY " + randomFunction.name() + "(date + INTERVAL 1 YEAR)");
+                + "(date + INTERVAL 1 YEAR) FROM test GROUP BY "
+                + randomFunction.name()
+                + "(date + INTERVAL 1 YEAR)"
+        );
         assertESQuery(
             p,
             containsString(
@@ -755,20 +784,24 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateTimeFunctionsWithMathIntervalAndGroupBy() {
-        String[] functions = new String[] {"DAY_NAME", "MONTH_NAME", "DAY_OF_WEEK", "WEEK_OF_YEAR", "QUARTER"};
-        String[] scriptMethods = new String[] {"dayName", "monthName", "dayOfWeek", "weekOfYear", "quarter"};
+        String[] functions = new String[] { "DAY_NAME", "MONTH_NAME", "DAY_OF_WEEK", "WEEK_OF_YEAR", "QUARTER" };
+        String[] scriptMethods = new String[] { "dayName", "monthName", "dayOfWeek", "weekOfYear", "quarter" };
         int pos = randomIntBetween(0, functions.length - 1);
         PhysicalPlan p = optimizeAndPlan(
-            "SELECT "
-                + functions[pos]
-                + "(date + INTERVAL 1 YEAR) FROM test GROUP BY " + functions[pos] + "(date + INTERVAL 1 YEAR)");
+            "SELECT " + functions[pos] + "(date + INTERVAL 1 YEAR) FROM test GROUP BY " + functions[pos] + "(date + INTERVAL 1 YEAR)"
+        );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
-            "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils." + scriptMethods[pos]
-                + "(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
-                + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\",\"lang\":\"painless\","
-                + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"Z\"}},\"missing_bucket\":true,"));
+        assertThat(
+            eqe.queryContainer().toString().replaceAll("\\s+", ""),
+            containsString(
+                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils."
+                    + scriptMethods[pos]
+                    + "(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                    + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\",\"lang\":\"painless\","
+                    + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"Z\"}},\"missing_bucket\":true,"
+            )
+        );
     }
 
     // Like/RLike/StartsWith
@@ -799,8 +832,20 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testRLikePatterns() {
-        String[] patterns = new String[] {"(...)+", "abab(ab)?", "(ab){1,2}", "(ab){3}", "aabb|bbaa", "a+b+|b+a+", "aa(cc|bb)",
-                "a{4,6}b{4,6}", ".{3}.{3}", "aaa*bbb*", "a+.+", "a.c.e", "[^abc\\-]"};
+        String[] patterns = new String[] {
+            "(...)+",
+            "abab(ab)?",
+            "(ab){1,2}",
+            "(ab){3}",
+            "aabb|bbaa",
+            "a+b+|b+a+",
+            "aa(cc|bb)",
+            "a{4,6}b{4,6}",
+            ".{3}.{3}",
+            "aaa*bbb*",
+            "a+.+",
+            "a.c.e",
+            "[^abc\\-]" };
         for (int i = 0; i < 5; i++) {
             assertDifferentRLikeAndNotRLikePatterns(randomFrom(patterns), randomFrom(patterns));
         }
@@ -857,8 +902,10 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testStartsWithUsesPrefixQueryAndScript() {
-        LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') AND STARTS_WITH(keyword, 'xy') "
-            + "AND STARTS_WITH(LCASE(keyword), 'xyz')");
+        LogicalPlan p = plan(
+            "SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') AND STARTS_WITH(keyword, 'xy') "
+                + "AND STARTS_WITH(LCASE(keyword), 'xyz')"
+        );
 
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
@@ -884,10 +931,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("x", pql.query());
 
         ScriptQuery sq = (ScriptQuery) bq.right();
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith("
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith("
                 + "InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0)), "
                 + "params.v1, params.v2))",
-            sq.script().toString());
+            sq.script().toString()
+        );
         assertEquals("[{v=keyword}, {v=xyz}, {v=false}]", sq.script().params().toString());
     }
 
@@ -897,9 +946,13 @@ public class QueryTranslatorTests extends ESTestCase {
         String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
         LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed FROM test WHERE " + trimFunctionName + "(keyword) = 'foo'");
 
-        assertESQuery(p,
-            containsString("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils." +
-                trimFunctionName.toLowerCase(Locale.ROOT) + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))"),
+        assertESQuery(
+            p,
+            containsString(
+                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils."
+                    + trimFunctionName.toLowerCase(Locale.ROOT)
+                    + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))"
+            ),
             containsString("\"params\":{\"v0\":\"keyword\",\"v1\":\"foo\"}")
         );
     }
@@ -908,8 +961,9 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testTrimGroupBy() {
         Class<? extends UnaryStringFunction> trimFunction = randomFrom(Trim.class, LTrim.class, RTrim.class);
         String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
-        LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed, count(*) FROM test GROUP BY " +
-            trimFunctionName + "(keyword)");
+        LogicalPlan p = plan(
+            "SELECT " + trimFunctionName + "(keyword) trimmed, count(*) FROM test GROUP BY " + trimFunctionName + "(keyword)"
+        );
 
         assertEquals(Aggregate.class, p.getClass());
         Aggregate agg = (Aggregate) p;
@@ -917,7 +971,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(2, agg.aggregates().size());
         assertEquals(trimFunction, agg.groupings().get(0).getClass());
         assertEquals(trimFunction, ((Alias) agg.aggregates().get(0)).child().getClass());
-        assertEquals(Count.class,((Alias) agg.aggregates().get(1)).child().getClass());
+        assertEquals(Count.class, ((Alias) agg.aggregates().get(1)).child().getClass());
 
         UnaryStringFunction trim = (UnaryStringFunction) agg.groupings().get(0);
         assertEquals(1, trim.children().size());
@@ -981,8 +1035,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testGroupByHistogramWithDateAndSmallInterval() {
-        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
-            "HISTOGRAM(CAST(date AS DATE), INTERVAL 5 MINUTES)");
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " + "HISTOGRAM(CAST(date AS DATE), INTERVAL 5 MINUTES)");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertEquals(1, eqe.queryContainer().aggs().groups().size());
@@ -992,8 +1045,9 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testGroupByHistogramWithDateTruncateIntervalToDayMultiples() {
         {
-            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
-                "HISTOGRAM(CAST(date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)");
+            PhysicalPlan p = optimizeAndPlan(
+                "SELECT MAX(int) FROM test GROUP BY " + "HISTOGRAM(CAST(date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)"
+            );
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.queryContainer().aggs().groups().size());
@@ -1001,8 +1055,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(172800000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).fixedInterval());
         }
         {
-            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
-                "HISTOGRAM(CAST(date AS DATE), INTERVAL 4409 MINUTES)");
+            PhysicalPlan p = optimizeAndPlan(
+                "SELECT MAX(int) FROM test GROUP BY " + "HISTOGRAM(CAST(date AS DATE), INTERVAL 4409 MINUTES)"
+            );
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.queryContainer().aggs().groups().size());
@@ -1014,9 +1069,11 @@ public class QueryTranslatorTests extends ESTestCase {
     // Count
     ///////////
     public void testAllCountVariantsWithHavingGenerateCorrectAggregations() {
-        PhysicalPlan p = optimizeAndPlan("SELECT AVG(int), COUNT(keyword) ln, COUNT(distinct keyword) dln, COUNT(some.dotted.field) fn,"
+        PhysicalPlan p = optimizeAndPlan(
+            "SELECT AVG(int), COUNT(keyword) ln, COUNT(distinct keyword) dln, COUNT(some.dotted.field) fn,"
                 + "COUNT(distinct some.dotted.field) dfn, COUNT(*) ccc FROM test GROUP BY bool "
-                + "HAVING dln > 3 AND ln > 32 AND dfn > 1 AND fn > 2 AND ccc > 5 AND AVG(int) > 50000");
+                + "HAVING dln > 3 AND ln > 32 AND dfn > 1 AND fn > 2 AND ccc > 5 AND AVG(int) > 50000"
+        );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals(6, ee.output().size());
@@ -1052,41 +1109,56 @@ public class QueryTranslatorTests extends ESTestCase {
         CardinalityAggregationBuilder cardinalityDottedField = (CardinalityAggregationBuilder) subAggs.toArray()[4];
         assertEquals("some.dotted.field", cardinalityDottedField.field());
 
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-                endsWith("{\"buckets_path\":{"
-                        + "\"a0\":\"" + cardinalityKeyword.getName() + "\","
-                        + "\"a1\":\"" + existsKeyword.getName() + "._count\","
-                        + "\"a2\":\"" + cardinalityDottedField.getName() + "\","
-                        + "\"a3\":\"" + existsDottedField.getName() + "._count\","
-                        + "\"a4\":\"_count\","
-                        + "\"a5\":\"" + avgInt.getName() + "\"},"
-                        + "\"script\":{\"source\":\""
-                        + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                        +   "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                        +     "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                        +       "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                        +         "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
-                        +           "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),"
-                        +           "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),"
-                        +         "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),"
-                        +       "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),"
-                        +     "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),"
-                        +   "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))\","
-                        + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
-                        + "\"gap_policy\":\"skip\"}}}}}"));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith(
+                "{\"buckets_path\":{"
+                    + "\"a0\":\""
+                    + cardinalityKeyword.getName()
+                    + "\","
+                    + "\"a1\":\""
+                    + existsKeyword.getName()
+                    + "._count\","
+                    + "\"a2\":\""
+                    + cardinalityDottedField.getName()
+                    + "\","
+                    + "\"a3\":\""
+                    + existsDottedField.getName()
+                    + "._count\","
+                    + "\"a4\":\"_count\","
+                    + "\"a5\":\""
+                    + avgInt.getName()
+                    + "\"},"
+                    + "\"script\":{\"source\":\""
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),"
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),"
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),"
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),"
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),"
+                    + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))\","
+                    + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
+                    + "\"gap_policy\":\"skip\"}}}}}"
+            )
+        );
     }
-
 
     // Stats/Extended Stats
     ///////////////////////
     public void testExtendedStatsAggsStddevAndVar() {
-        final Map<String, String> metricToAgg =  new HashMap<String, String>() {{
-            put("STDDEV_POP", "std_deviation");
-            put("STDDEV_SAMP", "std_deviation_sampling");
-            put("VAR_POP", "variance");
-            put("VAR_SAMP", "variance_sampling");
-        }};
-        for (String funcName: metricToAgg.keySet()) {
+        final Map<String, String> metricToAgg = new HashMap<String, String>() {
+            {
+                put("STDDEV_POP", "std_deviation");
+                put("STDDEV_SAMP", "std_deviation_sampling");
+                put("VAR_POP", "variance");
+                put("VAR_SAMP", "variance_sampling");
+            }
+        };
+        for (String funcName : metricToAgg.keySet()) {
             PhysicalPlan p = optimizeAndPlan("SELECT " + funcName + "(int) FROM test");
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
@@ -1100,10 +1172,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
             String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
-            assertESQuery(
-                p,
-                endsWith("\"aggregations\":{\"" + aggName + "\":{\"extended_stats\":{\"field\":\"int\",\"sigma\":2.0}}}}}}")
-            );
+            assertESQuery(p, endsWith("\"aggregations\":{\"" + aggName + "\":{\"extended_stats\":{\"field\":\"int\",\"sigma\":2.0}}}}}}"));
         }
     }
 
@@ -1125,19 +1194,20 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     public void testPercentileMethodParametersSameAsDefault() {
         BiConsumer<String, Function<AbstractPercentilesAggregationBuilder, double[]>> test = (fnName, pctOrValFn) -> {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
-                // 0-3: these all should fold into the same aggregation
-                "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), " +
-                "   PERCENTILE(int, 40 + 10, 'tdigest', null), " +
-                "   PERCENTILE(int, 50, 'tdigest'), " +
-                "   PERCENTILE(int, 50), " +
-                // 4: this has a different method parameter
-                // just to make sure we don't fold everything to default
-                "   PERCENTILE(int, 50, 'tdigest', 22) "
+            // 0-3: these all should fold into the same aggregation
+            "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
+                + "   PERCENTILE(int, 40 + 10, 'tdigest', null), "
+                + "   PERCENTILE(int, 50, 'tdigest'), "
+                + "   PERCENTILE(int, 50), "
+                +
+            // 4: this has a different method parameter
+            // just to make sure we don't fold everything to default
+            "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
@@ -1154,46 +1224,43 @@ public class QueryTranslatorTests extends ESTestCase {
             assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(4)), 0);
         };
 
-        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
-        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
+        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder) p).percentiles());
+        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder) p).values());
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     public void testPercentileOptimization() {
         BiConsumer<String, Function<AbstractPercentilesAggregationBuilder, double[]>> test = (fnName, pctOrValFn) -> {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
-                // 0-1: fold into the same aggregation
-                "   PERCENTILE(int, 50, 'tdigest'), " +
-                "   PERCENTILE(int, 60, 'tdigest'), " +
+            // 0-1: fold into the same aggregation
+            "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
 
-                // 2-3: fold into one aggregation
-                "   PERCENTILE(int, 50, 'hdr'), " +
-                "   PERCENTILE(int, 60, 'hdr', 3), " +
+            // 2-3: fold into one aggregation
+            "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
 
-                // 4: folds into a separate aggregation
-                "   PERCENTILE(int, 60, 'hdr', 4)" +
-                "FROM test").replaceAll("PERCENTILE", fnName);
+            // 4: folds into a separate aggregation
+            "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
 
             // 0-1
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
-            assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(0)), 0);
+            assertArrayEquals(new double[] { 50, 60 }, pctOrValFn.apply(aggs.get(0)), 0);
 
             // 2-3
             assertEquals(aggs.get(2), aggs.get(3));
             assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
-            assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(2)), 0);
+            assertArrayEquals(new double[] { 50, 60 }, pctOrValFn.apply(aggs.get(2)), 0);
 
             // 4
             assertEquals(new PercentilesConfig.Hdr(4), aggs.get(4).percentilesConfig());
-            assertArrayEquals(new double[]{60}, pctOrValFn.apply(aggs.get(4)), 0);
+            assertArrayEquals(new double[] { 60 }, pctOrValFn.apply(aggs.get(4)), 0);
         };
 
-        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
-        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
+        test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder) p).percentiles());
+        test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder) p).values());
     }
 
     // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
@@ -1203,7 +1270,8 @@ public class QueryTranslatorTests extends ESTestCase {
         List<String> testCases = asList(
             "SELECT keyword, SUM(int) FROM test GROUP BY keyword",
             "SELECT SUM(int) FROM test",
-            "SELECT * FROM (SELECT some.string, keyword, int FROM test) PIVOT (SUM(int) FOR keyword IN ('a', 'b'))");
+            "SELECT * FROM (SELECT some.string, keyword, int FROM test) PIVOT (SUM(int) FOR keyword IN ('a', 'b'))"
+        );
         for (String testCase : testCases) {
             PhysicalPlan physicalPlan = optimizeAndPlan(testCase);
             assertEquals(EsQueryExec.class, physicalPlan.getClass());
@@ -1212,7 +1280,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     private static List<AbstractPercentilesAggregationBuilder> percentilesAggsByField(PhysicalPlan p, int fieldCount) {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
@@ -1221,14 +1289,14 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(ReferenceAttribute.class, ee.output().get(0).getClass());
         assertEquals(fieldCount, ee.queryContainer().fields().size());
         assertThat(fieldCount, greaterThanOrEqualTo(ee.queryContainer().aggs().asAggBuilder().getSubAggregations().size()));
-        Map<String, AggregationBuilder> aggsByName =
-            aggregationBuilder.getSubAggregations().stream().collect(Collectors.toMap(AggregationBuilder::getName, ab -> ab));
+        Map<String, AggregationBuilder> aggsByName = aggregationBuilder.getSubAggregations()
+            .stream()
+            .collect(Collectors.toMap(AggregationBuilder::getName, ab -> ab));
         return IntStream.range(0, fieldCount).mapToObj(i -> {
             String percentileAggName = ((MetricAggRef) ee.queryContainer().fields().get(i).v1()).name();
             return (AbstractPercentilesAggregationBuilder) aggsByName.get(percentileAggName);
         }).collect(Collectors.toList());
     }
-
 
     // Boolean Conditions
     /////////////////////
@@ -1251,10 +1319,13 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testAddMissingEqualsToNestedBoolField() {
-        LogicalPlan p = plan("SELECT bool FROM test " +
-            "WHERE int > 1 and (bool or int < 2) or (int = 3 and bool) or (int = 4 and bool = false) or bool");
-        LogicalPlan expectedPlan = plan("SELECT bool FROM test " +
-            "WHERE int > 1 and (bool = true or int < 2) or (int = 3 and bool = true) or (int = 4 and bool = false) or bool = true");
+        LogicalPlan p = plan(
+            "SELECT bool FROM test " + "WHERE int > 1 and (bool or int < 2) or (int = 3 and bool) or (int = 4 and bool = false) or bool"
+        );
+        LogicalPlan expectedPlan = plan(
+            "SELECT bool FROM test "
+                + "WHERE int > 1 and (bool = true or int < 2) or (int = 3 and bool = true) or (int = 4 and bool = false) or bool = true"
+        );
 
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
@@ -1265,15 +1336,18 @@ public class QueryTranslatorTests extends ESTestCase {
 
         List<Expression> expectedFields = expectedCondition.collect(x -> x instanceof FieldAttribute);
         Set<Expression> expectedBools = expectedFields.stream()
-            .filter(x -> ((FieldAttribute) x).name().equals("bool")).collect(Collectors.toSet());
+            .filter(x -> ((FieldAttribute) x).name().equals("bool"))
+            .collect(Collectors.toSet());
         assertEquals(1, expectedBools.size());
         Set<Expression> expectedInts = expectedFields.stream()
-            .filter(x -> ((FieldAttribute) x).name().equals("int")).collect(Collectors.toSet());
+            .filter(x -> ((FieldAttribute) x).name().equals("int"))
+            .collect(Collectors.toSet());
         assertEquals(1, expectedInts.size());
 
-        condition = condition
-            .transformDown(FieldAttribute.class, x -> x.name().equals("bool") ? (FieldAttribute) expectedBools.toArray()[0] : x)
-            .transformDown(FieldAttribute.class, x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x);
+        condition = condition.transformDown(
+            FieldAttribute.class,
+            x -> x.name().equals("bool") ? (FieldAttribute) expectedBools.toArray()[0] : x
+        ).transformDown(FieldAttribute.class, x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x);
 
         assertEquals(expectedCondition, condition);
     }
@@ -1282,11 +1356,8 @@ public class QueryTranslatorTests extends ESTestCase {
     /////////////////////
     public void testMultiLevelSubqueryWithoutRelation1() {
         PhysicalPlan p = optimizeAndPlan(
-                "SELECT int FROM (" +
-                "  SELECT int FROM (" +
-                "    SELECT 1 AS int" +
-                "  ) AS subq1" +
-                ") AS subq2");
+            "SELECT int FROM (" + "  SELECT int FROM (" + "    SELECT 1 AS int" + "  ) AS subq1" + ") AS subq2"
+        );
         assertThat(p, instanceOf(LocalExec.class));
         LocalExec le = (LocalExec) p;
         assertThat(le.executable(), instanceOf(SingletonExecutable.class));
@@ -1296,17 +1367,18 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testMultiLevelSubqueryWithoutRelation2() {
         PhysicalPlan p = optimizeAndPlan(
-                "SELECT i, string FROM (" +
-                "  SELECT * FROM (" +
-                "    SELECT int as i, str AS string FROM (" +
-                "      SELECT * FROM (" +
-                "        SELECT int, s AS str FROM (" +
-                "          SELECT 1 AS int, 'foo' AS s" +
-                "        ) AS subq1" +
-                "      )" +
-                "    ) AS subq2" +
-                "  ) AS subq3" +
-                ")");
+            "SELECT i, string FROM ("
+                + "  SELECT * FROM ("
+                + "    SELECT int as i, str AS string FROM ("
+                + "      SELECT * FROM ("
+                + "        SELECT int, s AS str FROM ("
+                + "          SELECT 1 AS int, 'foo' AS s"
+                + "        ) AS subq1"
+                + "      )"
+                + "    ) AS subq2"
+                + "  ) AS subq3"
+                + ")"
+        );
         assertThat(p, instanceOf(LocalExec.class));
         LocalExec le = (LocalExec) p;
         assertThat(le.executable(), instanceOf(SingletonExecutable.class));

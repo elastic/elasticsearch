@@ -11,7 +11,6 @@ package org.elasticsearch.script;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -134,11 +134,17 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             if (source == null) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_templates",
-                            "empty templates should no longer be used");
+                        deprecationLogger.critical(
+                            DeprecationCategory.SCRIPTING,
+                            "empty_templates",
+                            "empty templates should no longer be used"
+                        );
                     } else {
-                        deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_scripts",
-                            "empty scripts should no longer be used");
+                        deprecationLogger.critical(
+                            DeprecationCategory.SCRIPTING,
+                            "empty_scripts",
+                            "empty scripts should no longer be used"
+                        );
                     }
                 } else {
                     throw new IllegalArgumentException("must specify source for stored script");
@@ -146,11 +152,17 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             } else if (source.isEmpty()) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_templates",
-                            "empty templates should no longer be used");
+                        deprecationLogger.critical(
+                            DeprecationCategory.SCRIPTING,
+                            "empty_templates",
+                            "empty templates should no longer be used"
+                        );
                     } else {
-                        deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_scripts",
-                            "empty scripts should no longer be used");
+                        deprecationLogger.critical(
+                            DeprecationCategory.SCRIPTING,
+                            "empty_scripts",
+                            "empty scripts should no longer be used"
+                        );
                     }
                 } else {
                     throw new IllegalArgumentException("source cannot be empty");
@@ -238,9 +250,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * @return        The parsed {@link StoredScriptSource}.
      */
     public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
-        try (InputStream stream = content.streamInput();
-             XContentParser parser = xContentType.xContent()
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = content.streamInput();
+            XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             Token token = parser.nextToken();
 
             if (token != Token.START_OBJECT) {
@@ -256,8 +270,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             }
 
             if (token != Token.FIELD_NAME) {
-                throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + ", expected [" +
-                    SCRIPT_PARSE_FIELD.getPreferredName() + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "unexpected token [" + token + ", expected [" + SCRIPT_PARSE_FIELD.getPreferredName() + "]"
+                );
             }
 
             String name = parser.currentName();
@@ -271,8 +287,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "unexpected field [" + name + "], expected [" +
-                    SCRIPT_PARSE_FIELD.getPreferredName() + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "unexpected field [" + name + "], expected [" + SCRIPT_PARSE_FIELD.getPreferredName() + "]"
+                );
             }
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
@@ -341,7 +359,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         this.lang = in.readString();
         this.source = in.readString();
         @SuppressWarnings("unchecked")
-        Map<String, String> options = (Map<String, String>)(Map)in.readMap();
+        Map<String, String> options = (Map<String, String>) (Map) in.readMap();
         this.options = options;
     }
 
@@ -354,7 +372,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         out.writeString(lang);
         out.writeString(source);
         @SuppressWarnings("unchecked")
-        Map<String, Object> options = (Map<String, Object>)(Map)this.options;
+        Map<String, Object> options = (Map<String, Object>) (Map) this.options;
         out.writeMap(options);
     }
 
@@ -416,11 +434,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        StoredScriptSource that = (StoredScriptSource)o;
+        StoredScriptSource that = (StoredScriptSource) o;
 
-        return Objects.equals(lang, that.lang)
-            && Objects.equals(source, that.source)
-            && Objects.equals(options, that.options);
+        return Objects.equals(lang, that.lang) && Objects.equals(source, that.source) && Objects.equals(options, that.options);
     }
 
     @Override
@@ -433,10 +449,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
     @Override
     public String toString() {
-        return "StoredScriptSource{" +
-            "lang='" + lang + '\'' +
-            ", source='" + source + '\'' +
-            ", options=" + options +
-            '}';
+        return "StoredScriptSource{" + "lang='" + lang + '\'' + ", source='" + source + '\'' + ", options=" + options + '}';
     }
 }

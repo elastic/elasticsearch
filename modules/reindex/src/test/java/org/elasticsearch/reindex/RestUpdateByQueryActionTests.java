@@ -8,13 +8,13 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,9 +31,8 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
         controller().registerHandler(action);
     }
 
-    public void testTypeInPath() throws IOException  {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+    public void testTypeInPath() throws IOException {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_update_by_query")
             .build();
 
@@ -45,7 +44,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
         // checks the type in the URL is propagated correctly to the request object
         // only works after the request is dispatched, so its params are filled from url.
         UpdateByQueryRequest ubqRequest = action.buildRequest(request, DEFAULT_NAMED_WRITABLE_REGISTRY);
-        assertArrayEquals(new String[]{"some_type"}, ubqRequest.getDocTypes());
+        assertArrayEquals(new String[] { "some_type" }, ubqRequest.getDocTypes());
 
         // RestUpdateByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request

@@ -9,12 +9,12 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,9 +32,10 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final ParseField FORMAT_FIELD = new ParseField("format");
     private static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
 
-    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
-        new ConstructingObjectParser<>("fetch_field_and_format",
-        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2]));
+    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>(
+        "fetch_field_and_format",
+        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
@@ -118,9 +119,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldAndFormat that = (FieldAndFormat) o;
-        return Objects.equals(field, that.field) &&
-            Objects.equals(format, that.format) &&
-            Objects.equals(includeUnmapped, that.includeUnmapped);
+        return Objects.equals(field, that.field)
+            && Objects.equals(format, that.format)
+            && Objects.equals(includeUnmapped, that.includeUnmapped);
     }
 
     @Override

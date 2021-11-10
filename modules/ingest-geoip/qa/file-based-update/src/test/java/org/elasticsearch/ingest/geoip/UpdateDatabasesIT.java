@@ -10,14 +10,14 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.is;
 public class UpdateDatabasesIT extends ESRestTestCase {
 
     public void test() throws Exception {
-        String body = "{\"pipeline\":{\"processors\":[{\"geoip\":{\"field\":\"ip\"}}]}," +
-            "\"docs\":[{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"ip\":\"89.160.20.128\"}}]}";
+        String body = "{\"pipeline\":{\"processors\":[{\"geoip\":{\"field\":\"ip\"}}]},"
+            + "\"docs\":[{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"ip\":\"89.160.20.128\"}}]}";
         Request simulatePipelineRequest = new Request("POST", "/_ingest/pipeline/_simulate");
         simulatePipelineRequest.setJsonEntity(body);
         {
@@ -43,8 +43,10 @@ public class UpdateDatabasesIT extends ESRestTestCase {
         assertThat(Files.exists(configPath), is(true));
         Path ingestGeoipDatabaseDir = configPath.resolve("ingest-geoip");
         Files.createDirectory(ingestGeoipDatabaseDir);
-        Files.copy(UpdateDatabasesIT.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            ingestGeoipDatabaseDir.resolve("GeoLite2-City.mmdb"));
+        Files.copy(
+            UpdateDatabasesIT.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
+            ingestGeoipDatabaseDir.resolve("GeoLite2-City.mmdb")
+        );
 
         assertBusy(() -> {
             Map<String, Object> response = toMap(client().performRequest(simulatePipelineRequest));
@@ -59,9 +61,7 @@ public class UpdateDatabasesIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
 }

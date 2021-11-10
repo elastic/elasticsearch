@@ -7,20 +7,21 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
@@ -137,7 +138,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
             assertNull(agg.validate(null));
-            assertWarnings(MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
+            assertWarnings(Level.WARN, MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
         }
     }
 

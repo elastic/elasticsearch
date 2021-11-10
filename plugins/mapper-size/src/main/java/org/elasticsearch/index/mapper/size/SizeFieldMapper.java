@@ -10,12 +10,12 @@ package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -32,8 +32,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled
-            = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
 
         private Builder() {
             super(NAME);

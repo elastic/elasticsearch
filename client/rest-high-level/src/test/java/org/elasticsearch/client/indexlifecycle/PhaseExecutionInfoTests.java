@@ -8,11 +8,11 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -21,8 +21,12 @@ import java.util.function.Predicate;
 public class PhaseExecutionInfoTests extends AbstractXContentTestCase<PhaseExecutionInfo> {
 
     static PhaseExecutionInfo randomPhaseExecutionInfo(String phaseName) {
-        return new PhaseExecutionInfo(randomAlphaOfLength(5), PhaseTests.randomPhase(phaseName),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        return new PhaseExecutionInfo(
+            randomAlphaOfLength(5),
+            PhaseTests.randomPhase(phaseName),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
     String phaseName;
@@ -55,7 +59,11 @@ public class PhaseExecutionInfoTests extends AbstractXContentTestCase<PhaseExecu
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(CollectionUtils.appendToCopy(ClusterModule.getNamedXWriteables(),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
+        return new NamedXContentRegistry(
+            CollectionUtils.appendToCopy(
+                ClusterModule.getNamedXWriteables(),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+            )
+        );
     }
 }

@@ -24,8 +24,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
@@ -35,6 +33,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,28 +63,35 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
-        for (NodeStats node : client().admin().cluster().prepareNodesStats().clear()
+        for (NodeStats node : client().admin()
+            .cluster()
+            .prepareNodesStats()
+            .clear()
             .addMetric(BREAKER.metricName())
-            .execute().actionGet().getNodes()) {
+            .execute()
+            .actionGet()
+            .getNodes()) {
             assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
         String mapping = Strings // {}
-                .toString(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("type")
-                        .startObject("properties")
-                        .startObject("test-str")
-                        .field("type", "keyword")
-                        .field("doc_values", randomBoolean())
-                        .endObject() // test-str
-                        .startObject("test-num")
-                                // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
-                        .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
-                        .endObject() // test-num
-                        .endObject() // properties
-                        .endObject() // type
-                        .endObject());
+            .toString(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("type")
+                    .startObject("properties")
+                    .startObject("test-str")
+                    .field("type", "keyword")
+                    .field("doc_values", randomBoolean())
+                    .endObject() // test-str
+                    .startObject("test-num")
+                    // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
+                    .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
+                    .endObject() // test-num
+                    .endObject() // properties
+                    .endObject() // type
+                    .endObject()
+            );
         final double topLevelRate;
         final double lowLevelRate;
         if (frequently()) {
@@ -107,14 +114,18 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         }
 
         Settings.Builder settings = Settings.builder()
-                .put(indexSettings())
-                .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
-                .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
+            .put(indexSettings())
+            .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
+            .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
+            .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build());
-        CreateIndexResponse response = client().admin().indices().prepareCreate("test")
-                .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(settings)
+            .addMapping("type", mapping, XContentType.JSON)
+            .execute()
+            .actionGet();
         final int numDocs;
         if (response.isShardsAcknowledged() == false) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode
@@ -136,20 +147,28 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i)
                     .get();
-            } catch (ElasticsearchException ex) {
-            }
+            } catch (ElasticsearchException ex) {}
         }
         logger.info("Start Refresh");
         // don't assert on failures here
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
-        logger.info("Refresh failed: [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
-                refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length,
-                refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
+        logger.info(
+            "Refresh failed: [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
+            refreshFailed,
+            refreshResponse.getFailedShards(),
+            refreshResponse.getShardFailures().length,
+            refreshResponse.getSuccessfulShards(),
+            refreshResponse.getTotalShards()
+        );
         final int numSearches = scaledRandomIntBetween(50, 150);
-        NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().clear()
+        NodesStatsResponse resp = client().admin()
+            .cluster()
+            .prepareNodesStats()
+            .clear()
             .addMetric(BREAKER.metricName())
-            .execute().actionGet();
+            .execute()
+            .actionGet();
         for (NodeStats stats : resp.getNodes()) {
             assertThat("Breaker is set to 0", stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
@@ -179,22 +198,28 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
                 // Since .cleanUp() is no longer called on cache clear, we need to call it on each node manually
                 for (String node : internalCluster().getNodeNames()) {
-                    final IndicesFieldDataCache fdCache =
-                        internalCluster().getInstance(IndicesService.class, node).getIndicesFieldDataCache();
+                    final IndicesFieldDataCache fdCache = internalCluster().getInstance(IndicesService.class, node)
+                        .getIndicesFieldDataCache();
                     // Clean up the cache, ensuring that entries' listeners have been called
                     fdCache.getCache().refresh();
                 }
-                NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear()
+                NodesStatsResponse nodeStats = client().admin()
+                    .cluster()
+                    .prepareNodesStats()
+                    .clear()
                     .addMetric(BREAKER.metricName())
-                    .execute().actionGet();
+                    .execute()
+                    .actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {
-                    assertThat("Breaker reset to 0 last search success: " + success + " mapping: " + mapping,
-                            stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
+                    assertThat(
+                        "Breaker reset to 0 last search success: " + success + " mapping: " + mapping,
+                        stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
+                        equalTo(0L)
+                    );
                 }
             }
         }
     }
-
 
     public static final String EXCEPTION_TOP_LEVEL_RATIO_KEY = "index.engine.exception.ratio.top";
     public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
@@ -202,10 +227,19 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     // TODO: Generalize this class and add it as a utility
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
-        public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING =
-            Setting.doubleSetting(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
-        public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
-            Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
+        public static final Setting<Double> EXCEPTION_TOP_LEVEL_RATIO_SETTING = Setting.doubleSetting(
+            EXCEPTION_TOP_LEVEL_RATIO_KEY,
+            0.1d,
+            0.0d,
+            Property.IndexScope
+        );
+        public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING = Setting.doubleSetting(
+            EXCEPTION_LOW_LEVEL_RATIO_KEY,
+            0.1d,
+            0.0d,
+            Property.IndexScope
+        );
+
         public static class TestPlugin extends MockEngineFactoryPlugin {
             @Override
             public List<Setting<?>> getSettings() {
@@ -280,7 +314,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 return field.startsWith("test");
             }
         }
-
 
         public RandomExceptionDirectoryReaderWrapper(DirectoryReader in, Settings settings) throws IOException {
             super(in, new ThrowingSubReaderWrapper(settings));

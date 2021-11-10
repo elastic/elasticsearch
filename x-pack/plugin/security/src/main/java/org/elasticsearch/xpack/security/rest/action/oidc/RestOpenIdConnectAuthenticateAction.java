@@ -9,21 +9,21 @@ package org.elasticsearch.xpack.security.rest.action.oidc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateResponse;
-import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,8 +39,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger();
 
-    static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>("oidc_authn",
-        OpenIdConnectAuthenticateRequest::new);
+    static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>(
+        "oidc_authn",
+        OpenIdConnectAuthenticateRequest::new
+    );
 
     static {
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setRedirectUri, new ParseField("redirect_uri"));
@@ -63,7 +65,9 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
         try (XContentParser parser = request.contentParser()) {
             final OpenIdConnectAuthenticateRequest authenticateRequest = PARSER.parse(parser, null);
             logger.trace("OIDC Authenticate: " + authenticateRequest);
-            return channel -> client.execute(OpenIdConnectAuthenticateAction.INSTANCE, authenticateRequest,
+            return channel -> client.execute(
+                OpenIdConnectAuthenticateAction.INSTANCE,
+                authenticateRequest,
                 new RestBuilderListener<OpenIdConnectAuthenticateResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(OpenIdConnectAuthenticateResponse response, XContentBuilder builder)
@@ -73,13 +77,14 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
                         builder.field("access_token", response.getAccessTokenString());
                         builder.field("refresh_token", response.getRefreshTokenString());
                         builder.field("expires_in", response.getExpiresIn().seconds());
-                        if(response.getAuthentication() != null) {
+                        if (response.getAuthentication() != null) {
                             builder.field("authentication", response.getAuthentication());
                         }
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
-                });
+                }
+            );
         }
     }
 

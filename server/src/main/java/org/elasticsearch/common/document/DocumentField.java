@@ -12,11 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
     private final String name;
     private final List<Object> values;
     private List<Object> ignoredValues;
-    
+
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
         values = in.readList(StreamInput::readGenericValue);
@@ -60,7 +60,6 @@ public class DocumentField implements Writeable, Iterable<Object> {
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
     }
 
-    
     /**
      * The name of the field.
      */
@@ -76,7 +75,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (values == null || values.isEmpty()) {
             return null;
         }
-        return (V)values.get(0);
+        return (V) values.get(0);
     }
 
     /**
@@ -90,13 +89,13 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public Iterator<Object> iterator() {
         return values.iterator();
     }
-    
+
     /**
      * The field's ignored values as an immutable list.
      */
     public List<Object> getIgnoredValues() {
         return ignoredValues == Collections.emptyList() ? ignoredValues : Collections.unmodifiableList(ignoredValues);
-    }    
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -105,12 +104,12 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         }
-        
+
     }
-    
-    public ToXContentFragment getValidValuesWriter(){
+
+    public ToXContentFragment getValidValuesWriter() {
         return new ToXContentFragment() {
-            
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startArray(name);
@@ -125,9 +124,10 @@ public class DocumentField implements Writeable, Iterable<Object> {
             }
         };
     }
-    public ToXContentFragment getIgnoredValuesWriter(){
+
+    public ToXContentFragment getIgnoredValuesWriter() {
         return new ToXContentFragment() {
-            
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startArray(name);
@@ -138,7 +138,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
                 return builder;
             }
         };
-    }    
+    }
 
     public static DocumentField fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
@@ -161,8 +161,9 @@ public class DocumentField implements Writeable, Iterable<Object> {
             return false;
         }
         DocumentField objects = (DocumentField) o;
-        return Objects.equals(name, objects.name) && Objects.equals(values, objects.values) && 
-            Objects.equals(ignoredValues, objects.ignoredValues);
+        return Objects.equals(name, objects.name)
+            && Objects.equals(values, objects.values)
+            && Objects.equals(ignoredValues, objects.ignoredValues);
     }
 
     @Override
@@ -172,11 +173,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
 
     @Override
     public String toString() {
-        return "DocumentField{" +
-                "name='" + name + '\'' +
-                ", values=" + values +
-                ", ignoredValues=" + ignoredValues +
-                '}';
+        return "DocumentField{" + "name='" + name + '\'' + ", values=" + values + ", ignoredValues=" + ignoredValues + '}';
     }
 
 }

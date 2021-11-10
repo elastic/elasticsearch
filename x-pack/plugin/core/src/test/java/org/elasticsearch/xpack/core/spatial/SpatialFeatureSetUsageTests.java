@@ -39,9 +39,8 @@ public class SpatialFeatureSetUsageTests extends AbstractWireSerializingTestCase
         return SpatialFeatureSetUsage::new;
     }
 
-   public static SpatialStatsAction.Response randomStatsResponse() {
-        DiscoveryNode node = new DiscoveryNode("_node_id",
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+    public static SpatialStatsAction.Response randomStatsResponse() {
+        DiscoveryNode node = new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
         EnumCounters<SpatialStatsAction.Item> counters = new EnumCounters<>(SpatialStatsAction.Item.class);
         SpatialStatsAction.NodeResponse nodeResponse = new SpatialStatsAction.NodeResponse(node, counters);
         return new SpatialStatsAction.Response(new ClusterName("cluster_name"), singletonList(nodeResponse), emptyList());

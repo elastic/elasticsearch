@@ -15,12 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,8 +50,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
 
     private List<Hop> hops = new ArrayList<>();
 
-    public GraphExploreRequest() {
-    }
+    public GraphExploreRequest() {}
 
     /**
      * Constructs a new graph request to run against the provided indices. No
@@ -349,8 +348,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
             this.boost = boost;
         }
 
-        TermBoost() {
-        }
+        TermBoost() {}
 
         public String getTerm() {
             return term;

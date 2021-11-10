@@ -17,15 +17,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,8 +69,10 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
             if (expectedIndexResult.hasFailures() == false) {
                 assertThat(actualIndexResult.getException(), nullValue());
                 if (actualIndexResult.getShards() != null) {
-                    assertThat(Arrays.stream(actualIndexResult.getShards())
-                        .allMatch(shardResult -> shardResult.hasFailures() == false), is(true));
+                    assertThat(
+                        Arrays.stream(actualIndexResult.getShards()).allMatch(shardResult -> shardResult.hasFailures() == false),
+                        is(true)
+                    );
                 }
             }
 
@@ -130,23 +132,28 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
 
         Index index = new Index("test", "uuid");
         IndexResult indexResult = new CloseIndexResponse.IndexResult(index);
-        CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true,
-                Collections.singletonList(indexResult));
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
-                Strings.toString(closeIndexResponse));
+        CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
+        assertEquals(
+            "{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
+            Strings.toString(closeIndexResponse)
+        );
 
         CloseIndexResponse.ShardResult[] shards = new CloseIndexResponse.ShardResult[1];
-        shards[0] = new CloseIndexResponse.ShardResult(0, new CloseIndexResponse.ShardResult.Failure[] {
-                new CloseIndexResponse.ShardResult.Failure("test", 0, new ActionNotFoundTransportException("test"), "nodeId") });
+        shards[0] = new CloseIndexResponse.ShardResult(
+            0,
+            new CloseIndexResponse.ShardResult.Failure[] {
+                new CloseIndexResponse.ShardResult.Failure("test", 0, new ActionNotFoundTransportException("test"), "nodeId") }
+        );
         indexResult = new CloseIndexResponse.IndexResult(index, shards);
-        closeIndexResponse = new CloseIndexResponse(true, true,
-                Collections.singletonList(indexResult));
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":true,"
+        closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
+        assertEquals(
+            "{\"acknowledged\":true,\"shards_acknowledged\":true,"
                 + "\"indices\":{\"test\":{\"closed\":false,\"failedShards\":{\"0\":{"
                 + "\"failures\":[{\"node\":\"nodeId\",\"shard\":0,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
                 + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
                 + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
-                Strings.toString(closeIndexResponse));
+            Strings.toString(closeIndexResponse)
+        );
     }
 
     public void testBwcSerialization() throws Exception {
@@ -240,6 +247,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         return randomFrom(
             new IndexNotFoundException(index),
             new ActionNotFoundTransportException("test"),
-            new NoShardAvailableActionException(new ShardId(index, id)));
+            new NoShardAvailableActionException(new ShardId(index, id))
+        );
     }
 }

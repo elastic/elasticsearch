@@ -35,28 +35,25 @@ public class MetadataDataStreamsService {
         this.indicesService = indicesService;
     }
 
-    public void modifyDataStream(final ModifyDataStreamsAction.Request request,
-                                 final ActionListener<AcknowledgedResponse> listener) {
+    public void modifyDataStream(final ModifyDataStreamsAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
         if (request.getActions().size() == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
         } else {
-            clusterService.submitStateUpdateTask("update-backing-indices",
+            clusterService.submitStateUpdateTask(
+                "update-backing-indices",
                 new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        return modifyDataStream(
-                            currentState,
-                            request.getActions(),
-                            indexMetadata -> {
-                                try {
-                                    return indicesService.createIndexMapperService(indexMetadata);
-                                } catch (IOException e) {
-                                    throw new IllegalStateException(e);
-                                }
+                        return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
+                            try {
+                                return indicesService.createIndexMapperService(indexMetadata);
+                            } catch (IOException e) {
+                                throw new IllegalStateException(e);
                             }
-                        );
+                        });
                     }
-                });
+                }
+            );
         }
     }
 
@@ -77,20 +74,9 @@ public class MetadataDataStreamsService {
         for (DataStreamAction action : actions) {
             Metadata.Builder builder = Metadata.builder(updatedMetadata);
             if (action.getType() == DataStreamAction.Type.ADD_BACKING_INDEX) {
-                addBackingIndex(
-                    updatedMetadata,
-                    builder,
-                    mapperSupplier,
-                    action.getDataStream(),
-                    action.getIndex()
-                );
+                addBackingIndex(updatedMetadata, builder, mapperSupplier, action.getDataStream(), action.getIndex());
             } else if (action.getType() == DataStreamAction.Type.REMOVE_BACKING_INDEX) {
-                removeBackingIndex(
-                    updatedMetadata,
-                    builder,
-                    action.getDataStream(),
-                    action.getIndex()
-                );
+                removeBackingIndex(updatedMetadata, builder, action.getDataStream(), action.getIndex());
             } else {
                 throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
             }
@@ -116,7 +102,8 @@ public class MetadataDataStreamsService {
                 metadata.index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
-                false);
+                false
+            );
         } catch (IOException e) {
             throw new IllegalArgumentException("unable to prepare backing index", e);
         }
@@ -132,9 +119,11 @@ public class MetadataDataStreamsService {
 
         // un-hide index
         IndexMetadata indexMetadata = metadata.index(index.getWriteIndex());
-        builder.put(IndexMetadata.builder(indexMetadata)
-            .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
-            .settingsVersion(indexMetadata.getSettingsVersion() + 1));
+        builder.put(
+            IndexMetadata.builder(indexMetadata)
+                .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
+                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+        );
     }
 
     private static IndexAbstraction.DataStream validateDataStream(Metadata metadata, String dataStreamName) {

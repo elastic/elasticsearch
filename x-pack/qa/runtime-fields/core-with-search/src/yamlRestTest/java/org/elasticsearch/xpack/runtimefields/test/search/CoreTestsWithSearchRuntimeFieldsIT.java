@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -162,10 +163,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                     }
                     Map<String, Object> map = XContentHelper.convertToMap(index.source(), false, index.getContentType()).v2();
                     Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(index.index(), i -> new HashMap<>());
-                    Set<String> indexMappedfields = mappedFields.computeIfAbsent(
-                        index.index(),
-                        i -> org.elasticsearch.core.Set.of()
-                    );
+                    Set<String> indexMappedfields = mappedFields.computeIfAbsent(index.index(), i -> org.elasticsearch.core.Set.of());
                     for (Map.Entry<String, Object> e : map.entrySet()) {
                         String name = e.getKey();
                         if (indexRuntimeMappings.containsKey(name) || indexMappedfields.contains(name)) {

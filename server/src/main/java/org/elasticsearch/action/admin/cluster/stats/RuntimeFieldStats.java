@@ -82,13 +82,13 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
             return false;
         }
         RuntimeFieldStats that = (RuntimeFieldStats) o;
-        return count == that.count &&
-            indexCount == that.indexCount &&
-            scriptLessCount == that.scriptLessCount &&
-            shadowedCount == that.shadowedCount &&
-            fieldScriptStats.equals(that.fieldScriptStats) &&
-            type.equals(that.type) &&
-            scriptLangs.equals(that.scriptLangs);
+        return count == that.count
+            && indexCount == that.indexCount
+            && scriptLessCount == that.scriptLessCount
+            && shadowedCount == that.shadowedCount
+            && fieldScriptStats.equals(that.fieldScriptStats)
+            && type.equals(that.type)
+            && scriptLangs.equals(that.scriptLangs);
     }
 
     @Override

@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.License;
@@ -33,6 +32,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
@@ -54,43 +54,49 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
     private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
 
-    private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
-        (mode) -> {
-            XPackLicenseState licenseState = getLicenseState();
-            switch (mode) {
-                case JDBC:
-                    if (JDBC_FEATURE.check(licenseState) == false) {
-                        throw LicenseUtils.newComplianceException("jdbc");
-                    }
-                    break;
-                case ODBC:
-                    if (ODBC_FEATURE.check(licenseState) == false) {
-                        throw LicenseUtils.newComplianceException("odbc");
-                    }
-                    break;
-                case PLAIN:
-                case CLI:
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown SQL mode " + mode);
-            }
+    private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker((mode) -> {
+        XPackLicenseState licenseState = getLicenseState();
+        switch (mode) {
+            case JDBC:
+                if (JDBC_FEATURE.check(licenseState) == false) {
+                    throw LicenseUtils.newComplianceException("jdbc");
+                }
+                break;
+            case ODBC:
+                if (ODBC_FEATURE.check(licenseState) == false) {
+                    throw LicenseUtils.newComplianceException("odbc");
+                }
+                break;
+            case PLAIN:
+            case CLI:
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown SQL mode " + mode);
         }
-    );
+    });
 
     // remove unneeded Settings
-    public SqlPlugin(Settings settings) {
-    }
+    public SqlPlugin(Settings settings) {}
 
     // overridable by tests
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
 
         return createComponents(client, environment.settings(), clusterService, namedWriteableRegistry);
     }
@@ -98,11 +104,19 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     /**
      * Create components used by the sql plugin.
      */
-    Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService,
-                                        NamedWriteableRegistry namedWriteableRegistry) {
+    Collection<Object> createComponents(
+        Client client,
+        Settings settings,
+        ClusterService clusterService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
-        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), SqlDataTypeRegistry.INSTANCE,
-            remoteClusterResolver::remoteClusters);
+        IndexResolver indexResolver = new IndexResolver(
+            client,
+            clusterService.getClusterName().value(),
+            SqlDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters
+        );
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 
@@ -114,27 +128,36 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController,
-                                             ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings,
-                                             SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
 
-        return Arrays.asList(new RestSqlQueryAction(),
-                new RestSqlTranslateAction(),
-                new RestSqlClearCursorAction(),
-                new RestSqlStatsAction(),
-                new RestSqlAsyncGetResultsAction(),
-                new RestSqlAsyncGetStatusAction(),
-                new RestSqlAsyncDeleteResultsAction());
+        return Arrays.asList(
+            new RestSqlQueryAction(),
+            new RestSqlTranslateAction(),
+            new RestSqlClearCursorAction(),
+            new RestSqlStatsAction(),
+            new RestSqlAsyncGetResultsAction(),
+            new RestSqlAsyncGetStatusAction(),
+            new RestSqlAsyncDeleteResultsAction()
+        );
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
-                new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
-                new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
-                new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
-                new ActionHandler<>(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
-                new ActionHandler<>(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
+            new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
+            new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
+            new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
+            new ActionHandler<>(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
+            new ActionHandler<>(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class)
+        );
     }
 }

@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
@@ -52,8 +52,15 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
     }
 
     @Override
-    protected IndexRecoveryMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
-                                                             MonitoredSystem system, String type, String id) {
+    protected IndexRecoveryMonitoringDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
         return new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, recoveryResponse);
     }
 
@@ -67,37 +74,40 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
     }
 
     public void testConstructorRecoveryResponseMustNotBeNull() {
-        expectThrows(NullPointerException.class,
-                () -> new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, null));
+        expectThrows(NullPointerException.class, () -> new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, null));
     }
 
     @Override
     public void testToXContent() throws IOException {
-        final DiscoveryNode discoveryNodeZero = new DiscoveryNode("_node_0",
-                                                                    "_node_id_0",
-                                                                    "_ephemeral_id_0",
-                                                                    "_host_name_0",
-                                                                    "_host_address_0",
-                                                                    new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-                                                                    singletonMap("attr", "value_0"),
-                                                                    singleton(DiscoveryNodeRole.MASTER_ROLE),
-                                                                    Version.V_6_0_0_beta1);
+        final DiscoveryNode discoveryNodeZero = new DiscoveryNode(
+            "_node_0",
+            "_node_id_0",
+            "_ephemeral_id_0",
+            "_host_name_0",
+            "_host_address_0",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            singletonMap("attr", "value_0"),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.V_6_0_0_beta1
+        );
 
-        final DiscoveryNode discoveryNodeOne = new DiscoveryNode("_node_1",
-                                                                    "_node_id_1",
-                                                                    "_ephemeral_id_1",
-                                                                    "_host_name_1",
-                                                                    "_host_address_1",
-                                                                    new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-                                                                    singletonMap("attr", "value_1"),
-                                                                    singleton(DiscoveryNodeRole.DATA_ROLE),
-                                                                    Version.V_6_0_0_alpha1);
+        final DiscoveryNode discoveryNodeOne = new DiscoveryNode(
+            "_node_1",
+            "_node_id_1",
+            "_ephemeral_id_1",
+            "_host_name_1",
+            "_host_address_1",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9301),
+            singletonMap("attr", "value_1"),
+            singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.V_6_0_0_alpha1
+        );
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);
         final RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_a");
         final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
-                                                      .initialize("_node_id", "_allocation_id", 123L);
+            .initialize("_node_id", "_allocation_id", 123L);
 
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
@@ -112,80 +122,94 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
         final RecoveryResponse recoveryResponse = new RecoveryResponse(10, 7, 3, shardRecoveryStates, shardFailures);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final IndexRecoveryMonitoringDoc document =
-                new IndexRecoveryMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, recoveryResponse);
+        final IndexRecoveryMonitoringDoc document = new IndexRecoveryMonitoringDoc(
+            "_cluster",
+            1502266739402L,
+            1506593717631L,
+            node,
+            recoveryResponse
+        );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertEquals("{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
-                    + "\"interval_ms\":1506593717631,"
-                    + "\"type\":\"index_recovery\","
-                    + "\"source_node\":{"
-                        + "\"uuid\":\"_uuid\","
-                        + "\"host\":\"_host\","
-                        + "\"transport_address\":\"_addr\","
-                        + "\"ip\":\"_ip\","
-                        + "\"name\":\"_name\","
-                        + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                    + "},"
-                    + "\"index_recovery\":{"
-                        + "\"shards\":["
-                        + "{"
-                          + "\"index_name\":\"_shard_0\","
-                          + "\"id\":0,"
-                          + "\"type\":\"PEER\","
-                          + "\"stage\":\"INIT\","
-                          + "\"primary\":true,"
-                          + "\"start_time_in_millis\":" + timer.startTime() + ","
-                          + "\"stop_time_in_millis\":" + timer.stopTime() + ","
-                          + "\"total_time_in_millis\":" + timer.time() + ","
-                          + "\"source\":{"
-                            + "\"id\":\"_node_id_1\","
-                            + "\"host\":\"_host_name_1\","
-                              + "\"transport_address\":\"0.0.0.0:9301\","
-                            + "\"ip\":\"_host_address_1\","
-                            + "\"name\":\"_node_1\""
-                          + "},"
-                          + "\"target\":{"
-                            + "\"id\":\"_node_id_1\","
-                            + "\"host\":\"_host_name_1\","
-                            + "\"transport_address\":\"0.0.0.0:9301\","
-                            + "\"ip\":\"_host_address_1\","
-                            + "\"name\":\"_node_1\""
-                          + "},"
-                          + "\"index\":{"
-                            + "\"size\":{"
-                              + "\"total_in_bytes\":0,"
-                              + "\"reused_in_bytes\":0,"
-                              + "\"recovered_in_bytes\":0,"
-                              + "\"recovered_from_snapshot_in_bytes\":0,"
-                              + "\"percent\":\"0.0%\""
-                            + "},"
-                            + "\"files\":{"
-                              + "\"total\":0,"
-                              + "\"reused\":0,"
-                              + "\"recovered\":0,"
-                              + "\"percent\":\"0.0%\""
-                            + "},"
-                            + "\"total_time_in_millis\":0,"
-                            + "\"source_throttle_time_in_millis\":0,"
-                            + "\"target_throttle_time_in_millis\":0"
-                          + "},"
-                          + "\"translog\":{"
-                            + "\"recovered\":0,"
-                            + "\"total\":-1,"
-                            + "\"percent\":\"-1.0%\","
-                            + "\"total_on_start\":-1,"
-                            + "\"total_time_in_millis\":0"
-                          + "},"
-                          + "\"verify_index\":{"
-                            + "\"check_index_time_in_millis\":0,"
-                            + "\"total_time_in_millis\":0"
-                          + "}"
-                        + "}"
-                      + "]"
-                    + "}"
-                + "}", xContent.utf8ToString());
+        assertEquals(
+            "{"
+                + "\"cluster_uuid\":\"_cluster\","
+                + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
+                + "\"interval_ms\":1506593717631,"
+                + "\"type\":\"index_recovery\","
+                + "\"source_node\":{"
+                + "\"uuid\":\"_uuid\","
+                + "\"host\":\"_host\","
+                + "\"transport_address\":\"_addr\","
+                + "\"ip\":\"_ip\","
+                + "\"name\":\"_name\","
+                + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
+                + "},"
+                + "\"index_recovery\":{"
+                + "\"shards\":["
+                + "{"
+                + "\"index_name\":\"_shard_0\","
+                + "\"id\":0,"
+                + "\"type\":\"PEER\","
+                + "\"stage\":\"INIT\","
+                + "\"primary\":true,"
+                + "\"start_time_in_millis\":"
+                + timer.startTime()
+                + ","
+                + "\"stop_time_in_millis\":"
+                + timer.stopTime()
+                + ","
+                + "\"total_time_in_millis\":"
+                + timer.time()
+                + ","
+                + "\"source\":{"
+                + "\"id\":\"_node_id_1\","
+                + "\"host\":\"_host_name_1\","
+                + "\"transport_address\":\"0.0.0.0:9301\","
+                + "\"ip\":\"_host_address_1\","
+                + "\"name\":\"_node_1\""
+                + "},"
+                + "\"target\":{"
+                + "\"id\":\"_node_id_1\","
+                + "\"host\":\"_host_name_1\","
+                + "\"transport_address\":\"0.0.0.0:9301\","
+                + "\"ip\":\"_host_address_1\","
+                + "\"name\":\"_node_1\""
+                + "},"
+                + "\"index\":{"
+                + "\"size\":{"
+                + "\"total_in_bytes\":0,"
+                + "\"reused_in_bytes\":0,"
+                + "\"recovered_in_bytes\":0,"
+                + "\"recovered_from_snapshot_in_bytes\":0,"
+                + "\"percent\":\"0.0%\""
+                + "},"
+                + "\"files\":{"
+                + "\"total\":0,"
+                + "\"reused\":0,"
+                + "\"recovered\":0,"
+                + "\"percent\":\"0.0%\""
+                + "},"
+                + "\"total_time_in_millis\":0,"
+                + "\"source_throttle_time_in_millis\":0,"
+                + "\"target_throttle_time_in_millis\":0"
+                + "},"
+                + "\"translog\":{"
+                + "\"recovered\":0,"
+                + "\"total\":-1,"
+                + "\"percent\":\"-1.0%\","
+                + "\"total_on_start\":-1,"
+                + "\"total_time_in_millis\":0"
+                + "},"
+                + "\"verify_index\":{"
+                + "\"check_index_time_in_millis\":0,"
+                + "\"total_time_in_millis\":0"
+                + "}"
+                + "}"
+                + "]"
+                + "}"
+                + "}",
+            xContent.utf8ToString()
+        );
     }
 }

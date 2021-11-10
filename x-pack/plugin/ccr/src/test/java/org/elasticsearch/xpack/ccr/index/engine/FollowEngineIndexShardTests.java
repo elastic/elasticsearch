@@ -19,9 +19,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -35,6 +34,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -60,37 +60,64 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         long seqNo = -1;
         for (int i = 0; i < 8; i++) {
             final String id = Long.toString(i);
-            SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", id,
-                new BytesArray("{}"), XContentType.JSON);
-            indexShard.applyIndexOperationOnReplica(++seqNo, indexShard.getOperationPrimaryTerm(), 1,
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            SourceToParse sourceToParse = new SourceToParse(
+                indexShard.shardId().getIndexName(),
+                "_doc",
+                id,
+                new BytesArray("{}"),
+                XContentType.JSON
+            );
+            indexShard.applyIndexOperationOnReplica(
+                ++seqNo,
+                indexShard.getOperationPrimaryTerm(),
+                1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
+                sourceToParse
+            );
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
-        SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", "9",
-            new BytesArray("{}"), XContentType.JSON);
-        indexShard.applyIndexOperationOnReplica(seqNo, indexShard.getOperationPrimaryTerm(), 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-            false, sourceToParse);
+        SourceToParse sourceToParse = new SourceToParse(
+            indexShard.shardId().getIndexName(),
+            "_doc",
+            "9",
+            new BytesArray("{}"),
+            XContentType.JSON
+        );
+        indexShard.applyIndexOperationOnReplica(
+            seqNo,
+            indexShard.getOperationPrimaryTerm(),
+            1,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            sourceToParse
+        );
 
         // promote the replica to primary:
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting =
-            newShardRouting(
-                replicaRouting.shardId(),
-                replicaRouting.currentNodeId(),
-                null,
-                true,
-                ShardRoutingState.STARTED,
-                replicaRouting.allocationId());
-        indexShard.updateShardState(primaryRouting, indexShard.getOperationPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build());
+        final ShardRouting primaryRouting = newShardRouting(
+            replicaRouting.shardId(),
+            replicaRouting.currentNodeId(),
+            null,
+            true,
+            ShardRoutingState.STARTED,
+            replicaRouting.allocationId()
+        );
+        indexShard.updateShardState(
+            primaryRouting,
+            indexShard.getOperationPrimaryTerm() + 1,
+            (shard, listener) -> {},
+            0L,
+            Collections.singleton(primaryRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build()
+        );
 
         final CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Releasable> actionListener = ActionListener.wrap(releasable -> {
             releasable.close();
             latch.countDown();
-        }, e -> {assert false : "expected no exception, but got [" + e.getMessage() + "]";});
+        }, e -> { assert false : "expected no exception, but got [" + e.getMessage() + "]"; });
         indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC, "");
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
@@ -100,9 +127,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
     }
 
     public void testRestoreShard() throws IOException {
-        final Settings sourceSettings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings sourceSettings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexShard source = newStartedShard(true, sourceSettings);
         final Settings targetSettings = Settings.builder()
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
@@ -118,12 +143,20 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             source.refresh("test");
         }
         flushShard(source); // only flush source
-        ShardRouting routing = ShardRoutingHelper.initWithSameId(target.routingEntry(),
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE);
+        ShardRouting routing = ShardRoutingHelper.initWithSameId(
+            target.routingEntry(),
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
         final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
-        routing = ShardRoutingHelper.newWithRestoreSource(routing,
-            new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT,
-                new IndexId("test", UUIDs.randomBase64UUID(random()))));
+        routing = ShardRoutingHelper.newWithRestoreSource(
+            routing,
+            new RecoverySource.SnapshotRecoverySource(
+                UUIDs.randomBase64UUID(),
+                snapshot,
+                Version.CURRENT,
+                new IndexId("test", UUIDs.randomBase64UUID(random()))
+            )
+        );
         target = reinitShard(target, routing);
         Store sourceStore = source.store();
         Store targetStore = target.store();
@@ -133,8 +166,14 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
-                                     RecoveryState recoveryState, ActionListener<Void> listener) {
+            public void restoreShard(
+                Store store,
+                SnapshotId snapshotId,
+                IndexId indexId,
+                ShardId snapshotShardId,
+                RecoveryState recoveryState,
+                ActionListener<Void> listener
+            ) {
                 ActionListener.completeWith(listener, () -> {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {

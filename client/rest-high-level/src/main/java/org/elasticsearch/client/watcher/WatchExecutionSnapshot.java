@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.joda.time.DateTime;
 
 import java.util.Arrays;
@@ -19,16 +19,19 @@ import java.util.Objects;
 
 public class WatchExecutionSnapshot {
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<WatchExecutionSnapshot, Void> PARSER =
-        new ConstructingObjectParser<>("watcher_stats_node", true, (args, c) -> new WatchExecutionSnapshot(
+    public static final ConstructingObjectParser<WatchExecutionSnapshot, Void> PARSER = new ConstructingObjectParser<>(
+        "watcher_stats_node",
+        true,
+        (args, c) -> new WatchExecutionSnapshot(
             (String) args[0],
             (String) args[1],
-            DateTime.parse((String)  args[2]),
-            DateTime.parse((String)  args[3]),
+            DateTime.parse((String) args[2]),
+            DateTime.parse((String) args[3]),
             ExecutionPhase.valueOf(((String) args[4]).toUpperCase(Locale.ROOT)),
             args[5] == null ? null : ((List<String>) args[5]).toArray(new String[0]),
             args[6] == null ? null : ((List<String>) args[6]).toArray(new String[0])
-        ));
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("watch_id"));
@@ -48,8 +51,15 @@ public class WatchExecutionSnapshot {
     private final String[] executedActions;
     private final String[] executionStackTrace;
 
-    public WatchExecutionSnapshot(String watchId, String watchRecordId, DateTime triggeredTime, DateTime executionTime,
-                                  ExecutionPhase phase, String[] executedActions, String[] executionStackTrace) {
+    public WatchExecutionSnapshot(
+        String watchId,
+        String watchRecordId,
+        DateTime triggeredTime,
+        DateTime executionTime,
+        ExecutionPhase phase,
+        String[] executedActions,
+        String[] executionStackTrace
+    ) {
         this.watchId = watchId;
         this.watchRecordId = watchRecordId;
         this.triggeredTime = triggeredTime;
@@ -92,13 +102,13 @@ public class WatchExecutionSnapshot {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WatchExecutionSnapshot that = (WatchExecutionSnapshot) o;
-        return Objects.equals(watchId, that.watchId) &&
-            Objects.equals(watchRecordId, that.watchRecordId) &&
-            Objects.equals(triggeredTime, that.triggeredTime) &&
-            Objects.equals(executionTime, that.executionTime) &&
-            phase == that.phase &&
-            Arrays.equals(executedActions, that.executedActions) &&
-            Arrays.equals(executionStackTrace, that.executionStackTrace);
+        return Objects.equals(watchId, that.watchId)
+            && Objects.equals(watchRecordId, that.watchRecordId)
+            && Objects.equals(triggeredTime, that.triggeredTime)
+            && Objects.equals(executionTime, that.executionTime)
+            && phase == that.phase
+            && Arrays.equals(executedActions, that.executedActions)
+            && Arrays.equals(executionStackTrace, that.executionStackTrace);
     }
 
     @Override

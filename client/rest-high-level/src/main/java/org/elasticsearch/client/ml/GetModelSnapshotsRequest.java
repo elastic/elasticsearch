@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,7 +24,6 @@ import java.util.Objects;
  */
 public class GetModelSnapshotsRequest extends ActionRequest implements ToXContentObject {
 
-
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
     public static final ParseField SORT = new ParseField("sort");
     public static final ParseField START = new ParseField("start");
@@ -32,8 +31,9 @@ public class GetModelSnapshotsRequest extends ActionRequest implements ToXConten
     public static final ParseField DESC = new ParseField("desc");
 
     public static final ConstructingObjectParser<GetModelSnapshotsRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "get_model_snapshots_request", a -> new GetModelSnapshotsRequest((String) a[0]));
-
+        "get_model_snapshots_request",
+        a -> new GetModelSnapshotsRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -115,7 +115,6 @@ public class GetModelSnapshotsRequest extends ActionRequest implements ToXConten
         this.start = start;
     }
 
-
     public String getEnd() {
         return end;
     }
@@ -168,7 +167,8 @@ public class GetModelSnapshotsRequest extends ActionRequest implements ToXConten
         }
         if (pageParams != null) {
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
-        }        builder.endObject();
+        }
+        builder.endObject();
         return builder;
     }
 

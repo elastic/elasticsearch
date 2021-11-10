@@ -16,13 +16,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -67,7 +67,7 @@ public class IndexRequestTests extends ESTestCase {
     public void testCreateOperationRejectsVersions() {
         Set<VersionType> allButInternalSet = new HashSet<>(Arrays.asList(VersionType.values()));
         allButInternalSet.remove(VersionType.INTERNAL);
-        VersionType[] allButInternal = allButInternalSet.toArray(new VersionType[]{});
+        VersionType[] allButInternal = allButInternalSet.toArray(new VersionType[] {});
         IndexRequest request = new IndexRequest("index").id("1");
         request.opType(IndexRequest.OpType.CREATE);
         request.versionType(randomFrom(allButInternal));
@@ -80,24 +80,23 @@ public class IndexRequestTests extends ESTestCase {
 
     public void testIndexingRejectsLongIds() {
         String id = randomAlphaOfLength(511);
-        IndexRequest request = new IndexRequest("index").id( id);
+        IndexRequest request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(512);
-        request = new IndexRequest("index").id( id);
+        request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(513);
-        request = new IndexRequest("index").id( id);
+        request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(),
-                containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
+        assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
     }
 
     public void testWaitForActiveShards() {
@@ -142,12 +141,28 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
-        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
-                ",version=" + version + ",result=" + (created ? "created" : "updated") +
-                ",seqNo=" + SequenceNumbers.UNASSIGNED_SEQ_NO +
-                ",primaryTerm=" + 0 +
-                ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
-                indexResponse.toString());
+        assertEquals(
+            "IndexResponse[index="
+                + shardId.getIndexName()
+                + ",type="
+                + type
+                + ",id="
+                + id
+                + ",version="
+                + version
+                + ",result="
+                + (created ? "created" : "updated")
+                + ",seqNo="
+                + SequenceNumbers.UNASSIGNED_SEQ_NO
+                + ",primaryTerm="
+                + 0
+                + ",shards={\"total\":"
+                + total
+                + ",\"successful\":"
+                + successful
+                + ",\"failed\":0}]",
+            indexResponse.toString()
+        );
     }
 
     public void testIndexRequestXContentSerialization() throws IOException {
@@ -207,19 +222,23 @@ public class IndexRequestTests extends ESTestCase {
         // old version
         {
             Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(1, 10))
-                .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+                .boxed()
+                .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
             Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
             BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(ver);
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
-            assertThat(error.getMessage(),
-                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later"));
+            assertThat(
+                error.getMessage(),
+                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later")
+            );
         }
         // new version
         {
             Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
-                .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+                .boxed()
+                .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
             Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
             BytesStreamOutput out = new BytesStreamOutput();
@@ -242,8 +261,14 @@ public class IndexRequestTests extends ESTestCase {
         source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
         request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes("UTF-8").length;
-        assertEquals("index {[index][_doc][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
-                "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());
+        assertEquals(
+            "index {[index][_doc][null], source[n/a, actual length: ["
+                + new ByteSizeValue(actualBytes).toString()
+                + "], max length: "
+                + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
+                + "]}",
+            request.toString()
+        );
     }
 
     public void testRejectsEmptyStringPipeline() {
@@ -252,7 +277,6 @@ public class IndexRequestTests extends ESTestCase {
         request.setPipeline("");
         ActionRequestValidationException validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(),
-            containsString("pipeline cannot be an empty string"));
+        assertThat(validate.getMessage(), containsString("pipeline cannot be an empty string"));
     }
 }

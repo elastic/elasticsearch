@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -37,11 +37,13 @@ public final class MappingParser {
     private final Function<String, String> documentTypeResolver;
     private final NamedXContentRegistry xContentRegistry;
 
-    MappingParser(Supplier<MappingParserContext> parserContextSupplier,
-                  Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-                  Function<String, Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersFunction,
-                  Function<String, String> documentTypeResolver,
-                  NamedXContentRegistry xContentRegistry) {
+    MappingParser(
+        Supplier<MappingParserContext> parserContextSupplier,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
+        Function<String, Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersFunction,
+        Function<String, String> documentTypeResolver,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMappersFunction = metadataMappersFunction;
         this.metadataMapperParsers = metadataMapperParsers;
@@ -106,8 +108,7 @@ public final class MappingParser {
         }
 
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper
-            = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
+        RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersFunction.apply(type);
         Map<String, Object> meta = null;
@@ -126,8 +127,8 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper
-                    = typeParser.parse(fieldName, fieldNodeMap, parserContext).build(MapperBuilderContext.ROOT);
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext)
+                    .build(MapperBuilderContext.ROOT);
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap);
@@ -143,15 +144,14 @@ public final class MappingParser {
         }
         checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
 
-        return new Mapping(rootObjectMapper,
-            metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta);
+        return new Mapping(rootObjectMapper, metadataMappers.values().toArray(new MetadataFieldMapper[0]), meta);
     }
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
-        try (XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)) {
+        try (
+            XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)
+        ) {
             root = parser.mapOrdered();
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse mapping definition", e);

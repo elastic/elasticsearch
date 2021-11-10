@@ -15,12 +15,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.ObjectPath;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
@@ -40,8 +40,8 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -85,8 +85,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<WatcherStatsResponse> listener =
-                    (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
+            ActionListener<WatcherStatsResponse> listener = (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
 
             List<WatcherStatsResponse.Node> nodes = new ArrayList<>();
             DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -105,8 +104,9 @@ public class WatcherFeatureSetTests extends ESTestCase {
             secondNode.setStats(secondCounters);
             nodes.add(secondNode);
 
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false),
-                    nodes, Collections.emptyList()));
+            listener.onResponse(
+                new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false), nodes, Collections.emptyList())
+            );
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 

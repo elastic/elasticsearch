@@ -34,8 +34,7 @@ public class DeleteModelSnapshotAction extends ActionType<AcknowledgedResponse> 
         private String jobId;
         private String snapshotId;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);

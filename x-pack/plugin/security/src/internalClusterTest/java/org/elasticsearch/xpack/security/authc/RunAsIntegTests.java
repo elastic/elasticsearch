@@ -22,10 +22,10 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
-import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
@@ -42,9 +42,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     private static final String RUN_AS_USER = "run_as_user";
     private static final String TRANSPORT_CLIENT_USER = "transport_user";
-    private static final String ROLES =
-            "run_as_role:\n" +
-            "  run_as: [ '" + SecuritySettingsSource.TEST_USER_NAME + "', 'idontexist' ]\n";
+    private static final String ROLES = "run_as_role:\n" + "  run_as: [ '" + SecuritySettingsSource.TEST_USER_NAME + "', 'idontexist' ]\n";
 
     // indicates whether the RUN_AS_USER that is being authenticated is also a superuser
     private static boolean runAsHasSuperUserRole;
@@ -67,18 +65,21 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     @Override
     public String configUsers() {
         return super.configUsers()
-                + RUN_AS_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n"
-                + TRANSPORT_CLIENT_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n";
+            + RUN_AS_USER
+            + ":"
+            + SecuritySettingsSource.TEST_PASSWORD_HASHED
+            + "\n"
+            + TRANSPORT_CLIENT_USER
+            + ":"
+            + SecuritySettingsSource.TEST_PASSWORD_HASHED
+            + "\n";
     }
 
     @Override
     public String configUsersRoles() {
-        String roles = super.configUsersRoles()
-                + "run_as_role:" + RUN_AS_USER + "\n"
-                + "transport_client:" + TRANSPORT_CLIENT_USER;
+        String roles = super.configUsersRoles() + "run_as_role:" + RUN_AS_USER + "\n" + "transport_client:" + TRANSPORT_CLIENT_USER;
         if (runAsHasSuperUserRole) {
-            roles = roles + "\n"
-                    + "superuser:" + RUN_AS_USER;
+            roles = roles + "\n" + "superuser:" + RUN_AS_USER;
         }
         return roles;
     }
@@ -89,10 +90,14 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     public void testUserImpersonation() throws Exception {
-        try (TransportClient client = getTransportClient(Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" +
-                     SecuritySettingsSourceField.TEST_PASSWORD).build())) {
-            //ensure the client can connect
+        try (
+            TransportClient client = getTransportClient(
+                Settings.builder()
+                    .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" + SecuritySettingsSourceField.TEST_PASSWORD)
+                    .build()
+            )
+        ) {
+            // ensure the client can connect
             assertBusy(() -> assertThat(client.connectedNodes().size(), greaterThan(0)));
 
             // make sure the client can't get health
@@ -105,10 +110,11 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
             // let's run as without authorization
             try {
-                Map<String, String> headers = Collections.singletonMap(AuthenticationServiceField.RUN_AS_USER_HEADER,
-                        SecuritySettingsSource.TEST_USER_NAME);
-                client.filterWithHeader(headers)
-                        .admin().cluster().prepareHealth().get();
+                Map<String, String> headers = Collections.singletonMap(
+                    AuthenticationServiceField.RUN_AS_USER_HEADER,
+                    SecuritySettingsSource.TEST_USER_NAME
+                );
+                client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
                 fail("run as should be unauthorized for the transport client user");
             } catch (ElasticsearchSecurityException e) {
                 assertThat(e.getMessage(), containsString("unauthorized"));
@@ -116,8 +122,13 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             }
 
             Map<String, String> headers = new HashMap<>();
-            headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+            headers.put(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    RUN_AS_USER,
+                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+                )
+            );
             headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME);
             // lets set the user
             ClusterHealthResponse response = client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
@@ -130,19 +141,21 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         try {
             Request request = new Request("GET", "/_nodes");
             RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER, TEST_PASSWORD_SECURE_STRING));
+            options.addHeader(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER, TEST_PASSWORD_SECURE_STRING)
+            );
             options.addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME);
             request.setOptions(options);
             getRestClient().performRequest(request);
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
 
         if (runAsHasSuperUserRole == false) {
             try {
-                //the run as user shouldn't have access to the nodes api
+                // the run as user shouldn't have access to the nodes api
                 Request request = new Request("GET", "/_nodes");
                 RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING));
@@ -159,16 +172,25 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     public void testEmptyUserImpersonationHeader() throws Exception {
-        try (TransportClient client = getTransportClient(Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":"
-                     + SecuritySettingsSourceField.TEST_PASSWORD).build())) {
-            //ensure the client can connect
+        try (
+            TransportClient client = getTransportClient(
+                Settings.builder()
+                    .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" + SecuritySettingsSourceField.TEST_PASSWORD)
+                    .build()
+            )
+        ) {
+            // ensure the client can connect
             assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()));
 
             try {
                 Map<String, String> headers = new HashMap<>();
-                headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+                headers.put(
+                    "Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(
+                        RUN_AS_USER,
+                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+                    )
+                );
                 headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "");
 
                 client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
@@ -183,22 +205,31 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         try {
             getRestClient().performRequest(requestForUserRunAsUser(""));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         }
     }
 
     public void testNonExistentRunAsUser() throws Exception {
-        try (TransportClient client = getTransportClient(Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" +
-                     SecuritySettingsSourceField.TEST_PASSWORD).build())) {
-            //ensure the client can connect
+        try (
+            TransportClient client = getTransportClient(
+                Settings.builder()
+                    .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" + SecuritySettingsSourceField.TEST_PASSWORD)
+                    .build()
+            )
+        ) {
+            // ensure the client can connect
             assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()));
 
             try {
                 Map<String, String> headers = new HashMap<>();
-                headers.put("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+                headers.put(
+                    "Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(
+                        RUN_AS_USER,
+                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+                    )
+                );
                 headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "idontexist");
 
                 client.filterWithHeader(headers).admin().cluster().prepareHealth().get();
@@ -235,12 +266,8 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getInfo(TransportInfo.class).address().publishAddress();
         String clusterName = nodeInfos.getClusterName().value();
 
-        Settings settings = Settings.builder()
-                .put(extraSettings)
-                .put("cluster.name", clusterName)
-                .build();
+        Settings settings = Settings.builder().put(extraSettings).put("cluster.name", clusterName).build();
 
-        return new TestXPackTransportClient(settings, LocalStateSecurity.class)
-                .addTransportAddress(publishAddress);
+        return new TestXPackTransportClient(settings, LocalStateSecurity.class).addTransportAddress(publishAddress);
     }
 }

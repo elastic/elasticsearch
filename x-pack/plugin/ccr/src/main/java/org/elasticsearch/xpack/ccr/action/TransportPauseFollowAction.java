@@ -36,21 +36,29 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
 
     @Inject
     public TransportPauseFollowAction(
-            final TransportService transportService,
-            final ActionFilters actionFilters,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final PersistentTasksService persistentTasksService) {
-        super(PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PauseFollowAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+        final TransportService transportService,
+        final ActionFilters actionFilters,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final PersistentTasksService persistentTasksService
+    ) {
+        super(
+            PauseFollowAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PauseFollowAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
-    protected void masterOperation(PauseFollowAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(PauseFollowAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
         final IndexMetadata followerIMD = state.metadata().index(request.getFollowIndex());
         if (followerIMD == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
@@ -66,7 +74,8 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             return;
         }
 
-        List<String> shardFollowTaskIds = persistentTasksMetadata.tasks().stream()
+        List<String> shardFollowTaskIds = persistentTasksMetadata.tasks()
+            .stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();

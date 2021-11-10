@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -42,16 +43,21 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         metadata.put(IndexMetadata.builder("a").settings(ESTestCase.settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         metadata.put(IndexMetadata.builder("b").settings(ESTestCase.settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         metadata.put(IndexMetadata.builder("c").settings(ESTestCase.settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(metadata).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
         GetAliasesRequest request = new GetAliasesRequest();
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut("b", Collections.singletonList(new AliasMetadata.Builder("y").build()))
             .build();
-        ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, clusterState,
-                SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
+        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+            request,
+            new String[] { "a", "b", "c" },
+            aliases,
+            clusterState,
+            SystemIndexAccessLevel.NONE,
+            null,
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(3));
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get("b").size(), equalTo(1));
@@ -62,8 +68,15 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut("b", Collections.singletonList(new AliasMetadata.Builder("y").build()))
             .build();
-        result = TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, clusterState,
-            SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
+        result = TransportGetAliasesAction.postProcess(
+            request,
+            new String[] { "a", "b", "c" },
+            aliases,
+            clusterState,
+            SystemIndexAccessLevel.NONE,
+            null,
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(3));
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get("b").size(), equalTo(1));
@@ -73,8 +86,15 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut("b", Collections.singletonList(new AliasMetadata.Builder("y").build()))
             .build();
-        result = TransportGetAliasesAction.postProcess(request, new String[]{"a", "b", "c"}, aliases, clusterState,
-            SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
+        result = TransportGetAliasesAction.postProcess(
+            request,
+            new String[] { "a", "b", "c" },
+            aliases,
+            clusterState,
+            SystemIndexAccessLevel.NONE,
+            null,
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("b").size(), equalTo(1));
     }
@@ -87,17 +107,29 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
             .fPut("c", Collections.singletonList(new AliasMetadata.Builder("d").build()))
             .build();
-        final String[] concreteIndices = {"a", ".b", "c"};
+        final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state,
-                SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
+        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+            request,
+            concreteIndices,
+            aliases,
+            state,
+            SystemIndexAccessLevel.NONE,
+            null,
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(3));
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
-        assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
-            "indices will be prevented by default");
+        assertWarnings(
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
+        );
     }
 
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequested() {
@@ -108,15 +140,27 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
             .build();
-        final String[] concreteIndices = {".b"};
+        final String[] concreteIndices = { ".b" };
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state,
-                SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
+        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+            request,
+            concreteIndices,
+            aliases,
+            state,
+            SystemIndexAccessLevel.NONE,
+            null,
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
-            "indices will be prevented by default");
+        assertWarnings(
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
+        );
     }
 
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequestedByAlias() {
@@ -126,15 +170,27 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
             .build();
-        final String[] concreteIndices = {"a", ".b", "c"};
+        final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state,
-                SystemIndexAccessLevel.NONE, null, EmptySystemIndices.INSTANCE);
+        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+            request,
+            concreteIndices,
+            aliases,
+            state,
+            SystemIndexAccessLevel.NONE,
+            null,
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings("this request accesses system indices: [.b], but in a future major version, direct access to system " +
-            "indices will be prevented by default");
+        assertWarnings(
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
+        );
     }
 
     public void testDeprecationWarningNotEmittedWhenSystemAccessAllowed() {
@@ -144,11 +200,17 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
             .build();
-        final String[] concreteIndices = {"a", ".b", "c"};
+        final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state,
-                SystemIndexAccessLevel.ALL, new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+            request,
+            concreteIndices,
+            aliases,
+            state,
+            SystemIndexAccessLevel.ALL,
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
     }
@@ -164,39 +226,62 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
             .fPut("c", Collections.singletonList(new AliasMetadata.Builder("d").build()))
             .build();
-        final String[] concreteIndices = {"c"};
+        final String[] concreteIndices = { "c" };
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state,
-                SystemIndexAccessLevel.NONE, new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+            request,
+            concreteIndices,
+            aliases,
+            state,
+            SystemIndexAccessLevel.NONE,
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
     }
 
     public void testDeprecationWarningEmittedWhenRequestingNonExistingAliasInSystemPattern() {
         ClusterState state = systemIndexTestClusterState();
-        SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(
-            this.getTestName(),
-            new SystemIndices.Feature(this.getTestName(), "test feature",
-                Collections.singletonList(new SystemIndexDescriptor(".y*", "an index that doesn't exist")))));
+        SystemIndices systemIndices = new SystemIndices(
+            Collections.singletonMap(
+                this.getTestName(),
+                new SystemIndices.Feature(
+                    this.getTestName(),
+                    "test feature",
+                    Collections.singletonList(new SystemIndexDescriptor(".y*", "an index that doesn't exist"))
+                )
+            )
+        );
 
         GetAliasesRequest request = new GetAliasesRequest(".y");
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
-            .build();
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder().build();
         final String[] concreteIndices = {};
         assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result =
-            TransportGetAliasesAction.postProcess(request, concreteIndices, aliases, state,
-                SystemIndexAccessLevel.NONE, null, systemIndices);
+        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
+            request,
+            concreteIndices,
+            aliases,
+            state,
+            SystemIndexAccessLevel.NONE,
+            null,
+            systemIndices
+        );
         assertThat(result.size(), equalTo(0));
-        assertWarnings("this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct" +
-            " access to system indices and their aliases will not be allowed");
+        assertWarnings(
+            Level.WARN,
+            "this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct"
+                + " access to system indices and their aliases will not be allowed"
+        );
     }
 
     public void testPostProcessDataStreamAliases() {
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-        List<Tuple<String, Integer>> tuples =
-            Arrays.asList(new Tuple<>("logs-foo", 1), new Tuple<>("logs-bar", 1), new Tuple<>("logs-baz", 1));
+        List<Tuple<String, Integer>> tuples = Arrays.asList(
+            new Tuple<>("logs-foo", 1),
+            new Tuple<>("logs-bar", 1),
+            new Tuple<>("logs-baz", 1)
+        );
         ClusterState clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(tuples, Collections.emptyList());
         Metadata.Builder builder = Metadata.builder(clusterState.metadata());
         builder.put("logs", "logs-foo", null, null);
@@ -208,10 +293,14 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
         Map<String, List<DataStreamAlias>> result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo", "logs-bar"));
-        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs",  Arrays.asList("logs-bar", "logs-foo"), null, null)));
-        assertThat(result.get("logs-bar"),
-            containsInAnyOrder(new DataStreamAlias("logs", Arrays.asList("logs-bar", "logs-foo"), null, null),
-                new DataStreamAlias("secret",  Collections.singletonList("logs-bar"), null, null)));
+        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", Arrays.asList("logs-bar", "logs-foo"), null, null)));
+        assertThat(
+            result.get("logs-bar"),
+            containsInAnyOrder(
+                new DataStreamAlias("logs", Arrays.asList("logs-bar", "logs-foo"), null, null),
+                new DataStreamAlias("secret", Collections.singletonList("logs-bar"), null, null)
+            )
+        );
 
         // filter by alias name
         getAliasesRequest = new GetAliasesRequest("secret");
@@ -223,7 +312,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         getAliasesRequest = new GetAliasesRequest().indices("logs-foo");
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo"));
-        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs",  Arrays.asList("logs-bar", "logs-foo"), null, null)));
+        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", Arrays.asList("logs-bar", "logs-foo"), null, null)));
     }
 
     public void testNetNewSystemIndicesDontErrorWhenNotRequested() {
@@ -243,10 +332,12 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .setOrigin(this.getTestName())
             .setNetNew()
             .build();
-        SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(
-            this.getTestName(),
-            new SystemIndices.Feature(this.getTestName(), "test feature",
-                Collections.singletonList(netNewDescriptor))));
+        SystemIndices systemIndices = new SystemIndices(
+            Collections.singletonMap(
+                this.getTestName(),
+                new SystemIndices.Feature(this.getTestName(), "test feature", Collections.singletonList(netNewDescriptor))
+            )
+        );
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
@@ -269,15 +360,27 @@ public class TransportGetAliasesActionTests extends ESTestCase {
 
     public ClusterState systemIndexTestClusterState() {
         return ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder("a").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
-                .put(IndexMetadata.builder(".b").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
-                    .system(true).putAlias(AliasMetadata.builder(".y")))
-                .put(IndexMetadata.builder("c").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
-                    .putAlias(AliasMetadata.builder("d")))
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder("a").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(
+                        IndexMetadata.builder(".b")
+                            .settings(settings(Version.CURRENT))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .system(true)
+                            .putAlias(AliasMetadata.builder(".y"))
+                    )
+                    .put(
+                        IndexMetadata.builder("c")
+                            .settings(settings(Version.CURRENT))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .putAlias(AliasMetadata.builder("d"))
+                    )
+                    .build()
+            )
             .build();
     }
-
 
 }

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.rollup;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
@@ -26,7 +26,6 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
 
 public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupActionConfig> {
 
@@ -52,15 +51,19 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
     }
 
     public void testEmptyGroupAndMetrics() {
-        Exception e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupActionConfig(null, randomBoolean() ? null : emptyList()));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RollupActionConfig(null, randomBoolean() ? null : emptyList())
+        );
         assertThat(e.getMessage(), equalTo("At least one grouping or metric must be configured"));
     }
 
     public void testEmptyMetrics() {
         final RollupActionGroupConfig groupConfig = ConfigTestHelpers.randomRollupActionGroupConfig(random());
-        Exception e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupActionConfig(groupConfig, randomBoolean() ? null : emptyList()));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RollupActionConfig(groupConfig, randomBoolean() ? null : emptyList())
+        );
         assertThat(e.getMessage(), equalTo("At least one metric must be configured"));
     }
 
@@ -77,16 +80,20 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
         responseMap.put("group_field", Collections.singletonMap("keyword", myFieldCaps));
         responseMap.put("metric_field", Collections.singletonMap("short", myFieldCaps));
 
-        RollupActionConfig config = new RollupActionConfig(new RollupActionGroupConfig(
-            new RollupActionDateHistogramGroupConfig.FixedInterval("date_field", DateHistogramInterval.DAY),
-            null, new TermsGroupConfig("group_field")),
-            Collections.singletonList(new MetricConfig("metric_field", Collections.singletonList("max"))));
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(
+                new RollupActionDateHistogramGroupConfig.FixedInterval("date_field", DateHistogramInterval.DAY),
+                null,
+                new TermsGroupConfig("group_field")
+            ),
+            Collections.singletonList(new MetricConfig("metric_field", Collections.singletonList("max")))
+        );
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
     }
 
     private String getRandomType() {
-        int n = randomIntBetween(0,8);
+        int n = randomIntBetween(0, 8);
         if (n == 0) {
             return "keyword";
         } else if (n == 1) {

@@ -8,14 +8,13 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
 
 /**
  * Handles responses obtained when publishing a new cluster state from master to all non master nodes.

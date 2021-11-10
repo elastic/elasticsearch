@@ -25,6 +25,7 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
         return new BinaryDocValues() {
             int idx = -1;
             int maxIdx = vectors.length;
+
             @Override
             public BytesRef binaryValue() {
                 if (idx >= maxIdx) {
@@ -66,7 +67,7 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testGetVectorValueAndGetMagnitude() throws IOException {
         final int dims = 3;
-        float[][] vectors = {{ 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
+        float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
@@ -82,7 +83,7 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testMissingValues() throws IOException {
         final int dims = 3;
-        float[][] vectors = {{ 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
+        float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
         final DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
 
@@ -96,7 +97,7 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testGetFunctionIsNotAccessible() throws IOException {
         final int dims = 3;
-        float[][] vectors = {{ 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
+        float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
         final DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
 

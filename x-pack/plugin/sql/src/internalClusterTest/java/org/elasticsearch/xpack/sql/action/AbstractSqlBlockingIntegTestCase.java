@@ -165,7 +165,6 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
             shouldBlockOnSearch.set(true);
         }
 
-
         public void disableFieldCapBlock() {
             shouldBlockOnFieldCapabilities.set(false);
         }
@@ -211,7 +210,8 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
                     String action,
                     Request request,
                     ActionListener<Response> listener,
-                    ActionFilterChain<Request, Response> chain) {
+                    ActionFilterChain<Request, Response> chain
+                ) {
 
                     if (action.equals(FieldCapabilitiesAction.NAME)) {
                         final Consumer<Response> actionWrapper = resp -> {
@@ -227,7 +227,10 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
                             }
                             logger.trace("unblocking field caps on " + nodeId);
                         };
-                        chain.proceed(task, action, request,
+                        chain.proceed(
+                            task,
+                            action,
+                            request,
                             ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
                         );
                     } else {
@@ -250,7 +253,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
         if (taskInfo != null) {
             return taskInfo.getTaskId();
         } else {
-             return null;
+            return null;
         }
     }
 

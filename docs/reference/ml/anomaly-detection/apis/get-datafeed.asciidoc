@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-datafeed]]
 = Get {dfeeds} API
 
@@ -51,6 +50,9 @@ all {dfeeds}.
 
 [[ml-get-datafeed-query-parms]]
 == {api-query-parms-title}
+
+`allow_no_datafeeds`::
+(Optional, Boolean) deprecated:[7.10,Use `allow_no_match` instead.]
 
 `allow_no_match`::
 (Optional, Boolean)

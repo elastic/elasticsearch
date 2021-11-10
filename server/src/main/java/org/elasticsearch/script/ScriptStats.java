@@ -36,7 +36,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         long compilations = 0;
         long cacheEvictions = 0;
         long compilationLimitTriggered = 0;
-        for (ScriptContextStats stats: contextStats) {
+        for (ScriptContextStats stats : contextStats) {
             compilations += stats.getCompilations();
             cacheEvictions += stats.getCacheEvictions();
             compilationLimitTriggered += stats.getCompilationLimitTriggered();

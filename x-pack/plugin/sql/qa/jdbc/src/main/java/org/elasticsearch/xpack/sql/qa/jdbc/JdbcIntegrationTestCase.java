@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.junit.After;
 

@@ -36,8 +36,10 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
-        settingsBuilder.putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property"));
+        settingsBuilder.putList(
+            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+        );
         Settings inputSettings = settingsBuilder.build();
         ThreadPool threadPool = null;
         final XPackLicenseState licenseState = null;
@@ -64,26 +66,38 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         );
         NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
         AtomicReference<Settings> visibleSettings = new AtomicReference<>();
-        DeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules,
-            ClusterState, XPackLicenseState, DeprecationIssue> nodeSettingCheck = (settings, p, c, l) -> {
-            visibleSettings.set(settings);
-            return null;
-        };
-        java.util.List<DeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules,
-            ClusterState, XPackLicenseState, DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
+        DeprecationChecks.NodeDeprecationCheck<
+            Settings,
+            PluginsAndModules,
+            ClusterState,
+            XPackLicenseState,
+            DeprecationIssue> nodeSettingCheck = (settings, p, c, l) -> {
+                visibleSettings.set(settings);
+                return null;
+            };
+        java.util.List<
+            DeprecationChecks.NodeDeprecationCheck<
+                Settings,
+                PluginsAndModules,
+                ClusterState,
+                XPackLicenseState,
+                DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
         transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
-        settingsBuilder.putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property"));
+        settingsBuilder.putList(
+            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+        );
         Settings expectedSettings = settingsBuilder.build();
         Assert.assertNotNull(visibleSettings.get());
         Assert.assertEquals(expectedSettings, visibleSettings.get());
 
         // Testing that the setting is dynamically updatable:
-        Settings newSettings = Settings.builder().putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.undeprecated.property")).build();
+        Settings newSettings = Settings.builder()
+            .putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
+            .build();
         clusterSettings.applySettings(newSettings);
         transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
         settingsBuilder = Settings.builder();
@@ -91,8 +105,10 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         // This is the node setting (since this is the node deprecation check), not the cluster setting:
-        settingsBuilder.putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property"));
+        settingsBuilder.putList(
+            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+        );
         expectedSettings = settingsBuilder.build();
         Assert.assertNotNull(visibleSettings.get());
         Assert.assertEquals(expectedSettings, visibleSettings.get());

@@ -30,15 +30,13 @@ public class RestCloseIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCloseIndexAction.class);
 
-    public static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards " +
-            "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' " +
-            "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
+    public static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
+        + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
+        + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/_close"),
-            new Route(POST, "/{index}/_close")));
+        return unmodifiableList(asList(new Route(POST, "/_close"), new Route(POST, "/{index}/_close")));
     }
 
     @Override
@@ -54,8 +52,11 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards == null) {
-            deprecationLogger.critical(DeprecationCategory.API, "close-index-wait_for_active_shards-default",
-                WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(
+                DeprecationCategory.API,
+                "close-index-wait_for_active_shards-default",
+                WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE
+            );
         } else if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.DEFAULT);
         } else {

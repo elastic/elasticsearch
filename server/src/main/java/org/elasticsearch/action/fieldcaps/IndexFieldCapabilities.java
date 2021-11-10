@@ -42,10 +42,14 @@ public class IndexFieldCapabilities implements Writeable {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param meta Metadata about the field.
      */
-    IndexFieldCapabilities(String name, String type,
-                           boolean isMetadatafield,
-                           boolean isSearchable, boolean isAggregatable,
-                           Map<String, String> meta) {
+    IndexFieldCapabilities(
+        String name,
+        String type,
+        boolean isMetadatafield,
+        boolean isSearchable,
+        boolean isAggregatable,
+        Map<String, String> meta
+    ) {
 
         this.name = name;
         this.type = type;
@@ -71,9 +75,10 @@ public class IndexFieldCapabilities implements Writeable {
             this.isMetadatafield = fieldCaps.isMetadataField();
             this.isSearchable = fieldCaps.isSearchable();
             this.isAggregatable = fieldCaps.isAggregatable();
-            this.meta = fieldCaps.meta().entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> entry.getValue().iterator().next()));
+            this.meta = fieldCaps.meta()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().iterator().next()));
         }
     }
 
@@ -90,11 +95,20 @@ public class IndexFieldCapabilities implements Writeable {
             out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
         } else {
             // Previously we reused the FieldCapabilities class to represent index field capabilities.
-            Map<String, Set<String>> wrappedMeta = meta.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> Collections.singleton(entry.getValue())));
-            FieldCapabilities fieldCaps = new FieldCapabilities(name, type, isMetadatafield,
-                isSearchable, isAggregatable, null, null, null, wrappedMeta);
+            Map<String, Set<String>> wrappedMeta = meta.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> Collections.singleton(entry.getValue())));
+            FieldCapabilities fieldCaps = new FieldCapabilities(
+                name,
+                type,
+                isMetadatafield,
+                isSearchable,
+                isAggregatable,
+                null,
+                null,
+                null,
+                wrappedMeta
+            );
             fieldCaps.writeTo(out);
         }
     }
@@ -128,12 +142,12 @@ public class IndexFieldCapabilities implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexFieldCapabilities that = (IndexFieldCapabilities) o;
-        return isMetadatafield == that.isMetadatafield &&
-            isSearchable == that.isSearchable &&
-            isAggregatable == that.isAggregatable &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(meta, that.meta);
+        return isMetadatafield == that.isMetadatafield
+            && isSearchable == that.isSearchable
+            && isAggregatable == that.isAggregatable
+            && Objects.equals(name, that.name)
+            && Objects.equals(type, that.type)
+            && Objects.equals(meta, that.meta);
     }
 
     @Override

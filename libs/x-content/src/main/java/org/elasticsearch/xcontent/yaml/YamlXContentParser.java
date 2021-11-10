@@ -18,8 +18,7 @@ import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class YamlXContentParser extends JsonXContentParser {
 
-    public YamlXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
+    public YamlXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
     }
 

@@ -27,18 +27,27 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
 
     public void testExactWindowSizeAdjustment() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue =
-                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 100);
+        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 100);
 
         int threads = randomIntBetween(1, 3);
         int measureWindow = 3;
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
-                        "test-threadpool", threads, threads, 1000,
-                        TimeUnit.MILLISECONDS, queue, 10, 1000, fastWrapper(),
-                        measureWindow, TimeValue.timeValueMillis(1), EsExecutors.daemonThreadFactory("queuetest"),
-                        new EsAbortPolicy(), context);
+        QueueResizingEsThreadPoolExecutor executor = new QueueResizingEsThreadPoolExecutor(
+            "test-threadpool",
+            threads,
+            threads,
+            1000,
+            TimeUnit.MILLISECONDS,
+            queue,
+            10,
+            1000,
+            fastWrapper(),
+            measureWindow,
+            TimeValue.timeValueMillis(1),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context
+        );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
@@ -48,103 +57,113 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         executor.execute(() -> {});
 
         // The queue capacity should have increased by 50 since they were very fast tasks
-        assertBusy(() -> {
-            assertThat(queue.capacity(), equalTo(150));
-        });
+        assertBusy(() -> { assertThat(queue.capacity(), equalTo(150)); });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
     public void testAutoQueueSizingUp() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue =
-                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
-                        2000);
+        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 2000);
 
         int threads = randomIntBetween(1, 10);
         int measureWindow = randomIntBetween(100, 200);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
-                        "test-threadpool", threads, threads, 1000,
-                        TimeUnit.MILLISECONDS, queue, 10, 3000, fastWrapper(),
-                        measureWindow, TimeValue.timeValueMillis(1), EsExecutors.daemonThreadFactory("queuetest"),
-                        new EsAbortPolicy(), context);
+        QueueResizingEsThreadPoolExecutor executor = new QueueResizingEsThreadPoolExecutor(
+            "test-threadpool",
+            threads,
+            threads,
+            1000,
+            TimeUnit.MILLISECONDS,
+            queue,
+            10,
+            3000,
+            fastWrapper(),
+            measureWindow,
+            TimeValue.timeValueMillis(1),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context
+        );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
         // Execute a task multiple times that takes 1ms
         executeTask(executor, (measureWindow * 5) + 2);
 
-        assertBusy(() -> {
-            assertThat(queue.capacity(), greaterThan(2000));
-        });
+        assertBusy(() -> { assertThat(queue.capacity(), greaterThan(2000)); });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
     public void testAutoQueueSizingDown() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue =
-                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
-                        2000);
+        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 2000);
 
         int threads = randomIntBetween(1, 10);
         int measureWindow = randomIntBetween(100, 200);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
-                        "test-threadpool", threads, threads, 1000,
-                        TimeUnit.MILLISECONDS, queue, 10, 3000, slowWrapper(), measureWindow, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+        QueueResizingEsThreadPoolExecutor executor = new QueueResizingEsThreadPoolExecutor(
+            "test-threadpool",
+            threads,
+            threads,
+            1000,
+            TimeUnit.MILLISECONDS,
+            queue,
+            10,
+            3000,
+            slowWrapper(),
+            measureWindow,
+            TimeValue.timeValueMillis(1),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context
+        );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
         // Execute a task multiple times that takes 1m
         executeTask(executor, (measureWindow * 5) + 2);
 
-        assertBusy(() -> {
-            assertThat(queue.capacity(), lessThan(2000));
-        });
+        assertBusy(() -> { assertThat(queue.capacity(), lessThan(2000)); });
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
     public void testExecutionEWMACalculation() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue =
-                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
-                        100);
+        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 100);
 
-        QueueResizingEsThreadPoolExecutor executor =
-                new QueueResizingEsThreadPoolExecutor(
-                        "test-threadpool", 1, 1, 1000,
-                        TimeUnit.MILLISECONDS, queue, 10, 200, fastWrapper(), 10, TimeValue.timeValueMillis(1),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+        QueueResizingEsThreadPoolExecutor executor = new QueueResizingEsThreadPoolExecutor(
+            "test-threadpool",
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            queue,
+            10,
+            200,
+            fastWrapper(),
+            10,
+            TimeValue.timeValueMillis(1),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context
+        );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
-        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(0L));
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(30L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(51L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(65L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(75L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(83L));
-        });
+        assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(30L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(51L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(65L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(75L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(83L)); });
 
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
@@ -153,19 +172,28 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        ResizableBlockingQueue<Runnable> queue =
-            new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(),
-                100);
+        ResizableBlockingQueue<Runnable> queue = new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), 100);
 
-        QueueResizingEsThreadPoolExecutor executor =
-            new QueueResizingEsThreadPoolExecutor(
-                "test-threadpool", 1, 1, 1000,
-                TimeUnit.MILLISECONDS, queue, 10, 200, exceptionalWrapper(), 10, TimeValue.timeValueMillis(1),
-                EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+        QueueResizingEsThreadPoolExecutor executor = new QueueResizingEsThreadPoolExecutor(
+            "test-threadpool",
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            queue,
+            10,
+            200,
+            exceptionalWrapper(),
+            10,
+            TimeValue.timeValueMillis(1),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context
+        );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
-        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(0L));
+        assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
         executeTask(executor, 1);
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);

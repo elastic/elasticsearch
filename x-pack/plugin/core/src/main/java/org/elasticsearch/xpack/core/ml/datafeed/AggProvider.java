@@ -13,11 +13,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
@@ -45,9 +45,9 @@ class AggProvider implements Writeable, ToXContentObject {
                 throw new Exception("aggs cannot be empty");
             }
             parsedAggs = XContentObjectTransformer.aggregatorTransformer(parser.getXContentRegistry()).fromMap(aggs);
-        } catch(Exception ex) {
+        } catch (Exception ex) {
             if (ex.getCause() instanceof IllegalArgumentException) {
-                ex = (Exception)ex.getCause();
+                ex = (Exception) ex.getCause();
             }
             exception = ex;
             if (lenient) {
@@ -60,12 +60,13 @@ class AggProvider implements Writeable, ToXContentObject {
     }
 
     static AggProvider fromParsedAggs(AggregatorFactories.Builder parsedAggs) throws IOException {
-        return parsedAggs == null ?
-            null :
-            new AggProvider(
+        return parsedAggs == null
+            ? null
+            : new AggProvider(
                 XContentObjectTransformer.aggregatorTransformer(NamedXContentRegistry.EMPTY).toMap(parsedAggs),
                 parsedAggs,
-                null);
+                null
+            );
     }
 
     static AggProvider fromStream(StreamInput in) throws IOException {

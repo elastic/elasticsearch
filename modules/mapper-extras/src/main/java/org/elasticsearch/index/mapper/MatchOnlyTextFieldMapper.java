@@ -87,9 +87,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers,
-                    m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
-                    m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap);
+            this.analyzers = new TextParams.Analyzers(
+                indexAnalyzers,
+                m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
+                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap
+            );
         }
 
         @Override
@@ -110,14 +112,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MatchOnlyTextFieldMapper(
-                name,
-                Defaults.FIELD_TYPE,
-                tft,
-                multiFields,
-                copyTo.build(),
-                this
-            );
+            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, multiFields, copyTo.build(), this);
         }
     }
 
@@ -158,8 +153,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
-        private Function<LeafReaderContext,CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
-                SearchExecutionContext searchExecutionContext) {
+        private Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
+            SearchExecutionContext searchExecutionContext
+        ) {
             if (searchExecutionContext.isSourceEnabled() == false) {
                 throw new IllegalArgumentException(
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
@@ -182,13 +178,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
             return new ConstantScoreQuery(
-                new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
+                new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer)
+            );
         }
 
         private IntervalsSource toIntervalsSource(
-                IntervalsSource source,
-                Query approximation,
-                SearchExecutionContext searchExecutionContext) {
+            IntervalsSource source,
+            Query approximation,
+            SearchExecutionContext searchExecutionContext
+        ) {
             return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
         }
 
@@ -222,10 +220,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource fuzzyIntervals(String term, int maxDistance, int prefixLength,
-                boolean transpositions, SearchExecutionContext context) {
-            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term),
-                maxDistance, prefixLength, 128, transpositions);
+        public IntervalsSource fuzzyIntervals(
+            String term,
+            int maxDistance,
+            int prefixLength,
+            boolean transpositions,
+            SearchExecutionContext context
+        ) {
+            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term), maxDistance, prefixLength, 128, transpositions);
             fuzzyQuery.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
             IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), term);
             return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);
@@ -236,7 +238,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return toIntervalsSource(
                 Intervals.wildcard(pattern),
                 new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
-                context);
+                context
+            );
         }
 
         @Override

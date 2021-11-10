@@ -44,6 +44,12 @@ public abstract class WatcherTransformScript {
         WatcherTransformScript newInstance(Map<String, Object> params, WatchExecutionContext watcherContext, Payload payload);
     }
 
-    public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("watcher_transform", Factory.class,
-        200, TimeValue.timeValueMillis(0), false, true);
+    public static ScriptContext<Factory> CONTEXT = new ScriptContext<>(
+        "watcher_transform",
+        Factory.class,
+        200,
+        TimeValue.timeValueMillis(0),
+        false,
+        true
+    );
 }

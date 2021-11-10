@@ -63,10 +63,12 @@ public class ShardsSyncedFlushResult implements Writeable {
     /**
      * success constructor
      */
-    public ShardsSyncedFlushResult(ShardId shardId,
-                                   String syncId,
-                                   int totalShards,
-                                   Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses) {
+    public ShardsSyncedFlushResult(
+        ShardId shardId,
+        String syncId,
+        int totalShards,
+        Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses
+    ) {
         this.failureReason = null;
         this.shardResponses = unmodifiableMap(new HashMap<>(shardResponses));
         this.syncId = syncId;

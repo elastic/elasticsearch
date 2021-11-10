@@ -12,8 +12,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
@@ -65,10 +65,16 @@ public class TokenServiceMock {
         Instant expiration = Instant.now().plusSeconds(TimeUnit.MINUTES.toSeconds(20));
         final UserToken userToken = new UserToken(token.hashedToken, Version.CURRENT, authentication, expiration, Collections.emptyMap());
         final Map<String, Object> document = new HashMap<>();
-        document.put("access_token",
-            MapBuilder.<String, Object>newMapBuilder().put("user_token", userToken).put("invalidated", valid == false).map());
+        document.put(
+            "access_token",
+            MapBuilder.<String, Object>newMapBuilder().put("user_token", userToken).put("invalidated", valid == false).map()
+        );
 
-        SecurityMocks.mockGetRequest(client, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, "token_" + token.hashedToken,
-            XContentTestUtils.convertToXContent(document, XContentType.JSON));
+        SecurityMocks.mockGetRequest(
+            client,
+            RestrictedIndicesNames.SECURITY_TOKENS_ALIAS,
+            "token_" + token.hashedToken,
+            XContentTestUtils.convertToXContent(document, XContentType.JSON)
+        );
     }
 }

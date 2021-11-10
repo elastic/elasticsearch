@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -32,15 +33,35 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
 
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(
-                new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
+            new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+            settings
+        );
         List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).map(MockFieldMapper::new).collect(Collectors.toList());
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(0, 0,
-                indexSettings, null, null, null, mappingLookup,
-                null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
-                Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mappingLookup,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
+        Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
-        assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
+        assertWarnings(Level.WARN, "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
 
         FieldNamesFieldMapper.FieldNamesFieldType unsearchable = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", null));

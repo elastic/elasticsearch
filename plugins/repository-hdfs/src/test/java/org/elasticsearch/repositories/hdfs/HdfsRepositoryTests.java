@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -36,15 +37,19 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository(repoName)
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository(repoName)
             .setType("hdfs")
-            .setSettings(Settings.builder()
-                .put("uri", "hdfs:///")
-                .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                .put("path", "foo")
-                .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                .put("compress", randomBoolean())
-            ).get();
+            .setSettings(
+                Settings.builder()
+                    .put("uri", "hdfs:///")
+                    .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
+                    .put("path", "foo")
+                    .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                    .put("compress", randomBoolean())
+            )
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 

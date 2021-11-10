@@ -29,13 +29,13 @@ public class RestGetActionTests extends RestActionTestCase {
             (arg1, arg2) -> new GetResponse(new GetResult("index", "_doc", "id", 0, 1, 0, true, new BytesArray("{}"), null, null))
         );
 
-        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/some_index/some_type/some_id");
+        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+            "/some_index/some_type/some_id"
+        );
         dispatchRequest(deprecatedRequest.withMethod(Method.GET).build());
         assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
 
-        FakeRestRequest.Builder validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/some_index/_doc/some_id");
+        FakeRestRequest.Builder validRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/some_index/_doc/some_id");
         dispatchRequest(validRequest.withMethod(Method.GET).build());
     }
 
@@ -45,13 +45,13 @@ public class RestGetActionTests extends RestActionTestCase {
             (arg1, arg2) -> new GetResponse(new GetResult("index", "_doc", "id", 0, 1, 0, true, new BytesArray("{}"), null, null))
         );
 
-        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/some_index/some_type/some_id");
+        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath(
+            "/some_index/some_type/some_id"
+        );
         dispatchRequest(deprecatedRequest.withMethod(Method.HEAD).build());
         assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
 
-        FakeRestRequest.Builder validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/some_index/_doc/some_id");
+        FakeRestRequest.Builder validRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/some_index/_doc/some_id");
         dispatchRequest(validRequest.withMethod(Method.HEAD).build());
     }
 }

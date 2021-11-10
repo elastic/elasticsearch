@@ -24,8 +24,8 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.SearchHit;
@@ -84,23 +84,30 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     public void testRetryFail() {
         int retries = randomInt(10);
-        ExpectedException ex = expectThrows(ExpectedException.class, () -> {
-            dotestBasicsWithRetry(retries, retries+1, retries+1, e -> { throw new ExpectedException(e); });
-        });
+        ExpectedException ex = expectThrows(
+            ExpectedException.class,
+            () -> { dotestBasicsWithRetry(retries, retries + 1, retries + 1, e -> { throw new ExpectedException(e); }); }
+        );
         assertThat(ex.getCause(), instanceOf(EsRejectedExecutionException.class));
     }
 
-    private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures,
-                                       Consumer<Exception> failureHandler) throws InterruptedException {
+    private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
+        throws InterruptedException {
         BlockingQueue<ScrollableHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
-        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
-            threadPool, actualSearchRetries::incrementAndGet, responses::add, failureHandler,
+        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
+            threadPool,
+            actualSearchRetries::incrementAndGet,
+            responses::add,
+            failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll("1m"));
+            new SearchRequest().scroll("1m")
+        );
 
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
@@ -136,27 +143,41 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
 
-        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
-            threadPool, () -> fail(), r -> fail(), e -> fail(), new ParentTaskAssigningClient(client,
-            parentTask),
+        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            () -> fail(),
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
             // Set the base for the scroll to wait - this is added to the figure we calculate below
-            new SearchRequest().scroll(timeValueSeconds(10)));
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
 
         hitSource.startNextScroll(timeValueSeconds(100));
-        client.validateRequest(SearchScrollAction.INSTANCE,
-            (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110));
+        client.validateRequest(SearchScrollAction.INSTANCE, (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110));
     }
-
-
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
         SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
-        SearchHits hits = new SearchHits(IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),0);
+        SearchHits hits = new SearchHits(
+            IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
+            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
+            0
+        );
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        return new SearchResponse(internalResponse, randomSimpleString(random(), 1, 10), 5, 4, 0, randomLong(), null,
-            SearchResponse.Clusters.EMPTY);
+        return new SearchResponse(
+            internalResponse,
+            randomSimpleString(random(), 1, 10),
+            5,
+            4,
+            0,
+            randomLong(),
+            null,
+            SearchResponse.Clusters.EMPTY
+        );
     }
 
     private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {
@@ -200,24 +221,28 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
     }
 
     private static class MockClient extends AbstractClient {
-        private ExecuteRequest<?,?> executeRequest;
+        private ExecuteRequest<?, ?> executeRequest;
 
         MockClient(ThreadPool threadPool) {
             super(Settings.EMPTY, threadPool);
         }
 
         @Override
-        protected synchronized  <Request extends ActionRequest, Response extends ActionResponse>
-        void doExecute(ActionType<Response> action,
-                       Request request, ActionListener<Response> listener) {
+        protected synchronized <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
 
             this.executeRequest = new ExecuteRequest<>(action, request, listener);
             this.notifyAll();
         }
 
         @SuppressWarnings("unchecked")
-        public <Request extends ActionRequest, Response extends ActionResponse> void respondx(ActionType<Response> action,
-                                                                                              Function<Request, Response> response) {
+        public <Request extends ActionRequest, Response extends ActionResponse> void respondx(
+            ActionType<Response> action,
+            Function<Request, Response> response
+        ) {
             ExecuteRequest<?, ?> executeRequest;
             synchronized (this) {
                 executeRequest = this.executeRequest;
@@ -226,8 +251,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ((ExecuteRequest<Request, Response>) executeRequest).respond(action, response);
         }
 
-        public <Response extends ActionResponse> void respond(ActionType<Response> action,
-                                                              Response response) {
+        public <Response extends ActionResponse> void respond(ActionType<Response> action, Response response) {
             respondx(action, req -> response);
         }
 
@@ -242,14 +266,15 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         }
 
         @SuppressWarnings("unchecked")
-        public <Request extends ActionRequest, Response extends ActionResponse> void validateRequest(ActionType<Response> action,
-                                                                                                     Consumer<? super Request> validator) {
+        public <Request extends ActionRequest, Response extends ActionResponse> void validateRequest(
+            ActionType<Response> action,
+            Consumer<? super Request> validator
+        ) {
             ((ExecuteRequest<Request, Response>) executeRequest).validateRequest(action, validator);
         }
 
         @Override
-        public void close() {
-        }
+        public void close() {}
 
         public synchronized void awaitOperation() throws InterruptedException {
             if (executeRequest == null) {

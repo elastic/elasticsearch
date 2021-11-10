@@ -59,10 +59,16 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private final ReservedUserInfo bootstrapUserInfo;
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
-            SecurityField.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
-            Setting.Property.Deprecated);
-    public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
-            KeyStoreWrapper.SEED_SETTING);
+        SecurityField.setting("authc.accept_default_password"),
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered,
+        Setting.Property.Deprecated
+    );
+    public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString(
+        "bootstrap.password",
+        KeyStoreWrapper.SEED_SETTING
+    );
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
@@ -72,8 +78,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
-    public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
-                         SecurityIndexManager securityIndex, ThreadPool threadPool) {
+    public ReservedRealm(
+        Environment env,
+        Settings settings,
+        NativeUsersStore nativeUsersStore,
+        AnonymousUser anonymousUser,
+        SecurityIndexManager securityIndex,
+        ThreadPool threadPool
+    ) {
         super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, NAME), settings, env, threadPool.getThreadContext()), threadPool);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
@@ -81,8 +93,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityIndex = securityIndex;
         final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
-        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0] :
-            reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
+        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0
+            ? new char[0]
+            : reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
         bootstrapUserInfo = new ReservedUserInfo(hash, true);
     }
 
@@ -168,7 +181,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-
     public void users(ActionListener<Collection<User>> listener) {
         if (realmEnabled == false) {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
@@ -209,7 +221,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
         if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
@@ -224,19 +235,26 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     listener.onResponse(userInfo);
                 }
             }, (e) -> {
-                logger.error((Supplier<?>) () ->
-                        new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
+                logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username),
+                    e
+                );
                 listener.onResponse(null);
             }));
         }
     }
 
-    private void logDeprecatedUser(final User user){
+    private void logDeprecatedUser(final User user) {
         Map<String, Object> metadata = user.metadata();
         if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
-            deprecationLogger.critical(DeprecationCategory.SECURITY, "deprecated_user-" + user.principal(),
-                "The user [" + user.principal() + "] is deprecated and will be removed in a future version of Elasticsearch. " +
-                    metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
+            deprecationLogger.warn(
+                DeprecationCategory.SECURITY,
+                "deprecated_user-" + user.principal(),
+                "The user ["
+                    + user.principal()
+                    + "] is deprecated and will be removed in a future version of Elasticsearch. "
+                    + metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY)
+            );
         }
     }
 

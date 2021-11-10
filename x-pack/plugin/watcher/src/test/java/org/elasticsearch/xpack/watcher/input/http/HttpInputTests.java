@@ -11,6 +11,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -19,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -57,9 +57,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -79,9 +79,7 @@ public class HttpInputTests extends ESTestCase {
     public void testExecute() throws Exception {
         String host = "_host";
         int port = 123;
-        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder(host, port)
-                .method(HttpMethod.POST)
-                .body("_body");
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder(host, port).method(HttpMethod.POST).body("_body");
         HttpInput httpInput;
 
         HttpResponse response;
@@ -95,30 +93,42 @@ public class HttpInputTests extends ESTestCase {
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             case 3:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
-                    singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.mediaType() }));
+                response = new HttpResponse(
+                    123,
+                    "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
+                    singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.mediaType() })
+                );
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 4:
-                response = new HttpResponse(123, "key: value".getBytes(StandardCharsets.UTF_8),
-                        singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.mediaType() }));
+                response = new HttpResponse(
+                    123,
+                    "key: value".getBytes(StandardCharsets.UTF_8),
+                    singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.mediaType() })
+                );
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
             case 5:
-                response = new HttpResponse(123, "---\nkey: value".getBytes(StandardCharsets.UTF_8),
-                        singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(
+                    123,
+                    "---\nkey: value".getBytes(StandardCharsets.UTF_8),
+                    singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" })
+                );
                 httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.YAML).build();
                 break;
             default:
-                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
-                        singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                response = new HttpResponse(
+                    123,
+                    "{\"key\" : \"value\"}".getBytes(StandardCharsets.UTF_8),
+                    singletonMap(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" })
+                );
                 httpInput = InputBuilders.httpInput(request.build()).build();
                 break;
         }
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -129,15 +139,13 @@ public class HttpInputTests extends ESTestCase {
     public void testExecuteNonJson() throws Exception {
         String host = "_host";
         int port = 123;
-        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder(host, port)
-                .method(HttpMethod.POST)
-                .body("_body");
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder(host, port).method(HttpMethod.POST).body("_body");
         HttpInput httpInput = InputBuilders.httpInput(request.build()).expectedResponseXContentType(HttpContentType.TEXT).build();
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
         String notJson = "This is not json";
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -153,17 +161,19 @@ public class HttpInputTests extends ESTestCase {
         String path = randomAlphaOfLength(3);
         TextTemplate pathTemplate = new TextTemplate(path);
         String body = randomBoolean() ? randomAlphaOfLength(3) : null;
-        Map<String, TextTemplate> params =
-                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", new TextTemplate("b")).map() : null;
-        Map<String, TextTemplate> headers =
-                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", new TextTemplate("d")).map() : null;
+        Map<String, TextTemplate> params = randomBoolean()
+            ? new MapBuilder<String, TextTemplate>().put("a", new TextTemplate("b")).map()
+            : null;
+        Map<String, TextTemplate> headers = randomBoolean()
+            ? new MapBuilder<String, TextTemplate>().put("c", new TextTemplate("d")).map()
+            : null;
         BasicAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
-                .scheme(scheme)
-                .method(httpMethod)
-                .path(pathTemplate)
-                .body(body != null ? new TextTemplate(body) : null)
-                .auth(auth);
+            .scheme(scheme)
+            .method(httpMethod)
+            .path(pathTemplate)
+            .body(body != null ? new TextTemplate(body) : null)
+            .auth(auth);
 
         if (params != null) {
             requestBuilder.putParams(params);
@@ -174,7 +184,7 @@ public class HttpInputTests extends ESTestCase {
         HttpInput.Builder inputBuilder = InputBuilders.httpInput(requestBuilder);
         HttpContentType expectedResponseXContentType = randomFrom(HttpContentType.values());
 
-        String[] extractKeys = randomFrom(new String[]{"foo", "bar"}, new String[]{"baz"}, null);
+        String[] extractKeys = randomFrom(new String[] { "foo", "bar" }, new String[] { "baz" }, null);
         if (expectedResponseXContentType != HttpContentType.TEXT) {
             if (extractKeys != null) {
                 inputBuilder.extractKeys(extractKeys);
@@ -216,11 +226,11 @@ public class HttpInputTests extends ESTestCase {
 
     public void testParserInvalidHttpMethod() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("request")
-                    .field("method", "_method")
-                    .field("body", "_body")
-                .endObject()
-                .endObject();
+            .startObject("request")
+            .field("method", "_method")
+            .field("body", "_body")
+            .endObject()
+            .endObject();
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
@@ -249,7 +259,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -258,8 +268,8 @@ public class HttpInputTests extends ESTestCase {
         List<String> expectedHeaderValues = new ArrayList<>();
         expectedHeaderValues.add(headerValue);
         Map<String, Object> expectedHeaderMap = MapBuilder.<String, Object>newMapBuilder()
-                .put(headerName.toLowerCase(Locale.ROOT), expectedHeaderValues)
-                .map();
+            .put(headerName.toLowerCase(Locale.ROOT), expectedHeaderValues)
+            .map();
         assertThat(result.payload().data(), hasKey("_headers"));
         assertThat(result.payload().data().get("_headers"), equalTo(expectedHeaderMap));
     }
@@ -270,8 +280,14 @@ public class HttpInputTests extends ESTestCase {
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
         Map<String, String[]> headers = new HashMap<>(1);
-        String contentType = randomFrom("application/json", "application/json; charset=UTF-8", "text/html", "application/yaml",
-                "application/smile", "application/cbor");
+        String contentType = randomFrom(
+            "application/json",
+            "application/json; charset=UTF-8",
+            "text/html",
+            "application/yaml",
+            "application/smile",
+            "application/cbor"
+        );
         headers.put("Content-Type", new String[] { contentType });
         String body = "{\"foo\":\"bar\"}";
         HttpResponse httpResponse = new HttpResponse(200, body, headers);
@@ -300,7 +316,7 @@ public class HttpInputTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testThatArrayJsonResponseIsHandled() throws Exception {
-        Map<String, String[]> headers = Collections.singletonMap("Content-Type", new String[]{"application/json"});
+        Map<String, String[]> headers = Collections.singletonMap("Content-Type", new String[] { "application/json" });
         HttpResponse response = new HttpResponse(200, "[ { \"foo\":  \"first\" }, {  \"foo\":  \"second\"}]", headers);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
@@ -337,8 +353,10 @@ public class HttpInputTests extends ESTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference bytes = BytesReference.bytes(builder);
-            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())) {
+            try (
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())
+            ) {
                 Map<String, Object> data = parser.map();
                 String reason = ObjectPath.eval("error.reason", data);
                 assertThat(reason, is("could not connect"));

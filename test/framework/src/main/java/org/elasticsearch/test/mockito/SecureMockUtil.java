@@ -22,6 +22,7 @@ class SecureMockUtil {
     // we use the protection domain of mockito for wrapped calls so that
     // Elasticsearch server jar does not need additional permissions
     private static final AccessControlContext context = getContext();
+
     private static AccessControlContext getContext() {
         ProtectionDomain[] pda = new ProtectionDomain[] { wrap(MockMaker.class::getProtectionDomain) };
         DomainCombiner combiner = (current, assigned) -> pda;

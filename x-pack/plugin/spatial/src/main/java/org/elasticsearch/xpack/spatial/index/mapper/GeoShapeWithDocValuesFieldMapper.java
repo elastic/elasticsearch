@@ -78,7 +78,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
 
     private static Builder builder(FieldMapper in) {
-        return ((GeoShapeWithDocValuesFieldMapper)in).builder;
+        return ((GeoShapeWithDocValuesFieldMapper) in).builder;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -96,15 +96,19 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         private final Version version;
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
-        public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault,
-                       GeoFormatterFactory<Geometry> geoFormatterFactory) {
+        public Builder(
+            String name,
+            Version version,
+            boolean ignoreMalformedByDefault,
+            boolean coerceByDefault,
+            GeoFormatterFactory<Geometry> geoFormatterFactory
+        ) {
             super(name);
             this.version = version;
             this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues
-                = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), Version.V_7_8_0.onOrBefore(version));
+            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), Version.V_7_8_0.onOrBefore(version));
         }
 
         @Override
@@ -115,7 +119,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoShapeWithDocValuesFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
                     "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
@@ -124,7 +128,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
-                ignoreZValue.get().value());
+                ignoreZValue.get().value()
+            );
             GeoShapeParser parser = new GeoShapeParser(geometryParser);
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
                 context.buildFullName(name),
@@ -133,10 +138,17 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 orientation.get().value(),
                 parser,
                 geoFormatterFactory,
-                meta.get());
-            return new GeoShapeWithDocValuesFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()), parser, this);
+                meta.get()
+            );
+            return new GeoShapeWithDocValuesFieldMapper(
+                name,
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()),
+                parser,
+                this
+            );
         }
 
     }
@@ -144,9 +156,16 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
-        public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
-                                              Orientation orientation, GeoShapeParser parser,
-                                              GeoFormatterFactory<Geometry> geoFormatterFactory, Map<String, String> meta) {
+
+        public GeoShapeWithDocValuesFieldType(
+            String name,
+            boolean indexed,
+            boolean hasDocValues,
+            Orientation orientation,
+            GeoShapeParser parser,
+            GeoFormatterFactory<Geometry> geoFormatterFactory,
+            Map<String, String> meta
+        ) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
             this.geoFormatterFactory = geoFormatterFactory;
         }
@@ -165,8 +184,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
-                throw new QueryShardException(context,
-                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
+                throw new QueryShardException(
+                    context,
+                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
+                );
             }
             final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
             if (luceneGeometries.length == 0) {
@@ -175,7 +196,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
             if (hasDocValues()) {
                 final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
-                query =  new IndexOrDocValuesQuery(query, queryDocValues);
+                query = new IndexOrDocValuesQuery(query, queryDocValues);
             }
             return query;
         }
@@ -201,20 +222,22 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             FieldMapper.Builder builder;
             boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
             boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
-            if (parserContext.indexVersionCreated().before(Version.V_6_6_0) ||
-                LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
+            if (parserContext.indexVersionCreated().before(Version.V_6_6_0)
+                || LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
                 builder = new LegacyGeoShapeFieldMapper.Builder(
                     name,
                     parserContext.indexVersionCreated(),
                     ignoreMalformedByDefault,
-                    coerceByDefault);
+                    coerceByDefault
+                );
             } else {
                 builder = new GeoShapeWithDocValuesFieldMapper.Builder(
                     name,
                     parserContext.indexVersionCreated(),
                     ignoreMalformedByDefault,
                     coerceByDefault,
-                    geoFormatterFactory);
+                    geoFormatterFactory
+                );
             }
             builder.parse(name, parserContext, node);
             return builder;
@@ -224,12 +247,26 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     private final Builder builder;
     private final GeoShapeIndexer indexer;
 
-    public GeoShapeWithDocValuesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                            MultiFields multiFields, CopyTo copyTo,
-                                            GeoShapeIndexer indexer, GeoShapeParser parser, Builder builder) {
-        super(simpleName, mappedFieldType, builder.ignoreMalformed.get(), builder.coerce.get(),
-            builder.ignoreZValue.get(), builder.orientation.get(),
-            multiFields, copyTo, parser);
+    public GeoShapeWithDocValuesFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        GeoShapeIndexer indexer,
+        GeoShapeParser parser,
+        Builder builder
+    ) {
+        super(
+            simpleName,
+            mappedFieldType,
+            builder.ignoreMalformed.get(),
+            builder.coerce.get(),
+            builder.ignoreZValue.get(),
+            builder.orientation.get(),
+            multiFields,
+            copyTo,
+            parser
+        );
         this.builder = builder;
         this.indexer = indexer;
     }
@@ -281,8 +318,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     @Override
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (mergeWith instanceof GeoShapeWithDocValuesFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
-            throw new IllegalArgumentException("mapper [" + name()
-                + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]");
+            throw new IllegalArgumentException(
+                "mapper [" + name() + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"
+            );
         }
         super.checkIncomingMergeType(mergeWith);
     }

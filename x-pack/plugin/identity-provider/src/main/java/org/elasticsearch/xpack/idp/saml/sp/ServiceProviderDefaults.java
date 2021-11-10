@@ -23,20 +23,26 @@ import java.util.List;
  */
 public final class ServiceProviderDefaults {
 
-    public static final Setting<String> APPLICATION_NAME_SETTING
-        = Setting.simpleString("xpack.idp.privileges.application", Setting.Property.NodeScope);
-    public static final Setting<String> NAMEID_FORMAT_SETTING
-        = Setting.simpleString("xpack.idp.defaults.nameid_format", NameID.TRANSIENT, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> AUTHN_EXPIRY_SETTING
-        = Setting.timeSetting("xpack.idp.defaults.authn_expiry", TimeValue.timeValueMinutes(5), Setting.Property.NodeScope);
+    public static final Setting<String> APPLICATION_NAME_SETTING = Setting.simpleString(
+        "xpack.idp.privileges.application",
+        Setting.Property.NodeScope
+    );
+    public static final Setting<String> NAMEID_FORMAT_SETTING = Setting.simpleString(
+        "xpack.idp.defaults.nameid_format",
+        NameID.TRANSIENT,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> AUTHN_EXPIRY_SETTING = Setting.timeSetting(
+        "xpack.idp.defaults.authn_expiry",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
 
     public final String applicationName;
     public final String nameIdFormat;
     public final ReadableDuration authenticationExpiry;
 
-    public ServiceProviderDefaults(String applicationName,
-                                   String nameIdFormat,
-                                   ReadableDuration authenticationExpiry) {
+    public ServiceProviderDefaults(String applicationName, String nameIdFormat, ReadableDuration authenticationExpiry) {
         this.applicationName = applicationName;
         this.nameIdFormat = nameIdFormat;
         this.authenticationExpiry = authenticationExpiry;

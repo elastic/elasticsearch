@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
@@ -30,8 +30,10 @@ public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexMetadataUpdateDoesNotLoseDefaultMapper() throws IOException {
-        final IndexService indexService =
-                createIndex("test", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0).build());
+        final IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0).build()
+        );
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {

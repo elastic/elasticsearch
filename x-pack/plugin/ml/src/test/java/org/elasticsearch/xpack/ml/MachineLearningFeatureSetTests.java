@@ -85,9 +85,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -104,9 +104,9 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     @Before
     public void init() {
         commonSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
-                .build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+            .build();
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         jobManager = mock(JobManager.class);
@@ -131,19 +131,20 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", false));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", true));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", true));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", true));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", true));
+        expectThrows(ElasticsearchException.class, () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", true));
+        expectThrows(ElasticsearchException.class, () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", true));
+        expectThrows(ElasticsearchException.class, () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", true));
+        expectThrows(ElasticsearchException.class, () -> MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", true));
     }
 
     public void testAvailable() throws Exception {
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings), clusterService,
-                client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(
+            TestEnvironment.newEnvironment(commonSettings),
+            clusterService,
+            client,
+            licenseState,
+            jobManagerHolder
+        );
         boolean available = randomBoolean();
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -167,8 +168,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             settings.put("xpack.ml.enabled", enabled);
         }
         boolean expected = enabled || useDefault;
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(
+            TestEnvironment.newEnvironment(settings.build()),
+            clusterService,
+            client,
+            licenseState,
+            jobManagerHolder
+        );
         assertThat(featureSet.enabled(), is(expected));
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -186,32 +192,39 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
-        Job opened1 = buildJob("opened1", Collections.singletonList(buildMinDetector("foo")),
-                Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module")));
+        Job opened1 = buildJob(
+            "opened1",
+            Collections.singletonList(buildMinDetector("foo")),
+            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module"))
+        );
         GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
         Job opened2 = buildJob("opened2", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar")));
         GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
         Job closed1 = buildJob("closed1", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar"), buildMinDetector("foobar")));
         GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L, 0);
-        givenJobs(Arrays.asList(opened1, opened2, closed1),
-                Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
+        givenJobs(Arrays.asList(opened1, opened2, closed1), Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
 
-        givenDatafeeds(Arrays.asList(
+        givenDatafeeds(
+            Arrays.asList(
                 buildDatafeedStats(DatafeedState.STARTED),
                 buildDatafeedStats(DatafeedState.STARTED),
                 buildDatafeedStats(DatafeedState.STOPPED)
-        ));
+            )
+        );
 
         DataFrameAnalyticsConfig dfa1 = DataFrameAnalyticsConfigTests.createRandom("dfa_1");
         DataFrameAnalyticsConfig dfa2 = DataFrameAnalyticsConfigTests.createRandom("dfa_2");
         DataFrameAnalyticsConfig dfa3 = DataFrameAnalyticsConfigTests.createRandom("dfa_3");
 
         List<DataFrameAnalyticsConfig> dataFrameAnalytics = Arrays.asList(dfa1, dfa2, dfa3);
-        givenDataFrameAnalytics(dataFrameAnalytics, Arrays.asList(
-            buildDataFrameAnalyticsStats(dfa1.getId(), DataFrameAnalyticsState.STOPPED, null),
-            buildDataFrameAnalyticsStats(dfa2.getId(), DataFrameAnalyticsState.STOPPED, 100L),
-            buildDataFrameAnalyticsStats(dfa3.getId(), DataFrameAnalyticsState.STARTED, 200L)
-        ));
+        givenDataFrameAnalytics(
+            dataFrameAnalytics,
+            Arrays.asList(
+                buildDataFrameAnalyticsStats(dfa1.getId(), DataFrameAnalyticsState.STOPPED, null),
+                buildDataFrameAnalyticsStats(dfa2.getId(), DataFrameAnalyticsState.STOPPED, 100L),
+                buildDataFrameAnalyticsStats(dfa3.getId(), DataFrameAnalyticsState.STARTED, 200L)
+            )
+        );
 
         Map<String, Integer> expectedDfaCountByAnalysis = new HashMap<>();
         dataFrameAnalytics.forEach(dfa -> {
@@ -220,61 +233,82 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             expectedDfaCountByAnalysis.put(analysisName, ++analysisCount);
         });
 
-        givenProcessorStats(Arrays.asList(
-            buildNodeStats(
-                Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
-                Arrays.asList(
+        givenProcessorStats(
+            Arrays.asList(
+                buildNodeStats(
+                    Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat(
-                            InferenceProcessor.TYPE,
-                            InferenceProcessor.TYPE,
-                            new IngestStats.Stats(100, 10, 0, 1))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(10, 1, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)),
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(100, 10, 0, 1)
+                            )
+                        ),
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(5, 1, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        ),
+                        Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)))
                     )
-                )),
-            buildNodeStats(
-                Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
-                Arrays.asList(
+                ),
+                buildNodeStats(
+                    Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(0, 0, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(0, 0, 0, 0)),
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(10, 1, 0, 0)
+                            )
+                        ),
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(5, 1, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        ),
+                        Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)))
                     )
-                ))
-        ));
+                )
+            )
+        );
 
         TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance("model_1")
-            .setEstimatedHeapMemory(100)
+            .setModelSize(100)
             .setEstimatedOperations(200)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .build();
         TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("model_2")
-            .setEstimatedHeapMemory(200)
+            .setModelSize(200)
             .setEstimatedOperations(400)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .build();
         TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance("model_3")
-            .setEstimatedHeapMemory(300)
+            .setModelSize(300)
             .setEstimatedOperations(600)
             .build();
         TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("model_4")
             .setTags(Collections.singletonList("prepackaged"))
-            .setEstimatedHeapMemory(1000)
+            .setModelSize(1000)
             .setEstimatedOperations(2000)
             .build();
         givenTrainedModels(Arrays.asList(trainedModel1, trainedModel2, trainedModel3, trainedModel4));
@@ -290,8 +324,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             }
         }
 
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-            clusterService, client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(
+            TestEnvironment.newEnvironment(settings.build()),
+            clusterService,
+            client,
+            licenseState,
+            jobManagerHolder
+        );
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage mlUsage = future.get();
@@ -383,10 +422,14 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             assertThat(source.getValue("inference.trained_models.estimated_operations.total"), equalTo(1200.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.avg"), equalTo(400.0));
             assertThat(source.getValue("inference.trained_models.count.total"), equalTo(4));
-            assertThat(source.getValue("inference.trained_models.count.classification"),
-                equalTo(trainedModelsCountByAnalysis.get("classification")));
-            assertThat(source.getValue("inference.trained_models.count.regression"),
-                equalTo(trainedModelsCountByAnalysis.get("regression")));
+            assertThat(
+                source.getValue("inference.trained_models.count.classification"),
+                equalTo(trainedModelsCountByAnalysis.get("classification"))
+            );
+            assertThat(
+                source.getValue("inference.trained_models.count.regression"),
+                equalTo(trainedModelsCountByAnalysis.get("regression"))
+            );
             assertThat(source.getValue("inference.trained_models.count.prepackaged"), equalTo(1));
             assertThat(source.getValue("inference.trained_models.count.other"), equalTo(1));
 
@@ -408,8 +451,11 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
-        Job opened1 = buildJob("opened1", Collections.singletonList(buildMinDetector("foo")),
-            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module")));
+        Job opened1 = buildJob(
+            "opened1",
+            Collections.singletonList(buildMinDetector("foo")),
+            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module"))
+        );
         GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
         // NB: we have JobStats but no Job for "opened2"
         GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
@@ -417,8 +463,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L, 0);
         givenJobs(Arrays.asList(opened1, closed1), Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
 
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-            clusterService, client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(
+            TestEnvironment.newEnvironment(settings.build()),
+            clusterService,
+            client,
+            licenseState,
+            jobManagerHolder
+        );
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage usage = future.get();
@@ -449,8 +500,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         settings.put("xpack.ml.enabled", false);
 
         JobManagerHolder emptyJobManagerHolder = new JobManagerHolder();
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, emptyJobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(
+            TestEnvironment.newEnvironment(settings.build()),
+            clusterService,
+            client,
+            licenseState,
+            emptyJobManagerHolder
+        );
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage mlUsage = future.get();
@@ -471,8 +527,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         givenNodeCount(nodeCount);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-            clusterService, client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(
+            TestEnvironment.newEnvironment(settings.build()),
+            clusterService,
+            client,
+            licenseState,
+            jobManagerHolder
+        );
 
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -514,8 +575,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
-        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState, jobManagerHolder);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(
+            TestEnvironment.newEnvironment(settings.build()),
+            clusterService,
+            client,
+            licenseState,
+            jobManagerHolder
+        );
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage usage = future.get();
@@ -554,19 +620,16 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private void givenJobs(List<Job> jobs, List<GetJobsStatsAction.Response.JobStats> jobsStats) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<QueryPage<Job>> jobListener =
-                    (ActionListener<QueryPage<Job>>) invocationOnMock.getArguments()[2];
-            jobListener.onResponse(
-                    new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
+            ActionListener<QueryPage<Job>> jobListener = (ActionListener<QueryPage<Job>>) invocationOnMock.getArguments()[2];
+            jobListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
             return Void.TYPE;
         }).when(jobManager).expandJobs(eq(Metadata.ALL), eq(true), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetJobsStatsAction.Response> listener =
-                    (ActionListener<GetJobsStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetJobsStatsAction.Response(
-                    new QueryPage<>(jobsStats, jobsStats.size(), Job.RESULTS_FIELD)));
+            ActionListener<GetJobsStatsAction.Response> listener = (ActionListener<GetJobsStatsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetJobsStatsAction.Response(new QueryPage<>(jobsStats, jobsStats.size(), Job.RESULTS_FIELD)));
             return Void.TYPE;
         }).when(client).execute(same(GetJobsStatsAction.INSTANCE), any(), any());
     }
@@ -580,11 +643,15 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             roles.add(DiscoveryNodeRole.DATA_ROLE);
             roles.add(DiscoveryNodeRole.MASTER_ROLE);
             roles.add(DiscoveryNodeRole.INGEST_ROLE);
-            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
-                new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
-                attrs,
-                roles,
-                Version.CURRENT));
+            nodesBuilder.add(
+                new DiscoveryNode(
+                    "ml-feature-set-given-ml-node-" + i,
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
+                    attrs,
+                    roles,
+                    Version.CURRENT
+                )
+            );
         }
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             Map<String, String> attrs = new HashMap<>();
@@ -592,11 +659,15 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             roles.add(DiscoveryNodeRole.DATA_ROLE);
             roles.add(DiscoveryNodeRole.MASTER_ROLE);
             roles.add(DiscoveryNodeRole.INGEST_ROLE);
-            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-non-ml-node-" + i,
-                new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
-                attrs,
-                roles,
-                Version.CURRENT));
+            nodesBuilder.add(
+                new DiscoveryNode(
+                    "ml-feature-set-given-non-ml-node-" + i,
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
+                    attrs,
+                    roles,
+                    Version.CURRENT
+                )
+            );
         }
         ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder.build()).build();
         when(clusterService.state()).thenReturn(clusterState);
@@ -605,37 +676,42 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private void givenDatafeeds(List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedStats) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetDatafeedsStatsAction.Response> listener =
-                    (ActionListener<GetDatafeedsStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetDatafeedsStatsAction.Response(
-                    new QueryPage<>(datafeedStats, datafeedStats.size(), DatafeedConfig.RESULTS_FIELD)));
+            ActionListener<GetDatafeedsStatsAction.Response> listener = (ActionListener<GetDatafeedsStatsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetDatafeedsStatsAction.Response(new QueryPage<>(datafeedStats, datafeedStats.size(), DatafeedConfig.RESULTS_FIELD))
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetDatafeedsStatsAction.INSTANCE), any(), any());
     }
 
-    private void givenDataFrameAnalytics(List<DataFrameAnalyticsConfig> configs,
-                                         List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats) {
+    private void givenDataFrameAnalytics(
+        List<DataFrameAnalyticsConfig> configs,
+        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats
+    ) {
         assert configs.size() == stats.size();
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetDataFrameAnalyticsAction.Response> listener =
-                (ActionListener<GetDataFrameAnalyticsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetDataFrameAnalyticsAction.Response(
-                new QueryPage<>(configs,
-                    configs.size(),
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            ActionListener<GetDataFrameAnalyticsAction.Response> listener = (ActionListener<
+                GetDataFrameAnalyticsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(
+                new GetDataFrameAnalyticsAction.Response(
+                    new QueryPage<>(configs, configs.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+                )
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetDataFrameAnalyticsAction.INSTANCE), any(), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener =
-                (ActionListener<GetDataFrameAnalyticsStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(
-                new QueryPage<>(stats,
-                    stats.size(),
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener = (ActionListener<
+                GetDataFrameAnalyticsStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(
+                new GetDataFrameAnalyticsStatsAction.Response(
+                    new QueryPage<>(stats, stats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+                )
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetDataFrameAnalyticsStatsAction.INSTANCE), any(), any());
     }
@@ -643,8 +719,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private void givenProcessorStats(List<NodeStats> stats) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<NodesStatsResponse> listener =
-                (ActionListener<NodesStatsResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<NodesStatsResponse> listener = (ActionListener<NodesStatsResponse>) invocationOnMock.getArguments()[2];
             listener.onResponse(new NodesStatsResponse(new ClusterName("_name"), stats, Collections.emptyList()));
             return Void.TYPE;
         }).when(client).execute(same(NodesStatsAction.INSTANCE), any(), any());
@@ -653,12 +728,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private void givenTrainedModels(List<TrainedModelConfig> trainedModels) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetTrainedModelsAction.Response> listener =
-                (ActionListener<GetTrainedModelsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetTrainedModelsAction.Response(
-                new QueryPage<>(trainedModels,
-                    trainedModels.size(),
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            ActionListener<GetTrainedModelsAction.Response> listener = (ActionListener<GetTrainedModelsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetTrainedModelsAction.Response(
+                    new QueryPage<>(trainedModels, trainedModels.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+                )
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetTrainedModelsAction.INSTANCE), any(), any());
     }
@@ -676,15 +752,18 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
     private static Job buildJob(String jobId, List<Detector> detectors, Map<String, Object> customSettings) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
-        return new Job.Builder(jobId)
-                .setAnalysisConfig(analysisConfig)
-                .setDataDescription(new DataDescription.Builder())
-                .setCustomSettings(customSettings)
-                .build(new Date(randomNonNegativeLong()));
+        return new Job.Builder(jobId).setAnalysisConfig(analysisConfig)
+            .setDataDescription(new DataDescription.Builder())
+            .setCustomSettings(customSettings)
+            .build(new Date(randomNonNegativeLong()));
     }
 
-    private static GetJobsStatsAction.Response.JobStats buildJobStats(String jobId, JobState state, long modelBytes,
-            long numberOfForecasts) {
+    private static GetJobsStatsAction.Response.JobStats buildJobStats(
+        String jobId,
+        JobState state,
+        long modelBytes,
+        long numberOfForecasts
+    ) {
         ModelSizeStats.Builder modelSizeStats = new ModelSizeStats.Builder(jobId);
         modelSizeStats.setModelBytes(modelBytes);
         GetJobsStatsAction.Response.JobStats jobStats = mock(GetJobsStatsAction.Response.JobStats.class);
@@ -703,8 +782,11 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         return stats;
     }
 
-    private static GetDataFrameAnalyticsStatsAction.Response.Stats buildDataFrameAnalyticsStats(String jobId,
-            DataFrameAnalyticsState state, @Nullable Long peakUsageBytes) {
+    private static GetDataFrameAnalyticsStatsAction.Response.Stats buildDataFrameAnalyticsStats(
+        String jobId,
+        DataFrameAnalyticsState state,
+        @Nullable Long peakUsageBytes
+    ) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = mock(GetDataFrameAnalyticsStatsAction.Response.Stats.class);
         when(stats.getState()).thenReturn(state);
         if (peakUsageBytes != null) {
@@ -715,12 +797,29 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
     private static NodeStats buildNodeStats(List<String> pipelineNames, List<List<IngestStats.ProcessorStat>> processorStats) {
         IngestStats ingestStats = new IngestStats(
-            new IngestStats.Stats(0,0,0,0),
+            new IngestStats.Stats(0, 0, 0, 0),
             Collections.emptyList(),
-            IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get)));
-        return new NodeStats(mock(DiscoveryNode.class),
-            Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null, null, null);
+            IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get))
+        );
+        return new NodeStats(
+            mock(DiscoveryNode.class),
+            Instant.now().toEpochMilli(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ingestStats,
+            null,
+            null,
+            null
+        );
 
     }
 

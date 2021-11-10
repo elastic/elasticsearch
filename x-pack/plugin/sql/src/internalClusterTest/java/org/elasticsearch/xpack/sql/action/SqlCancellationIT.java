@@ -21,8 +21,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -39,9 +39,13 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
     }
 
     public void testCancellation() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("_doc", "val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .addMapping("_doc", "val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
+                .get()
+        );
         createIndex("idx_unmapped");
 
         int numDocs = randomIntBetween(6, 20);
@@ -50,22 +54,29 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
-            builders.add(client().prepareIndex("test", "_doc").setSource(
-                jsonBuilder().startObject()
-                    .field("val", fieldValue).field("event_type", "my_event").field("@timestamp", "2020-04-09T12:35:48Z")
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("test", "_doc")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("val", fieldValue)
+                            .field("event_type", "my_event")
+                            .field("@timestamp", "2020-04-09T12:35:48Z")
+                            .endObject()
+                    )
+            );
         }
 
         indexRandom(true, builders);
         boolean cancelDuringSearch = randomBoolean();
         List<SearchBlockPlugin> plugins = initBlockFactory(cancelDuringSearch, cancelDuringSearch == false);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query("SELECT event_type FROM test WHERE val=1").request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
+            "SELECT event_type FROM test WHERE val=1"
+        ).request();
         String id = randomAlphaOfLength(10);
         logger.trace("Preparing search");
         // We might perform field caps on the same thread if it is local client, so we cannot use the standard mechanism
-        Future<SqlQueryResponse> future = executorService.submit(() ->
-            client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, id)).execute(SqlQueryAction.INSTANCE, request).get()
+        Future<SqlQueryResponse> future = executorService.submit(
+            () -> client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, id)).execute(SqlQueryAction.INSTANCE, request).get()
         );
         logger.trace("Waiting for block to be established");
         if (cancelDuringSearch) {

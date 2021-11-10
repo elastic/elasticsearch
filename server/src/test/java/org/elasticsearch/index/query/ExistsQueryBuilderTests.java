@@ -121,8 +121,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> queryBuilder.toQuery(context));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
         Query ret = ExistsQueryBuilder.newFilter(context, "foo", false);
         assertThat(ret, instanceOf(MatchNoDocsQuery.class));
@@ -134,13 +133,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"exists\" : {\n" +
-                "    \"field\" : \"user\",\n" +
-                "    \"boost\" : 42.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n" + "  \"exists\" : {\n" + "    \"field\" : \"user\",\n" + "    \"boost\" : 42.0\n" + "  }\n" + "}";
 
         ExistsQueryBuilder parsed = (ExistsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

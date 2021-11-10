@@ -8,19 +8,19 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -47,14 +47,16 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_7).build(),
-            Route.builder(GET, BASE_PATH + "trained_models")
-                .replaces(GET, BASE_PATH + "inference", RestApiVersion.V_7).build()
+                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "trained_models").replaces(GET, BASE_PATH + "inference", RestApiVersion.V_7).build()
         );
     }
 
-    private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
-        Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, Boolean.toString(true));
+    private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES = Collections.singletonMap(
+        TrainedModelConfig.DECOMPRESS_DEFINITION,
+        Boolean.toString(true)
+    );
 
     @Override
     public String getName() {
@@ -69,31 +71,38 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         }
         List<String> tags = asList(restRequest.paramAsStringArray(TrainedModelConfig.TAGS.getPreferredName(), Strings.EMPTY_ARRAY));
         Set<String> includes = new HashSet<>(
-            asList(
-                restRequest.paramAsStringArray(
-                    GetTrainedModelsAction.Request.INCLUDE.getPreferredName(),
-                    Strings.EMPTY_ARRAY)));
+            asList(restRequest.paramAsStringArray(GetTrainedModelsAction.Request.INCLUDE.getPreferredName(), Strings.EMPTY_ARRAY))
+        );
         final GetTrainedModelsAction.Request request;
         if (restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION)) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION,
                 "[{}] parameter is deprecated! Use [include=definition] instead.",
-                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION);
-            request = new GetTrainedModelsAction.Request(modelId,
+                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION
+            );
+            request = new GetTrainedModelsAction.Request(
+                modelId,
                 restRequest.paramAsBoolean(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION, false),
-                tags);
+                tags
+            );
         } else {
             request = new GetTrainedModelsAction.Request(modelId, tags, includes);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            request.setPageParams(
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoResources()));
-        return channel -> client.execute(GetTrainedModelsAction.INSTANCE,
+        return channel -> client.execute(
+            GetTrainedModelsAction.INSTANCE,
             request,
-            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES));
+            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES)
+        );
     }
 
     @Override
@@ -111,11 +120,9 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
         @Override
         public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
-            assert response.isFragment() == false; //would be nice if we could make default methods final
+            assert response.isFragment() == false; // would be nice if we could make default methods final
             Map<String, String> params = new HashMap<>(channel.request().params());
-            defaultToXContentParamValues.forEach((k, v) ->
-                params.computeIfAbsent(k, defaultToXContentParamValues::get)
-            );
+            defaultToXContentParamValues.forEach((k, v) -> params.computeIfAbsent(k, defaultToXContentParamValues::get));
             response.toXContent(builder, new ToXContent.MapParams(params));
             return new BytesRestResponse(getStatus(response), builder);
         }

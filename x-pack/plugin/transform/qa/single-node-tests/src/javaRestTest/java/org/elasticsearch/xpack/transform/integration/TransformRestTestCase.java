@@ -21,9 +21,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
@@ -316,8 +316,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void createLatestReviewsTransform(String transformId, String transformIndex) throws IOException {
         String config = "{"
-            + " \"dest\": {\"index\":\"" + transformIndex + "\"},"
-            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
             + " \"latest\": {"
             + "   \"unique_key\": [ \"user_id\" ],"
             + "   \"sort\": \"@timestamp\""

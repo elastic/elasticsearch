@@ -41,9 +41,11 @@ public class TransformFeatureSetUsage extends Usage {
         this.accumulatedStats = new TransformIndexerStats(in);
     }
 
-    public TransformFeatureSetUsage(Map<String, Long> transformCountByState,
-                                    Map<String, Long> transformCountByFeature,
-                                    TransformIndexerStats accumulatedStats) {
+    public TransformFeatureSetUsage(
+        Map<String, Long> transformCountByState,
+        Map<String, Long> transformCountByFeature,
+        TransformIndexerStats accumulatedStats
+    ) {
         super(XPackField.TRANSFORM, true, true);
         this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.transformCountByFeature = Objects.requireNonNull(transformCountByFeature);
@@ -101,9 +103,11 @@ public class TransformFeatureSetUsage extends Usage {
             return false;
         }
         TransformFeatureSetUsage other = (TransformFeatureSetUsage) obj;
-        return Objects.equals(name, other.name) && available == other.available && enabled == other.enabled
-                && Objects.equals(transformCountByState, other.transformCountByState)
-                && Objects.equals(transformCountByFeature, other.transformCountByFeature)
-                && Objects.equals(accumulatedStats, other.accumulatedStats);
+        return Objects.equals(name, other.name)
+            && available == other.available
+            && enabled == other.enabled
+            && Objects.equals(transformCountByState, other.transformCountByState)
+            && Objects.equals(transformCountByFeature, other.transformCountByFeature)
+            && Objects.equals(accumulatedStats, other.accumulatedStats);
     }
 }

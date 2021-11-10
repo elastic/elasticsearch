@@ -14,18 +14,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-
 public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<ClassificationConfig> {
 
     private boolean lenient;
 
     public static ClassificationConfig randomClassificationConfig() {
-        return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10),
+        return new ClassificationConfig(
+            randomBoolean() ? null : randomIntBetween(-1, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomFrom(PredictionFieldType.values())
-            );
+        );
     }
 
     public static ClassificationConfig mutateForVersion(ClassificationConfig instance, Version version) {

@@ -9,15 +9,15 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -58,7 +58,9 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         return filter;
     }
 
-    public int getMaxChildren() { return maxChildren; }
+    public int getMaxChildren() {
+        return maxChildren;
+    }
 
     public NestedSortBuilder setFilter(final QueryBuilder filter) {
         this.filter = filter;

@@ -50,14 +50,24 @@ public abstract class AbstractCCSRestTestCase extends ESRestTestCase {
 
         @Override
         public String toString() {
-            return "Node{" +
-                "id='" + id + '\'' +
-                ", name='" + name + '\'' +
-                ", version=" + version +
-                ", transportAddress='" + transportAddress + '\'' +
-                ", httpAddress='" + httpAddress + '\'' +
-                ", attributes=" + attributes +
-                '}';
+            return "Node{"
+                + "id='"
+                + id
+                + '\''
+                + ", name='"
+                + name
+                + '\''
+                + ", version="
+                + version
+                + ", transportAddress='"
+                + transportAddress
+                + '\''
+                + ", httpAddress='"
+                + httpAddress
+                + '\''
+                + ", attributes="
+                + attributes
+                + '}';
         }
     }
 

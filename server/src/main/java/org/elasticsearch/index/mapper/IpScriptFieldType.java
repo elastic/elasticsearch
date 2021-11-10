@@ -42,13 +42,15 @@ import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<IpFieldScript.Factory>(name, IpFieldScript.CONTEXT) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(
+        name -> new Builder<IpFieldScript.Factory>(name, IpFieldScript.CONTEXT) {
             @Override
-            AbstractScriptFieldType<?> createFieldType(String name,
-                                                       IpFieldScript.Factory factory,
-                                                       Script script,
-                                                       Map<String, String> meta) {
+            AbstractScriptFieldType<?> createFieldType(
+                String name,
+                IpFieldScript.Factory factory,
+                Script script,
+                Map<String, String> meta
+            ) {
                 return new IpScriptFieldType(name, factory, getScript(), meta());
             }
 
@@ -61,16 +63,17 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
                 return IpFieldScript.leafAdapter(parentScriptFactory);
             }
-        });
+        }
+    );
 
-    IpScriptFieldType(
-        String name,
-        IpFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
-            script, scriptFactory.isResultDeterministic(), meta);
+    IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override

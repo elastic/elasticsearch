@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.spatial;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
-import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
@@ -50,15 +50,15 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGri
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHashGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -69,17 +69,24 @@ import static java.util.Collections.singletonList;
 public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin, IngestPlugin, ExtensiblePlugin {
     private final SpatialUsage usage = new SpatialUsage();
 
-    private final LicensedFeature.Momentary GEO_CENTROID_AGG_FEATURE =
-        LicensedFeature.momentary("spatial", "geo-centroid-agg", License.OperationMode.GOLD);
-    private final LicensedFeature.Momentary GEO_GRID_AGG_FEATURE =
-        LicensedFeature.momentary("spatial", "geo-grid-agg", License.OperationMode.GOLD);
-    private final LicensedFeature.Momentary GEO_LINE_AGG_FEATURE =
-        LicensedFeature.momentary("spatial", "geo-line-agg", License.OperationMode.GOLD);
+    private final LicensedFeature.Momentary GEO_CENTROID_AGG_FEATURE = LicensedFeature.momentary(
+        "spatial",
+        "geo-centroid-agg",
+        License.OperationMode.GOLD
+    );
+    private final LicensedFeature.Momentary GEO_GRID_AGG_FEATURE = LicensedFeature.momentary(
+        "spatial",
+        "geo-grid-agg",
+        License.OperationMode.GOLD
+    );
+    private final LicensedFeature.Momentary GEO_LINE_AGG_FEATURE = LicensedFeature.momentary(
+        "spatial",
+        "geo-line-agg",
+        License.OperationMode.GOLD
+    );
 
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(b -> {
-            XPackPlugin.bindFeatureSet(b, SpatialFeatureSet.class);
-        });
+        return Collections.singletonList(b -> { XPackPlugin.bindFeatureSet(b, SpatialFeatureSet.class); });
     }
 
     // to be overriden by tests
@@ -98,9 +105,12 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return org.elasticsearch.core.Map.of(
-            ShapeFieldMapper.CONTENT_TYPE, ShapeFieldMapper.PARSER,
-            PointFieldMapper.CONTENT_TYPE, PointFieldMapper.PARSER,
-            GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, new GeoShapeWithDocValuesFieldMapper.TypeParser(geoFormatterFactory.get())
+            ShapeFieldMapper.CONTENT_TYPE,
+            ShapeFieldMapper.PARSER,
+            PointFieldMapper.CONTENT_TYPE,
+            PointFieldMapper.PARSER,
+            GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
+            new GeoShapeWithDocValuesFieldMapper.TypeParser(geoFormatterFactory.get())
         );
     }
 
@@ -126,10 +136,9 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
             new AggregationSpec(
                 GeoLineAggregationBuilder.NAME,
                 GeoLineAggregationBuilder::new,
-                usage.track(SpatialStatsAction.Item.GEOLINE,
-                    checkLicense(GeoLineAggregationBuilder.PARSER, GEO_LINE_AGG_FEATURE)))
-                .addResultReader(InternalGeoLine::new)
-                .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
+                usage.track(SpatialStatsAction.Item.GEOLINE, checkLicense(GeoLineAggregationBuilder.PARSER, GEO_LINE_AGG_FEATURE))
+            ).addResultReader(InternalGeoLine::new).setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage)
+        );
     }
 
     @Override
@@ -147,9 +156,10 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
     }
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
-            (name, valuesSourceConfig, context, parent, metadata)
-                -> {
+        builder.register(
+            GeoCentroidAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            (name, valuesSourceConfig, context, parent, metadata) -> {
                 if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
                     return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
@@ -160,9 +170,21 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
     }
 
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(GeoHashGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
-            (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-             aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
+        builder.register(
+            GeoHashGridAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                aggregationContext,
+                parent,
+                collectsFromSingleBucket,
+                metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -171,8 +193,17 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
                         tiler = new BoundedGeoHashGridTiler(precision, geoBoundingBox);
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler);
-                    GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, collectsFromSingleBucket, metadata);
+                    GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(
+                        name,
+                        factories,
+                        cellIdSource,
+                        requiredSize,
+                        shardSize,
+                        aggregationContext,
+                        parent,
+                        collectsFromSingleBucket,
+                        metadata
+                    );
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
@@ -182,9 +213,21 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
             true
         );
 
-        builder.register(GeoTileGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
-            (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-             aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
+        builder.register(
+            GeoTileGridAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                aggregationContext,
+                parent,
+                collectsFromSingleBucket,
+                metadata) -> {
                 if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -193,8 +236,17 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
                         tiler = new BoundedGeoTileGridTiler(precision, geoBoundingBox);
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, tiler);
-                    GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, collectsFromSingleBucket, metadata);
+                    GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(
+                        name,
+                        factories,
+                        cellIdSource,
+                        requiredSize,
+                        shardSize,
+                        aggregationContext,
+                        parent,
+                        collectsFromSingleBucket,
+                        metadata
+                    );
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
@@ -226,7 +278,9 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
     public void loadExtensions(ExtensionLoader loader) {
         // we only expect one vector tile extension that comes from the vector tile module.
         List<GeoFormatterFactory.FormatterFactory<Geometry>> formatterFactories = new ArrayList<>();
-        loader.loadExtensions(GeometryFormatterExtension.class).stream().map(GeometryFormatterExtension::getGeometryFormatterFactories)
+        loader.loadExtensions(GeometryFormatterExtension.class)
+            .stream()
+            .map(GeometryFormatterExtension::getGeometryFormatterFactories)
             .forEach(formatterFactories::addAll);
         geoFormatterFactory.set(new GeoFormatterFactory<>(formatterFactories));
     }

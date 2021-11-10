@@ -10,10 +10,13 @@ your application to {es} 7.16.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_716_settings_changes>>
+* <<breaking_716_tls_changes>>
 * <<breaking_716_ilm_changes>>
 * <<breaking_716_monitoring_changes>>
-
+* <<breaking_716_api_deprecations>>
 * <<breaking_716_settings_deprecations>>
+* <<breaking_716_indices_deprecations>>
+* <<breaking_716_cluster_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -337,6 +340,21 @@ as it will have no functionality in 8.0.0 and will eventually be removed.
 ====
 
 [discrete]
+[[breaking_716_api_deprecations]]
+==== REST API deprecations
+
+.The `estimated_heap_memory_usage_bytes` property in the create trained models API is deprecated
+[%collapsible]
+====
+*Details* +
+The `estimated_heap_memory_usage_bytes` property in the
+{ref}/put-trained-models.html[create trained models API] is deprecated in 7.16.
+
+*Impact* +
+Use `model_size_bytes` instead. 
+====
+
+[discrete]
 [[breaking_716_settings_deprecations]]
 ==== Settings deprecations
 
@@ -346,15 +364,40 @@ as it will have no functionality in 8.0.0 and will eventually be removed.
 ====
 *Details* +
 Transient cluster settings are now deprecated and will be removed in a future release. This is because transient
-cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts,
-which can forcibly happen if enough master-eligible nodes fail. In such an event, the cluster state will be recovered
+cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts or
+cluster instability. In these cases, {es} recovers the cluster state
 from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
 unexpectedly, leading to a potentially undesired cluster configuration.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of transient settings when modifying
-your cluster settings through the `PUT _cluster/settings` REST API. When modifying cluster settings
-use only persistent settings.
+your cluster settings through the `PUT _cluster/settings` REST API. Use persistent
+settings instead. See the
+{ref}/transient-settings-migration-guide.html[Transient settings migration
+guide]. 
+====
+
+[discrete]
+[[breaking_716_indices_deprecations]]
+==== Indices deprecations
+
+[[deprecation-system-indices]]
+.Direct access to system indices is deprecated.
+[%collapsible]
+====
+*Details* +
+Directly accessing system indices is deprecated. In {es} 8.0, you must add the
+`allow_restricted_indices` permission set to `true` on a user role to access
+system indices. Refer to 
+{ref}/defining-roles.html#roles-indices-priv[indices privileges] for
+information on adding this permission to an index privilege.
+
+*Impact* +
+Accessing system indices directly results in warnings in the header of API 
+responses and in the deprecation logs. Use {kib} or the associated feature's
+{es} APIs to manage the data that you want to access. While it's still possible 
+to access system indices in {es} 7.16, they are reserved only for internal use
+by Elastic products and should not be accessed directly.
 ====
 
 [discrete]
@@ -383,7 +426,7 @@ parameter `?return_200_for_cluster_health_timeout` in your request.
 ====
 
 [[script-context-cache-deprecated]]
-.The script context cache is deprecated
+.The script context cache is deprecated.
 [%collapsible]
 ====
 *Details* +
@@ -409,3 +452,5 @@ To override the defaults, configure the `script.cache.max_size`,
 `script.max_compilations_rate`, and `script.cache.expire` settings.
 ====
 // end::notable-breaking-changes[]
+
+include::transient-settings-migration-guide.asciidoc[]

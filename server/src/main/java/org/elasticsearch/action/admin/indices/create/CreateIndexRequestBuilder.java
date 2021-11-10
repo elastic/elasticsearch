@@ -23,8 +23,10 @@ import java.util.Map;
 /**
  * Builder for a create index request
  */
-public class CreateIndexRequestBuilder
-    extends AcknowledgedRequestBuilder<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
+public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
+    CreateIndexRequest,
+    CreateIndexResponse,
+    CreateIndexRequestBuilder> {
 
     public CreateIndexRequestBuilder(ElasticsearchClient client, CreateIndexAction action) {
         super(client, action, new CreateIndexRequest());

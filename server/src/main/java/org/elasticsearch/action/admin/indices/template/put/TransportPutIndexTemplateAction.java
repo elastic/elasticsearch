@@ -38,12 +38,25 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public TransportPutIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           IndexScopedSettings indexScopedSettings) {
-        super(PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutIndexTemplateRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportPutIndexTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexScopedSettings indexScopedSettings
+    ) {
+        super(
+            PutIndexTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutIndexTemplateRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -54,8 +67,11 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
     }
 
     @Override
-    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final PutIndexTemplateRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
@@ -63,8 +79,8 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         final Settings.Builder templateSettingsBuilder = Settings.builder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
-        indexTemplateService.putTemplate(new MetadataIndexTemplateService.PutRequest(cause, request.name())
-                .patterns(request.patterns())
+        indexTemplateService.putTemplate(
+            new MetadataIndexTemplateService.PutRequest(cause, request.name()).patterns(request.patterns())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings())
@@ -73,17 +89,18 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
                 .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
 
-                new MetadataIndexTemplateService.PutListener() {
-                    @Override
-                    public void onResponse(MetadataIndexTemplateService.PutResponse response) {
-                        listener.onResponse(AcknowledgedResponse.of(response.acknowledged()));
-                    }
+            new MetadataIndexTemplateService.PutListener() {
+                @Override
+                public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+                    listener.onResponse(AcknowledgedResponse.of(response.acknowledged()));
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
-                        listener.onFailure(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
+                    listener.onFailure(e);
+                }
+            }
+        );
     }
 }

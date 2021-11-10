@@ -30,10 +30,10 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
     private static final Logger logger = LogManager.getLogger(RestAddVotingConfigExclusionAction.class);
 
-    private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} " +
-        "will be removed in a future version. " +
-        "Please use POST /_cluster/voting_config_exclusions?node_ids=... " +
-        "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
+    private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} "
+        + "will be removed in a future version. "
+        + "Please use POST /_cluster/voting_config_exclusions?node_ids=... "
+        + "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
 
     @Override
     public String getName() {
@@ -44,8 +44,10 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     public List<Route> routes() {
         return Arrays.asList(
             Route.builder(POST, "/_cluster/voting_config_exclusions/{node_name}")
-                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            new Route(POST, "/_cluster/voting_config_exclusions"));
+                .deprecated(DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            new Route(POST, "/_cluster/voting_config_exclusions")
+        );
     }
 
     @Override
@@ -67,12 +69,12 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
             deprecatedNodeDescription = request.param("node_name");
         }
 
-        if (request.hasParam("node_ids")){
+        if (request.hasParam("node_ids")) {
             nodeIds = request.param("node_ids");
         }
 
-        if (request.hasParam("node_names")){
-            nodeNames =  request.param("node_names");
+        if (request.hasParam("node_names")) {
+            nodeNames = request.param("node_names");
         }
 
         return new AddVotingConfigExclusionsRequest(
@@ -82,6 +84,5 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
             TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }
-
 
 }

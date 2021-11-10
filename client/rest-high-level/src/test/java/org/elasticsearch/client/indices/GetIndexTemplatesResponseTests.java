@@ -14,16 +14,16 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,14 +47,15 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
     static final String mappingString = "{\"properties\":{\"f1\": {\"type\":\"text\"},\"f2\": {\"type\":\"keyword\"}}}";
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             GetIndexTemplatesResponseTests::createTestInstance,
             GetIndexTemplatesResponseTests::toXContent,
-            GetIndexTemplatesResponse::fromXContent)
-            .assertEqualsConsumer(GetIndexTemplatesResponseTests::assertEqualInstances)
+            GetIndexTemplatesResponse::fromXContent
+        ).assertEqualsConsumer(GetIndexTemplatesResponseTests::assertEqualInstances)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
-            .shuffleFieldsExceptions(new String[] {"aliases", "mappings", "patterns", "settings"})
+            .shuffleFieldsExceptions(new String[] { "aliases", "mappings", "patterns", "settings" })
             .test();
     }
 
@@ -67,8 +68,9 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             int numTemplates = randomIntBetween(0, 32);
             for (int i = 0; i < numTemplates; i++) {
                 org.elasticsearch.cluster.metadata.IndexTemplateMetadata.Builder esIMD =
-                    new org.elasticsearch.cluster.metadata.IndexTemplateMetadata.Builder(String.format(Locale.ROOT, "%02d ", i) +
-                        randomAlphaOfLength(4));
+                    new org.elasticsearch.cluster.metadata.IndexTemplateMetadata.Builder(
+                        String.format(Locale.ROOT, "%02d ", i) + randomAlphaOfLength(4)
+                    );
                 esIMD.patterns(Arrays.asList(generateRandomStringArray(32, 4, false, false)));
                 esIMD.settings(randomIndexSettings());
                 esIMD.putMapping("_doc", new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
@@ -84,8 +86,14 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             XContentBuilder xContentBuilder = XContentBuilder.builder(xContentType.xContent());
             esResponse.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
 
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(xContentBuilder), xContentType)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(xContentBuilder),
+                    xContentType
+                )
+            ) {
                 GetIndexTemplatesResponse response = GetIndexTemplatesResponse.fromXContent(parser);
                 assertThat(response.getIndexTemplates().size(), equalTo(numTemplates));
 
@@ -101,15 +109,19 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
                     assertThat(esIMD.mappings().size(), equalTo(1));
                     BytesReference mappingSource = esIMD.mappings().valuesIt().next().uncompressed();
-                    Map<String, Object> expectedMapping =
-                        XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
+                    Map<String, Object> expectedMapping = XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType())
+                        .v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
 
                     assertThat(result.aliases().size(), equalTo(esIMD.aliases().size()));
-                    List<AliasMetadata> expectedAliases = esIMD.aliases().values().stream()
+                    List<AliasMetadata> expectedAliases = esIMD.aliases()
+                        .values()
+                        .stream()
                         .sorted(Comparator.comparing(AliasMetadata::alias))
                         .collect(Collectors.toList());
-                    List<AliasMetadata> actualAliases = result.aliases().values().stream()
+                    List<AliasMetadata> actualAliases = result.aliases()
+                        .values()
+                        .stream()
                         .sorted(Comparator.comparing(AliasMetadata::alias))
                         .collect(Collectors.toList());
                     for (int j = 0; j < result.aliases().size(); j++) {
@@ -121,8 +133,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
     }
 
     private Predicate<String> randomFieldsExcludeFilter() {
-        return (field) ->
-            field.isEmpty()
+        return (field) -> field.isEmpty()
             || field.endsWith("aliases")
             || field.endsWith("settings")
             || field.endsWith("settings.index")
@@ -134,11 +145,10 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
     private static void assertEqualInstances(GetIndexTemplatesResponse expectedInstance, GetIndexTemplatesResponse newInstance) {
         assertEquals(expectedInstance, newInstance);
         // Check there's no doc types at the root of the mapping
-        Map<String, Object> expectedMap = XContentHelper.convertToMap(
-                new BytesArray(mappingString), true, XContentType.JSON).v2();
+        Map<String, Object> expectedMap = XContentHelper.convertToMap(new BytesArray(mappingString), true, XContentType.JSON).v2();
         for (IndexTemplateMetadata template : newInstance.getIndexTemplates()) {
             MappingMetadata mappingMD = template.mappings();
-            if(mappingMD != null) {
+            if (mappingMD != null) {
                 Map<String, Object> mappingAsMap = mappingMD.sourceAsMap();
                 assertEquals(expectedMap, mappingAsMap);
             }
@@ -181,13 +191,13 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
     // As the client class GetIndexTemplatesResponse doesn't have toXContent method, adding this method here only for the test
     static void toXContent(GetIndexTemplatesResponse response, XContentBuilder builder) throws IOException {
 
-        //Create a server-side counterpart for the client-side class and call toXContent on it
+        // Create a server-side counterpart for the client-side class and call toXContent on it
 
         List<org.elasticsearch.cluster.metadata.IndexTemplateMetadata> serverIndexTemplates = new ArrayList<>();
         List<IndexTemplateMetadata> clientIndexTemplates = response.getIndexTemplates();
         for (IndexTemplateMetadata clientITMD : clientIndexTemplates) {
             org.elasticsearch.cluster.metadata.IndexTemplateMetadata.Builder serverTemplateBuilder =
-                    org.elasticsearch.cluster.metadata.IndexTemplateMetadata.builder(clientITMD.name());
+                org.elasticsearch.cluster.metadata.IndexTemplateMetadata.builder(clientITMD.name());
 
             serverTemplateBuilder.patterns(clientITMD.patterns());
 
@@ -202,8 +212,8 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             serverIndexTemplates.add(serverTemplateBuilder.build());
 
         }
-        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new
-                org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
+        org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse =
+            new org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
         serverResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }
 

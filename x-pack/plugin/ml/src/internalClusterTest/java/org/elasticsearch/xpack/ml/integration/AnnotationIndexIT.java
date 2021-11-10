@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     @Override
-    protected Settings nodeSettings()  {
+    protected Settings nodeSettings() {
         Settings.Builder newSettings = Settings.builder();
         newSettings.put(super.nodeSettings());
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
@@ -127,7 +128,8 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     private int numberOfAnnotationsAliases() {
         int count = 0;
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin().indices()
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin()
+            .indices()
             .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()

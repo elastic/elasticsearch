@@ -31,7 +31,7 @@ class TarInputStream extends FilterInputStream {
 
     public TarEntry getNextEntry() throws IOException {
         if (currentEntry != null) {
-            //go to the end of the current entry
+            // go to the end of the current entry
             skipN(remaining);
             if (reminder != 0) {
                 skipN(512 - reminder);
@@ -115,8 +115,7 @@ class TarInputStream extends FilterInputStream {
         int n = 0;
         while (n < len) {
             int count = in.read(b, off + n, len - n);
-            if (count < 0)
-                break;
+            if (count < 0) break;
             n += count;
         }
         return n;
@@ -140,4 +139,3 @@ class TarInputStream extends FilterInputStream {
         }
     }
 }
-

@@ -22,15 +22,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.admin.cluster.RestClusterRerouteAction;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.admin.cluster.RestClusterRerouteAction;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,17 +48,38 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 public class ClusterRerouteRequestTests extends ESTestCase {
     private static final int ROUNDS = 30;
     private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = unmodifiableList(
-            Arrays.<Supplier<AllocationCommand>> asList(
-            () -> new AllocateReplicaAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
-                    randomAlphaOfLengthBetween(2, 10)),
-            () -> new AllocateEmptyPrimaryAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
-                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
-            () -> new AllocateStalePrimaryAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
-                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
-            () -> new CancelAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
-                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
-            () -> new MoveAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
-                    randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10))));
+        Arrays.<Supplier<AllocationCommand>>asList(
+            () -> new AllocateReplicaAllocationCommand(
+                randomAlphaOfLengthBetween(2, 10),
+                between(0, 1000),
+                randomAlphaOfLengthBetween(2, 10)
+            ),
+            () -> new AllocateEmptyPrimaryAllocationCommand(
+                randomAlphaOfLengthBetween(2, 10),
+                between(0, 1000),
+                randomAlphaOfLengthBetween(2, 10),
+                randomBoolean()
+            ),
+            () -> new AllocateStalePrimaryAllocationCommand(
+                randomAlphaOfLengthBetween(2, 10),
+                between(0, 1000),
+                randomAlphaOfLengthBetween(2, 10),
+                randomBoolean()
+            ),
+            () -> new CancelAllocationCommand(
+                randomAlphaOfLengthBetween(2, 10),
+                between(0, 1000),
+                randomAlphaOfLengthBetween(2, 10),
+                randomBoolean()
+            ),
+            () -> new MoveAllocationCommand(
+                randomAlphaOfLengthBetween(2, 10),
+                between(0, 1000),
+                randomAlphaOfLengthBetween(2, 10),
+                randomAlphaOfLengthBetween(2, 10)
+            )
+        )
+    );
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     public ClusterRerouteRequestTests() {
@@ -83,8 +104,9 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             assertEquals(request, request);
             assertEquals(request.hashCode(), request.hashCode());
 
-            ClusterRerouteRequest copy = new ClusterRerouteRequest()
-                    .add(request.getCommands().commands().toArray(new AllocationCommand[0]));
+            ClusterRerouteRequest copy = new ClusterRerouteRequest().add(
+                request.getCommands().commands().toArray(new AllocationCommand[0])
+            );
             copy.dryRun(request.dryRun()).explain(request.explain()).timeout(request.timeout()).setRetryFailed(request.isRetryFailed());
             copy.masterNodeTimeout(request.masterNodeTimeout());
             assertEquals(request, copy);

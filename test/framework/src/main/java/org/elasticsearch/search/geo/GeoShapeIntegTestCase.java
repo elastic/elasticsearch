@@ -25,9 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
@@ -43,6 +40,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -51,7 +51,6 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
@@ -61,6 +60,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,11 +94,11 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         getGeoShapeMapping(mapping);
         mapping.field("orientation", "right").endObject().endObject().endObject();
 
-        assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping));
-        ensureGreen(idxName, idxName+"2");
+        assertAcked(prepareCreate(idxName + "2").addMapping("shape", mapping));
+        ensureGreen(idxName, idxName + "2");
 
         internalCluster().fullRestart();
-        ensureGreen(idxName, idxName+"2");
+        ensureGreen(idxName, idxName + "2");
 
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
@@ -107,19 +107,19 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertThat(fieldType, instanceOf(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.class));
 
         AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?> gsfm =
-            (AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?>)fieldType;
+            (AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?>) fieldType;
         Orientation orientation = gsfm.orientation();
         assertThat(orientation, equalTo(Orientation.CLOCKWISE));
         assertThat(orientation, equalTo(Orientation.LEFT));
         assertThat(orientation, equalTo(Orientation.CW));
 
         // right orientation test
-        indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
-        indexService = indicesService.indexService(resolveIndex((idxName+"2")));
+        indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName + "2"));
+        indexService = indicesService.indexService(resolveIndex((idxName + "2")));
         fieldType = indexService.mapperService().fieldType("location");
         assertThat(fieldType, instanceOf(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.class));
 
-        gsfm = (AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?>)fieldType;
+        gsfm = (AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?>) fieldType;
         orientation = gsfm.orientation();
         assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(Orientation.RIGHT));
@@ -138,22 +138,46 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
-        String polygonGeoJson = Strings.toString(XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
-            .startArray("coordinates")
-            .startArray()
-            .startArray().value(176.0).value(15.0).endArray()
-            .startArray().value(-177.0).value(10.0).endArray()
-            .startArray().value(-177.0).value(-10.0).endArray()
-            .startArray().value(176.0).value(-15.0).endArray()
-            .startArray().value(-177.0).value(15.0).endArray()
-            .startArray().value(172.0).value(0.0).endArray()
-            .startArray().value(176.0).value(15.0).endArray()
-            .endArray()
-            .endArray()
-            .endObject());
+        String polygonGeoJson = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .field("type", "Polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray()
+                .value(176.0)
+                .value(15.0)
+                .endArray()
+                .startArray()
+                .value(-177.0)
+                .value(10.0)
+                .endArray()
+                .startArray()
+                .value(-177.0)
+                .value(-10.0)
+                .endArray()
+                .startArray()
+                .value(176.0)
+                .value(-15.0)
+                .endArray()
+                .startArray()
+                .value(-177.0)
+                .value(15.0)
+                .endArray()
+                .startArray()
+                .value(172.0)
+                .value(0.0)
+                .endArray()
+                .startArray()
+                .value(176.0)
+                .value(15.0)
+                .endArray()
+                .endArray()
+                .endArray()
+                .endObject()
+        );
 
-        indexRandom(true, client().prepareIndex("test", "shape").setId("0").setSource("shape",
-            polygonGeoJson));
+        indexRandom(true, client().prepareIndex("test", "shape").setId("0").setSource("shape", polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -162,9 +186,13 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("_routing").field("required", true).endObject()
-            .startObject("properties").startObject("shape");
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_routing")
+            .field("required", true)
+            .endObject()
+            .startObject("properties")
+            .startObject("shape");
         getGeoShapeMapping(mapping);
         mapping.endObject().endObject().endObject();
 
@@ -172,18 +200,18 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("shape", mapping));
         ensureGreen();
 
-        String source = "{\n" +
-            "    \"shape\" : {\n" +
-            "        \"type\" : \"bbox\",\n" +
-            "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n" +
-            "    }\n" +
-            "}";
+        String source = "{\n"
+            + "    \"shape\" : {\n"
+            + "        \"type\" : \"bbox\",\n"
+            + "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n"
+            + "    }\n"
+            + "}";
 
         indexRandom(true, client().prepareIndex("test", "shape").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
-            geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC")
-        ).get();
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -197,9 +225,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("shape", mapping).get());
         ensureGreen();
 
-        String source = "{\n" +
-            "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" +
-            "}";
+        String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
 
         indexRandom(true, client().prepareIndex("test", "shape").setId("0").setSource(source, XContentType.JSON));
 
@@ -225,12 +251,12 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("shape", mapping).get());
         ensureGreen();
 
-        String source = "{\n" +
-            "    \"shape\" : {\n" +
-            "        \"type\" : \"bbox\",\n" +
-            "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n" +
-            "    }\n" +
-            "}";
+        String source = "{\n"
+            + "    \"shape\" : {\n"
+            + "        \"type\" : \"bbox\",\n"
+            + "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n"
+            + "    }\n"
+            + "}";
 
         indexRandom(true, client().prepareIndex("test", "shape").setId("0").setSource(source, XContentType.JSON));
         refresh();
@@ -241,14 +267,16 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-            SearchRequestBuilder builder = client().prepareSearch("test").setQuery(geoShapeQuery("shape",
-                new Circle(0, 0, 77000)));
+            SearchRequestBuilder builder = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(0, 0, 77000)));
             if (allowExpensiveQueries()) {
                 assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
             } else {
                 ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::get);
-                assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
-                    "'search.allow_expensive_queries' is set to false.", e.getCause().getMessage());
+                assertEquals(
+                    "[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when "
+                        + "'search.allow_expensive_queries' is set to false.",
+                    e.getCause().getMessage()
+                );
             }
 
             // Set search.allow_expensive_queries to "null"
@@ -270,10 +298,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
     }
 
     public void testShapeRelations() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("area");
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("area");
         getGeoShapeMapping(mapping);
         mapping.endObject().endObject().endObject();
 
@@ -286,23 +311,10 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         // the second polygon of size 4x4 equidistant from all sites
         List<Polygon> polygons = org.elasticsearch.core.List.of(
             new Polygon(
-                new LinearRing(
-                    new double[] {-10, -10, 10, 10, -10},
-                    new double[] {-10, 10, 10, -10, -10}
-                ),
-                org.elasticsearch.core.List.of(
-                    new LinearRing(
-                        new double[] {-5, -5, 5, 5, -5},
-                        new double[] {-5, 5, 5, -5, -5}
-                    )
-                )
+                new LinearRing(new double[] { -10, -10, 10, 10, -10 }, new double[] { -10, 10, 10, -10, -10 }),
+                org.elasticsearch.core.List.of(new LinearRing(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 }))
             ),
-            new Polygon(
-                new LinearRing(
-                    new double[] {-4, -4, 4, 4, -4},
-                    new double[] {-4, 4, 4, -4, -4}
-                )
-            )
+            new Polygon(new LinearRing(new double[] { -4, -4, 4, 4, -4 }, new double[] { -4, 4, 4, -4, -4 }))
         );
 
         BytesReference data = BytesReference.bytes(
@@ -347,7 +359,6 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
-
         // Point not in polygon
         result = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -365,16 +376,8 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
 
         // Create a polygon that fills the empty area of the polygon defined above
         Polygon inverse = new Polygon(
-            new LinearRing(
-                new double[] {-5, -5, 5, 5, -5},
-                new double[] {-5, 5, 5, -5, -5}
-            ),
-            org.elasticsearch.core.List.of(
-                new LinearRing(
-                    new double[] {-4, -4, 4, 4, -4},
-                    new double[] {-4, 4, 4, -4, -4}
-                )
-            )
+            new LinearRing(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 }),
+            org.elasticsearch.core.List.of(new LinearRing(new double[] { -4, -4, 4, 4, -4 }, new double[] { -4, 4, 4, -4, -4 }))
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(inverse)).endObject());
@@ -389,28 +392,14 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("2"));
 
-
         // Polygon WithIn Polygon
-        Polygon WithIn = new Polygon(
-            new LinearRing(
-                new double[] {-30, -30, 30, 30, -30},
-                new double[] {-30, 30, 30, -30, -30}
-            )
-        );
+        Polygon WithIn = new Polygon(new LinearRing(new double[] { -30, -30, 30, 30, -30 }, new double[] { -30, 30, 30, -30, -30 }));
 
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(QueryBuilders.geoWithinQuery("area", WithIn))
-            .get();
+        result = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(QueryBuilders.geoWithinQuery("area", WithIn)).get();
         assertHitCount(result, 2);
 
         // Create a polygon crossing longitude 180.
-        Polygon crossing = new Polygon(
-            new LinearRing(
-                new double[] {170, 190, 190, 170, 170},
-                new double[] {-10, -10, 10, 10, -10}
-            )
-        );
+        Polygon crossing = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
         client().prepareIndex("shapes", "shape").setId("1").setSource(data, XContentType.JSON).get();
@@ -418,16 +407,8 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
 
         // Create a polygon crossing longitude 180 with hole.
         crossing = new Polygon(
-            new LinearRing(
-                new double[] {170, 190, 190, 170, 170},
-                new double[] {-10, -10, 10, 10, -10}
-            ),
-            org.elasticsearch.core.List.of(
-                new LinearRing(
-                    new double[] {175, 185, 185, 175, 175},
-                    new double[] {-5, -5, 5, 5, -5}
-                )
-            )
+            new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }),
+            org.elasticsearch.core.List.of(new LinearRing(new double[] { 175, 185, 185, 175, 175 }, new double[] { -5, -5, 5, 5, -5 }))
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
@@ -479,8 +460,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        client().admin().indices().prepareCreate("countries").setSettings(settings)
-            .addMapping("country", xContentBuilder).get();
+        client().admin().indices().prepareCreate("countries").setSettings(settings).addMapping("country", xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
@@ -490,9 +470,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
         String key = "DE";
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchQuery("_id", key))
-            .get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("_id", key)).get();
 
         assertHitCount(searchResponse, 1);
 
@@ -500,15 +478,17 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
             assertThat(hit.getId(), equalTo(key));
         }
 
-        SearchResponse world = client().prepareSearch().addStoredField("pin").setQuery(
-            geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)
-        ).get();
+        SearchResponse world = client().prepareSearch()
+            .addStoredField("pin")
+            .setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999))
+            .get();
 
         assertHitCount(world, 53);
 
-        SearchResponse distance = client().prepareSearch().addStoredField("pin").setQuery(
-            geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
-        ).get();
+        SearchResponse distance = client().prepareSearch()
+            .addStoredField("pin")
+            .setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851))
+            .get();
 
         assertHitCount(distance, 5);
         GeoPoint point = new GeoPoint();

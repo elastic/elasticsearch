@@ -17,13 +17,17 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
@@ -121,10 +125,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      * @param client For performing any update operations necessary to prepare for the upgrade.
      * @param listener Call {@link ActionListener#onResponse(Object)} when preparation for migration is complete.
      */
-    void prepareForIndicesMigration(
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Map<String, Object>> listener) {
+    void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
         owningFeature.getPreMigrationFunction().prepareForIndicesMigration(clusterService, client, listener);
     }
 
@@ -196,16 +197,30 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             // Get Settings from old index
             settings = copySettingsForNewIndex(currentIndex.getSettings(), indexScopedSettings);
 
-            // Copy mapping from the old index
-            mapping = currentIndex.mapping().source().string();
+            // Copy mapping from the old index - start from the Map version so we can be sure we don't have the (old) type name
+            Map<String, Object> mappingSource = currentIndex.mapping().sourceAsMap();
+
+            // Now wrap it in a `_doc` type
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startObject();
+                builder.startObject("_doc");
+                builder.mapContents(mappingSource);
+                builder.endObject();
+                builder.endObject();
+                mapping = BytesReference.bytes(builder).utf8ToString();
+            } catch (IOException e) {
+                // If this happens it probably means you broke the JSON building code above - it should be impossible for this to happen
+                // in the field.
+                final String errorMsg = new ParameterizedMessage(
+                    "exception while building mapping for migration of index [{}]",
+                    currentIndex.getIndex().getName()
+                ).getFormattedMessage();
+                assert false : errorMsg;
+                throw new IllegalStateException(errorMsg, e);
+            }
         }
-        return new SystemIndexMigrationInfo(
-            currentIndex,
-            feature.getName(),
-            settings,
-            mapping,
-            descriptor.getOrigin(),
-            feature);
+
+        return new SystemIndexMigrationInfo(currentIndex, feature.getName(), settings, mapping, descriptor.getOrigin(), feature);
     }
 
     private static Settings copySettingsForNewIndex(Settings currentIndexSettings, IndexScopedSettings indexScopedSettings) {

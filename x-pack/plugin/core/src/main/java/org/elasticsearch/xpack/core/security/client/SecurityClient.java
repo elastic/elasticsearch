@@ -78,6 +78,10 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
@@ -86,10 +90,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
@@ -180,7 +180,7 @@ public class SecurityClient {
     }
 
     public HasPrivilegesRequestBuilder prepareHasPrivileges(String username, BytesReference source, XContentType xContentType)
-            throws IOException {
+        throws IOException {
         return new HasPrivilegesRequestBuilder(client).source(username, source, xContentType);
     }
 
@@ -241,8 +241,12 @@ public class SecurityClient {
         return new ChangePasswordRequestBuilder(client).username(username).password(password, hasher);
     }
 
-    public ChangePasswordRequestBuilder prepareChangePassword(String username, BytesReference source, XContentType xContentType,
-                                                              Hasher hasher) throws IOException {
+    public ChangePasswordRequestBuilder prepareChangePassword(
+        String username,
+        BytesReference source,
+        XContentType xContentType,
+        Hasher hasher
+    ) throws IOException {
         return new ChangePasswordRequestBuilder(client).username(username).source(source, xContentType, hasher);
     }
 
@@ -295,23 +299,20 @@ public class SecurityClient {
      */
 
     public GetRoleMappingsRequestBuilder prepareGetRoleMappings(String... names) {
-        return new GetRoleMappingsRequestBuilder(client, GetRoleMappingsAction.INSTANCE)
-                .names(names);
+        return new GetRoleMappingsRequestBuilder(client, GetRoleMappingsAction.INSTANCE).names(names);
     }
 
-    public void getRoleMappings(GetRoleMappingsRequest request,
-                                ActionListener<GetRoleMappingsResponse> listener) {
+    public void getRoleMappings(GetRoleMappingsRequest request, ActionListener<GetRoleMappingsResponse> listener) {
         client.execute(GetRoleMappingsAction.INSTANCE, request, listener);
     }
 
-    public PutRoleMappingRequestBuilder preparePutRoleMapping(
-            String name, BytesReference content, XContentType xContentType) throws IOException {
+    public PutRoleMappingRequestBuilder preparePutRoleMapping(String name, BytesReference content, XContentType xContentType)
+        throws IOException {
         return new PutRoleMappingRequestBuilder(client, PutRoleMappingAction.INSTANCE).source(name, content, xContentType);
     }
 
     public DeleteRoleMappingRequestBuilder prepareDeleteRoleMapping(String name) {
-        return new DeleteRoleMappingRequestBuilder(client, DeleteRoleMappingAction.INSTANCE)
-                .name(name);
+        return new DeleteRoleMappingRequestBuilder(client, DeleteRoleMappingAction.INSTANCE).name(name);
     }
 
     /* -- Application Privileges -- */
@@ -324,8 +325,7 @@ public class SecurityClient {
     }
 
     public DeletePrivilegesRequestBuilder prepareDeletePrivileges(String applicationName, String[] privileges) {
-        return new DeletePrivilegesRequestBuilder(client, DeletePrivilegesAction.INSTANCE)
-            .application(applicationName)
+        return new DeletePrivilegesRequestBuilder(client, DeletePrivilegesAction.INSTANCE).application(applicationName)
             .privileges(privileges);
     }
 
@@ -386,9 +386,8 @@ public class SecurityClient {
     }
 
     public CreateTokenRequestBuilder prepareRefreshToken(String refreshToken) {
-        return new CreateTokenRequestBuilder(client, RefreshTokenAction.INSTANCE)
-                .setRefreshToken(refreshToken)
-                .setGrantType("refresh_token");
+        return new CreateTokenRequestBuilder(client, RefreshTokenAction.INSTANCE).setRefreshToken(refreshToken)
+            .setGrantType("refresh_token");
     }
 
     public void refreshToken(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {

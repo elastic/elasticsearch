@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -40,16 +40,19 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ApplicationResourcePrivileges, Void> PARSER = new ConstructingObjectParser<>(
-            "application_privileges", false, constructorObjects -> {
-                // Don't ignore unknown fields. It is dangerous if the object we parse is also
-                // part of a request that we build later on, and the fields that we now ignore will
-                // end up being implicitly set to null in that request.
-                int i = 0;
-                final String application = (String) constructorObjects[i++];
-                final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
-                final Collection<String> resources = (Collection<String>) constructorObjects[i];
-                return new ApplicationResourcePrivileges(application, privileges, resources);
-            });
+        "application_privileges",
+        false,
+        constructorObjects -> {
+            // Don't ignore unknown fields. It is dangerous if the object we parse is also
+            // part of a request that we build later on, and the fields that we now ignore will
+            // end up being implicitly set to null in that request.
+            int i = 0;
+            final String application = (String) constructorObjects[i++];
+            final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
+            final Collection<String> resources = (Collection<String>) constructorObjects[i];
+            return new ApplicationResourcePrivileges(application, privileges, resources);
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), APPLICATION);
@@ -110,9 +113,7 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
             return false;
         }
         ApplicationResourcePrivileges that = (ApplicationResourcePrivileges) o;
-        return application.equals(that.application)
-                && privileges.equals(that.privileges)
-                && resources.equals(that.resources);
+        return application.equals(that.application) && privileges.equals(that.privileges) && resources.equals(that.resources);
     }
 
     @Override

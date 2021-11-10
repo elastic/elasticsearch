@@ -33,14 +33,16 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         createIndex("foo");
         client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("index.blocks.write", true)).get();
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
-                .trigger(schedule(interval("10m")))
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("10m")))
 
-                        // adding an action that throws an error and is associated with a 60 minute throttle period
-                        // with such a period, on successful execution we other executions of the watch will be
-                        // throttled within the hour... but on failed execution there should be no throttling
-                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo", "bar")))
-                .get();
+                    // adding an action that throws an error and is associated with a 60 minute throttle period
+                    // with such a period, on successful execution we other executions of the watch will be
+                    // throttled within the hour... but on failed execution there should be no throttling
+                    .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo", "bar"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -50,9 +52,11 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // there should be a single history record with a failure status for the action:
         assertBusy(() -> {
-            long count = watchRecordCount(QueryBuilders.boolQuery()
+            long count = watchRecordCount(
+                QueryBuilders.boolQuery()
                     .must(termsQuery("result.actions.id", "_action"))
-                    .must(termsQuery("result.actions.status", "failure")));
+                    .must(termsQuery("result.actions.status", "failure"))
+            );
             assertThat(count, is(1L));
         });
 
@@ -67,9 +71,11 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // there should be a single history record with a failure status for the action:
         assertBusy(() -> {
-            long count = watchRecordCount(QueryBuilders.boolQuery()
+            long count = watchRecordCount(
+                QueryBuilders.boolQuery()
                     .must(termsQuery("result.actions.id", "_action"))
-                    .must(termsQuery("result.actions.status", "failure")));
+                    .must(termsQuery("result.actions.status", "failure"))
+            );
             assertThat(count, is(2L));
         });
 

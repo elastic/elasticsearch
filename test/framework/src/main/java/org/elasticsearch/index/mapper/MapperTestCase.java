@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -21,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Set;
@@ -123,7 +125,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(query, instanceOf(TermQuery.class));
             TermQuery termQuery = (TermQuery) query;
             assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
-            //we always perform a term query against _field_names, even when the field
+            // we always perform a term query against _field_names, even when the field
             // is not added to _field_names because it is not indexed nor stored
             assertEquals("field", termQuery.getTerm().text());
             assertNoDocValuesField(fields, "field");
@@ -179,8 +181,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(checker.apply(fieldType), equalTo(isDimension));
     }
 
-    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
-        throws IOException {
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_metric", metricType);
@@ -224,17 +225,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
+    protected Level getWarningLevel() {
+        return DeprecationLogger.CRITICAL;
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(warnings);
+            assertWarnings(getWarningLevel(), warnings);
         }
     }
 
     protected final void assertParseMaximalWarnings() {
         String[] warnings = getParseMaximalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(warnings);
+            assertWarnings(getWarningLevel(), warnings);
         }
     }
 
@@ -261,12 +266,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testMeta() throws IOException {
         assumeTrue("Field doesn't support meta", supportsMeta());
-        XContentBuilder mapping = fieldMapping(
-            b -> {
-                metaMapping(b);
-                b.field("meta", Collections.singletonMap("foo", "bar"));
-            }
-        );
+        XContentBuilder mapping = fieldMapping(b -> {
+            metaMapping(b);
+            b.field("meta", Collections.singletonMap("foo", "bar"));
+        });
         MapperService mapperService = createMapperService(mapping);
         assertEquals(
             XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
@@ -302,9 +305,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("boost", 2.0);
         }));
         String type = typeName();
-        String[] warnings = Strings.concatStringArrays(getParseMinimalWarnings(),
-            new String[]{"Parameter [boost] on field [field] is deprecated and will be removed in 8.0",
-                         "Parameter [boost] has no effect on type [" + type + "] and will be removed in future"});
+        String[] warnings = Strings.concatStringArrays(
+            getParseMinimalWarnings(),
+            new String[] {
+                "Parameter [boost] on field [field] is deprecated and will be removed in 8.0",
+                "Parameter [boost] has no effect on type [" + type + "] and will be removed in future" }
+        );
         allowedWarnings(warnings);
     }
 
@@ -315,17 +321,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         throws IOException {
 
         SetOnce<List<?>> result = new SetOnce<>();
-        withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
-        }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
-            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
-            IndexSearcher searcher = newSearcher(iw);
-            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
-            valueFetcher.setNextReader(context);
-            result.set(valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
-        });
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
+            iw -> {
+                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
+                IndexSearcher searcher = newSearcher(iw);
+                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+                lookup.source().setSegmentAndDocument(context, 0);
+                valueFetcher.setNextReader(context);
+                result.set(valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+            }
+        );
         return result.get();
     }
 
@@ -334,8 +342,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         final XContentBuilder update;
         final Consumer<FieldMapper> check;
 
-        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update,
-                            Consumer<FieldMapper> check) throws IOException {
+        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check) throws IOException {
             this.init = fieldMapping(MapperTestCase.this::minimalMapping);
             this.update = fieldMapping(b -> {
                 minimalMapping(b);
@@ -344,9 +351,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             this.check = check;
         }
 
-        private UpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
-                            CheckedConsumer<XContentBuilder, IOException> update,
-                            Consumer<FieldMapper> check) throws IOException {
+        private UpdateCheck(
+            CheckedConsumer<XContentBuilder, IOException> init,
+            CheckedConsumer<XContentBuilder, IOException> update,
+            Consumer<FieldMapper> check
+        ) throws IOException {
             this.init = fieldMapping(init);
             this.update = fieldMapping(update);
             this.check = check;
@@ -374,8 +383,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * @param update a field builder applied on top of the minimal mapping
          * @param check  a check that the updated parameter has been applied to the FieldMapper
          */
-        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> update,
-                                        Consumer<FieldMapper> check) throws IOException {
+        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> update, Consumer<FieldMapper> check)
+            throws IOException {
             updateChecks.add(new UpdateCheck(update, check));
         }
 
@@ -386,9 +395,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * @param update the updated mapping
          * @param check  a check that the updated parameter has been applied to the FieldMapper
          */
-        public void registerUpdateCheck(CheckedConsumer<XContentBuilder, IOException> init,
-                                        CheckedConsumer<XContentBuilder, IOException> update,
-                                        Consumer<FieldMapper> check) throws IOException {
+        public void registerUpdateCheck(
+            CheckedConsumer<XContentBuilder, IOException> init,
+            CheckedConsumer<XContentBuilder, IOException> update,
+            Consumer<FieldMapper> check
+        ) throws IOException {
             updateChecks.add(new UpdateCheck(init, update, check));
         }
 
@@ -399,13 +410,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * @param update a field builder applied on top of the minimal mapping
          */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
-            conflictChecks.put(param, new ConflictCheck(
-                fieldMapping(MapperTestCase.this::minimalMapping),
-                fieldMapping(b -> {
-                    minimalMapping(b);
-                    update.accept(b);
-                })
-            ));
+            conflictChecks.put(param, new ConflictCheck(fieldMapping(MapperTestCase.this::minimalMapping), fieldMapping(b -> {
+                minimalMapping(b);
+                update.accept(b);
+            })));
         }
 
         /**
@@ -441,12 +449,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             // merging the same change is fine
             merge(mapperService, checker.conflictChecks.get(param).init);
             // merging the conflicting update should throw an exception
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
                 "No conflict when updating parameter [" + param + "]",
-                () -> merge(mapperService, checker.conflictChecks.get(param).update));
-            assertThat(e.getMessage(), anyOf(
-                containsString("Cannot update parameter [" + param + "]"),
-                containsString("different [" + param + "]")));
+                () -> merge(mapperService, checker.conflictChecks.get(param).update)
+            );
+            assertThat(
+                e.getMessage(),
+                anyOf(containsString("Cannot update parameter [" + param + "]"), containsString("different [" + param + "]"))
+            );
         }
         assertParseMaximalWarnings();
     }
@@ -545,24 +556,20 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         // dimension cannot be updated
         checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", true));
         checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", false));
-        checker.registerConflictCheck("time_series_dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", false);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true);
-            }));
-        checker.registerConflictCheck("time_series_dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", false);
-            }));
+        checker.registerConflictCheck("time_series_dimension", fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", false);
+        }), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }));
+        checker.registerConflictCheck("time_series_dimension", fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", false);
+        }));
     }
 
     /**
@@ -657,8 +664,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            ScriptDocValues<?> fieldData = fieldType
-                .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            ScriptDocValues<?> fieldData = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(ctx)
                 .getScriptValues();
@@ -666,10 +672,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             fieldData.setNextDocId(0);
 
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            ScriptDocValues<?> indexData = fieldType
-                .fielddataBuilder("test", () -> {
-                    throw new UnsupportedOperationException();
-                })
+            ScriptDocValues<?> indexData = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
                 .getScriptValues();
@@ -703,9 +706,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(this::writeField);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
 
-        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s) -> {
-            throw new UnsupportedOperationException();
-        });
+        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s) -> { throw new UnsupportedOperationException(); });
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
@@ -733,7 +734,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
 
-        assertWarnings(getParseMinimalWarnings());
+        assertWarnings(getWarningLevel(), getParseMinimalWarnings());
     }
 
     protected boolean allowsNullValues() {

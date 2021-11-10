@@ -8,18 +8,18 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
@@ -43,24 +43,36 @@ import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction
 
 public class RestExecuteWatchAction extends WatcherRestHandler implements RestRequestFilter {
 
-    private static final List<String> RESERVED_FIELD_NAMES = asList(WatchField.TRIGGER.getPreferredName(),
-            WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),
-            WatchField.ACTIONS.getPreferredName(), WatchField.TRANSFORM.getPreferredName(),
-            WatchField.THROTTLE_PERIOD.getPreferredName(), WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
-            WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
+    private static final List<String> RESERVED_FIELD_NAMES = asList(
+        WatchField.TRIGGER.getPreferredName(),
+        WatchField.INPUT.getPreferredName(),
+        WatchField.CONDITION.getPreferredName(),
+        WatchField.ACTIONS.getPreferredName(),
+        WatchField.TRANSFORM.getPreferredName(),
+        WatchField.THROTTLE_PERIOD.getPreferredName(),
+        WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
+        WatchField.METADATA.getPreferredName(),
+        WatchField.STATUS.getPreferredName()
+    );
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            Route.builder(POST, "/_watcher/watch/{id}/_execute")
-                .replaces(POST, URI_BASE + "/watcher/watch/{id}/_execute", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_watcher/watch/{id}/_execute")
-                .replaces(PUT, URI_BASE + "/watcher/watch/{id}/_execute", RestApiVersion.V_7).build(),
-            Route.builder(POST, "/_watcher/watch/_execute")
-                .replaces(POST, URI_BASE + "/watcher/watch/_execute", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_watcher/watch/_execute")
-                .replaces(PUT, URI_BASE + "/watcher/watch/_execute", RestApiVersion.V_7).build()
-        ));
+        return unmodifiableList(
+            asList(
+                Route.builder(POST, "/_watcher/watch/{id}/_execute")
+                    .replaces(POST, URI_BASE + "/watcher/watch/{id}/_execute", RestApiVersion.V_7)
+                    .build(),
+                Route.builder(PUT, "/_watcher/watch/{id}/_execute")
+                    .replaces(PUT, URI_BASE + "/watcher/watch/{id}/_execute", RestApiVersion.V_7)
+                    .build(),
+                Route.builder(POST, "/_watcher/watch/_execute")
+                    .replaces(POST, URI_BASE + "/watcher/watch/_execute", RestApiVersion.V_7)
+                    .build(),
+                Route.builder(PUT, "/_watcher/watch/_execute")
+                    .replaces(PUT, URI_BASE + "/watcher/watch/_execute", RestApiVersion.V_7)
+                    .build()
+            )
+        );
     }
 
     @Override
@@ -84,7 +96,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
         });
     }
 
-    //This tightly binds the REST API to the java API
+    // This tightly binds the REST API to the java API
     private ExecuteWatchRequest parseRequest(RestRequest request, WatcherClient client) throws IOException {
         ExecuteWatchRequestBuilder builder = client.prepareExecuteWatch();
         builder.setId(request.param("id"));
@@ -111,8 +123,10 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                     } else if (RECORD_EXECUTION.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setRecordExecution(parser.booleanValue());
                     } else {
-                        throw new ElasticsearchParseException("could not parse watch execution request. unexpected boolean field [{}]",
-                                currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse watch execution request. unexpected boolean field [{}]",
+                            currentFieldName
+                        );
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (Field.ALTERNATIVE_INPUT.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -137,17 +151,22 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                                 }
                             } else {
                                 throw new ElasticsearchParseException(
-                                        "could not parse watch execution request. unexpected array field [{}]",
-                                        currentFieldName);
+                                    "could not parse watch execution request. unexpected array field [{}]",
+                                    currentFieldName
+                                );
                             }
                         }
                     } else {
                         if (RESERVED_FIELD_NAMES.contains(currentFieldName)) {
-                            throw new ElasticsearchParseException("please wrap watch including field [{}] inside a \"watch\" field",
-                                    currentFieldName);
+                            throw new ElasticsearchParseException(
+                                "please wrap watch including field [{}] inside a \"watch\" field",
+                                currentFieldName
+                            );
                         } else {
-                            throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]",
-                                    currentFieldName);
+                            throw new ElasticsearchParseException(
+                                "could not parse watch execution request. unexpected object field [{}]",
+                                currentFieldName
+                            );
                         }
                     }
                 } else {
@@ -160,10 +179,13 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
     }
 
     private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(
-            Sets.newHashSet("watch.input.http.request.auth.basic.password",
-                    "watch.input.chain.inputs.*.http.request.auth.basic.password",
-                    "watch.actions.*.email.attachments.*.reporting.auth.basic.password",
-                    "watch.actions.*.webhook.auth.basic.password"));
+        Sets.newHashSet(
+            "watch.input.http.request.auth.basic.password",
+            "watch.input.chain.inputs.*.http.request.auth.basic.password",
+            "watch.actions.*.email.attachments.*.reporting.auth.basic.password",
+            "watch.actions.*.webhook.auth.basic.password"
+        )
+    );
 
     @Override
     public Set<String> getFilteredFields() {

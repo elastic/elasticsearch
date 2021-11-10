@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[geo-match-enrich-policy-type]]
 === Example: Enrich your data based on geolocation
 
@@ -166,6 +165,8 @@ The API returns the following response:
 --------------------------------------------------
 DELETE /_ingest/pipeline/postal_lookup
 DELETE /_enrich/policy/postal_policy
+DELETE /postal_codes
+DELETE /users
 --------------------------------------------------
 // TEST[continued]
 ////

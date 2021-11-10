@@ -90,27 +90,72 @@ such as `node.name` could be specified on the command line.
 include::check-running.asciidoc[]
 
 [[windows-service]]
-==== Install {es} as a Service on Windows
+==== Install and run {es} as a service on Windows
 
-{es} can be installed as a service to run in the background or start
-automatically at boot time without any user interaction. This can be achieved
-through the `elasticsearch-service.bat` script in the `bin\` folder which allows one to
-install, remove, manage or configure the service and potentially start and
-stop the service, all from the command-line.
+You can install {es} as a service that runs in the background or starts
+automatically at boot time without user interaction.
+
+. Install {es} as a service. The name of the service and the value of
+`ES_JAVA_HOME` will be made available during install:
++
+["source","sh",subs="attributes"]
+----
+C:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat install
+Installing service      :  "elasticsearch-service-x64"
+Using ES_JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
+The service 'elasticsearch-service-x64' has been installed.
+----
+
+. Start {es} as a service. When {es} starts, authentication is enabled by
+default:
++
+["source","sh",subs="attributes"]
+----
+C:\elasticsearch-{version}{backslash}bin>bin\elasticsearch-service.bat start
+----
++
+NOTE: TLS is not enabled or configured when you start {es} as a service.
+
+. Generate a password for the `elastic` user, run the
+<<reset-password,`elasticsearch-reset-password`>> tool. The password is output
+to the command line.
++
+["source","sh",subs="attributes"]
+----
+C:\elasticsearch-{version}{backslash}bin>\bin\elasticsearch-reset-password -u elastic
+----
+
+NOTE: While a JRE can be used for the {es} service, due to its use of a client
+VM (as opposed to a server JVM which offers better performance for long-running 
+applications) its usage is discouraged and a warning will be issued.
+
+NOTE: The system environment variable `ES_JAVA_HOME` should be set to the path
+of the JDK installation that you want the service to use. If you upgrade the
+JDK, you are not required to the reinstall the service but you must set the
+value of the system environment variable `ES_JAVA_HOME` to the path to the new
+JDK installation. However, upgrading across JVM types (e.g. JRE versus SE) is
+not supported, and does require the service to be reinstalled.
+
+[[windows-service-manage]]
+===== Manage {es} as a service on Windows
+
+Run the `elasticsearch-service.bat` script in the `bin\` folder to install,
+remove, manage, or configure the service and potentially start and stop the
+service from the command line.
 
 ["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat
+----
+C:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat
 
 Usage: elasticsearch-service.bat install|remove|start|stop|manager [SERVICE_ID]
---------------------------------------------------
+----
 
-The script requires one parameter (the command to execute) followed by an
+The script requires one parameter (the command to execute), followed by an
 optional one indicating the service id (useful when installing multiple
 {es} services).
 
 The commands available are:
-
+--
 [horizontal]
 `install`:: Install {es} as a service
 
@@ -121,31 +166,13 @@ The commands available are:
 `stop`:: Stop the {es} service (if started)
 
 `manager`:: Start a GUI for managing the installed service
-
-The name of the service and the value of `ES_JAVA_HOME` will be made available during install:
-
-["source","sh",subs="attributes"]
---------------------------------------------------
-c:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat install
-Installing service      :  "elasticsearch-service-x64"
-Using ES_JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
-The service 'elasticsearch-service-x64' has been installed.
---------------------------------------------------
-
-NOTE: While a JRE can be used for the {es} service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
-
-NOTE: The system environment variable `ES_JAVA_HOME` should be set to the path
-to the JDK installation that you want the service to use. If you upgrade the
-JDK, you are not required to the reinstall the service but you must set the
-value of the system environment variable `ES_JAVA_HOME` to the path to the new
-JDK installation. However, upgrading across JVM types (e.g. JRE versus SE) is
-not supported, and does require the service to be reinstalled.
+--
 
 [[windows-service-settings]]
 [discrete]
 === Customize service settings
 
-The {es} service can be configured prior to installation by setting the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
+The {es} service can be configured prior to installation by setting the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the *System Properties->Environment Variables* GUI).
 
 [horizontal]
 `SERVICE_ID`::
@@ -194,7 +221,7 @@ The {es} service can be configured prior to installation by setting the followin
 
     Startup mode for the service. Can be either `auto` or `manual` (default).
 
-`ES_STOP_TIMEOUT` ::
+`ES_STOP_TIMEOUT`::
 
   The timeout in seconds that procrun waits for service to exit gracefully. Defaults to `0`.
 

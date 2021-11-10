@@ -1,6 +1,6 @@
 [role="exclude"]
 
-[source,sh]
+[source,text]
 ----
 The generated password for the elastic built-in superuser is:
 <password>

@@ -33,3 +33,13 @@ something happens that is worth recording. While {es} is running you can
 interact with it through its HTTP interface which is on port `9200` by default.
 
 To stop {es}, press `Ctrl-C`.
+
+[discrete]
+==== Enroll nodes in an existing cluster
+
+To enroll additional nodes in your cluster, create an enrollment token with the
+`elasticsearch-create-enrollment-token` tool. You can then start a node with the `--enrollment-token` parameter so that it joins an existing cluster.
+
+// The following include pulls in steps for enrolling nodes in a cluster from
+// a security page in the x-pack folder
+include::../../../../x-pack/docs/en/security/configuring-stack-security.asciidoc[tag=enroll-nodes]

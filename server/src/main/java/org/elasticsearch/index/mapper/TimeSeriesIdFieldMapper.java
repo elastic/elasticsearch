@@ -134,7 +134,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         // SortedMap is expected to be sorted by key (field name)
         SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
         if (dimensionFields.isEmpty()) {
-            throw new IllegalArgumentException("Dimension fields are missing");
+            throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -145,7 +145,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 int len = fieldNameBytes.length;
                 if (len > DIMENSION_NAME_LIMIT) {
                     throw new IllegalArgumentException(
-                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + fieldName + "] was [" + len + "]"
+                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + fieldName + "] was [" + len + "]."
                     );
                 }
                 // Write field name in utf-8 instead of writeString's utf-16-ish thing
@@ -155,7 +155,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
             BytesReference timeSeriesId = out.bytes();
             if (timeSeriesId.length() > LIMIT) {
-                throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "]");
+                throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
             }
             assert timeSeriesId != null : "In time series mode _tsid cannot be null";
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));

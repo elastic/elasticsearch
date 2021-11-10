@@ -410,7 +410,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.MediaTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderName());
+                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderNames());
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
@@ -465,11 +465,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         HttpRequest httpRequest,
         HttpChannel httpChannel,
         Exception badRequestCause,
-        String failedHeaderName
+        Set<String> failedHeaderNames
     ) {
-        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader(failedHeaderName);
+        assert failedHeaderNames.size() > 0;
+        HttpRequest httpRequestWithoutContentType = httpRequest;
+        for (String failedHeaderName : failedHeaderNames) {
+            httpRequestWithoutContentType = httpRequestWithoutContentType.removeHeader(failedHeaderName);
+        }
         try {
             return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+        } catch (final RestRequest.MediaTypeHeaderException e) {
+            badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+            return requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderNames());
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
             return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);

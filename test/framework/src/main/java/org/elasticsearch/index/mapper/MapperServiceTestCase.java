@@ -191,7 +191,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            idFieldDataEnabled,
+            new IdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );
     }
@@ -249,11 +249,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
     protected final SourceToParse source(String source) {
-        return new SourceToParse("test", "1", new BytesArray(source), XContentType.JSON);
+        return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
     }
 
     /**

@@ -53,11 +53,6 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public boolean isWithinMultiFields() {
-            return in.isWithinMultiFields();
-        }
-
-        @Override
         public ContentPath path() {
             return in.path();
         }
@@ -255,22 +250,6 @@ public abstract class DocumentParserContext {
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
     public boolean isWithinCopyTo() {
-        return false;
-    }
-
-    /**
-     * Return a new context that will be within multi-fields.
-     */
-    public final DocumentParserContext createMultiFieldContext() {
-        return new Wrapper(this) {
-            @Override
-            public boolean isWithinMultiFields() {
-                return true;
-            }
-        };
-    }
-
-    public boolean isWithinMultiFields() {
         return false;
     }
 

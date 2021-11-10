@@ -140,7 +140,7 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INI
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
@@ -2094,7 +2094,7 @@ public final class InternalTestCluster extends TestCluster {
             && prevMasterCount == 0
             && newMasterCount > 0
             && Arrays.stream(extraSettings)
-                .allMatch(s -> DiscoveryNode.isMasterNode(s) == false || ZEN2_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(s)))
+                .allMatch(s -> DiscoveryNode.isMasterNode(s) == false || MULTI_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(s)))
                     ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1)
                     : -1;
 

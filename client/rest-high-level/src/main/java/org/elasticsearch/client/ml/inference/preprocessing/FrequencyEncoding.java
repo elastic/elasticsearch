@@ -122,8 +122,8 @@ public class FrequencyEncoding implements PreProcessor {
         return Objects.hash(field, featureName, frequencyMap, custom);
     }
 
-    public Builder builder(String field) {
-        return new Builder(field);
+    public Builder builder(String fieldName) {
+        return new Builder(fieldName);
     }
 
     public static class Builder {

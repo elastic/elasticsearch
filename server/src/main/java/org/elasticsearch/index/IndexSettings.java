@@ -712,10 +712,7 @@ public final class IndexSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
             mergePolicyConfig::setMaxMergesAtOnce
         );
-        scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
-            mergePolicyConfig::setMaxMergesAtOnceExplicit
-        );
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, ignored -> {});
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
             mergePolicyConfig::setMaxMergedSegment

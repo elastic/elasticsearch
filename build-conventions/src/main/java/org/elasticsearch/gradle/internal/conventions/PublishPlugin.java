@@ -75,6 +75,7 @@ public class PublishPlugin implements Plugin<Project> {
                 publication.from(project.getComponents().getByName("java"));
             }
         });
+        @SuppressWarnings("unchecked")
         var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
             var node = xml.asNode();

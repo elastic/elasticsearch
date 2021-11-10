@@ -99,6 +99,7 @@ public class MetadataCreateDataStreamService {
         private final String name;
         private final long startTime;
         private final SystemDataStreamDescriptor descriptor;
+        private boolean performReroute = true;
 
         public CreateDataStreamClusterStateUpdateRequest(String name) {
             this(name, System.currentTimeMillis(), null, TimeValue.ZERO, TimeValue.ZERO);
@@ -133,6 +134,11 @@ public class MetadataCreateDataStreamService {
 
         public SystemDataStreamDescriptor getSystemDataStreamDescriptor() {
             return descriptor;
+        }
+
+        public CreateDataStreamClusterStateUpdateRequest performReroute(boolean performReroute){
+            this.performReroute = performReroute;
+            return this;
         }
     }
 
@@ -200,7 +206,7 @@ public class MetadataCreateDataStreamService {
                 "initialize_data_stream",
                 firstBackingIndexName,
                 firstBackingIndexName
-            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
+            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor).performReroute(request.performReroute);
 
             if (isSystem == false) {
                 createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);

@@ -23,6 +23,7 @@ import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
@@ -40,6 +41,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     private DocumentMapper createDocumentMapper(String routingPath, XContentBuilder mappings) throws IOException {
         return createMapperService(
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
                 .build(),
             mappings
@@ -84,7 +86,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testIncludeInDocumentNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b ->  b.field("_tsid", "foo")));
+        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("_tsid", "foo")));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_tsid] is a metadata field and cannot be added inside a document"));
     }
@@ -353,5 +355,161 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             e.getMessage(),
             equalTo("failed to parse field [a] of type [byte] in document with id '1'. Preview of field's value: '" + Long.MAX_VALUE + "'")
         );
+    }
+
+    /**
+     * Test with non-randomized ips for sanity checking.
+     */
+    public void testIp() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper("kw", mapping(b -> {
+            b.startObject("kw").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("a").field("type", "ip").field("time_series_dimension", true).endObject();
+            b.startObject("o")
+                .startObject("properties")
+                .startObject("e")
+                .field("type", "ip")
+                .field("time_series_dimension", true)
+                .endObject()
+                .endObject()
+                .endObject();
+        }));
+
+        ParsedDocument doc = parseDocument(
+            docMapper,
+            b -> b.field("a", "192.168.0.1").field("b", -1).field("c", "baz").startObject("o").field("e", "255.255.255.1").endObject()
+        );
+        assertMap(
+            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            matchesMap().entry("a", "192.168.0.1").entry("o.e", "255.255.255.1")
+        );
+    }
+
+    public void testIpInvalidString() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper("b", mapping(b -> {
+            b.startObject("a").field("type", "ip").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_an_ip")));
+        assertThat(
+            e.getMessage(),
+            equalTo("failed to parse field [a] of type [ip] in document with id '1'. Preview of field's value: 'not_an_ip'")
+        );
+    }
+
+    /**
+     * Tests when the total of the tsid is more than 32k.
+     */
+    public void testVeryLarge() throws IOException {
+        // By default, only 16 dimension fields are allowed. To support 100 dimension fields
+        // we must increase 'index.mapping.dimension_fields.limit'
+        DocumentMapper docMapper = createDocumentMapper("b", mapping(b -> {
+            b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
+            for (int i = 0; i < 100; i++) {
+                b.startObject("d" + i).field("type", "keyword").field("time_series_dimension", true).endObject();
+            }
+        }));
+
+        String large = "many words ".repeat(80);
+        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> {
+            for (int i = 0; i < 100; i++) {
+                b.field("d" + i, large);
+            }
+            return b;
+        }));
+        assertThat(e.getCause().getMessage(), equalTo("_tsid longer than [32766] bytes [88691]."));
+    }
+
+    /**
+     * Sending the same document twice produces the same value.
+     */
+    public void testSameGenConsistentForSameDoc() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "integer").field("time_series_dimension", true).endObject();
+            b.startObject("c").field("type", "long").field("time_series_dimension", true).endObject();
+        }));
+
+        String a = randomAlphaOfLength(10);
+        int b = between(1, 100);
+        int c = between(0, 2);
+        ParsedDocument doc1 = parseDocument(docMapper, d -> d.field("a", a).field("b", b).field("c", (long) c));
+        ParsedDocument doc2 = parseDocument(docMapper, d -> d.field("a", a).field("b", b).field("c", (long) c));
+
+        assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, equalTo(doc2.rootDoc().getBinaryValue("_tsid").bytes));
+    }
+
+    /**
+     * Non dimension fields don't influence the value of the dimension.
+     */
+    public void testExtraFieldsDoNotMatter() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "integer").field("time_series_dimension", true).endObject();
+            b.startObject("c").field("type", "long").field("time_series_dimension", true).endObject();
+        }));
+
+        String a = randomAlphaOfLength(10);
+        int b = between(1, 100);
+        int c = between(0, 2);
+        ParsedDocument doc1 = parseDocument(
+            docMapper,
+            d -> d.field("a", a).field("b", b).field("c", (long) c).field("e", between(10, 100))
+        );
+        ParsedDocument doc2 = parseDocument(
+            docMapper,
+            d -> d.field("a", a).field("b", b).field("c", (long) c).field("e", between(50, 200))
+        );
+        assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, equalTo(doc2.rootDoc().getBinaryValue("_tsid").bytes));
+    }
+
+    /**
+     * The order that the dimensions appear in the document do not influence the value.
+     */
+    public void testOrderDoesNotMatter() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "integer").field("time_series_dimension", true).endObject();
+            b.startObject("c").field("type", "long").field("time_series_dimension", true).endObject();
+        }));
+
+        String a = randomAlphaOfLength(10);
+        int b = between(1, 100);
+        int c = between(0, 2);
+        ParsedDocument doc1 = parseDocument(docMapper, d -> d.field("a", a).field("b", b).field("c", (long) c));
+        ParsedDocument doc2 = parseDocument(docMapper, d -> d.field("b", b).field("a", a).field("c", (long) c));
+        assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, equalTo(doc2.rootDoc().getBinaryValue("_tsid").bytes));
+    }
+
+    /**
+     * Dimensions that appear in the generator but not in the document don't influence the value.
+     */
+    public void testUnusedExtraDimensions() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "integer").field("time_series_dimension", true).endObject();
+            b.startObject("c").field("type", "long").field("time_series_dimension", true).endObject();
+        }));
+
+        String a = randomAlphaOfLength(10);
+        int b = between(1, 100);
+        ParsedDocument doc1 = parseDocument(docMapper, d -> d.field("a", a).field("b", b));
+        ParsedDocument doc2 = parseDocument(docMapper, d -> d.field("a", a).field("b", b));
+        assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, equalTo(doc2.rootDoc().getBinaryValue("_tsid").bytes));
+    }
+
+    /**
+     * Different values for dimensions change the result.
+     */
+    public void testDifferentValues() throws IOException {
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "integer").field("time_series_dimension", true).endObject();
+        }));
+
+        String a = randomAlphaOfLength(10);
+        int b = between(1, 100);
+        ParsedDocument doc1 = parseDocument(docMapper, d -> d.field("a", a).field("b", b));
+        ParsedDocument doc2 = parseDocument(docMapper, d -> d.field("a", a).field("b", b + 1));
+        assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, not(doc2.rootDoc().getBinaryValue("_tsid").bytes));
     }
 }

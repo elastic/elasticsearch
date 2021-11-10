@@ -123,8 +123,8 @@ public class ILMHistoryStore implements Closeable {
                 logger.error(new ParameterizedMessage("failed to index {} items into ILM history index", items), failure);
             }
         }, "ilm-history-store")
-            .setBulkActions(100000)
-            .setBulkSize(new ByteSizeValue(-1, ByteSizeUnit.BYTES))
+            .setBulkActions(-1)
+            .setBulkSize(new ByteSizeValue(50, ByteSizeUnit.MB))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))

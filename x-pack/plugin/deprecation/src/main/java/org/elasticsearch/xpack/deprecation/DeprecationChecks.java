@@ -53,8 +53,7 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,
-            ClusterDeprecationChecks::checkILMFreezeActions,
-            ClusterDeprecationChecks::checkTransientSettingsExistence
+            ClusterDeprecationChecks::checkILMFreezeActions
         )
     );
 

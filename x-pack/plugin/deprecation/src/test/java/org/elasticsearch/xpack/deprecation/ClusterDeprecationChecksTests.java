@@ -399,20 +399,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             null
         );
 
-        final DeprecationIssue otherExpectedIssue = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
-            "Transient cluster settings are deprecated",
-            "https://ela.st/es-deprecation-7-transient-cluster-settings",
-            "Use persistent settings to configure your cluster.",
-            false,
-            null
-        );
-
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
 
-        assertThat(issues, hasSize(2));
+        assertThat(issues, hasSize(1));
         assertThat(issues, hasItem(expectedIssue));
-        assertThat(issues, hasItem(otherExpectedIssue));
 
         final String expectedWarning = String.format(
             Locale.ROOT,

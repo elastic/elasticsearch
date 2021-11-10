@@ -19,7 +19,24 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
-<% if (docker_base == 'default' || docker_base == "ubi") { %>
+<% if (docker_base == 'iron_bank') { %>
+################################################################################
+# Build stage 0 `builder`:
+# Extract Elasticsearch artifact
+################################################################################
+
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
+ARG BASE_TAG=8.4
+
+FROM ${base_image} AS builder
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+COPY tini /bin/tini
+RUN chmod 0555 /bin/tini
+
+<% } else { %>
 ################################################################################
 # Build stage 0 `builder`:
 # Extract Elasticsearch artifact
@@ -48,23 +65,6 @@ RUN set -eux ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
     chmod 0555 /bin/tini
-
-<% } else if (docker_base == 'iron_bank') { %>
-################################################################################
-# Build stage 0 `builder`:
-# Extract Elasticsearch artifact
-################################################################################
-
-ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
-
-FROM ${base_image} AS builder
-
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-COPY tini /bin/tini
-RUN chmod 0555 /bin/tini
 
 <% } %>
 

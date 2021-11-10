@@ -2362,7 +2362,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             createClusterStateWith(createAutoFollowPattern("pattern1", "logs-*"), createAutoFollowPattern("pattern2", "logs-*"))
         );
 
-        // and stats are produced
+        // and stats are published
         autoFollowCoordinator.updateStats(
             List.of(
                 new AutoFollowCoordinator.AutoFollowResult("pattern1", new RuntimeException("ClusterStateFetchException")),
@@ -2370,26 +2370,22 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     "pattern1",
                     List.of(Tuple.tuple(new Index("index1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
                 ),
+                new AutoFollowCoordinator.AutoFollowResult("pattern2", new RuntimeException("ClusterStateFetchException")),
                 new AutoFollowCoordinator.AutoFollowResult(
                     "pattern2",
                     List.of(Tuple.tuple(new Index("index1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
                 )
             )
         );
-        // and applied
-        assertThat(
-            autoFollowCoordinator.getStats().getRecentAutoFollowErrors(),
-            allOf(hasKey("pattern1:index1"), hasKey("pattern2:index1"))
-        );
 
-        // when auto-follow pattern `pattern1` is removed
-        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(createAutoFollowPattern("pattern2", "logs-*")));
+        // when auto-follow pattern `pattern2` is removed
+        var before = autoFollowCoordinator.getStats();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(createAutoFollowPattern("pattern1", "logs-*")));
+        var after = autoFollowCoordinator.getStats();
 
-        // then stats are removed as well only for the first pattern
-        assertThat(
-            autoFollowCoordinator.getStats().getRecentAutoFollowErrors(),
-            allOf(not(hasKey("pattern1:index1")), hasKey("pattern2:index1"))
-        );
+        // then stats are removed as well (but only for the removed pattern)
+        assertThat(before.getRecentAutoFollowErrors(), allOf(hasKey("pattern1:index1"), hasKey("pattern2:index1")));
+        assertThat(after.getRecentAutoFollowErrors(), allOf(hasKey("pattern1:index1"), not(hasKey("pattern2:index1"))));
     }
 
     private AutoFollowCoordinator createAutoFollowCoordinator() {

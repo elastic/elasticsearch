@@ -34,14 +34,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_data_stream_timestamp";
     public static final String DEFAULT_PATH = "@timestamp";
 
-    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(
-        TimestampFieldType.INSTANCE,
-        true
-    );
-    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(
-        TimestampFieldType.INSTANCE,
-        false
-    );
+    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(true);
+    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
@@ -103,8 +97,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     private final boolean enabled;
 
-    private DataStreamTimestampFieldMapper(MappedFieldType mappedFieldType, boolean enabled) {
-        super(mappedFieldType);
+    private DataStreamTimestampFieldMapper(boolean enabled) {
+        super(TimestampFieldType.INSTANCE);
         this.enabled = enabled;
     }
 

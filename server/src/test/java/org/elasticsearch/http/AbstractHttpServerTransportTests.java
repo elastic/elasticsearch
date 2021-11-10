@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.net.InetAddress.getByName;
@@ -195,10 +196,32 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
+    public void testHandlingCompatibleVersionParsingErrors() {
+        // a compatible version exception (v7 on accept and v8 on content-type) should be handled gracefully
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (
+            AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Accept", "Content-Type"))
+        ) {
+            Map<String, List<String>> headers = new HashMap<>();
+            headers.put("Accept", Collections.singletonList("aaa/bbb;compatible-with=7"));
+            headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=8"));
+
+            FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
+                RestRequest.Method.GET,
+                "/",
+                new BytesArray(randomByteArrayOfLength(between(1, 20))),
+                headers
+            );
+
+            transport.incomingRequest(fakeHttpRequest, null);
+        }
+    }
+
     public void testIncorrectHeaderHandling() {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, "Accept")) {
+        try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Accept"))) {
 
             Map<String, List<String>> headers = new HashMap<>();
             headers.put("Accept", Collections.singletonList("incorrectheader"));
@@ -212,7 +235,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
             transport.incomingRequest(fakeHttpRequest, null);
         }
-        try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, "Content-Type")) {
+        try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Content-Type"))) {
             Map<String, List<String>> headers = new HashMap<>();
             headers.put("Accept", Collections.singletonList("application/json"));
             headers.put("Content-Type", Collections.singletonList("incorrectheader"));
@@ -230,7 +253,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private AbstractHttpServerTransport failureAssertingtHttpServerTransport(
         ClusterSettings clusterSettings,
-        final String failedHeaderName
+        final Set<String> failedHeaderNames
     ) {
         return new AbstractHttpServerTransport(
             Settings.EMPTY,
@@ -248,11 +271,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                     assertThat(cause, instanceOf(RestRequest.MediaTypeHeaderException.class));
                     RestRequest.MediaTypeHeaderException mediaTypeHeaderException = (RestRequest.MediaTypeHeaderException) cause;
-                    assertThat(mediaTypeHeaderException.getFailedHeaderName(), equalTo(failedHeaderName));
-                    assertThat(
-                        mediaTypeHeaderException.getMessage(),
-                        equalTo("Invalid media-type value on header [" + failedHeaderName + "]")
-                    );
+                    assertThat(mediaTypeHeaderException.getFailedHeaderNames(), equalTo(failedHeaderNames));
+                    assertThat(mediaTypeHeaderException.getMessage(), equalTo("Invalid media-type value on headers " + failedHeaderNames));
                 }
             },
             clusterSettings

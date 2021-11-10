@@ -27,10 +27,13 @@ public final class InferenceIndexConstants {
      * version: 7.10.0: 000003
      *  - adds trained_model_metadata object
      *
-     * version: 8.0.0: 000004
+     * version: 7.16.0: 000004
+     *  - adds model_size_bytes field as a estimated_heap_memory_usage_bytes replacement
+     *
+     * version: 8.0.0: 000005
      *  - adds binary_definition for TrainedModelDefinitionDoc
      */
-    public static final String INDEX_VERSION = "000004";
+    public static final String INDEX_VERSION = "000005";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
     public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;

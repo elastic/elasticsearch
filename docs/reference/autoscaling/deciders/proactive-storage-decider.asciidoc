@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-proactive-storage-decider]]
 === Proactive storage decider
 

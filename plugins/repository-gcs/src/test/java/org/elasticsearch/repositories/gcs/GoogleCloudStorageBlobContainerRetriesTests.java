@@ -419,7 +419,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         final int totalDeletes = randomIntBetween(MAX_DELETES_PER_BATCH - 1, MAX_DELETES_PER_BATCH * 2);
         final AtomicInteger pendingDeletes = new AtomicInteger();
-        final Iterator<String> blobNamesIterator = new Iterator<>() {
+        final Iterator<String> blobNamesIterator = new Iterator<String>() {
             int totalDeletesSent = 0;
 
             @Override

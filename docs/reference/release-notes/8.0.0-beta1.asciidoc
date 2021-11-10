@@ -17,11 +17,11 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
   anomaly detection results for different jobs to be mixed.
   Wait for `8.0.0-rc1` before attempting to test upgrading a cluster
   where {ml} was used prior to version `7.7.0`.
-* System indices are not hidden and they are included in wildcard queries when
-  using the `*` pattern. Do not rely on this behavior, since they will be
-  hidden in the GA release. If you need to access a system index, specify the
-  name, use a more specific wildcard, or use the `expand_wildcards` parameter
-  in your query.
+* System indices are included in wildcard queries when using the `*` pattern. Do 
+  not rely on this behavior, because system indices will be hidden in the 8.0 
+  release. If you need to access system indices, specify the index name, use a 
+  more specific wildcard, or use the `expand_wildcards` parameter in your query.
+
 * System indices are included in snapshots of all indices by default,
   and are restored by default when no indices are specified. This is because
   system indices are included in the implicit default "*" wildcard for

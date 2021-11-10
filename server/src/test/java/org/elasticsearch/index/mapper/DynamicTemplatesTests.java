@@ -688,7 +688,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
-                    "test",
                     "1",
                     new BytesArray("{\"foo\": \"41.12,-71.34\", \"bar\": \"41.12,-71.34\"}"),
                     XContentType.JSON,

@@ -50,7 +50,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -321,7 +320,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             final IndexRequest request = context.getRequestToExecute();
             final SourceToParse sourceToParse = new SourceToParse(
-                request.index(),
                 request.id(),
                 request.source(),
                 request.getContentType(),
@@ -582,9 +580,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             case CREATE:
             case INDEX:
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                final ShardId shardId = replica.shardId();
                 final SourceToParse sourceToParse = new SourceToParse(
-                    shardId.getIndexName(),
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),

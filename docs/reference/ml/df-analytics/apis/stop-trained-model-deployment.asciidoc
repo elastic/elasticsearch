@@ -30,10 +30,18 @@ experimental::[]
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-////
+
 [[stop-trained-model-deployment-query-params]]
 == {api-query-parms-title}
-////
+
+`allow_no_match`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+
+`force`::
+  (Optional, Boolean) If true, the deployment is stopped even if it is referenced by
+  ingest pipelines.
 
 ////
 [role="child_attributes"]

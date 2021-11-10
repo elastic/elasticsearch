@@ -34,7 +34,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -97,9 +98,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(MULTI_NODE_DISCOVERY_TYPE, SINGLE_NODE_DISCOVERY_TYPE);
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
+        assertEquals(
+            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType),
+            SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false
+        );
     }
 
     public void testEnforceLimitsWhenPublishingToNonLocalAddress() {
@@ -115,9 +119,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(MULTI_NODE_DISCOVERY_TYPE, SINGLE_NODE_DISCOVERY_TYPE);
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
+        assertEquals(
+            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType),
+            SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false
+        );
     }
 
     public void testExceptionAggregation() {
@@ -754,18 +761,18 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
 
         final BootstrapContext zen2Context = createTestContext(
-            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(),
+            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), MULTI_NODE_DISCOVERY_TYPE).build(),
             Metadata.EMPTY_METADATA
         );
 
         // not always enforced
         BootstrapChecks.check(zen2Context, false, checks);
 
-        // not enforced for non-zen2 discovery
+        // not enforced for non-multi-node discovery
         BootstrapChecks.check(
             createTestContext(
                 Settings.builder()
-                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), randomFrom("single-node", randomAlphaOfLength(5)))
+                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), randomFrom(SINGLE_NODE_DISCOVERY_TYPE, randomAlphaOfLength(5)))
                     .build(),
                 Metadata.EMPTY_METADATA
             ),
@@ -789,7 +796,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b -> {
             final BootstrapContext context = createTestContext(
-                b.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(),
+                b.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), MULTI_NODE_DISCOVERY_TYPE).build(),
                 Metadata.EMPTY_METADATA
             );
             BootstrapChecks.check(context, true, checks);

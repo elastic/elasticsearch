@@ -128,7 +128,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        final int numDocs = bulkRequest.numberOfActions();
+        final int numberOfDocs = bulkRequest.numberOfActions();
 
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
@@ -143,7 +143,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         RefreshResponse refreshResponse = highLevelClient().indices().refresh(new RefreshRequest("docs"), RequestOptions.DEFAULT);
         assertEquals(0, refreshResponse.getFailedShards());
-        return numDocs;
+        return numberOfDocs;
     }
 
     public void testDeleteRollupJob() throws Exception {
@@ -276,6 +276,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(getResponse.getJobs(), empty());
     }
 
+    @SuppressWarnings("HiddenField")
     public void testGetRollupCaps() throws Exception {
         final Set<Integer> values = new HashSet<>();
         double sum = 0.0d;
@@ -308,7 +309,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        final int numDocs = bulkRequest.numberOfActions();
+        final int numberOfDocs = bulkRequest.numberOfActions();
 
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
@@ -328,7 +329,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final String indexPattern = randomFrom("docs", "d*", "doc*");
         final String rollupIndex = randomFrom("rollup", "test");
         final String cron = "*/1 * * * * ?";
-        final int pageSize = randomIntBetween(numDocs, numDocs * 10);
+        final int pageSize = randomIntBetween(numberOfDocs, numberOfDocs * 10);
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
@@ -389,6 +390,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(valueCaps.size(), equalTo(SUPPORTED_METRICS.size()));
     }
 
+    @SuppressWarnings("HiddenField")
     public void testGetRollupIndexCaps() throws Exception {
         final Set<Integer> values = new HashSet<>();
         double sum = 0.0d;

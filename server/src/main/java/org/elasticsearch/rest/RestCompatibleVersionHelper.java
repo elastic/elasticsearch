@@ -32,47 +32,61 @@ class RestCompatibleVersionHelper {
 
         // accept version must be current or prior
         if (acceptVersion > RestApiVersion.current().major || acceptVersion < RestApiVersion.minimumSupported().major) {
-            throw new ElasticsearchStatusException(
-                "Accept version must be either version {} or {}, but found {}. Accept={}",
-                RestStatus.BAD_REQUEST,
-                RestApiVersion.current().major,
-                RestApiVersion.minimumSupported().major,
-                acceptVersion,
-                acceptHeader
+            throw new RestRequest.MediaTypeHeaderException(
+                new ElasticsearchStatusException(
+                    "Accept version must be either version {} or {}, but found {}. Accept={}",
+                    RestStatus.BAD_REQUEST,
+                    RestApiVersion.current().major,
+                    RestApiVersion.minimumSupported().major,
+                    acceptVersion,
+                    acceptHeader
+                ),
+                "Accept"
             );
         }
         if (hasContent) {
 
             // content-type version must be current or prior
             if (contentTypeVersion > RestApiVersion.current().major || contentTypeVersion < RestApiVersion.minimumSupported().major) {
-                throw new ElasticsearchStatusException(
-                    "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
-                    RestStatus.BAD_REQUEST,
-                    RestApiVersion.current().major,
-                    RestApiVersion.minimumSupported().major,
-                    contentTypeVersion,
-                    contentTypeHeader
+                throw new RestRequest.MediaTypeHeaderException(
+                    new ElasticsearchStatusException(
+                        "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
+                        RestStatus.BAD_REQUEST,
+                        RestApiVersion.current().major,
+                        RestApiVersion.minimumSupported().major,
+                        contentTypeVersion,
+                        contentTypeHeader
+                    ),
+                    "Content-Type"
                 );
             }
             // if both accept and content-type are sent, the version must match
             if (contentTypeVersion != acceptVersion) {
-                throw new ElasticsearchStatusException(
-                    "A compatible version is required on both Content-Type and Accept headers "
-                        + "if either one has requested a compatible version "
-                        + "and the compatible versions must match. Accept={}, Content-Type={}",
-                    RestStatus.BAD_REQUEST,
-                    acceptHeader,
-                    contentTypeHeader
+                throw new RestRequest.MediaTypeHeaderException(
+                    new ElasticsearchStatusException(
+                        "A compatible version is required on both Content-Type and Accept headers "
+                            + "if either one has requested a compatible version "
+                            + "and the compatible versions must match. Accept={}, Content-Type={}",
+                        RestStatus.BAD_REQUEST,
+                        acceptHeader,
+                        contentTypeHeader
+                    ),
+                    "Accept",
+                    "Content-Type"
                 );
             }
             // both headers should be versioned or none
             if ((cVersion == null && aVersion != null) || (aVersion == null && cVersion != null)) {
-                throw new ElasticsearchStatusException(
-                    "A compatible version is required on both Content-Type and Accept headers "
-                        + "if either one has requested a compatible version. Accept={}, Content-Type={}",
-                    RestStatus.BAD_REQUEST,
-                    acceptHeader,
-                    contentTypeHeader
+                throw new RestRequest.MediaTypeHeaderException(
+                    new ElasticsearchStatusException(
+                        "A compatible version is required on both Content-Type and Accept headers "
+                            + "if either one has requested a compatible version. Accept={}, Content-Type={}",
+                        RestStatus.BAD_REQUEST,
+                        acceptHeader,
+                        contentTypeHeader
+                    ),
+                    "Accept",
+                    "Content-Type"
                 );
             }
             if (contentTypeVersion < RestApiVersion.current().major) {

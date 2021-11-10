@@ -248,7 +248,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                     assertThat(cause, instanceOf(RestRequest.MediaTypeHeaderException.class));
                     RestRequest.MediaTypeHeaderException mediaTypeHeaderException = (RestRequest.MediaTypeHeaderException) cause;
-                    assertThat(mediaTypeHeaderException.getFailedHeaderName(), equalTo(failedHeaderName));
+                    assertThat(mediaTypeHeaderException.getFailedHeaderNames()[0], equalTo(failedHeaderName));
                     assertThat(
                         mediaTypeHeaderException.getMessage(),
                         equalTo("Invalid media-type value on header [" + failedHeaderName + "]")

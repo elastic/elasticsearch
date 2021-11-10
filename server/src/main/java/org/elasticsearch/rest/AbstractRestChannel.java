@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -93,30 +92,27 @@ public abstract class AbstractRestChannel implements RestChannel {
      */
     @Override
     public XContentBuilder newBuilder(
-        @Nullable XContentType requestContentType,
-        @Nullable XContentType responseContentType,
+        @Nullable XContentType requestContentType,// leniency..
+        @Nullable XContentType responseContentType,// an override
         boolean useFiltering
     ) throws IOException {
 
+        ParsedMediaType responseMediaType;
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
-                responseContentType = XContentType.fromFormat(format);
-            }
-            if (responseContentType == null && Strings.hasText(acceptHeader)) {
-                responseContentType = XContentType.fromMediaType(acceptHeader);
-            }
-        }
-        // try to determine the response content type from the media type or the format query string parameter, with the format parameter
-        // taking precedence over the Accept header
-        if (responseContentType == null) {
-            if (requestContentType != null) {
-                // if there was a parsed content-type for the incoming request use that since no format was specified using the query
-                // string parameter or the HTTP Accept header
-                responseContentType = requestContentType;
+                responseMediaType = XContentType.fromFormat(format).toParsedMediaType();
+            } else if (request.getParsedAccept() != null) {
+                responseMediaType = request.getParsedAccept();
             } else {
-                // default to JSON output when all else fails
+                responseMediaType = XContentType.JSON.toParsedMediaType();
+            }
+
+            responseContentType = responseMediaType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY);
+            if (responseContentType == null) {
                 responseContentType = XContentType.JSON;
             }
+        } else {
+            responseMediaType = responseContentType.toParsedMediaType();
         }
 
         Set<String> includes = Collections.emptySet();
@@ -129,11 +125,6 @@ public abstract class AbstractRestChannel implements RestChannel {
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
 
-        Map<String, String> parameters = request.getParsedAccept() != null
-            ? request.getParsedAccept().getParameters()
-            : Collections.emptyMap();
-        ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
-
         XContentBuilder builder = new XContentBuilder(
             XContentFactory.xContent(responseContentType),
             unclosableOutputStream,
@@ -142,6 +133,7 @@ public abstract class AbstractRestChannel implements RestChannel {
             responseMediaType,
             request.getRestApiVersion()
         );
+
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

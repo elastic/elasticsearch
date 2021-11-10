@@ -191,7 +191,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 }
             }
             return result;
-        } catch (IOException|IllegalArgumentException e) {
+        } catch (IOException | IllegalArgumentException e) {
             throw new IllegalArgumentException("Error formatting " + NAME + ": " + e.getMessage(), e);
         }
     }

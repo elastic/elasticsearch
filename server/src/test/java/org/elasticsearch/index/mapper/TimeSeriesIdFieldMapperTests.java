@@ -66,7 +66,8 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                         .field("@timestamp", "2021-10-01")
                         .endObject()
                 ),
-                XContentType.JSON)
+                XContentType.JSON
+            )
         );
 
         assertThat(

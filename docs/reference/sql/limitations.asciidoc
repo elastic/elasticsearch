@@ -3,6 +3,58 @@
 == SQL Limitations
 
 [discrete]
+[[implicit-keyword-subfields]]
+=== Implicit use of `keyword` subfields for references to field of type `text`
+
+Because fields of type `text` can (usually) not be used for sorting, aggregations or scripting, SQL uses the
+<<before-enabling-fielddata,`keyword` subfield>> for the according functionalities if available. In some cases, this
+can have surprising effects. If the `keyword` subfield uses the `ignore_above` parameter (which defaults to 256 for
+dynamic mappings) the field reference might resolve to `null` for a document even if the document has a value
+in the `text` field itself.
+
+For example, consider an index `long_string` with a mapping like
+
+[source, js]
+--------------------------------------------------
+{
+    "mappings": {
+        "properties": {
+            "str": {
+                "type": "text",
+                "fields": {
+                    "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 10
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The query `SELECT str, str.keyword FROM long_string` will retrieve the following result set:
+
+[source, text]
+----------------------------------------------------
+           str            |  str.keyword
+--------------------------+---------------
+abcdefghijklmnopqrstuvwxyz|null
+abc                       |abc
+----------------------------------------------------
+
+Because `str` is implicitly replaced by `str.keyword` in SQL queries if necessary, you get `null`
+values where you might not expect them. E.g. for the query `SELECT str, COUNT(*) FROM long_string GROUP BY str`:
+
+[source, text]
+----------------------------------------------------
+      str      |   COUNT(*)
+---------------+---------------
+null           |1
+abc            |1
+----------------------------------------------------
+
+[discrete]
 [[large-parsing-trees]]
 === Large queries may throw `ParsingExpection`
 

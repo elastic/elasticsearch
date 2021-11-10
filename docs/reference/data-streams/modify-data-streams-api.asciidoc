@@ -88,9 +88,9 @@ DELETE /_index_template/template
 Adds an existing index as backing index to a data stream. The index will be
 hidden as part of the operation.
 
-WARNING: Addition of certain indices with the `add_backing_index` operation
-can result in improper data stream behavior. This is a potentially
-destructive action and should be considered an expert level API.
+WARNING: Adding indices with the `add_backing_index` action
+can potentially result in improper data stream behavior. 
+This should be considered an expert level API.
 
 `remove_backing_index`::
 Removes a backing index from a data stream. The index will be unhidden

@@ -27,6 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues.IpSupplier;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
@@ -349,27 +350,52 @@ public class IpFieldMapper extends FieldMapper {
 
         public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
-            private final SortedSetDocValues in;
-            private long[] ords = new long[0];
-            private int count;
+            public static final class IpSupplier implements ScriptDocValues.Supplier<String> {
 
-            public IpScriptDocValues(SortedSetDocValues in) {
-                this.in = in;
-            }
+                private final SortedSetDocValues in;
+                private long[] ords = new long[0];
+                private int count;
 
-            @Override
-            public void setNextDocId(int docId) throws IOException {
-                count = 0;
-                if (in.advanceExact(docId)) {
-                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
-                        ords = ArrayUtil.grow(ords, count + 1);
-                        ords[count++] = ord;
+                public IpSupplier(SortedSetDocValues in) {
+                    this.in = in;
+                }
+
+                @Override
+                public void setNextDocId(int docId) throws IOException {
+                    count = 0;
+                    if (in.advanceExact(docId)) {
+                        for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                            ords = ArrayUtil.grow(ords, count + 1);
+                            ords[count++] = ord;
+                        }
                     }
+                }
+
+                @Override
+                public String getInternal(int index) {
+                    try {
+                        BytesRef encoded = in.lookupOrd(ords[index]);
+                        InetAddress address = InetAddressPoint.decode(
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)
+                        );
+                        return InetAddresses.toAddrString(address);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public int size() {
+                    return count;
                 }
             }
 
+            public IpScriptDocValues(IpSupplier supplier) {
+                super(supplier);
+            }
+
             public String getValue() {
-                if (count == 0) {
+                if (supplier.size() == 0) {
                     return null;
                 } else {
                     return get(0);
@@ -378,27 +404,23 @@ public class IpFieldMapper extends FieldMapper {
 
             @Override
             public String get(int index) {
-                try {
-                    BytesRef encoded = in.lookupOrd(ords[index]);
-                    InetAddress address = InetAddressPoint.decode(
-                        Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)
-                    );
-                    return InetAddresses.toAddrString(address);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                return supplier.getInternal(index);
             }
 
             @Override
             public int size() {
-                return count;
+                return supplier.size();
             }
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), IpScriptDocValues::new, CoreValuesSourceType.IP);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                s -> new IpScriptDocValues(new IpSupplier(s)),
+                CoreValuesSourceType.IP
+            );
         }
 
         @Override

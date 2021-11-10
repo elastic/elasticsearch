@@ -17,6 +17,8 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.xpack.vectors.query.BinaryDenseVectorScriptDocValues.BinaryDenseVectorSupplier;
+import org.elasticsearch.xpack.vectors.query.KnnDenseVectorScriptDocValues.KnnDenseVectorSupplier;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -59,12 +61,15 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);
                 if (values == null || values == VectorValues.EMPTY) {
-                    return new DelegateDocValuesField(DenseVectorScriptDocValues.empty(dims), name);
+                    return new DelegateDocValuesField(DenseVectorScriptDocValues.empty(null, dims), name);
                 }
-                return new DelegateDocValuesField(new KnnDenseVectorScriptDocValues(values, dims), name);
+                return new DelegateDocValuesField(new KnnDenseVectorScriptDocValues(new KnnDenseVectorSupplier(values), dims), name);
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);
-                return new DelegateDocValuesField(new BinaryDenseVectorScriptDocValues(values, indexVersion, dims), name);
+                return new DelegateDocValuesField(
+                    new BinaryDenseVectorScriptDocValues(new BinaryDenseVectorSupplier(values), indexVersion, dims),
+                    name
+                );
             }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);

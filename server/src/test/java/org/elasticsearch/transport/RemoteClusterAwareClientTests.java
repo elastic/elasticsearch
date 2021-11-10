@@ -61,7 +61,9 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                try (RemoteClusterAwareClient client = new RemoteClusterAwareClient(Settings.EMPTY, threadPool, service, "cluster1")) {
+                try (
+                    RemoteClusterAwareClient client = new RemoteClusterAwareClient(Settings.EMPTY, threadPool, service, "cluster1", true)
+                ) {
                     SearchRequest request = new SearchRequest("test-index");
                     CountDownLatch responseLatch = new CountDownLatch(1);
                     AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
@@ -101,7 +103,9 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                try (RemoteClusterAwareClient client = new RemoteClusterAwareClient(Settings.EMPTY, threadPool, service, "cluster1")) {
+                try (
+                    RemoteClusterAwareClient client = new RemoteClusterAwareClient(Settings.EMPTY, threadPool, service, "cluster1", true)
+                ) {
                     SearchRequest request = new SearchRequest("test-index");
                     int numThreads = 10;
                     ExecutorService executorService = Executors.newFixedThreadPool(numThreads);

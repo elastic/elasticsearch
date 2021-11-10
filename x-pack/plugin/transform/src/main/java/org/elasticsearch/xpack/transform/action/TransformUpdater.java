@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -50,7 +51,8 @@ public class TransformUpdater {
         public enum Status {
             NONE, // all checks passed, no action taken
             UPDATED, // updated
-            NEEDS_UPDATE // special dry run status
+            NEEDS_UPDATE, // special dry run status
+            DELETED // internal status if a transform got deleted during upgrade
         }
 
         // the new config after the update
@@ -68,6 +70,7 @@ public class TransformUpdater {
             return status;
         }
 
+        @Nullable
         public TransformConfig getConfig() {
             return config;
         }

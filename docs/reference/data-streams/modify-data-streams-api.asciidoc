@@ -93,8 +93,8 @@ can potentially result in improper data stream behavior.
 This should be considered an expert level API.
 
 `remove_backing_index`::
-Removes a backing index from a data stream. The index will be unhidden
-as part of the operation. A data stream's write index cannot be removed.
+Removes a backing index from a data stream. The index is unhidden
+as part of this operation. A data stream's write index cannot be removed.
 
 =====
 +

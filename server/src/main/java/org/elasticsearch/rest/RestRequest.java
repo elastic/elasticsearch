@@ -10,9 +10,11 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Booleans;
@@ -108,12 +110,16 @@ public class RestRequest implements ToXContent.Params {
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
+        try {
+            this.restApiVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
+        } catch (ElasticsearchStatusException e) {
+            throw new MediaTypeHeaderException(e, "Accept", "Content-Type");
+        }
         this.httpChannel = httpChannel;
         this.params = params;
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        this.restApiVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
     }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
@@ -616,20 +622,23 @@ public class RestRequest implements ToXContent.Params {
 
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        private String failedHeaderName;
+        private String message;
+        private Set<String> failedHeaderNames;
+        private Object[] params;
 
-        MediaTypeHeaderException(final IllegalArgumentException cause, String failedHeaderName) {
+        MediaTypeHeaderException(final RuntimeException cause, String... failedHeaderNames) {
             super(cause);
-            this.failedHeaderName = failedHeaderName;
+            this.failedHeaderNames = Set.of(failedHeaderNames);
+            this.message = "Invalid media-type value on headers " + this.failedHeaderNames;
         }
 
-        public String getFailedHeaderName() {
-            return failedHeaderName;
+        public Set<String> getFailedHeaderNames() {
+            return failedHeaderNames;
         }
 
         @Override
         public String getMessage() {
-            return "Invalid media-type value on header [" + failedHeaderName + "]";
+            return LoggerMessageFormat.format(message, params);
         }
     }
 

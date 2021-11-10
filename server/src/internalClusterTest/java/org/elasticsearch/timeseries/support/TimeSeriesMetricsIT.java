@@ -163,6 +163,77 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                     )
                 )
         );
+
+        assertMap(
+            latest(
+                List.of(randomBoolean() ? re("[u-z]") : rn("[a-u]")),
+                List.of(),
+                between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                TimeValue.timeValueMinutes(15),
+                FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+            ),
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+                .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
+        );
+
+        assertMap(
+            latest(
+                List.of(re("[a-t]"), re("[b-s]")),
+                List.of(eq("dim", d1.toString())),
+                between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                TimeValue.timeValueMinutes(15),
+                FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+            ),
+            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+        );
+
+        assertMap(
+            latest(
+                List.of(re("[a-t]"), re("[b-s]")),
+                List.of(ne("dim", d1.toString())),
+                between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                TimeValue.timeValueMinutes(15),
+                FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+            ),
+            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2)), List.of(Map.entry(dates[3], 6.0)))
+        );
+
+        if ("a".equals(d1)) {
+            // regular expressions don't work with numeric nor ip values
+            assertMap(
+                latest(
+                    List.of(re("[a-t]"), re("[b-s]")),
+                    List.of(re("dim", "[" + d2 + "-z]")),
+                    between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                    TimeValue.timeValueMinutes(15),
+                    FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+                ),
+                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2)), List.of(Map.entry(dates[3], 6.0)))
+            );
+
+            assertMap(
+                latest(
+                    List.of(re("[a-t]"), re("[b-s]")),
+                    List.of(rn("dim", "[" + d2 + "-z]")),
+                    between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                    TimeValue.timeValueMinutes(15),
+                    FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+                ),
+                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+            );
+
+            assertMap(
+                latest(
+                    List.of(eq("v")),
+                    List.of(re("dim", "[" + d1 + "-" + d2 + "]")),
+                    between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                    TimeValue.timeValueMinutes(15),
+                    FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+                ),
+                matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+                    .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
+            );
+        }
     }
 
     public void testManyTimeSeries() throws InterruptedException, ExecutionException, IOException {
@@ -202,7 +273,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             }
             List<Map.Entry<String, Double>> expectedValuesForTimeSeries = new ArrayList<>(count);
             Tuple<String, Map<String, Object>> dimensions = Tuple.tuple("v", gen.apply(i));
-            String timestamp = null;
+            String timestamp;
             double value = Double.NaN;
             for (long time : times) {
                 timestamp = FORMATTER.formatMillis(time);
@@ -296,7 +367,8 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject().startObject("properties");
         mapping.startObject("@timestamp").field("type", "date").endObject();
-        mapping.startObject("v").field("type", "double").endObject();
+        mapping.startObject("v").field("type", "double").field("time_series_metric", "gauge").endObject();
+        mapping.startObject("m").field("type", "double").field("time_series_metric", "gauge").endObject();
         dimensionMapping.accept(mapping);
         mapping.endObject().endObject();
         client().admin().indices().prepareCreate("tsdb").setMapping(mapping).get();
@@ -320,6 +392,21 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             between(0, 10000),  // Not used by this method
             staleness,
             (future, metrics) -> metrics.latest(List.of(eq("v")), List.of(), timeMillis, new CollectingListener(future))
+        );
+    }
+
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> latest(
+        List<TimeSeriesMetrics.TimeSeriesMetricSelector> metricSelectors,
+        List<TimeSeriesMetrics.TimeSeriesDimensionSelector> dimensionSelectors,
+        int bucketBatchSize,
+        TimeValue staleness,
+        long timeMillis
+    ) {
+        return withMetrics(
+            bucketBatchSize,
+            between(0, 10000),  // Not used by this method
+            staleness,
+            (future, metrics) -> metrics.latest(metricSelectors, dimensionSelectors, timeMillis, new CollectingListener(future))
         );
     }
 
@@ -350,6 +437,38 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
 
     private static TimeSeriesMetrics.TimeSeriesMetricSelector eq(String metric) {
         return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesMetricSelector ne(String metric) {
+        return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.NOT_EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesMetricSelector re(String metric) {
+        return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesMetricSelector rn(String metric) {
+        return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_NOT_EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector eq(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(dimension, TimeSeriesMetrics.TimeSeriesSelectorMatcher.EQUAL, value);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector ne(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(dimension, TimeSeriesMetrics.TimeSeriesSelectorMatcher.NOT_EQUAL, value);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector re(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(dimension, TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_EQUAL, value);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector rn(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(
+            dimension,
+            TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_NOT_EQUAL,
+            value
+        );
     }
 
     private <R> R withMetrics(

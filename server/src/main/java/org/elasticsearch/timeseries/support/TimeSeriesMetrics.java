@@ -148,7 +148,7 @@ public class TimeSeriesMetrics {
         RE_EQUAL {
             @Override
             protected Predicate<String> matcher(String expression) {
-                return Pattern.compile(expression, 0).asMatchPredicate();
+                return Pattern.compile(expression).asMatchPredicate();
             }
 
             @Override
@@ -205,11 +205,12 @@ public class TimeSeriesMetrics {
     }
 
     /**
-     * Return the latest metrics before time within staleness period
-     * @param metrics metrics selectors
-     * @param dimensions dimension selectors
-     * @param time time
-     * @param callback callback
+     * Return the latest metrics before time within staleness period.
+     *
+     * @param metrics metrics selectors (ANDed together)
+     * @param dimensions dimension selectors (ANDed together)
+     * @param time the time before which the latest metrics are returned
+     * @param callback callback used to return the metrics
      */
     public void latest(
         List<TimeSeriesMetricSelector> metrics,
@@ -221,12 +222,13 @@ public class TimeSeriesMetrics {
     }
 
     /**
-     * Return all metrics within range interval before time
-     * @param metrics metrics selectors
-     * @param dimensions dimension selectors
-     * @param time time
-     * @param range range
-     * @param callback callback
+     * Return all metrics with range time period just before and including the time specified by the time parameter
+     *
+     * @param metrics metrics selectors (ANDed together)
+     * @param dimensions dimension selectors (ANDed together)
+     * @param time the time before which the results are returned
+     * @param range range within which the results are returned
+     * @param callback callback used to return the metrics
      */
     public void range(
         List<TimeSeriesMetricSelector> metrics,
@@ -239,13 +241,15 @@ public class TimeSeriesMetrics {
     }
 
     /**
-     * Return metrics every step interval within range interval before time
-     * @param metrics metrics selectors
-     * @param dimensions dimension selectors
-     * @param time time
-     * @param range range
-     * @param step step
-     * @param callback callback
+     * Return all metrics with range time period just before and including the time specified by the time parameter
+     *
+     * @param metrics metrics selectors (ANDed together)
+     * @param dimensions dimension selectors (ANDed together)
+     * @param time the time before which the results are returned
+     * @param range range within which the results are returned
+     * @param step if not null, it makes this method equivalent to running the {@link #latest(List, List, long, MetricsCallback)} method
+     *             several times while changing time from time to (time - range) with the step interval
+     * @param callback callback used to return the metrics
      */
     public void range(
         List<TimeSeriesMetricSelector> metrics,
@@ -415,7 +419,6 @@ public class TimeSeriesMetrics {
                     }
                     DocumentField metricField = hit.field(metric);
                     if (metricField == null) {
-                        // TODO skip in query?
                         continue;
                     }
                     if (false == Objects.equals(previousDimensions, dimensions)) {
@@ -504,8 +507,7 @@ public class TimeSeriesMetrics {
             long from = time - range.getMillis();
             long first = from / stepMillis;
             long last = time / stepMillis;
-            FilterAggregationBuilder[] filters = new FilterAggregationBuilder[(int) (last - first)];
-            for (int i = 0; i < filters.length; i++) {
+            for (int i = 0; i < (int) (last - first); i++) {
                 metricAgg.subAggregation(
                     new FilterAggregationBuilder(
                         Long.toString((first + i + 1) * stepMillis),

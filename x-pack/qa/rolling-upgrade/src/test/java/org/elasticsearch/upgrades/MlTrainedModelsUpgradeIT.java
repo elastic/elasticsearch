@@ -169,7 +169,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
             + "\"\n"
             + "        }\n"
             + "      },\n"
-            + "      \"model_memory_limit\" : \"8mb\"\n"
+            + "      \"model_memory_limit\" : \"18mb\"\n"
             + "    }";
         putAndStartDFAAndWaitForFinish(config, "regression");
     }
@@ -194,7 +194,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
             + "\"\n"
             + "        }\n"
             + "      },\n"
-            + "      \"model_memory_limit\" : \"6mb\"\n"
+            + "      \"model_memory_limit\" : \"18mb\"\n"
             + "    }";
         putAndStartDFAAndWaitForFinish(config, "classification");
     }

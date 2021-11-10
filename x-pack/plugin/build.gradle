@@ -114,6 +114,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("ml/categorization_agg/Test categorization aggregation with poor settings", "https://github.com/elastic/elasticsearch/pull/79586")
+  task.skipTest("ml/inference_crud/Test put with defer_definition_decompression with invalid compression definition and no memory estimate", "https://github.com/elastic/elasticsearch/pull/80554")
+  task.skipTest("ml/inference_crud/Test put with defer_definition_decompression with invalid compressed definition", "https://github.com/elastic/elasticsearch/pull/80554")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

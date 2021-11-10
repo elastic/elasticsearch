@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -30,7 +31,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -54,6 +57,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteTrainedModelAction.class);
 
+    private final Client client;
     private final TrainedModelProvider trainedModelProvider;
     private final InferenceAuditor auditor;
     private final IngestService ingestService;
@@ -63,6 +67,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
+        Client client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelProvider configProvider,
@@ -79,6 +84,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
+        this.client = client;
         this.trainedModelProvider = configProvider;
         this.ingestService = ingestService;
         this.auditor = Objects.requireNonNull(auditor);
@@ -91,6 +97,10 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        logger.debug(
+            () -> new ParameterizedMessage("[{}] Request to delete trained model{}", request.getId(), request.isForce() ? " (force)" : "")
+        );
+
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
@@ -122,50 +132,29 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                 return;
             }
         }
-        if (request.isForce() == false && TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
-                    RestStatus.CONFLICT,
-                    id
-                )
-            );
-            return;
-        }
 
-        ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
-            ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {
-                auditor.info(request.getId(), "trained model deleted");
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            }, listener::onFailure)),
-
-            listener::onFailure
-        );
-
-        // No reason to update cluster state, simply delete the model
-        if (modelAliases.isEmpty()) {
-            nameDeletionListener.onResponse(AcknowledgedResponse.of(true));
-            return;
-        }
-
-        clusterService.submitStateUpdateTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
-            @Override
-            public ClusterState execute(final ClusterState currentState) {
-                final ClusterState.Builder builder = ClusterState.builder(currentState);
-                final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
-                if (currentMetadata.modelAliases().isEmpty()) {
-                    return currentState;
-                }
-                final Map<String, ModelAliasMetadata.ModelAliasEntry> newMetadata = new HashMap<>(currentMetadata.modelAliases());
-                logger.info("[{}] delete model model_aliases {}", request.getId(), modelAliases);
-                modelAliases.forEach(newMetadata::remove);
-                final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
-                builder.metadata(
-                    Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build()
+        if (TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
+            if (request.isForce()) {
+                forceStopDeployment(
+                    request.getId(),
+                    ActionListener.wrap(
+                        stopDeploymentResponse -> deleteAliasesAndModel(request, modelAliases, listener),
+                        listener::onFailure
+                    )
                 );
-                return builder.build();
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
+                        RestStatus.CONFLICT,
+                        id
+                    )
+                );
+                return;
             }
-        });
+        } else {
+            deleteAliasesAndModel(request, modelAliases, listener);
+        }
     }
 
     static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
@@ -205,6 +194,54 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             }
         }
         return modelAliases;
+    }
+
+    private void forceStopDeployment(String modelId, ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
+        StopTrainedModelDeploymentAction.Request request = new StopTrainedModelDeploymentAction.Request(modelId);
+        request.setForce(true);
+        ClientHelper.executeAsyncWithOrigin(client, ClientHelper.ML_ORIGIN, StopTrainedModelDeploymentAction.INSTANCE, request, listener);
+    }
+
+    private void deleteAliasesAndModel(
+        DeleteTrainedModelAction.Request request,
+        List<String> modelAliases,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        logger.debug(() -> new ParameterizedMessage("[{}] Deleting model", request.getId()));
+
+        ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
+            ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {
+                auditor.info(request.getId(), "trained model deleted");
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }, listener::onFailure)),
+
+            listener::onFailure
+        );
+
+        // No reason to update cluster state, simply delete the model
+        if (modelAliases.isEmpty()) {
+            nameDeletionListener.onResponse(AcknowledgedResponse.of(true));
+            return;
+        }
+
+        clusterService.submitStateUpdateTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
+            @Override
+            public ClusterState execute(final ClusterState currentState) {
+                final ClusterState.Builder builder = ClusterState.builder(currentState);
+                final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
+                if (currentMetadata.modelAliases().isEmpty()) {
+                    return currentState;
+                }
+                final Map<String, ModelAliasMetadata.ModelAliasEntry> newMetadata = new HashMap<>(currentMetadata.modelAliases());
+                logger.info("[{}] delete model model_aliases {}", request.getId(), modelAliases);
+                modelAliases.forEach(newMetadata::remove);
+                final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
+                builder.metadata(
+                    Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build()
+                );
+                return builder.build();
+            }
+        });
     }
 
     @Override

@@ -1340,33 +1340,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 continue;
             }
 
-            Optional<RepositoryMetadata> optionalRepository;
-            if (RepositoryData.MISSING_UUID.equals(snapshot.getRepositoryUuid()) == false) {
-                // the snapshot waiting to be deleted references a repository with a known uuid,
-                // let's try to find this repository among the existing ones first
-                optionalRepository = repositories.repositories()
-                    .stream()
-                    .filter(repo -> Objects.equals(repo.uuid(), snapshot.getRepositoryUuid()))
-                    .findFirst();
-                if (optionalRepository.isEmpty()) {
-                    // there is no existing repository matching the uuid,
-                    // let's try to find the repository by name among the existing ones that have no uuid
-                    optionalRepository = repositories.repositories()
-                        .stream()
-                        .filter(repo -> Objects.equals(repo.uuid(), RepositoryData.MISSING_UUID))
-                        .filter(repo -> Objects.equals(repo.name(), snapshot.getRepositoryName()))
-                        .findFirst();
-                }
-            } else {
-                // the snapshot waiting to be deleted does not references a repository with a known uuid,
-                // let's try to find the repository by name among the existing ones, in the hope that
-                // the snapshot will be found there.
-                optionalRepository = repositories.repositories()
-                    .stream()
-                    .filter(repo -> Objects.equals(repo.name(), snapshot.getRepositoryName()))
-                    .findFirst();
-            }
-
+            final Optional<RepositoryMetadata> optionalRepository = findRepositoryForPendingDeletion(
+                repositories,
+                snapshot.getRepositoryName(),
+                snapshot.getRepositoryUuid()
+            );
             if (optionalRepository.isEmpty()) {
                 logger.debug(
                     "repository [{}/{}] not found, cannot delete pending snapshot [{}] created at {}",
@@ -1540,6 +1518,39 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 e
             );
         }
+    }
+
+    public static Optional<RepositoryMetadata> findRepositoryForPendingDeletion(
+        final RepositoriesMetadata repositories,
+        final String repositoryName,
+        final String repositoryUuid
+    ) {
+        if (repositories != null) {
+            if (RepositoryData.MISSING_UUID.equals(repositoryUuid) == false) {
+                // the snapshot waiting to be deleted references a repository with a known uuid,
+                // let's try to find this repository among the existing ones first
+                Optional<RepositoryMetadata> optionalRepository = repositories.repositories()
+                    .stream()
+                    .filter(repo -> Objects.equals(repo.uuid(), repositoryUuid))
+                    .findFirst();
+                if (optionalRepository.isEmpty()) {
+                    // there is no existing repository matching the uuid,
+                    // let's try to find the repository by name among the existing ones that have no uuid
+                    optionalRepository = repositories.repositories()
+                        .stream()
+                        .filter(repo -> Objects.equals(repo.uuid(), RepositoryData.MISSING_UUID))
+                        .filter(repo -> Objects.equals(repo.name(), repositoryName))
+                        .findFirst();
+                }
+                return optionalRepository;
+            } else {
+                // the snapshot waiting to be deleted does not references a repository with a known uuid,
+                // let's try to find the repository by name among the existing ones, in the hope that
+                // the snapshot will be found there.
+                return repositories.repositories().stream().filter(repo -> Objects.equals(repo.name(), repositoryName)).findFirst();
+            }
+        }
+        return Optional.empty();
     }
 
     private static ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(

@@ -27,8 +27,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -40,15 +40,18 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotsService.findRepositoryForPendingDeletion;
 
 /**
  * Deletes indices.
@@ -167,7 +170,7 @@ public class MetadataDeleteIndexService {
             SnapshotDeletionsPending.TYPE,
             SnapshotDeletionsPending.EMPTY
         );
-        final SnapshotDeletionsPending updatedPendingDeletes = updateSnapshotDeletionsPending(deletionsInPending, indicesToDelete, meta);
+        final SnapshotDeletionsPending updatedPendingDeletes = updateSnapshotDeletionsPending(deletionsInPending, indicesToDelete, currentState);
         if (updatedPendingDeletes != deletionsInPending) {
             if (customBuilder == null) {
                 customBuilder = ImmutableOpenMap.builder(currentState.getCustoms());
@@ -180,82 +183,99 @@ public class MetadataDeleteIndexService {
         return allocationService.reroute(builder.build(), "deleted indices [" + indices + "]");
     }
 
+    /**
+     * This method updates the list of snapshots marked as to be deleted if one or more searchable snapshots are deleted.
+     *
+     * The snapshots cannot be deleted at the same time of the searchable snapshots indices because deleting one or more snapshot requires a
+     * consistent view of their repositories data, and getting the consistent views cannot be done in the same cluster state update. It is
+     * also possible than one (or more) snapshot cannot be deleted immediately because the snapshot is involved in another restore or
+     * cloning or the repository might not be writeable etc. To address those conflicting situations this method only captures the snapshot
+     * information that are required to later delete the snapshot and stores them in a {@link SnapshotDeletionsPending.Entry} in cluster
+     * state. Once a snapshot is pending deletion it cannot be restored, mounted or cloned. If the snapshot pending deletion is involved in
+     * a snapshot operation at the time it is deleted then the deletion will happen once the conflicting operation is terminated.
+     */
     private SnapshotDeletionsPending updateSnapshotDeletionsPending(
         final SnapshotDeletionsPending pendingDeletions,
         final Set<Index> indicesToDelete,
-        final Metadata metadata
+        final ClusterState state
     ) {
-        final long timestamp = Instant.now().toEpochMilli();
-        SnapshotDeletionsPending.Builder builder = null;
-        boolean changed = false;
+        final List<Settings> deletedIndicesSettings = indicesToDelete.stream()
+            .map(index -> state.metadata().getIndexSafe(index).getSettings())
+            .filter(SearchableSnapshotsSettings::isSearchableSnapshotStore)
+            .filter(indexSettings -> indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false))
+            .collect(Collectors.toList());
+        if (deletedIndicesSettings.isEmpty()) {
+            return pendingDeletions;
+        }
 
-        for (Index indexToDelete : indicesToDelete) {
-            final Settings indexSettings = metadata.getIndexSafe(indexToDelete).getSettings();
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings) == false) {
-                continue; // not a searchable snapshot index
+        final Set<SnapshotId> activeSearchableSnapshots = state.metadata().indices()
+            .stream()
+            .map(Map.Entry::getValue)
+            .filter(index -> indicesToDelete.contains(index.getIndex()) == false)
+            .map(IndexMetadata::getSettings)
+            .filter(SearchableSnapshotsSettings::isSearchableSnapshotStore)
+            .map(MetadataDeleteIndexService::toSnapshotId)
+            .collect(Collectors.toUnmodifiableSet());
+
+        final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE);
+        // used to deduplicate snapshots that were used by multiple deleted indices
+        final Map<SnapshotId, RepositoryMetadata> snapshotsWithRepository = new HashMap<>();
+        // also used to log a warning for snapshots with unknown repository
+        final Map<SnapshotId, Tuple<String, String>> snapshotsWithoutRepository = new HashMap<>();
+
+        for (Settings deletedIndexSettings : deletedIndicesSettings) {
+            SnapshotId snapshotId = toSnapshotId(deletedIndexSettings);
+            if (activeSearchableSnapshots.contains(snapshotId) == false) {
+                String repositoryUuid = deletedIndexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
+                String repositoryName = deletedIndexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+                Optional<RepositoryMetadata> repository = findRepositoryForPendingDeletion(repositories, repositoryName, repositoryUuid);
+                if (repository.isPresent()) {
+                    snapshotsWithRepository.putIfAbsent(snapshotId, repository.get());
+                } else {
+                    snapshotsWithoutRepository.putIfAbsent(snapshotId, Tuple.tuple(repositoryName, repositoryUuid));
+                }
             }
-            if (indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) == false) {
-                continue; // do not delete the snapshot when this searchable snapshot index is deleted
-            }
-            final SnapshotId snapshotId = new SnapshotId(
-                indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY),
-                indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY)
+        }
+
+        final int maxPendingDeletions = SnapshotDeletionsPending.MAX_PENDING_DELETIONS_SETTING.get(settings);
+        final SnapshotDeletionsPending.Builder builder = new SnapshotDeletionsPending.Builder(
+            pendingDeletions,
+            evicted -> logger.warn(
+                () -> new ParameterizedMessage(
+                    "maximum number of snapshots [{}] awaiting deletion has been reached in "
+                        + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
+                    maxPendingDeletions,
+                    evicted.getSnapshotId(),
+                    Instant.ofEpochMilli(evicted.getIndexDeletionTime()).atZone(ZoneOffset.UTC),
+                    evicted.getRepositoryName(),
+                    evicted.getRepositoryUuid()
+                )
+            )
+        );
+
+        final long timestamp = Instant.now().toEpochMilli();
+        for (Map.Entry<SnapshotId, RepositoryMetadata> entry : snapshotsWithRepository.entrySet()) {
+            logger.info("snapshot [{}:{}] added to the list of snapshots pending deletion", entry.getValue().name(), entry.getKey());
+            builder.add(entry.getValue().name(), entry.getValue().uuid(), entry.getKey(), timestamp);
+        }
+        for (Map.Entry<SnapshotId, Tuple<String, String>> entry : snapshotsWithoutRepository.entrySet()) {
+            // TODO also log that it will stay as pending for a given time/attempts and then be removed?
+            logger.warn(
+                "snapshot [{}] added to the list of snapshots pending deletion but refers to an unregistered repository [{}/{}]",
+                entry.getKey(),
+                entry.getValue().v1(),
+                entry.getValue().v2()
             );
-            boolean canDeleteSnapshot = true;
-            for (IndexMetadata other : metadata) {
-                if (indexToDelete.equals(other.getIndex())) {
-                    continue; // do not check against itself
-                }
-                final Settings otherSettings = other.getSettings();
-                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(otherSettings) == false) {
-                    continue; // other index is not a searchable snapshot index, skip
-                }
-                final String otherSnapshotUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
-                if (Objects.equals(snapshotId.getUUID(), otherSnapshotUuid) == false) {
-                    continue; // other index is backed by a different snapshot, skip
-                }
-                assert otherSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) : other;
-                if (indicesToDelete.contains(other.getIndex())) {
-                    continue; // other index is going to be deleted as part of the same cluster state update
-                }
-                logger.debug(
-                    "snapshot [{}] cannot be marked as to delete, another index [{}] is using the snapshot",
-                    snapshotId,
-                    other.getIndex()
-                );
-                canDeleteSnapshot = false; // another index is using the same snapshot, do not delete the snapshot
-                break;
-            }
-            if (canDeleteSnapshot) {
-                if (builder == null) {
-                    final int maxPendingDeletions = SnapshotDeletionsPending.MAX_PENDING_DELETIONS_SETTING.get(settings);
-                    builder = new SnapshotDeletionsPending.Builder(
-                        pendingDeletions,
-                        evicted -> logger.warn(
-                            () -> new ParameterizedMessage(
-                                "maximum number of snapshots [{}] awaiting deletion has been reached in "
-                                    + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
-                                maxPendingDeletions,
-                                evicted.getSnapshotId(),
-                                Instant.ofEpochMilli(evicted.getIndexDeletionTime()).atZone(ZoneOffset.UTC),
-                                evicted.getRepositoryName(),
-                                evicted.getRepositoryUuid()
-                            )
-                        )
-                    );
-                }
-                builder.add(
-                    indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY),
-                    indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, RepositoryData.MISSING_UUID),
-                    snapshotId,
-                    timestamp
-                );
-                changed = true;
-            }
+            builder.add(entry.getValue().v1(), entry.getValue().v2(), entry.getKey(), timestamp);
         }
-        if (changed) {
-            return builder.build(settings);
-        }
-        return pendingDeletions;
+        return builder.build(settings);
+    }
+
+    private static SnapshotId toSnapshotId(final Settings indexSettings) {
+        assert SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings);
+        return new SnapshotId(
+            indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY),
+            indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY)
+        );
     }
 }

@@ -709,7 +709,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     String index = indexService.index().getName();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse("_id", document, xContentType);
                     MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
                     DocumentParser documentParser = indexService.mapperService().documentParser();
                     // Note that we are not doing anything with dynamic mapping updates, hence fields that are not mapped but are present

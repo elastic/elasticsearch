@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.xcontent;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -233,7 +234,7 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals("foo", s.test);
         assertWarnings(
             false,
-            new DeprecationWarning(DeprecationLogger.CRITICAL, "[foo][1:15] Deprecated field [old_test] used, " + "expected [test] instead")
+            new DeprecationWarning(Level.WARN, "[foo][1:15] Deprecated field [old_test] used, " + "expected [test] instead")
         );
     }
 

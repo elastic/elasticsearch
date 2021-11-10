@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -131,15 +132,33 @@ class FlattenedFieldParser {
             );
         }
         String keyedValue = createKeyedValue(key, value);
-
+        BytesRef bytesKeyedValue = new BytesRef(keyedValue);
+        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
+        // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
+        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
+            String msg = "Flattened field ["
+                + rootFieldName
+                + "] contains one immense field"
+                + " whose keyed encoding is longer than the allowed max length of "
+                + IndexWriter.MAX_TERM_LENGTH
+                + " bytes. Key length: "
+                + key.length()
+                + ", value length: "
+                + value.length()
+                + " for key starting with ["
+                + key.substring(0, Math.min(key.length(), 50))
+                + "]";
+            throw new IllegalArgumentException(msg);
+        }
+        BytesRef bytesValue = new BytesRef(value);
         if (fieldType.isSearchable()) {
-            fields.add(new StringField(rootFieldName, new BytesRef(value), Field.Store.NO));
-            fields.add(new StringField(keyedFieldName, new BytesRef(keyedValue), Field.Store.NO));
+            fields.add(new StringField(rootFieldName, bytesValue, Field.Store.NO));
+            fields.add(new StringField(keyedFieldName, bytesKeyedValue, Field.Store.NO));
         }
 
         if (fieldType.hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(rootFieldName, new BytesRef(value)));
-            fields.add(new SortedSetDocValuesField(keyedFieldName, new BytesRef(keyedValue)));
+            fields.add(new SortedSetDocValuesField(rootFieldName, bytesValue));
+            fields.add(new SortedSetDocValuesField(keyedFieldName, bytesKeyedValue));
         }
     }
 

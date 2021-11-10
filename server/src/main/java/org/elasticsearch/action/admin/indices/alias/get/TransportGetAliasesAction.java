@@ -184,7 +184,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         });
         if (systemIndicesNames.isEmpty() == false) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system "
@@ -228,7 +228,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         }
 
         if (systemAliases.isEmpty() == false) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "open_system_alias_access",
                 "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct "

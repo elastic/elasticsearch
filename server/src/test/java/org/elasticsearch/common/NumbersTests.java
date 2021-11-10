@@ -16,6 +16,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.is;
+
 public class NumbersTests extends ESTestCase {
 
     @Timeout(millis = 10000)
@@ -45,6 +47,14 @@ public class NumbersTests extends ESTestCase {
         assertEquals(
             "Value [-1e99999999] is out of range for a long",
             expectThrows(IllegalArgumentException.class, () -> Numbers.toLong("-1e99999999", false)).getMessage()
+        );
+        assertEquals(
+            "Value [12345.6] has a decimal part",
+            expectThrows(IllegalArgumentException.class, () -> Numbers.toLong("12345.6", false)).getMessage()
+        );
+        assertEquals(
+            "For input string: \"t12345\"",
+            expectThrows(IllegalArgumentException.class, () -> Numbers.toLong("t12345", false)).getMessage()
         );
     }
 
@@ -140,5 +150,94 @@ public class NumbersTests extends ESTestCase {
         assertEquals("byte overflow: " + 300, ae.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> Numbers.toByteExact(new AtomicInteger(3))); // not supported
         assertEquals("Cannot check whether [3] of class [java.util.concurrent.atomic.AtomicInteger] is actually a long", e.getMessage());
+    }
+
+    public void testLongToBytes() {
+        assertThat(Numbers.longToBytes(123456L), is(new byte[] { 0, 0, 0, 0, 0, 1, -30, 64 }));
+        assertThat(Numbers.longToBytes(-123456L), is(new byte[] { -1, -1, -1, -1, -1, -2, 29, -64 }));
+        assertThat(Numbers.longToBytes(0L), is(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 }));
+        assertThat(Numbers.longToBytes(Long.MAX_VALUE + 1), is(new byte[] { -128, 0, 0, 0, 0, 0, 0, 0 }));
+        assertThat(Numbers.longToBytes(Long.MAX_VALUE + 127), is(new byte[] { -128, 0, 0, 0, 0, 0, 0, 126 }));
+        assertThat(Numbers.longToBytes(Long.MIN_VALUE - 1), is(new byte[] { 127, -1, -1, -1, -1, -1, -1, -1 }));
+        assertThat(Numbers.longToBytes(Long.MIN_VALUE - 127), is(new byte[] { 127, -1, -1, -1, -1, -1, -1, -127 }));
+    }
+
+    public void testBytesToLong() {
+        assertThat(Numbers.bytesToLong(new byte[] { 0, 0, 0, 0, 0, 1, -30, 64 }, 0), is(123456L));
+        assertThat(Numbers.bytesToLong(new byte[] { -1, -1, -1, -1, -1, -2, 29, -64 }, 0), is(-123456L));
+        assertThat(Numbers.bytesToLong(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 }, 0), is(0L));
+        assertThat(Numbers.bytesToLong(new byte[] { -128, 0, 0, 0, 0, 0, 0, 0 }, 0), is(Long.MIN_VALUE));
+        assertThat(Numbers.bytesToLong(new byte[] { -128, 0, 0, 0, 0, 0, 0, 126 }, 0), is(Long.MIN_VALUE + 127 - 1));
+        assertThat(Numbers.bytesToLong(new byte[] { 127, -1, -1, -1, -1, -1, -1, -1 }, 0), is(Long.MAX_VALUE));
+        assertThat(Numbers.bytesToLong(new byte[] { 127, -1, -1, -1, -1, -1, -1, -127, 0 }, 0), is(Long.MAX_VALUE - 127 + 1));
+
+        assertThat(Numbers.bytesToLong(new byte[] { 100, 0, 0, 0, 0, 0, 1, -30, 64 }, 1), is(123456L));
+        assertThat(Numbers.bytesToLong(new byte[] { -100, -1, -1, -1, -1, -1, -2, 29, -64 }, 1), is(-123456L));
+    }
+
+    public void testIntToBytes() {
+        assertThat(Numbers.intToBytes(123456), is(new byte[] { 0, 1, -30, 64 }));
+        assertThat(Numbers.intToBytes(-123456), is(new byte[] { -1, -2, 29, -64 }));
+        assertThat(Numbers.intToBytes(0), is(new byte[] { 0, 0, 0, 0 }));
+        assertThat(Numbers.intToBytes(Integer.MAX_VALUE + 1), is(new byte[] { -128, 0, 0, 0 }));
+        assertThat(Numbers.intToBytes(Integer.MAX_VALUE + 127), is(new byte[] { -128, 0, 0, 126 }));
+        assertThat(Numbers.intToBytes(Integer.MIN_VALUE - 1), is(new byte[] { 127, -1, -1, -1 }));
+        assertThat(Numbers.intToBytes(Integer.MIN_VALUE - 127), is(new byte[] { 127, -1, -1, -127 }));
+    }
+
+    public void testBytesToInt() {
+        assertThat(Numbers.bytesToInt(new byte[] { 0, 1, -30, 64 }, 0), is(123456));
+        assertThat(Numbers.bytesToInt(new byte[] { -1, -2, 29, -64 }, 0), is(-123456));
+        assertThat(Numbers.bytesToInt(new byte[] { 0, 0, 0, 0 }, 0), is(0));
+        assertThat(Numbers.bytesToInt(new byte[] { -128, 0, 0, 0 }, 0), is(Integer.MIN_VALUE));
+        assertThat(Numbers.bytesToInt(new byte[] { -128, 0, 0, 126 }, 0), is(Integer.MIN_VALUE + 127 - 1));
+        assertThat(Numbers.bytesToInt(new byte[] { 127, -1, -1, -1 }, 0), is(Integer.MAX_VALUE));
+        assertThat(Numbers.bytesToInt(new byte[] { 127, -1, -1, -127, 0 }, 0), is(Integer.MAX_VALUE - 127 + 1));
+
+        assertThat(Numbers.bytesToInt(new byte[] { 100, 0, 1, -30, 64 }, 1), is(123456));
+        assertThat(Numbers.bytesToInt(new byte[] { -100, -1, -2, 29, -64 }, 1), is(-123456));
+    }
+
+    public void testShortToBytes() {
+        assertThat(Numbers.shortToBytes(1234), is(new byte[] { 4, -46 }));
+        assertThat(Numbers.shortToBytes(-1234), is(new byte[] { -5, 46 }));
+        assertThat(Numbers.shortToBytes(0), is(new byte[] { 0, 0 }));
+        assertThat(Numbers.shortToBytes(Short.MAX_VALUE + 1), is(new byte[] { -128, 0 }));
+        assertThat(Numbers.shortToBytes(Short.MAX_VALUE + 127), is(new byte[] { -128, 126 }));
+        assertThat(Numbers.shortToBytes(Short.MIN_VALUE - 1), is(new byte[] { 127, -1 }));
+        assertThat(Numbers.shortToBytes(Short.MIN_VALUE - 127), is(new byte[] { 127, -127 }));
+    }
+
+    public void testBytesToShort() {
+        assertThat(Numbers.bytesToShort(new byte[] { 4, -46 }, 0), is((short) 1234));
+        assertThat(Numbers.bytesToShort(new byte[] { -5, 46 }, 0), is((short) -1234));
+        assertThat(Numbers.bytesToShort(new byte[] { 0, 0 }, 0), is((short) 0));
+        assertThat(Numbers.bytesToShort(new byte[] { -128, 0 }, 0), is(Short.MIN_VALUE));
+        assertThat(Numbers.bytesToShort(new byte[] { -128, 126 }, 0), is((short) (Short.MIN_VALUE + 127 - 1)));
+        assertThat(Numbers.bytesToShort(new byte[] { 127, -1 }, 0), is(Short.MAX_VALUE));
+        assertThat(Numbers.bytesToShort(new byte[] { 127, -127, 0 }, 0), is((short) (Short.MAX_VALUE - 127 + 1)));
+
+        assertThat(Numbers.bytesToShort(new byte[] { 100, 0, 1, 4, -46 }, 3), is((short) 1234));
+        assertThat(Numbers.bytesToShort(new byte[] { -100, -1, -2, -5, 46 }, 3), is((short) -1234));
+    }
+
+    public void testDoubleToBytes() {
+        assertThat(Numbers.doubleToBytes(-1234.0d), is(new byte[] { -64, -109, 72, 0, 0, 0, 0, 0 }));
+        assertThat(Numbers.doubleToBytes(1234.0d), is(new byte[] { 64, -109, 72, 0, 0, 0, 0, 0 }));
+        assertThat(Numbers.doubleToBytes(.0d), is(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 }));
+    }
+
+    public void testIsPositiveNumeric() {
+        assertTrue(Numbers.isPositiveNumeric(""));
+        assertTrue(Numbers.isPositiveNumeric("0"));
+        assertTrue(Numbers.isPositiveNumeric("1"));
+        assertFalse(Numbers.isPositiveNumeric("1.0"));
+        assertFalse(Numbers.isPositiveNumeric("-1"));
+        assertFalse(Numbers.isPositiveNumeric("test"));
+        assertTrue(Numbers.isPositiveNumeric("9223372036854775807000000"));
+        assertEquals(
+            "Cannot invoke \"String.length()\" because \"string\" is null",
+            expectThrows(NullPointerException.class, () -> Numbers.isPositiveNumeric(null)).getMessage()
+        );
     }
 }

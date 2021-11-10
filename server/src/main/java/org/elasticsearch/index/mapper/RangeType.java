@@ -399,7 +399,6 @@ public enum RangeType {
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Float) from,
                 (Float) to,
                 includeFrom,
@@ -412,7 +411,6 @@ public enum RangeType {
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Float) from,
                 (Float) to,
                 includeFrom,
@@ -425,7 +423,6 @@ public enum RangeType {
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Float) from,
                 (Float) to,
                 includeFrom,
@@ -510,7 +507,6 @@ public enum RangeType {
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Double) from,
                 (Double) to,
                 includeFrom,
@@ -523,7 +519,6 @@ public enum RangeType {
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Double) from,
                 (Double) to,
                 includeFrom,
@@ -536,7 +531,6 @@ public enum RangeType {
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Double) from,
                 (Double) to,
                 includeFrom,
@@ -605,7 +599,6 @@ public enum RangeType {
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Integer) from,
                 (Integer) to,
                 includeFrom,
@@ -618,7 +611,6 @@ public enum RangeType {
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Integer) from,
                 (Integer) to,
                 includeFrom,
@@ -631,7 +623,6 @@ public enum RangeType {
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Integer) from,
                 (Integer) to,
                 includeFrom,
@@ -716,7 +707,6 @@ public enum RangeType {
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Long) from,
                 (Long) to,
                 includeFrom,
@@ -729,7 +719,6 @@ public enum RangeType {
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Long) from,
                 (Long) to,
                 includeFrom,
@@ -742,7 +731,6 @@ public enum RangeType {
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
             return createQuery(
-                field,
                 (Long) from,
                 (Long) to,
                 includeFrom,
@@ -782,7 +770,6 @@ public enum RangeType {
      * This helper handles all {@link Number} cases and dates, the IP range type uses its own logic.
      */
     private static <T extends Comparable<T>> Query createQuery(
-        String field,
         T from,
         T to,
         boolean includeFrom,

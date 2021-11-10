@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -329,11 +330,21 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         /**
-         * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
+         * A mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
-        public Map<String, Object> getDataStreamMappingSnippet() {
-            // _data_stream_timestamp meta fields default to @timestamp:
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)));
+        public static CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
+
+        static {
+            try {
+                DATA_STREAM_MAPPING_SNIPPET = new CompressedXContent(
+                    (builder, params) -> builder.field(
+                        MapperService.SINGLE_MAPPING_NAME,
+                        Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true))
+                    )
+                );
+            } catch (IOException e) {
+                throw new AssertionError("no actual IO happens here", e);
+            }
         }
 
         public boolean isHidden() {

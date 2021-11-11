@@ -12,7 +12,6 @@ PUT _cluster/settings
   }
 }
 ----
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 ////
 
 Transient cluster settings are deprecated. Previously, you could use transient
@@ -77,7 +76,6 @@ PUT _cluster/settings
 }
 ----
 // TEST[continued]
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 
 . Use the <<cluster-get-settings,cluster get settings API>> to confirm your
 cluster has no remaining transient settings.

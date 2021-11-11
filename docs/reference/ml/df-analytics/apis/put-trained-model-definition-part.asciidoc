@@ -45,7 +45,7 @@ The definition part for the model. Must be a base64 encoded string.
 
 `total_definition_length`::
 (Required, number)
-The total uncompressed definition length.
+The total uncompressed definition length in bytes. Not base64 encoded.
 
 `total_parts`::
 (Required, number)

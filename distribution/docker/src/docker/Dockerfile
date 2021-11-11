@@ -19,7 +19,24 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
-<% if (docker_base == "ubi") { %>
+<% if (docker_base == 'iron_bank') { %>
+################################################################################
+# Build stage 0 `builder`:
+# Extract Elasticsearch artifact
+################################################################################
+
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
+ARG BASE_TAG=8.4
+
+FROM ${base_image} AS builder
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+COPY tini /bin/tini
+RUN chmod 0555 /bin/tini
+
+<% } else { %>
 ################################################################################
 # Build stage 0 `builder`:
 # Extract Elasticsearch artifact
@@ -48,175 +65,6 @@ RUN set -eux ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
     chmod 0555 /bin/tini
-
-<% } else if (docker_base == 'iron_bank') { %>
-################################################################################
-# Build stage 0 `builder`:
-# Extract Elasticsearch artifact
-################################################################################
-
-ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
-
-FROM ${base_image} AS builder
-
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-COPY tini /bin/tini
-RUN chmod 0555 /bin/tini
-
-<% } else { %>
-
-<% /* CentOS builds are actaully a custom base image with a minimal set of dependencies */ %>
-
-################################################################################
-# Stage 1. Build curl statically. Installing it from RPM on CentOS pulls in too
-# many dependencies.
-################################################################################
-FROM alpine:3.13 AS curl
-
-ENV VERSION 7.71.0
-ENV TARBALL_URL https://curl.haxx.se/download/curl-\${VERSION}.tar.xz
-ENV TARBALL_PATH curl-\${VERSION}.tar.xz
-
-# Install dependencies
-RUN <%= retry.loop('apk', 'apk add gnupg gcc make musl-dev openssl-dev openssl-libs-static file') %>
-
-RUN mkdir /work
-WORKDIR /work
-
-# Fetch curl sources and files for validation. Note that alpine's `wget` doesn't have retry options.
-RUN function retry_wget() { \\
-      local URL="\$1" ; \\
-      local DEST="\$2" ; \\
-      <%= retry.loop('wget', 'wget "\$URL\" -O "\$DEST"', 6, 'return') %> ; \\
-    } ; \\
-    retry_wget "https://daniel.haxx.se/mykey.asc" "curl-gpg.pub" && \\
-    retry_wget "\${TARBALL_URL}.asc" "\${TARBALL_PATH}.asc" && \\
-    retry_wget "\${TARBALL_URL}" "\${TARBALL_PATH}"
-
-# Validate source
-RUN gpg --import --always-trust "curl-gpg.pub" && \\
-    gpg --verify "\${TARBALL_PATH}.asc" "\${TARBALL_PATH}"
-
-# Unpack and build
-RUN set -e ; \\
-    tar xfJ "\${TARBALL_PATH}" ; \\
-    cd "curl-\${VERSION}" ; \\
-    if ! ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
-        [[ -e config.log ]] && cat config.log ; \\
-        exit 1 ; \\
-    fi ; \\
-    make curl_LDFLAGS="-all-static" ; \\
-    cp src/curl /work/curl ; \\
-    strip /work/curl
-
-################################################################################
-# Step 2. Create a minimal root filesystem directory. This will form the basis
-# for our image.
-################################################################################
-FROM ${base_image} AS rootfs
-
-ENV TINI_VERSION 0.19.0
-
-# Start off with an up-to-date system
-RUN ${package_manager} update --setopt=tsflags=nodocs -y
-
-# Create a directory into which we will install files
-RUN mkdir /rootfs
-
-# Create required devices
-RUN mkdir -m 755 /rootfs/dev && \\
-    mknod -m 600 /rootfs/dev/console c 5 1 && \\
-    mknod -m 600 /rootfs/dev/initctl p && \\
-    mknod -m 666 /rootfs/dev/full c 1 7 && \\
-    mknod -m 666 /rootfs/dev/null c 1 3 && \\
-    mknod -m 666 /rootfs/dev/ptmx c 5 2 && \\
-    mknod -m 666 /rootfs/dev/random c 1 8 && \\
-    mknod -m 666 /rootfs/dev/tty c 5 0 && \\
-    mknod -m 666 /rootfs/dev/tty0 c 4 0 && \\
-    mknod -m 666 /rootfs/dev/urandom c 1 9 && \\
-    mknod -m 666 /rootfs/dev/zero c 1 5
-
-# Install a minimal set of dependencies, and some for Elasticsearch
-RUN ${package_manager} --installroot=/rootfs --releasever=/ --setopt=tsflags=nodocs \\
-      --setopt=group_package_types=mandatory -y  \\
-      --skip-broken \\
-      install basesystem bash zip zlib
-
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against the published checksum.
-#
-# Also, we use busybox instead of installing utility RPMs, which pulls in
-# all kinds of stuff we don't want.
-RUN set -e ; \\
-    TINI_BIN="" ; \\
-    BUSYBOX_COMMIT="" ; \\
-    case "\$(arch)" in \\
-        aarch64) \\
-            BUSYBOX_COMMIT='8a500845daeaeb926b25f73089c0668cac676e97' ; \\
-            TINI_BIN='tini-arm64' ; \\
-            ;; \\
-        x86_64) \\
-            BUSYBOX_COMMIT='cc81bf8a3c979f596af2d811a3910aeaa230e8ef' ; \\
-            TINI_BIN='tini-amd64' ; \\
-            ;; \\
-        *) echo >&2 "Unsupported architecture \$(arch)" ; exit 1 ;; \\
-    esac ; \\
-    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
-    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
-    sha256sum -c "\${TINI_BIN}.sha256sum" ; \\
-    rm "\${TINI_BIN}.sha256sum" ; \\
-    mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
-    chmod 0555 /rootfs/bin/tini ; \\
-    curl --retry 10 -L -O \\
-      # Here we're fetching the same binaries used for the official busybox docker image from their GtiHub repository
-      "https://github.com/docker-library/busybox/raw/\${BUSYBOX_COMMIT}/stable/musl/busybox.tar.xz" ; \\
-    tar -xf busybox.tar.xz -C /rootfs/bin --strip=2 ./bin ; \\
-    rm busybox.tar.xz ;
-
-# Curl needs files under here. More importantly, we change Elasticsearch's
-# bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
-# the bundled cacerts.
-RUN mkdir -p /rootfs/etc && \\
-    cp -a /etc/pki /rootfs/etc/
-
-# Cleanup the filesystem
-RUN ${package_manager} --installroot=/rootfs -y clean all && \\
-    cd /rootfs && \\
-    rm -rf \\
-        etc/{X11,centos-release*,csh*,profile*,skel*,yum*} \\
-        sbin/sln \\
-        usr/bin/rpm \\
-        {usr,var}/games \\
-        usr/lib/{dracut,systemd,udev} \\
-        usr/lib64/X11 \\
-        usr/local \\
-        usr/share/{awk,centos-release,cracklib,desktop-directories,gcc-*,i18n,icons,licenses,xsessions,zoneinfo} \\
-        usr/share/{man,doc,info,games,gdb,ghostscript,gnome,groff,icons,pixmaps,sounds,backgrounds,themes,X11} \\
-        usr/{{lib,share}/locale,{lib,lib64}/gconv,bin/localedef,sbin/build-locale-archive} \\
-        var/cache/yum \\
-        var/lib/{rpm,yum} \\
-        var/log/yum.log
-
-# ldconfig
-RUN rm -rf /rootfs/etc/ld.so.cache /rootfs/var/cache/ldconfig && \\
-    mkdir -p --mode=0755 /rootfs/var/cache/ldconfig
-
-COPY --from=curl /work/curl /rootfs/usr/bin/curl
-
-# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-RUN find /rootfs -xdev -perm -4000 -exec chmod ug-s {} +
-
-################################################################################
-# Step 3. Fetch the Elasticsearch distribution and configure it for Docker
-################################################################################
-FROM ${base_image} AS builder
 
 <% } %>
 
@@ -282,8 +130,6 @@ COPY bin/plugin-wrapper.sh /opt/plugins
 RUN chmod -R 0555 /opt/plugins
 <% } %>
 
-<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
-
 ################################################################################
 # Build stage 1 (the actual Elasticsearch image):
 #
@@ -293,7 +139,17 @@ RUN chmod -R 0555 /opt/plugins
 
 FROM ${base_image}
 
-<% if (docker_base == "ubi") { %>
+<% if (docker_base == "iron_bank") { %>
+<%
+/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
+/* scripting so this version doesn't have the retry loop featured below. */
+%>
+RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
+    ${package_manager} install --setopt=tsflags=nodocs -y \\
+      nc shadow-utils zip findutils unzip procps-ng && \\
+    ${package_manager} clean all
+
+<% } else { %>
 
 RUN <%= retry.loop(
     package_manager,
@@ -303,49 +159,18 @@ RUN <%= retry.loop(
       "      ${package_manager} clean all"
     ) %>
 
-<% } else { %>
-
-<%
-/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
-/* scripting so this version doesn't have the retry loop featured above. */
-%>
-RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
-    ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip findutils unzip procps-ng && \\
-    ${package_manager} clean all
-
 <% } %>
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 
-<% } else { %>
-
-################################################################################
-# Stage 4. Build the final image, using the rootfs above as the basis, and
-# copying in the Elasticsearch distribution
-################################################################################
-FROM scratch
-
-# Setup the initial filesystem.
-COPY --from=rootfs /rootfs /
-
-RUN addgroup -g 1000 elasticsearch && \\
-    adduser -D -u 1000 -G elasticsearch -g elasticsearch -h /usr/share/elasticsearch elasticsearch && \\
-    addgroup elasticsearch root && \\
-    chown -R 0:0 /usr/share/elasticsearch
-
-<% } %>
-
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
-<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-<% } %>
 
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt

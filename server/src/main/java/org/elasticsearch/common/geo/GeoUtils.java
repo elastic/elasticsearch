@@ -305,7 +305,7 @@ public class GeoUtils {
         assert lonLat != null && lonLat.length == 2;
 
         normLat = normLat && needsNormalizeLat(lonLat[1]);
-        normLon = normLon && (needsNormalizeLat(lonLat[0]) || normLat);
+        normLon = normLon && (needsNormalizeLon(lonLat[0]) || normLat);
 
         if (normLat) {
             lonLat[1] = centeredModulus(lonLat[1], 360);

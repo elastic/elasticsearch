@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -157,12 +158,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()),
-                    XContentType.JSON
-                )
+                new SourceToParse("1", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
             )
         );
         assertThat(e.getRootCause().getMessage(), containsString("data stream timestamp field [@timestamp] is missing"));
@@ -182,9 +178,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             s,
             mapping(b -> b.startObject("@timestamp").field("type", randomBoolean() ? "date" : "date_nanos").endObject())
         ).documentMapper();
-        mapper.parse(
+        ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field("@timestamp", randomLongBetween(startTime, endTime)).endObject()
@@ -192,6 +187,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
+        // Look, mah, no failure.
+        assertNotNull(doc.rootDoc().getNumericValue("@timestamp"));
     }
 
     public void testBadStartTime() throws IOException {
@@ -211,7 +208,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> mapper.parse(
                 new SourceToParse(
-                    "test",
                     "1",
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder()
@@ -243,7 +239,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> mapper.parse(
                 new SourceToParse(
-                    "test",
                     "1",
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder().startObject().field("@timestamp", endTime + randomLongBetween(0, 3)).endObject()

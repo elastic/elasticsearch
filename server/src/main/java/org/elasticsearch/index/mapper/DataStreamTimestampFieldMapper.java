@@ -218,7 +218,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     private void validateTimestamp(IndexableField field, DocumentParserContext context) {
         if (context.indexSettings().getMode() == null || context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-            return ;
+            return;
         }
 
         long value = field.numericValue().longValue();

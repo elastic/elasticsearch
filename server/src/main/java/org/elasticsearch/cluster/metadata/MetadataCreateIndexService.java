@@ -1046,14 +1046,12 @@ public class MetadataCreateIndexService {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
             }
 
-            boolean isHidden = systemNamePredicate.test(alias.name()) || (Objects.nonNull(alias.isHidden()) && alias.isHidden());
-
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
                 .filter(alias.filter())
                 .indexRouting(alias.indexRouting())
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
-                .isHidden(isHidden)
+                .isHidden(systemNamePredicate.test(alias.name()) ? Boolean.TRUE : alias.isHidden())
                 .build();
             resolvedAliases.add(aliasMetadata);
             resolvedExpressions.add(new Alias(resolvedExpression));

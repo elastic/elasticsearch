@@ -210,8 +210,8 @@ class DatabaseReaderLazyLoader implements Closeable {
         return md5;
     }
 
-    public void close(boolean deleteDatabaseFileOnClose) throws IOException {
-        this.deleteDatabaseFileOnClose = deleteDatabaseFileOnClose;
+    public void close(boolean shouldDeleteDatabaseFileOnClose) throws IOException {
+        this.deleteDatabaseFileOnClose = shouldDeleteDatabaseFileOnClose;
         close();
     }
 

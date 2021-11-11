@@ -104,8 +104,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
-  // repackaged jna with native bits linked against all elastic supported platforms
-  api "org.elasticsearch:jna:${versions.jna}"
+  api "net.java.dev.jna:jna:${versions.jna}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

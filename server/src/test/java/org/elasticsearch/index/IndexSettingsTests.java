@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -699,13 +700,13 @@ public class IndexSettingsTests extends ESTestCase {
         // smaller
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> indexSettings.updateTimeSeriesEndTime(Instant.ofEpochMilli(endTime - randomLongBetween(1, 1000)))
+            () -> indexSettings.updateTimeSeriesEndTime(Optional.of(Instant.ofEpochMilli(endTime - randomLongBetween(1, 1000))))
         );
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than current value"));
 
         // success
         long newEndTime = endTime + randomLongBetween(1, 1000);
-        indexSettings.updateTimeSeriesEndTime(Instant.ofEpochMilli(newEndTime));
+        indexSettings.updateTimeSeriesEndTime(Optional.of(Instant.ofEpochMilli(newEndTime)));
         assertEquals(newEndTime, indexSettings.getTimeSeriesEndTime());
     }
 

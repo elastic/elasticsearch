@@ -35,7 +35,7 @@ import static java.util.stream.Collectors.toSet;
  * <p>
  * For the most part this class concentrates on validating settings and
  * mappings. Most different behavior is controlled by forcing settings
- * to be set or not set and by enabling extra fields in the mapping. 
+ * to be set or not set and by enabling extra fields in the mapping.
  */
 public enum IndexMode {
     STANDARD {
@@ -73,8 +73,6 @@ public enum IndexMode {
                 }
             }
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {

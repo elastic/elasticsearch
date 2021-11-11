@@ -1,13 +1,10 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images. Starting with version 8.0.0, these
-are based upon a tiny core of essential files. Prior versions used
-https://hub.docker.com/_/centos/[centos:8] as the base image.
-
-A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source files
-are in
+{es} is also available as Docker images. A list of all published Docker
+images and tags is available at
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files are
+in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 include::license.asciidoc[]
@@ -46,7 +43,7 @@ docker pull {docker-repo}:{version}
 
 endif::[]
 
-Now that you have the {es} Docker image, you can start a 
+Now that you have the {es} Docker image, you can start a
 <<docker-cli-run-dev-mode,single-node>> or <<docker-compose-file,multi-node>>
 cluster.
 
@@ -73,7 +70,7 @@ for the transport and HTTP layers.
 You can then {kibana-ref}/docker.html[start {kib}] and enter the enrollment
 token, which is valid for 30 minutes. This token automatically applies the
 security settings from your {es} cluster, authenticates to {es} with the
-`kibana_system` user, and writes the security configuration to `kibana.yml`. 
+`kibana_system` user, and writes the security configuration to `kibana.yml`.
 
 The following command starts a single-node {es} cluster for development or
 testing.
@@ -160,7 +157,7 @@ the nodes in your cluster.
 
 When defining multiple nodes in a `docker-compose.yml` file, you'll need to
 explicitly enable and configure security so that {es} doesn't try to generate a
-password for the `elastic` user on every node. 
+password for the `elastic` user on every node.
 
 ===== Prepare the environment
 
@@ -380,7 +377,7 @@ docker-compose down -v
 ----
 
 WARNING: Deleting data volumes will remove the generated security certificates
-for your nodes. You will need to run `docker-compose` and 
+for your nodes. You will need to run `docker-compose` and
 <<docker-generate-certificates,regenerate the security certificates>> before
 starting your cluster.
 
@@ -505,7 +502,7 @@ To check the Docker daemon defaults for ulimits, run:
 
 [source,sh]
 --------------------------------------------
-docker run --rm centos:8 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm docker.elastic.co/elasticsearch/elasticsearch:{version} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.
@@ -740,25 +737,6 @@ You must explicitly accept them either by:
 
 See {plugins}/_other_command_line_parameters.html[Plugin management]
 for more information.
-
-The {es} Docker image only includes what is required to run {es}, and does
-not provide a package manager. It is possible to add additional utilities
-with a multi-phase Docker build. You must also copy any dependencies, for
-example shared libraries.
-
-[source,sh,subs="attributes"]
---------------------------------------------
-FROM centos:8 AS builder
-yum install -y some-package
-
-FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
-COPY --from=builder /usr/bin/some-utility /usr/bin/
-COPY --from=builder /usr/lib/some-lib.so /usr/lib/
---------------------------------------------
-
-You should use `centos:8` as a base in order to avoid incompatibilities.
-Use http://man7.org/linux/man-pages/man1/ldd.1.html[`ldd`] to list the
-shared libraries required by a utility.
 
 [discrete]
 [[troubleshoot-docker-errors]]

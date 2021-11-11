@@ -109,8 +109,8 @@ public class TrainedModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage\""));
+        assertThat(response, containsString("\"model_size_bytes\""));
+        assertThat(response, containsString("\"model_size\""));
         assertThat(response, containsString("\"model_type\":\"tree_ensemble\""));
         assertThat(response, containsString("\"definition\""));
         assertThat(response, not(containsString("\"compressed_definition\"")));
@@ -126,7 +126,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
+        assertThat(response, containsString("\"model_size_bytes\""));
         assertThat(response, containsString("\"compressed_definition\""));
         assertThat(response, not(containsString("\"definition\"")));
         assertThat(response, containsString("\"count\":1"));

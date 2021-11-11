@@ -6,7 +6,7 @@
 
 Creates or updates an index template. Index templates define
 <<index-modules-settings,settings>>, <<mapping,mappings>>, and <<aliases,aliases>>
-that can be applied automatically to new indices. 
+that can be applied automatically to new indices.
 
 [source,console]
 --------------------------------------------------
@@ -51,7 +51,7 @@ privilege>> to use this API.
 {es} applies templates to new indices based on an
 wildcard pattern that matches the index name.
 
-Index templates are applied during data stream or index creation. 
+Index templates are applied during data stream or index creation.
 For data streams, these settings and mappings are applied when the stream's backing indices are created.
 
 Settings and mappings specified in a <<indices-create-index, create index>>
@@ -106,6 +106,10 @@ See <<create-index-template,create an index template>>.
 `hidden`::
 (Optional, Boolean) If `true`, the data stream is <<hidden,hidden>>. Defaults to
 `false`.
+
+`allow_custom_routing`::
+(Optional, Boolean) If `true`, the data stream supports
+<<mapping-routing-field,custom routing>>. Defaults to `false`.
 ====
 
 `index_patterns`::
@@ -194,7 +198,7 @@ actual index name that the template gets applied to, during index creation.
 [[multiple-templates]]
 ===== Multiple matching templates
 
-If multiple index templates match the name of a new index or data stream,  
+If multiple index templates match the name of a new index or data stream,
 the template with the highest priority is used. For example:
 
 [source,console]
@@ -240,7 +244,7 @@ identical priorities.
 [[versioning-templates]]
 ===== Template versioning
 
-You can use the `version` parameter to add a version number to an index template. 
+You can use the `version` parameter to add a version number to an index template.
 External systems can use these version numbers to simplify template management.
 
 The `version` parameter is optional and not automatically generated or used by {es}.
@@ -267,7 +271,7 @@ To check the `version`, you can use the <<indices-get-template, get index templa
 [[template-metadata]]
 ===== Template metadata
 
-You can use the `_meta` parameter to add arbitrary metadata to an index template. 
+You can use the `_meta` parameter to add arbitrary metadata to an index template.
 This user-defined object is stored in the cluster state,
 so keeping it short is preferable.
 

@@ -29,12 +29,6 @@ import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
-buildscript {
-  repositories {
-    mavenLocal()
-  }
-}
-
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'

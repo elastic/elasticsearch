@@ -529,9 +529,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                     }
                     docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                    if (docWriteRequest.opType() == OpType.CREATE || docWriteRequest.opType() == OpType.INDEX) {
-                        ((IndexRequest) docWriteRequest).process();
-                    }
+                    docWriteRequest.process();
 
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                     int shardId = docWriteRequest.route(indexRouting);

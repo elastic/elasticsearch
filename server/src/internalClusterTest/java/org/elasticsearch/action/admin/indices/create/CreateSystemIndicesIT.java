@@ -15,8 +15,13 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -31,6 +36,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -49,8 +55,14 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     @After
-    public void afterEach() {
+    public void afterEach() throws Exception {
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+        assertAcked(
+            client().execute(
+                DeleteComposableIndexTemplateAction.INSTANCE,
+                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+            ).get()
+        );
     }
 
     @Override
@@ -103,7 +115,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that a template applying a system alias creates a hidden alias.
+     * Check that a legacy template applying a system alias creates a hidden alias.
      */
     public void testCreateSystemAliasViaV1Template() throws Exception {
         assertAcked(
@@ -111,7 +123,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
                 .indices()
                 .preparePutTemplate("test-template")
                 .setPatterns(List.of(INDEX_NAME + "*"))
-                .addAlias(new Alias(INDEX_NAME + "-alias"))
+                .addAlias(new Alias(INDEX_NAME + "-legacy-alias"))
                 .get()
         );
 
@@ -135,6 +147,56 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+    }
+
+    /**
+     * Check that a composable template applying a system alias creates a hidden alias.
+     */
+    public void testCreateSystemAliasViaComposableTemplate() throws Exception {
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(
+            Collections.singletonList(INDEX_NAME + "*"),
+            new Template(
+                null,
+                null,
+                Map.of(INDEX_NAME + "-composable-alias", AliasMetadata.builder(INDEX_NAME + "-composable-alias").build())
+            ),
+            Collections.emptyList(),
+            4L,
+            5L,
+            Collections.emptyMap()
+        );
+        assertAcked(
+            client().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
+            ).get()
+        );
+
+        internalCluster().startNodes(1);
+
+        assertAcked(prepareCreate(INDEX_NAME + "-2"));
+        ensureGreen(PRIMARY_INDEX_NAME);
+
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .get();
+
+        // Attempting to directly create a non-primary system index only creates the primary index
+        assertTrue(indexExists(PRIMARY_INDEX_NAME));
+        assertFalse(indexExists(INDEX_NAME + "-2"));
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
+
+        assertAcked(
+            client().execute(
+                DeleteComposableIndexTemplateAction.INSTANCE,
+                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+            ).get()
+        );
     }
 
     private void doCreateTest(Runnable runnable, String concreteIndex) {

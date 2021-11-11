@@ -87,7 +87,6 @@ public class RefreshListenersTests extends ESTestCase {
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
-    private MeanMetric refreshMetric;
 
     @Before
     public void setupListeners() throws Exception {
@@ -95,18 +94,16 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
-        refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
             logger,
             threadPool.getThreadContext(),
-            refreshMetric
+            new MeanMetric()
         );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
-        String allocationId = UUIDs.randomBase64UUID(random());
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
@@ -510,8 +507,9 @@ public class RefreshListenersTests extends ESTestCase {
             assertNotNull(rejected.error);
             expectedPending = 2;
         } else {
-            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), new TestSeqNoListener()));
-            assertFalse(seqNoListener.isDone.get());
+            TestSeqNoListener acceptedListener = new TestSeqNoListener();
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), acceptedListener));
+            assertFalse(acceptedListener.isDone.get());
             expectedPending = 3;
         }
         assertEquals(expectedPending, listeners.pendingCount());

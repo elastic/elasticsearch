@@ -211,7 +211,7 @@ public final class DateFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("time series index @timestamp value [" + value + "] must be larger than " + startTime);
             }
 
-            long endTime = convert(context.indexSettings().getTimeSeriesStartTime());
+            long endTime = convert(context.indexSettings().getTimeSeriesEndTime());
             if (value >= endTime) {
                 throw new IllegalArgumentException("time series index @timestamp value [" + value + "] must be smaller than " + endTime);
             }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
@@ -31,7 +32,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -479,9 +479,9 @@ public final class IndexSettings {
     /**
      * in time series mode, the start time of the index, timestamp must larger than start_time
      */
-    public static final Setting<Optional<Instant>> TIME_SERIES_START_TIME = Setting.dateSetting(
+    public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
         "index.time_series.start_time",
-        Optional.empty(),
+        Instant.ofEpochMilli(0),
         v -> {},
         Property.IndexScope,
         Property.Final
@@ -490,28 +490,19 @@ public final class IndexSettings {
     /**
      * in time series mode, the end time of the index, timestamp must smaller than start_time
      */
-    public static final Setting<Optional<Instant>> TIME_SERIES_END_TIME = Setting.dateSetting(
+    public static final Setting<Instant> TIME_SERIES_END_TIME = Setting.dateSetting(
         "index.time_series.end_time",
-        Optional.empty(),
+        DateUtils.MAX_NANOSECOND_INSTANT,
         new Setting.Validator<>() {
             @Override
-            public void validate(Optional<Instant> value) {}
+            public void validate(Instant value) {}
 
             @Override
-            public void validate(Optional<Instant> value, Map<Setting<?>, Object> settings) {
+            public void validate(Instant value, Map<Setting<?>, Object> settings) {
                 @SuppressWarnings("unchecked")
-                Optional<Instant> startTime = (Optional<Instant>) settings.get(TIME_SERIES_START_TIME);
-                if (value.isEmpty()) {
-                    if (startTime.isPresent()) {
-                        throw new IllegalArgumentException("index.time_series.start_time must be set with index.time_series.end_time");
-                    }
-                    return;
-                }
-                if (startTime.isEmpty()) {
-                    throw new IllegalArgumentException("index.time_series.start_time must be set with index.time_series.end_time");
-                }
-                if (startTime.get().compareTo(value.get()) < 0) {
-                    throw new IllegalArgumentException("index.time_series.start_time must be larger than index.time_series.end_time");
+                Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
+                if (startTime.toEpochMilli() > value.toEpochMilli()) {
+                    throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
                 }
             }
 
@@ -710,9 +701,8 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings).orElse(null);
-        timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings).orElse(null);
-
+        timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings);
+        timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -1349,17 +1339,12 @@ public final class IndexSettings {
         return timeSeriesEndTime;
     }
 
-    public void updateTimeSeriesEndTime(Optional<Instant> endTime) {
-        if (endTime.isEmpty()) {
-            this.timeSeriesEndTime = null;
-            return;
-        }
-        Instant endInstant = endTime.get();
-        if (this.timeSeriesEndTime.isAfter(endInstant)) {
+    public void updateTimeSeriesEndTime(Instant endTime) {
+        if (this.timeSeriesEndTime.isAfter(endTime)) {
             throw new IllegalArgumentException(
                 "index.time_series.end_time must be larger than current value [" + this.timeSeriesEndTime + "]"
             );
         }
-        this.timeSeriesEndTime = endInstant;
+        this.timeSeriesEndTime = endTime;
     }
 }

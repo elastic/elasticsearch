@@ -33,10 +33,10 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final String NUMERICAL_FIELD = "numerical-field";
     static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
     static final String KEYWORD_FIELD = "keyword-field";
-    static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
-    static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
-    static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
-    static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
+    static final List<Boolean> BOOLEAN_FIELD_VALUES = org.elasticsearch.core.List.of(false, true);
+    static final List<Double> NUMERICAL_FIELD_VALUES = org.elasticsearch.core.List.of(1.0, 2.0);
+    static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = org.elasticsearch.core.List.of(10, 20);
+    static final List<String> KEYWORD_FIELD_VALUES = org.elasticsearch.core.List.of("cat", "dog");
     static final String INDEX_NAME = "created_index";
 
     @Override

@@ -31,6 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -99,6 +101,11 @@ public class SchedulerEngineTests extends ESTestCase {
             if (numberOfFailingListeners > 0) {
                 assertFailedListenerLogMessage(mockLogger, numberOfFailingListeners);
             }
+            // Verify the debug logging:
+            verify(mockLogger).debug(anyString(), anyString());
+            verify(mockLogger).debug(anyString(), anyString(), anyLong());
+            verify(mockLogger).debug(anyString(), anyString(), anyLong(), anyLong());
+
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();
@@ -145,6 +152,11 @@ public class SchedulerEngineTests extends ESTestCase {
             assertTrue(listeners.stream().map(Tuple::v2).allMatch(count -> count.get() == numberOfSchedules));
             latch.await();
             assertFailedListenerLogMessage(mockLogger, numberOfSchedules * numberOfListeners);
+            // Verify the debug logging:
+            verify(mockLogger).debug(anyString(), anyString());
+            verify(mockLogger).debug(anyString(), anyString(), anyLong());
+            verify(mockLogger).debug(anyString(), anyString(), anyLong(), anyLong());
+
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();

@@ -8,10 +8,15 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -24,16 +29,18 @@ import org.junit.After;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -111,6 +118,15 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
      * Check that a template applying a system alias creates a hidden alias.
      */
     public void testAutoCreateSystemAliasViaV1Template() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate("test-template")
+                .setPatterns(List.of(INDEX_NAME + "*"))
+                .addAlias(new Alias(INDEX_NAME + "-legacy-alias"))
+                .get()
+        );
+
         String nonPrimaryIndex = INDEX_NAME + "-2";
         CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
         assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
@@ -124,14 +140,62 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
             .get();
 
-        assertThat(getAliasesResponse.getAliases().size(), greaterThanOrEqualTo(1));
-        getAliasesResponse.getAliases()
-            .stream()
-            .map(Map.Entry::getValue)
-            .flatMap(Collection::stream)
-            .forEach(alias -> { assertThat(alias.isHidden(), is(true)); });
-        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).get(0).isHidden(), equalTo(true));
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(2));
+        assertThat(
+            getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
+            containsInAnyOrder(".test-index", ".test-index-legacy-alias")
+        );
+        getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> { assertThat(alias.isHidden(), is(true)); });
+
+        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+    }
+
+    /**
+     * Check that a composable template applying a system alias creates a hidden alias.
+     */
+    public void testAutoCreateSystemAliasViaComposableTemplate() throws Exception {
+        ComposableIndexTemplate cit = new ComposableIndexTemplate(
+            Collections.singletonList(INDEX_NAME + "*"),
+            new Template(
+                null,
+                null,
+                Map.of(INDEX_NAME + "-composable-alias", AliasMetadata.builder(INDEX_NAME + "-composable-alias").build())
+            ),
+            Collections.emptyList(),
+            4L,
+            5L,
+            Collections.emptyMap()
+        );
+        assertAcked(
+            client().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
+            ).get()
+        );
+
+        internalCluster().startNodes(1);
+
+        String nonPrimaryIndex = INDEX_NAME + "-2";
+        CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
+        assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
+
+        internalCluster().startNodes(1);
+
+        assertTrue(indexExists(nonPrimaryIndex));
+
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .get();
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(2));
+        assertThat(
+            getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
+            containsInAnyOrder(".test-index", ".test-index-composable-alias")
+        );
+        getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> { assertThat(alias.isHidden(), is(true)); });
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }

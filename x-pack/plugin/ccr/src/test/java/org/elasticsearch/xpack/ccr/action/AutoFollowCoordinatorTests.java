@@ -75,11 +75,11 @@ import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollo
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
@@ -2353,7 +2353,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowResults.v2().contains(indexName), equalTo(true));
     }
 
-    public void testRemovesStatsOnRemovingAutoFollowPattern() {
+    public void testRemovesClusterLevelErrorsOnRemovingAutoFollowPattern() {
         // given auto-follow pattern added
         var pattern1 = createAutoFollowPattern("remote1", "logs-*");
         var pattern2 = createAutoFollowPattern("remote2", "logs-*");
@@ -2368,16 +2368,44 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         autoFollowCoordinator.updateStats(
             List.of(
                 new AutoFollowCoordinator.AutoFollowResult("pattern1", new RuntimeException("ClusterStateFetchException")),
+                new AutoFollowCoordinator.AutoFollowResult("pattern2", new RuntimeException("ClusterStateFetchException")),
+                new AutoFollowCoordinator.AutoFollowResult("pattern3", new RuntimeException("ClusterStateFetchException"))
+            )
+        );
+
+        // when auto-follow pattern `pattern3` is removed
+        var before = autoFollowCoordinator.getStats();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of("pattern1", pattern1, "pattern2", pattern2)));
+        autoFollowCoordinator.updateStats(List.of());// actually triggers the purge
+        var after = autoFollowCoordinator.getStats();
+
+        // then stats are removed as well (but only for the removed pattern)
+        assertThat(before.getRecentAutoFollowErrors().keySet(), contains("pattern1", "pattern2", "pattern3"));
+        assertThat(after.getRecentAutoFollowErrors().keySet(), allOf(contains("pattern1", "pattern2"), not(contains("pattern3"))));
+    }
+
+    public void testRemovesIndexLevelErrorsOnRemovingAutoFollowPattern() {
+        // given auto-follow pattern added
+        var pattern1 = createAutoFollowPattern("remote1", "logs-*");
+        var pattern2 = createAutoFollowPattern("remote2", "logs-*");
+        var pattern3 = createAutoFollowPattern("remote2", "metrics-*");// same remote
+
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(
+            createClusterStateWith(Map.of("pattern1", pattern1, "pattern2", pattern2, "pattern3", pattern3))
+        );
+
+        // and stats are published
+        autoFollowCoordinator.updateStats(
+            List.of(
                 new AutoFollowCoordinator.AutoFollowResult(
                     "pattern1",
                     List.of(Tuple.tuple(new Index("logs-1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
                 ),
-                new AutoFollowCoordinator.AutoFollowResult("pattern2", new RuntimeException("ClusterStateFetchException")),
                 new AutoFollowCoordinator.AutoFollowResult(
                     "pattern2",
                     List.of(Tuple.tuple(new Index("logs-1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
                 ),
-                new AutoFollowCoordinator.AutoFollowResult("pattern3", new RuntimeException("ClusterStateFetchException")),
                 new AutoFollowCoordinator.AutoFollowResult(
                     "pattern3",
                     List.of(Tuple.tuple(new Index("metrics-1", UUIDs.base64UUID()), new RuntimeException("AutoFollowExecutionException")))
@@ -2392,14 +2420,39 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         var after = autoFollowCoordinator.getStats();
 
         // then stats are removed as well (but only for the removed pattern)
-        assertThat(
-            before.getRecentAutoFollowErrors(),
-            allOf(hasKey("pattern1:logs-1"), hasKey("pattern2:logs-1"), hasKey("pattern3:metrics-1"))
+        assertThat(before.getRecentAutoFollowErrors().keySet(), contains("pattern1:logs-1", "pattern2:logs-1", "pattern3:metrics-1"));
+        assertThat(after.getRecentAutoFollowErrors().keySet(), allOf(contains("pattern1:logs-1", "pattern2:logs-1"), not(contains("pattern3:metrics-1"))));
+    }
+
+    public void testRemovesErrorsIfPatternContainsColon() {
+        // given auto-follow pattern added
+        var pattern1 = createAutoFollowPattern("remote1", "logs-*");
+        var pattern2 = createAutoFollowPattern("remote2", "logs-*");
+        var pattern3 = createAutoFollowPattern("remote2", "metrics-*");// same remote
+
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(
+            createClusterStateWith(Map.of("pattern:1", pattern1, "pattern:2", pattern2, "pattern:3", pattern3))
         );
-        assertThat(
-            after.getRecentAutoFollowErrors(),
-            allOf(hasKey("pattern1:logs-1"), hasKey("pattern2:logs-1"), not(hasKey("pattern3:metrics-1")))
+
+        // and stats are published
+        autoFollowCoordinator.updateStats(
+            List.of(
+                new AutoFollowCoordinator.AutoFollowResult("pattern:1", new RuntimeException("ClusterStateFetchException")),
+                new AutoFollowCoordinator.AutoFollowResult("pattern:2", new RuntimeException("ClusterStateFetchException")),
+                new AutoFollowCoordinator.AutoFollowResult("pattern:3", new RuntimeException("ClusterStateFetchException"))
+            )
         );
+
+        // when auto-follow pattern `pattern3` is removed
+        var before = autoFollowCoordinator.getStats();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of("pattern:1", pattern1, "pattern:2", pattern2)));
+        autoFollowCoordinator.updateStats(List.of());// actually triggers the purge
+        var after = autoFollowCoordinator.getStats();
+
+        // then stats are removed as well (but only for the removed pattern)
+        assertThat(before.getRecentAutoFollowErrors().keySet(), contains("pattern:1", "pattern:2", "pattern:3"));
+        assertThat(after.getRecentAutoFollowErrors().keySet(), allOf(contains("pattern:1", "pattern:2"), not(contains("pattern:3"))));
     }
 
     private AutoFollowCoordinator createAutoFollowCoordinator() {

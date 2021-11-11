@@ -177,9 +177,13 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         // purge stats for removed patterns
         var currentPatterns = this.patterns;
         recentAutoFollowErrors.keySet().removeIf(key -> {
-            var semicolonPosition = key.indexOf(':');
-            var patternName = semicolonPosition != -1 ? key.substring(0, semicolonPosition) : key;
-            return currentPatterns.contains(patternName) == false;
+            var semicolonPosition = key.lastIndexOf(':');
+            if (semicolonPosition == -1) {
+                return currentPatterns.contains(key) == false;
+            } else {
+                var patternName = key.substring(0, semicolonPosition);
+                return currentPatterns.contains(key) == false && currentPatterns.contains(patternName) == false;
+            }
         });
         // add new stats
         long newStatsReceivedTimeStamp = absoluteMillisTimeProvider.getAsLong();

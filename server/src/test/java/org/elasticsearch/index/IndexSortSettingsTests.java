@@ -91,55 +91,36 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testInvalidIndexSort() {
-        final Settings settings = Settings.builder()
-            .put("index.sort.field", "field1")
-            .put("index.sort.order", "asc, desc")
-            .build();
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        final Settings settings = Settings.builder().put("index.sort.field", "field1").put("index.sort.order", "asc, desc").build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
         assertThat(exc.getMessage(), containsString("index.sort.field:[field1] index.sort.order:[asc, desc], size mismatch"));
     }
 
     public void testInvalidIndexSortWithArray() {
         final Settings settings = Settings.builder()
             .put("index.sort.field", "field1")
-            .putList("index.sort.order", new String[] {"asc", "desc"})
+            .putList("index.sort.order", new String[] { "asc", "desc" })
             .build();
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-        assertThat(exc.getMessage(),
-            containsString("index.sort.field:[field1] index.sort.order:[asc, desc], size mismatch"));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("index.sort.field:[field1] index.sort.order:[asc, desc], size mismatch"));
     }
 
     public void testInvalidOrder() {
-        final Settings settings = Settings.builder()
-            .put("index.sort.field", "field1")
-            .put("index.sort.order", "invalid")
-            .build();
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        final Settings settings = Settings.builder().put("index.sort.field", "field1").put("index.sort.order", "invalid").build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
         assertThat(exc.getMessage(), containsString("Illegal sort order:invalid"));
     }
 
     public void testInvalidMode() {
-        final Settings settings = Settings.builder()
-            .put("index.sort.field", "field1")
-            .put("index.sort.mode", "invalid")
-            .build();
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        final Settings settings = Settings.builder().put("index.sort.field", "field1").put("index.sort.mode", "invalid").build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
         assertThat(exc.getMessage(), containsString("Illegal sort mode: invalid"));
     }
 
     public void testInvalidMissing() {
-        final Settings settings = Settings.builder()
-            .put("index.sort.field", "field1")
-            .put("index.sort.missing", "default")
-            .build();
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
-        assertThat(exc.getMessage(), containsString("Illegal missing value:[default]," +
-            " must be one of [_last, _first]"));
+        final Settings settings = Settings.builder().put("index.sort.field", "field1").put("index.sort.missing", "default").build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> indexSettings(settings));
+        assertThat(exc.getMessage(), containsString("Illegal missing value:[default]," + " must be one of [_last, _first]"));
     }
 
     public void testIndexSortingNoDocValues() {
@@ -180,15 +161,17 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     public void testSortingAgainstAliasesPre713() {
-        IndexSettings indexSettings = indexSettings(Settings.builder()
-            .put("index.version.created", Version.V_7_12_0)
-            .put("index.sort.field", "field").build());
+        IndexSettings indexSettings = indexSettings(
+            Settings.builder().put("index.version.created", Version.V_7_12_0).put("index.sort.field", "field").build()
+        );
         MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
         Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
         assertThat(sort.getSort(), arrayWithSize(1));
         assertThat(sort.getSort()[0].getField(), equalTo("aliased"));
-        assertWarnings("Index sort for index [test] defined on field [field] which resolves to field [aliased]. " +
-            "You will not be able to define an index sort over aliased fields in new indexes");
+        assertWarnings(
+            "Index sort for index [test] defined on field [field] which resolves to field [aliased]. "
+                + "You will not be able to define an index sort over aliased fields in new indexes"
+        );
     }
 
     public void testTimeSeriesMode() {

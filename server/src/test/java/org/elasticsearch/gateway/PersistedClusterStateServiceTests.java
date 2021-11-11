@@ -498,7 +498,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     .build();
                 throwException.set(true);
                 assertThat(
-                    expectThrows(IOException.class, () -> writeState(writer, newTerm, newState, clusterState)).getMessage(),
+                    expectThrows(IllegalStateException.class, IOException.class, () -> writeState(writer, newTerm, newState, clusterState))
+                        .getMessage(),
                     containsString("simulated")
                 );
             }

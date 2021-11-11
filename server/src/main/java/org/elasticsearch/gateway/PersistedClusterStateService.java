@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -543,7 +544,7 @@ public class PersistedClusterStateService {
                         final BytesArray documentData = new BytesArray(document.getBinaryValue(DATA_FIELD_NAME));
 
                         if (document.getField(PAGE_FIELD_NAME) == null) {
-                            // legacy format: not paginated
+                            // legacy format: not paginated or compressed
                             assert Version.CURRENT.minimumIndexCompatibilityVersion().before(Version.V_7_16_0);
                             bytesReferenceConsumer.accept(documentData);
                             continue;
@@ -554,7 +555,7 @@ public class PersistedClusterStateService {
 
                         if (pageIndex == 0 && isLastPage) {
                             // common case: metadata fits in a single page
-                            bytesReferenceConsumer.accept(documentData);
+                            bytesReferenceConsumer.accept(CompressorFactory.COMPRESSOR.uncompress(documentData));
                             continue;
                         }
 
@@ -569,7 +570,7 @@ public class PersistedClusterStateService {
                         final BytesReference bytesReference = reader.addPage(key, documentData, pageIndex, isLastPage);
                         if (bytesReference != null) {
                             documentReaders.remove(key);
-                            bytesReferenceConsumer.accept(bytesReference);
+                            bytesReferenceConsumer.accept(CompressorFactory.COMPRESSOR.uncompress(bytesReference));
                         }
                     }
                 }
@@ -914,13 +915,14 @@ public class PersistedClusterStateService {
         }
 
         private void writePages(ToXContent metadata, PageWriter pageWriter) throws IOException {
-            try (PageWriterOutputStream streamOutput = new PageWriterOutputStream(documentBuffer, pageWriter)) {
-                try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, streamOutput)) {
-                    xContentBuilder.startObject();
-                    metadata.toXContent(xContentBuilder, FORMAT_PARAMS);
-                    xContentBuilder.endObject();
-                }
-                streamOutput.flush();
+            try (
+                PageWriterOutputStream paginatedStream = new PageWriterOutputStream(documentBuffer, pageWriter);
+                OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(paginatedStream);
+                XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, compressedStream)
+            ) {
+                xContentBuilder.startObject();
+                metadata.toXContent(xContentBuilder, FORMAT_PARAMS);
+                xContentBuilder.endObject();
             }
         }
 
@@ -1051,8 +1053,8 @@ public class PersistedClusterStateService {
         private final PageWriter pageWriter;
         private int bufferPosition;
         private int pageIndex;
-        private boolean flushed;
         private int bytesFlushed;
+        private boolean closed;
 
         PageWriterOutputStream(byte[] buffer, PageWriter pageWriter) {
             assert buffer.length > 0;
@@ -1062,7 +1064,7 @@ public class PersistedClusterStateService {
 
         @Override
         public void write(@SuppressWarnings("NullableProblems") byte[] b, int off, int len) throws IOException {
-            assert flushed == false : "cannot write after flush";
+            assert closed == false : "cannot write after close";
             while (len > 0) {
                 if (bufferPosition == buffer.length) {
                     flushPage(false);
@@ -1079,7 +1081,7 @@ public class PersistedClusterStateService {
 
         @Override
         public void write(int b) throws IOException {
-            assert flushed == false : "cannot write after flush";
+            assert closed == false : "cannot write after close";
             if (bufferPosition == buffer.length) {
                 flushPage(false);
             }
@@ -1089,13 +1091,17 @@ public class PersistedClusterStateService {
 
         @Override
         public void flush() throws IOException {
-            assert flushed == false : "must only flush once";
-            flushed = true;
-            flushPage(true);
+            assert closed == false : "must not flush after close";
+            // keep buffering, don't actually flush anything
         }
 
         @Override
-        public void close() throws IOException {}
+        public void close() throws IOException {
+            if (closed == false) {
+                closed = true;
+                flushPage(true);
+            }
+        }
 
         private void flushPage(boolean isLastPage) throws IOException {
             assert bufferPosition > 0 : "cannot flush empty page";

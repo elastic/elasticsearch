@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.test.PackagingTestCase.AwaitsFix;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -27,7 +26,6 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
-@AwaitsFix(bugUrl = "Needs to be re-enabled")
 public class PluginCliTests extends PackagingTestCase {
 
     private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";
@@ -35,7 +33,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     static {
         // re-read before each test so the plugin path can be manipulated within tests
-        EXAMPLE_PLUGIN_ZIP = Paths.get(System.getProperty("tests.example-plugin", "/dummy/path"));
+        EXAMPLE_PLUGIN_ZIP = Paths.get(System.getProperty("tests.example-plugin"));
     }
 
     @Before

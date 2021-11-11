@@ -25,6 +25,7 @@ import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -45,6 +46,10 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     @Before
     public void beforeEach() {
         TestSystemIndexDescriptor.useNewMappings.set(false);
+    }
+
+    @After
+    public void afterEach() {
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
@@ -113,12 +118,16 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(1);
 
         assertAcked(prepareCreate(INDEX_NAME + "-2"));
-        ensureGreen(INDEX_NAME); // huh?
+        ensureGreen(PRIMARY_INDEX_NAME);
 
         final GetAliasesResponse getAliasesResponse = client().admin()
             .indices()
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
             .get();
+
+        // Attempting to directly create a non-primary system index only creates the primary index
+        assertTrue(indexExists(PRIMARY_INDEX_NAME));
+        assertFalse(indexExists(INDEX_NAME + "-2"));
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));

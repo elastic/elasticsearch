@@ -187,6 +187,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true));
         }
 
+        // Here, we override the user's requested index with the descriptor's primary index
         final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
             cause,
             descriptor.getPrimaryIndex(),

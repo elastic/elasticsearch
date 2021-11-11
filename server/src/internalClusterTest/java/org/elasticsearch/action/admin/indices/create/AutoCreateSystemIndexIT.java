@@ -8,7 +8,10 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -17,15 +20,20 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SystemIndicesSnapshotIT;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -38,6 +46,12 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             CollectionUtils.appendToCopy(super.nodePlugins(), TestSystemIndexPlugin.class),
             UnmanagedSystemIndexTestPlugin.class
         );
+    }
+
+    @After
+    public void afterEach() {
+        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+        client().admin().indices().prepareDelete(PRIMARY_INDEX_NAME);
     }
 
     public void testAutoCreatePrimaryIndex() throws Exception {
@@ -91,6 +105,35 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             exception.getCause().getMessage(),
             containsString("Cannot auto-create system index [.unmanaged-system-idx] with [index.hidden] set to 'false'")
         );
+    }
+
+    /**
+     * Check that a template applying a system alias creates a hidden alias.
+     */
+    public void testAutoCreateSystemAliasViaV1Template() throws Exception {
+        String nonPrimaryIndex = INDEX_NAME + "-2";
+        CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
+        assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
+
+        internalCluster().startNodes(1);
+
+        assertTrue(indexExists(nonPrimaryIndex));
+
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .get();
+
+        assertThat(getAliasesResponse.getAliases().size(), greaterThanOrEqualTo(1));
+        getAliasesResponse.getAliases()
+            .stream()
+            .map(Map.Entry::getValue)
+            .flatMap(Collection::stream)
+            .forEach(alias -> { assertThat(alias.isHidden(), is(true)); });
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).get(0).isHidden(), equalTo(true));
+
+        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     public static class UnmanagedSystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {

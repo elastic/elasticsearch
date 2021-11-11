@@ -383,6 +383,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         refreshIndex(transformIndex);
     }
 
+    protected void resetTransform(String transformId, boolean force) throws IOException {
+        final Request resetTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_reset", null);
+        resetTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
+        Map<String, Object> resetTransformResponse = entityAsMap(client().performRequest(resetTransformRequest));
+        assertThat(resetTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+    }
+
     protected Request createRequestWithAuth(final String method, final String endpoint, final String authHeader) {
         final Request request = new Request(method, endpoint);
 

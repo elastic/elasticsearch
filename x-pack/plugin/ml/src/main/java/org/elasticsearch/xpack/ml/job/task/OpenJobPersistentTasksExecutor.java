@@ -390,9 +390,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                         return;
                     }
                     listener.onFailure(
-                        ExceptionsHelper.serverError(
-                            "[{}] job snapshot [{}] has min version before [{}], "
-                                + "please revert to a newer model snapshot or reset the job",
+                        ExceptionsHelper.badRequestException(
+                            "[{}] job snapshot [{}] has min version before [{}], please revert to a newer model snapshot or reset the job",
                             jobId,
                             jobSnapshotId,
                             MIN_SUPPORTED_SNAPSHOT_VERSION.toString()

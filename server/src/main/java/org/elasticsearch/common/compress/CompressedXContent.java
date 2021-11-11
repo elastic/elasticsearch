@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -51,7 +52,7 @@ public final class CompressedXContent {
             // cannot happen
             throw new Error(bogus);
         }
-        return MessageDigests.toHexString(messageDigest.digest());
+        return Base64.getEncoder().encodeToString(messageDigest.digest());
     }
 
     private static String sha256FromCompressed(byte[] compressed) {
@@ -67,7 +68,7 @@ public final class CompressedXContent {
                 }
                 buffer.clear();
             } while (inflater.finished() == false);
-            return MessageDigests.toHexString(messageDigest.digest());
+            return Base64.getEncoder().encodeToString(messageDigest.digest());
         } catch (DataFormatException e) {
             throw new ElasticsearchException(e);
         }
@@ -104,7 +105,7 @@ public final class CompressedXContent {
             }
         }
         this.bytes = BytesReference.toBytes(bStream.bytes());
-        this.sha256 = MessageDigests.toHexString(messageDigest.digest());
+        this.sha256 = Base64.getEncoder().encodeToString(messageDigest.digest());
         assertConsistent();
     }
 

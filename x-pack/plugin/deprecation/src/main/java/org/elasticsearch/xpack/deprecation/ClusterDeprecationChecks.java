@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
@@ -224,11 +222,12 @@ public class ClusterDeprecationChecks {
                 if (mappings.size() > 1) {
                     templatesWithMultipleTypes.add(templateName);
                 }
-                for (ObjectObjectCursor<String, CompressedXContent> mapping : mappings) {
-                    String typeName = mapping.key;
-                    if (MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false) {
-                        templatesWithCustomTypes.add(templateName);
-                    }
+                boolean hasCustomType = mappings.stream().anyMatch(mapping -> {
+                    String typeName = mapping.getKey();
+                    return MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false;
+                });
+                if (hasCustomType) {
+                    templatesWithCustomTypes.add(templateName);
                 }
             }
         });

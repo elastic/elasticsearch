@@ -216,7 +216,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         validateTimestamp(fields[0], context);
     }
 
-    private final void validateTimestamp(IndexableField field, DocumentParserContext context) {
+    private void validateTimestamp(IndexableField field, DocumentParserContext context) {
         if (context.indexSettings().getMode() == null || context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
             return ;
         }

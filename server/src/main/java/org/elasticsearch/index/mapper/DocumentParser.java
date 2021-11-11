@@ -85,10 +85,10 @@ public final class DocumentParser {
             )
         ) {
             context = new InternalDocumentParserContext(mappingLookup, indexSettings, indexAnalyzers, dateParserContext, source, parser);
-            validateStart(parser);
+            validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-            internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context, parser);
-            validateEnd(parser);
+            internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context);
+            validateEnd(context.parser());
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
         }
@@ -112,11 +112,10 @@ public final class DocumentParser {
     private static void internalParseDocument(
         RootObjectMapper root,
         MetadataFieldMapper[] metadataFieldsMappers,
-        DocumentParserContext context,
-        XContentParser parser
+        DocumentParserContext context
     ) throws IOException {
 
-        final boolean emptyDoc = isEmptyDoc(root, parser);
+        final boolean emptyDoc = isEmptyDoc(root, context.parser());
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.preParse(context);
@@ -124,7 +123,7 @@ public final class DocumentParser {
 
         if (root.isEnabled() == false) {
             // entire type is disabled
-            parser.skipChildren();
+            context.parser().skipChildren();
         } else if (emptyDoc == false) {
             parseObjectOrNested(context, root);
         }
@@ -458,25 +457,17 @@ public final class DocumentParser {
         XContentParser.Token token = context.parser().currentToken();
         String currentFieldName = context.parser().currentName();
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
-        DocumentParserContext originalContext = context;
 
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = context.parser().currentName();
                 splitAndValidatePath(currentFieldName);
-                if (currentFieldName.contains(".")) {
-                    context = context.switchParser(DotExpandingXContentParser.expandDots(context.parser()));
-                    currentFieldName = context.parser().currentName();
-                }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
-                context = originalContext;
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, mapper, currentFieldName);
-                context = originalContext;
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, mapper, currentFieldName);
-                context = originalContext;
             } else if (token == null) {
                 throw new MapperParsingException(
                     "object mapping for ["
@@ -487,7 +478,6 @@ public final class DocumentParser {
                 );
             } else if (token.isValue()) {
                 parseValue(context, mapper, currentFieldName, token);
-                context = originalContext;
             }
             token = context.parser().nextToken();
         }
@@ -660,7 +650,7 @@ public final class DocumentParser {
     ) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
-        final String[] paths = splitAndValidatePath(lastFieldName);
+        splitAndValidatePath(lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, lastFieldName);
@@ -930,9 +920,9 @@ public final class DocumentParser {
             Function<DateFormatter, MappingParserContext> parserContext,
             SourceToParse source,
             XContentParser parser
-        ) {
+        ) throws IOException {
             super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
-            this.parser = parser;
+            this.parser = DotExpandingXContentParser.expandDots(parser);
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -15,110 +16,57 @@ import java.io.IOException;
 
 public class DotExpandingXContentParserTests extends ESTestCase {
 
+    private void assertXContentMatches(String expected, String actual) throws IOException {
+        XContentParser inputParser = createParser(JsonXContent.jsonXContent, actual);
+        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser);
+
+        XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
+        assertEquals(expected, Strings.toString(actualOutput));
+    }
+
     public void testEmbeddedObject() throws IOException {
 
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{ \"test.with.dots\" : { \"field\" : \"value\" }, \"nodots\" : \"value2\" }"
+        assertXContentMatches(
+            "{\"test\":{\"with\":{\"dots\":{\"field\":\"value\"}}},\"nodots\":\"value2\"}",
+            "{\"test.with.dots\":{\"field\":\"value\"},\"nodots\":\"value2\"}"
         );
-
-        parser.nextToken();     // start object
-        parser.nextToken();     // test.with.dots fieldname
-
-        XContentParser testParser = DotExpandingXContentParser.expandDots(parser);
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.currentToken());
-        assertEquals("test", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("with", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("dots", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("field", testParser.currentName());
-        assertEquals(XContentParser.Token.VALUE_STRING, testParser.nextToken());
-        assertEquals("value", testParser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertNull(testParser.nextToken());
-
-        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals("nodots", parser.currentName());
-        assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-        assertEquals("value2", parser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
     }
 
     public void testEmbeddedArray() throws IOException {
 
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{ \"test.with.dots\" : [ \"field\", \"value\" ], \"nodots\" : \"value2\" }"
+        assertXContentMatches(
+            "{\"test\":{\"with\":{\"dots\":[\"field\",\"value\"]}},\"nodots\":\"value2\"}",
+            "{\"test.with.dots\":[\"field\",\"value\"],\"nodots\":\"value2\"}"
         );
 
-        parser.nextToken();     // start object
-        parser.nextToken();     // test.with.dots fieldname
-
-        XContentParser testParser = DotExpandingXContentParser.expandDots(parser);
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.currentToken());
-        assertEquals("test", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("with", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("dots", testParser.currentName());
-        assertEquals(XContentParser.Token.START_ARRAY, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_ARRAY, testParser.currentToken());
-        assertEquals(XContentParser.Token.VALUE_STRING, testParser.nextToken());
-        assertEquals("field", testParser.text());
-        assertEquals(XContentParser.Token.VALUE_STRING, testParser.nextToken());
-        assertEquals("value", testParser.text());
-        assertEquals(XContentParser.Token.END_ARRAY, testParser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertNull(testParser.nextToken());
-
-        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals("nodots", parser.currentName());
-        assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-        assertEquals("value2", parser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
     }
 
     public void testEmbeddedValue() throws IOException {
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }");
+        assertXContentMatches(
+            "{\"test\":{\"with\":{\"dots\":\"value\"}},\"nodots\":\"value2\"}",
+            "{\"test.with.dots\":\"value\",\"nodots\":\"value2\"}"
+        );
+
+    }
+
+    public void testSkipChildren() throws IOException {
+        XContentParser parser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }")
+        );
 
         parser.nextToken();     // start object
-        parser.nextToken();     // test.with.dots fieldname
-
-        XContentParser testParser = DotExpandingXContentParser.expandDots(parser);
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.currentToken());
-        assertEquals("test", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("with", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("dots", testParser.currentName());
-        assertEquals(XContentParser.Token.VALUE_STRING, testParser.nextToken());
-        assertEquals("value", testParser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertNull(testParser.nextToken());
-
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("test", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("with", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        parser.skipChildren();
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("nodots", parser.currentName());
         assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
@@ -127,31 +75,10 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertNull(parser.nextToken());
     }
 
-    public void testSkipChildren() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }");
-
-        parser.nextToken();     // start object
-        parser.nextToken();     // test.with.dots fieldname
-
-        XContentParser testParser = DotExpandingXContentParser.expandDots(parser);
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.currentToken());
-        assertEquals("test", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("with", testParser.currentName());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, testParser.currentToken());
-        testParser.skipChildren();
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertNull(testParser.nextToken());
-
-        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals("nodots", parser.currentName());
-        assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-        assertEquals("value2", parser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertNull(parser.nextToken());
+    public void testNestedExpansions() throws IOException {
+        assertXContentMatches(
+            "{\"first\":{\"dot\":{\"second\":{\"dot\":\"value\"},\"third\":\"value\"}},\"nodots\":\"value\"}",
+            "{\"first.dot\":{\"second.dot\":\"value\",\"third\":\"value\"},\"nodots\":\"value\"}"
+        );
     }
 }

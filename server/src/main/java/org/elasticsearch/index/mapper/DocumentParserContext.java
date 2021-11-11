@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.xcontent.DotExpandingXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -283,9 +284,9 @@ public abstract class DocumentParserContext {
      * @param copyToField   the name of the field to copy to
      * @param doc           the document to target
      */
-    public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) {
+    public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
         ContentPath path = new ContentPath(0);
-        XContentParser parser = new CopyToParser(copyToField, parser());
+        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()));
         return new Wrapper(this) {
             @Override
             public ContentPath path() {

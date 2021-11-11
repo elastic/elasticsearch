@@ -9,41 +9,74 @@
 package org.elasticsearch.xcontent;
 
 import java.io.IOException;
+import java.util.Stack;
 
 /**
- * An XContentParser that reinterprets a field name containing dots as an object
- * structure.
+ * An XContentParser that reinterprets field names containing dots as an object structure.
  *
  * A fieldname named 'foo.bar.baz':... will be parsed instead as 'foo':{'bar':{'baz':...}}
  */
 public class DotExpandingXContentParser extends FilterXContentParser {
 
+    private static class WrappingParser extends DelegatingXContentParser {
+
+        final Stack<XContentParser> parsers = new Stack<>();
+
+        WrappingParser(XContentParser in) throws IOException {
+            parsers.push(in);
+            if (in.currentToken() == Token.FIELD_NAME) {
+                expandDots();
+            }
+        }
+
+        @Override
+        public Token nextToken() throws IOException {
+            Token token;
+            while ((token = delegate().nextToken()) == null) {
+                parsers.pop();
+                if (parsers.empty()) {
+                    return null;
+                }
+            }
+            if (token != Token.FIELD_NAME) {
+                return token;
+            }
+            expandDots();
+            return Token.FIELD_NAME;
+        }
+
+        private void expandDots() throws IOException {
+            String field = delegate().currentName();
+            String[] subpaths = field.split("\\.");
+            if (subpaths.length == 0) {
+                throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
+            }
+            if (subpaths.length == 1) {
+                return;
+            }
+            Token token = delegate().nextToken();
+            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), delegate(), subpaths));
+            } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+                throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
+            } else {
+                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), delegate(), subpaths));
+            }
+        }
+
+        @Override
+        protected XContentParser delegate() {
+            return parsers.peek();
+        }
+    }
+
     /**
-     * Wraps an XContentParser positioned on a field name such that it re-interprets
-     * any dots in the field name as an object structure
+     * Wraps an XContentParser such that it re-interprets dots in field names as an object structure
      * @param in    the parser to wrap
-     * @return  the wrapped XContentParser, which may be the initial parser if there are no dots
-     *          in the current field name
+     * @return  the wrapped XContentParser
      */
     public static XContentParser expandDots(XContentParser in) throws IOException {
-        if (in.currentToken() != Token.FIELD_NAME) {
-            throw new IllegalStateException("The sub parser must be positioned on a field name");
-        }
-        String field = in.currentName();
-        String[] subpaths = field.split("\\.");
-        if (subpaths.length == 1) {
-            return in;
-        }
-        Token token = in.nextToken();
-        // We wrap the incoming parser so that it returns null when we have finished iterating
-        // through the current object or array, and we can emit closing END_OBJECTs
-        if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-            return new DotExpandingXContentParser(new XContentSubParser(in), in, subpaths);
-        }
-        if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
-            throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
-        }
-        return new DotExpandingXContentParser(new SingletonValueXContentParser(in), in, subpaths);
+        return new WrappingParser(in);
     }
 
     private enum State {
@@ -122,7 +155,6 @@ public class DotExpandingXContentParser extends FilterXContentParser {
     public void skipChildren() throws IOException {
         if (state == State.PRE) {
             in.skipChildren();
-            level += 2;
             state = State.POST;
         }
         if (state == State.DURING) {

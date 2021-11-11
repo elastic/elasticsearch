@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
@@ -309,25 +310,25 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         );
 
         TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance("model_1")
-            .setEstimatedHeapMemory(100)
+            .setModelSize(100)
             .setEstimatedOperations(200)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .setInferenceConfig(ClassificationConfig.EMPTY_PARAMS)
             .build();
         TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("model_2")
-            .setEstimatedHeapMemory(200)
+            .setModelSize(200)
             .setEstimatedOperations(400)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
         TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance("model_3")
-            .setEstimatedHeapMemory(300)
+            .setModelSize(300)
             .setEstimatedOperations(600)
             .setInferenceConfig(new NerConfig(null, null, null, null))
             .build();
         TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("model_4")
             .setTags(Collections.singletonList("prepackaged"))
-            .setEstimatedHeapMemory(1000)
+            .setModelSize(1000)
             .setEstimatedOperations(2000)
             .build();
         givenTrainedModels(Arrays.asList(trainedModel1, trainedModel2, trainedModel3, trainedModel4));
@@ -339,16 +340,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 List.of(
-                    new GetDeploymentStatsAction.Response.AllocationStats(
-                        "model_3",
-                        ByteSizeValue.ofMb(100),
-                        null,
-                        null,
-                        null,
-                        Instant.now(),
-                        List.of()
-                    ).setState(AllocationState.STOPPING),
-                    new GetDeploymentStatsAction.Response.AllocationStats(
+                    new AllocationStats("model_3", ByteSizeValue.ofMb(100), null, null, null, Instant.now(), List.of()).setState(
+                        AllocationState.STOPPING
+                    ),
+                    new AllocationStats(
                         "model_4",
                         ByteSizeValue.ofMb(200),
                         2,
@@ -356,7 +351,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                         1000,
                         Instant.now(),
                         List.of(
-                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                            AllocationStats.NodeStats.forStartedState(
                                 new DiscoveryNode("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2), Version.CURRENT),
                                 5,
                                 42.0,
@@ -364,7 +359,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 Instant.now(),
                                 Instant.now()
                             ),
-                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                            AllocationStats.NodeStats.forStartedState(
                                 new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
                                 4,
                                 50.0,
@@ -462,10 +457,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
 
             assertThat(source.getValue("inference.trained_models._all.count"), equalTo(4));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.min"), equalTo(100.0));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.max"), equalTo(300.0));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.total"), equalTo(600.0));
-            assertThat(source.getValue("inference.trained_models.estimated_heap_memory_usage_bytes.avg"), equalTo(200.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.min"), equalTo(100.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.max"), equalTo(300.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.total"), equalTo(600.0));
+            assertThat(source.getValue("inference.trained_models.model_size_bytes.avg"), equalTo(200.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.min"), equalTo(200.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.max"), equalTo(600.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.total"), equalTo(1200.0));

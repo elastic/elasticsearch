@@ -14,7 +14,7 @@ import java.util.Stack;
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
  *
- * A fieldname named 'foo.bar.baz':... will be parsed instead as 'foo':{'bar':{'baz':...}}
+ * A fieldname named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}
  */
 public class DotExpandingXContentParser extends FilterXContentParser {
 

@@ -311,10 +311,13 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     *  @deprecated we are actively deprecating and removing the ability to pass
+     *              complex objects to multifields, so try and avoid using this method
      * Replace the XContentParser used by this context
      * @param parser    the replacement parser
      * @return  a new context with a replaced parser
      */
+    @Deprecated
     public final DocumentParserContext switchParser(XContentParser parser) {
         return new Wrapper(this) {
             @Override

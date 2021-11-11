@@ -29,6 +29,12 @@ import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
+buildscript {
+  repositories {
+    mavenLocal()
+  }
+}
+
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
@@ -430,7 +436,7 @@ tasks.register("buildReleaseArtifacts").configure {
     .findAll { it != null }
 }
 
-tasks.named("spotlessApply").configure {
+tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')

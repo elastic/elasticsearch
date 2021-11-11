@@ -20,10 +20,12 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembeddi
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureValue;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.NGramFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.RelevantScriptFeatureExtractor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.ScriptCode;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.ScriptFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +44,24 @@ import java.util.stream.Collectors;
  * This is a fork and a port of: https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/embedding_network.cc
  */
 public class CustomWordEmbedding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
+
+    public static class ByteSizeAndEmbedding {
+        final int utf8ByteSize;
+        final double[] embedding;
+
+        public ByteSizeAndEmbedding(int utf8ByteSize, double[] embedding) {
+            this.utf8ByteSize = utf8ByteSize;
+            this.embedding = embedding;
+        }
+
+        public int getUtf8ByteSize() {
+            return utf8ByteSize;
+        }
+
+        public double[] getEmbedding() {
+            return embedding;
+        }
+    }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CustomWordEmbedding.class);
     public static final int MAX_STRING_SIZE_IN_BYTES = 10000;
@@ -214,10 +234,75 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         text = FeatureUtils.cleanAndLowerText(text);
         text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
         String finalText = text;
-        List<FeatureValue[]> processedFeatures = FEATURE_EXTRACTORS.stream()
-            .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
-            .collect(Collectors.toList());
-        fields.put(destField, concatEmbeddings(processedFeatures));
+        if (text.isEmpty() || text.isBlank()) {
+            fields.put(
+                destField,
+                Arrays.asList(
+                    new ByteSizeAndEmbedding(
+                        // Don't count white spaces as bytes for the prediction
+                        finalText.trim().getBytes(StandardCharsets.UTF_8).length,
+                        concatEmbeddings(
+                            FEATURE_EXTRACTORS.stream()
+                                .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
+                                .collect(Collectors.toList())
+                        )
+                    )
+                )
+            );
+            return;
+        }
+        List<ByteSizeAndEmbedding> embeddings = new ArrayList<>();
+        int[] codePoints = finalText.codePoints().toArray();
+        for (int i = 0; i < codePoints.length - 1;) {
+            while (i < codePoints.length - 1 && Character.isLetter(codePoints[i]) == false) {
+                i++;
+            }
+            if (i >= codePoints.length) {
+                break;
+            }
+            ScriptCode currentCode = ScriptCode.unicodeScriptToULScript(Character.UnicodeScript.of(codePoints[i]));
+            int j = i + 1;
+            for (; j < codePoints.length; j++) {
+                while (j < codePoints.length && Character.isLetter(codePoints[j]) == false) {
+                    j++;
+                }
+                if (j >= codePoints.length) {
+                    break;
+                }
+                ScriptCode j1 = ScriptCode.unicodeScriptToULScript(Character.UnicodeScript.of(codePoints[j]));
+                if (j1 != currentCode && j1 != ScriptCode.Inherited) {
+                    if (j < codePoints.length - 1) {
+                        ScriptCode j2 = ScriptCode.unicodeScriptToULScript(Character.UnicodeScript.of(codePoints[j + 1]));
+                        if (j2 != ScriptCode.Common && j2 != currentCode) {
+                            break;
+                        }
+                    }
+                }
+            }
+            // Knowing the start and the end of the section is important for feature building, so make sure its wrapped in spaces
+            String str = new String(codePoints, i, j - i);
+            StringBuilder builder = new StringBuilder();
+            if (str.startsWith(" ") == false) {
+                builder.append(" ");
+            }
+            builder.append(str);
+            if (str.endsWith(" ") == false) {
+                builder.append(" ");
+            }
+            embeddings.add(
+                new ByteSizeAndEmbedding(
+                    // Don't count white spaces as bytes for the prediction
+                    str.trim().getBytes(StandardCharsets.UTF_8).length,
+                    concatEmbeddings(
+                        FEATURE_EXTRACTORS.stream()
+                            .map((featureExtractor) -> featureExtractor.extractFeatures(builder.toString()))
+                            .collect(Collectors.toList())
+                    )
+                )
+            );
+            i = j;
+        }
+        fields.put(destField, embeddings);
     }
 
     @Override

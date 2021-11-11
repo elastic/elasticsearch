@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembeddi
 import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,17 +44,17 @@ import java.util.stream.Collectors;
  */
 public class CustomWordEmbedding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
-    public static class ByteSizeAndEmbedding {
-        final int utf8ByteSize;
+    public static class StringLengthAndEmbedding {
+        final int stringLen;
         final double[] embedding;
 
-        public ByteSizeAndEmbedding(int utf8ByteSize, double[] embedding) {
-            this.utf8ByteSize = utf8ByteSize;
+        public StringLengthAndEmbedding(int stringLen, double[] embedding) {
+            this.stringLen = stringLen;
             this.embedding = embedding;
         }
 
-        public int getUtf8ByteSize() {
-            return utf8ByteSize;
+        public int getStringLen() {
+            return stringLen;
         }
 
         public double[] getEmbedding() {
@@ -233,14 +232,13 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         String text = (String) field;
         text = FeatureUtils.cleanAndLowerText(text);
         text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
-        String finalText = text;
-        if (text.isEmpty() || text.isBlank()) {
+        final String finalText = text;
+        if (finalText.isEmpty() || finalText.isBlank()) {
             fields.put(
                 destField,
-                Arrays.asList(
-                    new ByteSizeAndEmbedding(
-                        // Don't count white spaces as bytes for the prediction
-                        finalText.trim().getBytes(StandardCharsets.UTF_8).length,
+                Collections.singletonList(
+                    new StringLengthAndEmbedding(
+                        0,
                         concatEmbeddings(
                             FEATURE_EXTRACTORS.stream()
                                 .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
@@ -251,7 +249,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
             );
             return;
         }
-        List<ByteSizeAndEmbedding> embeddings = new ArrayList<>();
+        List<StringLengthAndEmbedding> embeddings = new ArrayList<>();
         int[] codePoints = finalText.codePoints().toArray();
         for (int i = 0; i < codePoints.length - 1;) {
             while (i < codePoints.length - 1 && Character.isLetter(codePoints[i]) == false) {
@@ -290,9 +288,9 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
                 builder.append(" ");
             }
             embeddings.add(
-                new ByteSizeAndEmbedding(
+                new StringLengthAndEmbedding(
                     // Don't count white spaces as bytes for the prediction
-                    str.trim().getBytes(StandardCharsets.UTF_8).length,
+                    str.trim().length(),
                     concatEmbeddings(
                         FEATURE_EXTRACTORS.stream()
                             .map((featureExtractor) -> featureExtractor.extractFeatures(builder.toString()))

@@ -230,20 +230,20 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         }
         List<?> embeddedVector = (List<?>) vector;
         double[] scores = new double[LANGUAGE_NAMES.size()];
-        int totalByteSize = 0;
+        int totalLen = 0;
         for (Object vec : embeddedVector) {
-            if (vec instanceof CustomWordEmbedding.ByteSizeAndEmbedding == false) {
+            if (vec instanceof CustomWordEmbedding.StringLengthAndEmbedding == false) {
                 continue;
             }
-            CustomWordEmbedding.ByteSizeAndEmbedding byteSizeAndEmbedding = (CustomWordEmbedding.ByteSizeAndEmbedding) vec;
-            int square = (int) Math.pow(byteSizeAndEmbedding.getUtf8ByteSize(), 2);
-            totalByteSize += square;
-            double[] h0 = hiddenLayer.productPlusBias(false, byteSizeAndEmbedding.getEmbedding());
+            CustomWordEmbedding.StringLengthAndEmbedding stringLengthAndEmbedding = (CustomWordEmbedding.StringLengthAndEmbedding) vec;
+            int square = stringLengthAndEmbedding.getStringLen() * stringLengthAndEmbedding.getStringLen();
+            totalLen += square;
+            double[] h0 = hiddenLayer.productPlusBias(false, stringLengthAndEmbedding.getEmbedding());
             double[] score = softmaxLayer.productPlusBias(true, h0);
             sumDoubleArrays(scores, score, Math.max(square, 1));
         }
-        if (totalByteSize != 0) {
-            divMut(scores, totalByteSize);
+        if (totalLen != 0) {
+            divMut(scores, totalLen);
         }
         double[] probabilities = softMax(scores);
         ClassificationConfig classificationConfig = (ClassificationConfig) config;

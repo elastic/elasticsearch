@@ -72,15 +72,13 @@ public class PluginCliTests extends PackagingTestCase {
         Platforms.onLinux(() -> sh.run("chown elasticsearch:elasticsearch " + linkedPlugins.toString()));
         Files.createSymbolicLink(pluginsDir, linkedPlugins);
         // Packaged installation don't get autoconfigured yet
-        // TODO: Remove this in https://github.com/elastic/elasticsearch/pull/75144
-        String protocol = distribution.isPackage() ? "http" : "https";
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
-                final String pluginsResponse = makeRequest(protocol + "://localhost:9200/_cat/plugins?h=component").strip();
+                final String pluginsResponse = makeRequest("https://localhost:9200/_cat/plugins?h=component").strip();
                 assertThat(pluginsResponse, equalTo(EXAMPLE_PLUGIN_NAME));
 
                 String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
-                final String settingsResponse = makeRequest(protocol + "://localhost:9200/" + settingsPath).strip();
+                final String settingsResponse = makeRequest("https://localhost:9200/" + settingsPath).strip();
                 assertThat(settingsResponse, equalTo("{\"defaults\":{\"custom\":{\"simple\":\"foo\"}}}"));
             });
         });

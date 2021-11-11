@@ -110,6 +110,7 @@ public class CancelTasksRequest implements Validatable {
             + '}';
     }
 
+    @SuppressWarnings("HiddenField")
     public static class Builder {
         private Optional<TimeValue> timeout = Optional.empty();
         private Optional<TaskId> taskId = Optional.empty();

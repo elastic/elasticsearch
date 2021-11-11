@@ -12,23 +12,22 @@ import io.github.nik9000.mapmatcher.MapMatcher;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,8 +41,9 @@ import java.util.function.IntFunction;
 
 import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
+import static java.time.temporal.ChronoField.INSTANT_SECONDS;
 
-@TestLogging(value = "org.elasticsearch.search.tsdb:debug", reason = "test")
+@TestLogging(value = "org.elasticsearch.timeseries.support:debug", reason = "test")
 public class TimeSeriesMetricsIT extends ESIntegTestCase {
     private static final int MAX_RESULT_WINDOW = IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(Settings.EMPTY);
     private static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -81,7 +81,6 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             mapping.field("time_series_dimension", true);
             mapping.endObject();
         });
-        String beforeAll = "2021-01-01T00:05:00Z";
         String[] dates = new String[] {
             "2021-01-01T00:10:00.000Z",
             "2021-01-01T00:11:00.000Z",
@@ -93,48 +92,148 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "v", 2)),
             client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "v", 3)),
             client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "v", 4)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d2, "v", 5))
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d2, "v", 5, "m", 6)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "m", 1)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "m", 2)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "m", 3)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "m", 4))
         );
+
         assertMap(
-            latestInRange(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), beforeAll, dates[0]),
-            matchesMap().entry(Map.of("dim", d1), List.of(Map.entry(dates[0], 1.0)))
+            latest(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), TimeValue.timeValueMinutes(5), dates[0]),
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[0], 1.0)))
         );
+
         assertMap(
-            valuesInRange(between(1, MAX_RESULT_WINDOW), beforeAll, dates[0]),
-            matchesMap().entry(Map.of("dim", d1), List.of(Map.entry(dates[0], 1.0)))
+            latest(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), TimeValue.timeValueMinutes(10), dates[2]),
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[2], 3.0)))
+                .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[2], 5.0)))
         );
+
         assertMap(
-            latestInRange(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), dates[0], dates[2]),
-            matchesMap().entry(Map.of("dim", d1), List.of(Map.entry(dates[2], 3.0)))
-                .entry(Map.of("dim", d2), List.of(Map.entry(dates[1], 5.0)))
+            latest(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), TimeValue.timeValueMinutes(15), dates[3]),
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+                .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
         );
+
         assertMap(
-            valuesInRange(between(1, MAX_RESULT_WINDOW), dates[0], dates[2]),
-            matchesMap().entry(Map.of("dim", d1), List.of(Map.entry(dates[1], 2.0), Map.entry(dates[2], 3.0)))
-                .entry(Map.of("dim", d2), List.of(Map.entry(dates[1], 5.0)))
-        );
-        assertMap(
-            latestInRange(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), beforeAll, dates[3]),
-            matchesMap().entry(Map.of("dim", d1), List.of(Map.entry(dates[3], 4.0)))
-                .entry(Map.of("dim", d2), List.of(Map.entry(dates[1], 5.0)))
-        );
-        assertMap(
-            valuesInRange(between(1, MAX_RESULT_WINDOW), beforeAll, dates[3]),
+            range(between(1, MAX_RESULT_WINDOW), TimeValue.timeValueMinutes(15), TimeValue.timeValueMinutes(10), null, dates[3]),
             matchesMap().entry(
-                Map.of("dim", d1),
-                List.of(Map.entry(dates[0], 1.0), Map.entry(dates[1], 2.0), Map.entry(dates[2], 3.0), Map.entry(dates[3], 4.0))
-            ).entry(Map.of("dim", d2), List.of(Map.entry(dates[1], 5.0)))
+                Tuple.tuple("v", Map.of("dim", d1)),
+                List.of(Map.entry(dates[1], 2.0), Map.entry(dates[2], 3.0), Map.entry(dates[3], 4.0))
+            ).entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[1], 5.0)))
         );
+
         assertMap(
-            latestInRanges(
-                between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
-                beforeAll,
-                dates[3],
-                new DateHistogramInterval("5m")
+            range(
+                between(1, MAX_RESULT_WINDOW),
+                TimeValue.timeValueMinutes(15),
+                TimeValue.timeValueMinutes(10),
+                TimeValue.timeValueMinutes(1),
+                dates[3]
             ),
-            matchesMap().entry(Map.of("dim", d1), List.of(Map.entry(dates[0], 1.0), Map.entry(dates[2], 3.0), Map.entry(dates[3], 4.0)))
-                .entry(Map.of("dim", d2), List.of(Map.entry(dates[1], 5.0)))
+            matchesMap().entry(
+                Tuple.tuple("v", Map.of("dim", d1)),
+                List.of(
+                    Map.entry("2021-01-01T00:11:00.000Z", 2.0),
+                    Map.entry("2021-01-01T00:12:00.000Z", 2.0),
+                    Map.entry("2021-01-01T00:13:00.000Z", 2.0),
+                    Map.entry("2021-01-01T00:14:00.000Z", 2.0),
+                    Map.entry("2021-01-01T00:15:00.000Z", 3.0),
+                    Map.entry("2021-01-01T00:16:00.000Z", 3.0),
+                    Map.entry("2021-01-01T00:17:00.000Z", 3.0),
+                    Map.entry("2021-01-01T00:18:00.000Z", 3.0),
+                    Map.entry("2021-01-01T00:19:00.000Z", 3.0),
+                    Map.entry("2021-01-01T00:20:00.000Z", 4.0)
+                )
+            )
+                .entry(
+                    Tuple.tuple("v", Map.of("dim", d2)),
+                    List.of(
+                        Map.entry("2021-01-01T00:11:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:12:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:13:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:14:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:15:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:16:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:17:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:18:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:19:00.000Z", 5.0),
+                        Map.entry("2021-01-01T00:20:00.000Z", 5.0)
+                    )
+                )
         );
+
+        assertMap(
+            latest(
+                List.of(randomBoolean() ? re("[u-z]") : rn("[a-u]")),
+                List.of(),
+                between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                TimeValue.timeValueMinutes(15),
+                FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+            ),
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+                .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
+        );
+
+        assertMap(
+            latest(
+                List.of(re("[a-t]"), re("[b-s]")),
+                List.of(eq("dim", d1.toString())),
+                between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                TimeValue.timeValueMinutes(15),
+                FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+            ),
+            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+        );
+
+        assertMap(
+            latest(
+                List.of(re("[a-t]"), re("[b-s]")),
+                List.of(ne("dim", d1.toString())),
+                between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                TimeValue.timeValueMinutes(15),
+                FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+            ),
+            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2)), List.of(Map.entry(dates[3], 6.0)))
+        );
+
+        if ("a".equals(d1)) {
+            // regular expressions don't work with numeric nor ip values
+            assertMap(
+                latest(
+                    List.of(re("[a-t]"), re("[b-s]")),
+                    List.of(re("dim", "[" + d2 + "-z]")),
+                    between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                    TimeValue.timeValueMinutes(15),
+                    FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+                ),
+                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2)), List.of(Map.entry(dates[3], 6.0)))
+            );
+
+            assertMap(
+                latest(
+                    List.of(re("[a-t]"), re("[b-s]")),
+                    List.of(rn("dim", "[" + d2 + "-z]")),
+                    between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                    TimeValue.timeValueMinutes(15),
+                    FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+                ),
+                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+            );
+
+            assertMap(
+                latest(
+                    List.of(eq("v")),
+                    List.of(re("dim", "[" + d1 + "-" + d2 + "]")),
+                    between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS),
+                    TimeValue.timeValueMinutes(15),
+                    FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
+                ),
+                matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+                    .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
+            );
+        }
     }
 
     public void testManyTimeSeries() throws InterruptedException, ExecutionException, IOException {
@@ -159,8 +258,8 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
     private void assertManyTimeSeries(IntFunction<Map<String, Object>> gen) throws InterruptedException {
         MapMatcher expectedLatest = matchesMap();
         MapMatcher expectedValues = matchesMap();
-        String min = "2021-01-01T00:10:00Z";
-        String max = "2021-01-01T00:15:00Z";
+        String min = "2021-01-01T00:10:00.000Z";
+        String max = "2021-01-01T00:15:00.000Z";
         long minMillis = FORMATTER.parseMillis(min);
         long maxMillis = FORMATTER.parseMillis(max);
         int iterationSize = scaledRandomIntBetween(50, 100);
@@ -173,13 +272,13 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 times.add(randomLongBetween(minMillis + 1, maxMillis));
             }
             List<Map.Entry<String, Double>> expectedValuesForTimeSeries = new ArrayList<>(count);
-            Map<String, Object> dimensions = gen.apply(i);
-            String timestamp = null;
+            Tuple<String, Map<String, Object>> dimensions = Tuple.tuple("v", gen.apply(i));
+            String timestamp;
             double value = Double.NaN;
             for (long time : times) {
                 timestamp = FORMATTER.formatMillis(time);
                 value = randomDouble();
-                Map<String, Object> source = new HashMap<>(dimensions);
+                Map<String, Object> source = new HashMap<>(dimensions.v2());
                 source.put("@timestamp", timestamp);
                 source.put("v", value);
                 if (randomBoolean()) {
@@ -191,12 +290,21 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 docs.add(client().prepareIndex("tsdb").setSource(source));
                 expectedValuesForTimeSeries.add(Map.entry(timestamp, value));
             }
-            expectedLatest = expectedLatest.entry(dimensions, List.of(Map.entry(timestamp, value)));
+            expectedLatest = expectedLatest.entry(dimensions, List.of(Map.entry(max, value)));
             expectedValues = expectedValues.entry(dimensions, expectedValuesForTimeSeries);
         }
         indexRandom(true, docs);
-        assertMap(latestInRange(iterationSize, min, max), expectedLatest);
-        assertMap(valuesInRange(iterationSize, min, max), expectedValues);
+        assertMap(latest(iterationSize, TimeValue.timeValueMillis(maxMillis - minMillis), maxMillis), expectedLatest);
+        assertMap(
+            range(
+                iterationSize,
+                TimeValue.timeValueMinutes(randomIntBetween(1, 10)),
+                TimeValue.timeValueMillis(maxMillis - minMillis),
+                null,
+                maxMillis
+            ),
+            expectedValues
+        );
     }
 
     public void testManySteps() throws InterruptedException, ExecutionException, IOException {
@@ -208,7 +316,6 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         int iterationBuckets = scaledRandomIntBetween(50, 100);
         int bucketCount = scaledRandomIntBetween(iterationBuckets * 2, iterationBuckets * 100);
         long maxMillis = minMillis + bucketCount * TimeUnit.SECONDS.toMillis(5);
-        String max = FORMATTER.formatMillis(maxMillis);
         List<IndexRequestBuilder> docs = new ArrayList<>(bucketCount);
         for (long millis = minMillis; millis < maxMillis; millis += TimeUnit.SECONDS.toMillis(5)) {
             String timestamp = FORMATTER.formatMillis(millis);
@@ -217,7 +324,9 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 String beforeTimestamp = FORMATTER.formatMillis(millis - 1);
                 double beforeValue = randomDouble();
                 docs.add(client().prepareIndex("tsdb").setSource(Map.of("@timestamp", beforeTimestamp, "dim", "dim", "v", beforeValue)));
-                expectedValues.add(Map.entry(beforeTimestamp, beforeValue));
+                if (millis - 1 >= minMillis) {
+                    expectedValues.add(Map.entry(beforeTimestamp, beforeValue));
+                }
             }
             expectedLatest.add(Map.entry(timestamp, v));
             expectedValues.add(Map.entry(timestamp, v));
@@ -225,10 +334,25 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         }
         indexRandom(true, docs);
         assertMap(
-            latestInRanges(iterationBuckets, "2020-01-01T00:00:00Z", max, new DateHistogramInterval("5s")),
-            matchesMap(Map.of(Map.of("dim", "dim"), expectedLatest))
+            range(
+                iterationBuckets,
+                TimeValue.timeValueMinutes(randomIntBetween(1, 10)),
+                TimeValue.timeValueMillis(maxMillis - minMillis),
+                TimeValue.timeValueSeconds(5),
+                maxMillis - 1
+            ),
+            matchesMap(Map.of(Tuple.tuple("v", Map.of("dim", "dim")), expectedLatest))
         );
-        assertMap(valuesInRange(iterationBuckets, "2020-01-01T00:00:00Z", max), matchesMap(Map.of(Map.of("dim", "dim"), expectedValues)));
+        assertMap(
+            range(
+                iterationBuckets,
+                TimeValue.timeValueMinutes(randomIntBetween(1, 10)),
+                TimeValue.timeValueMillis(maxMillis - minMillis),
+                null,
+                maxMillis - 1
+            ),
+            matchesMap(Map.of(Tuple.tuple("v", Map.of("dim", "dim")), expectedValues))
+        );
     }
 
     private void createTsdbIndex(String... keywordDimensions) throws IOException {
@@ -243,77 +367,120 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject().startObject("properties");
         mapping.startObject("@timestamp").field("type", "date").endObject();
-        mapping.startObject("v").field("type", "double").endObject();
+        mapping.startObject("v").field("type", "double").field("time_series_metric", "gauge").endObject();
+        mapping.startObject("m").field("type", "double").field("time_series_metric", "gauge").endObject();
         dimensionMapping.accept(mapping);
         mapping.endObject().endObject();
         client().admin().indices().prepareCreate("tsdb").setMapping(mapping).get();
     }
 
-    private Map<Map<String, Object>, List<Map.Entry<String, Double>>> latestInRange(int bucketBatchSize, String min, String max) {
-        TemporalAccessor minT = FORMATTER.parse(min);
-        TemporalAccessor maxT = FORMATTER.parse(max);
-        if (randomBoolean()) {
-            long days = Instant.from(maxT).until(Instant.from(minT), ChronoUnit.DAYS) + 1;
-            DateHistogramInterval step = new DateHistogramInterval(days + "d");
-            return latestInRanges(bucketBatchSize, minT, maxT, step);
-        }
-        return latestInRange(bucketBatchSize, minT, maxT);
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> latest(
+        int bucketBatchSize,
+        TimeValue staleness,
+        String time
+    ) {
+        return latest(bucketBatchSize, staleness, FORMATTER.parse(time).getLong(INSTANT_SECONDS) * 1000);
     }
 
-    private Map<Map<String, Object>, List<Map.Entry<String, Double>>> latestInRange(
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> latest(
         int bucketBatchSize,
-        TemporalAccessor min,
-        TemporalAccessor max
+        TimeValue staleness,
+        long timeMillis
     ) {
         return withMetrics(
             bucketBatchSize,
             between(0, 10000),  // Not used by this method
-            (future, metrics) -> metrics.latestInRange("v", min, max, new CollectingListener(future))
+            staleness,
+            (future, metrics) -> metrics.latest(List.of(eq("v")), List.of(), timeMillis, new CollectingListener(future))
         );
     }
 
-    private Map<Map<String, Object>, List<Map.Entry<String, Double>>> latestInRanges(
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> latest(
+        List<TimeSeriesMetrics.TimeSeriesMetricSelector> metricSelectors,
+        List<TimeSeriesMetrics.TimeSeriesDimensionSelector> dimensionSelectors,
         int bucketBatchSize,
-        String min,
-        String max,
-        DateHistogramInterval step
-    ) {
-        return latestInRanges(bucketBatchSize, FORMATTER.parse(min), FORMATTER.parse(max), step);
-    }
-
-    private Map<Map<String, Object>, List<Map.Entry<String, Double>>> latestInRanges(
-        int bucketBatchSize,
-        TemporalAccessor min,
-        TemporalAccessor max,
-        DateHistogramInterval step
+        TimeValue staleness,
+        long timeMillis
     ) {
         return withMetrics(
             bucketBatchSize,
-            between(0, 10000),   // Not used by this method
-            (future, metrics) -> metrics.latestInRanges("v", min, max, step, new CollectingListener(future))
+            between(0, 10000),  // Not used by this method
+            staleness,
+            (future, metrics) -> metrics.latest(metricSelectors, dimensionSelectors, timeMillis, new CollectingListener(future))
         );
     }
 
-    private Map<Map<String, Object>, List<Map.Entry<String, Double>>> valuesInRange(int docBatchSize, String min, String max) {
-        return valuesInRange(docBatchSize, FORMATTER.parse(min), FORMATTER.parse(max));
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> range(
+        int bucketBatchSize,
+        TimeValue staleness,
+        TimeValue range,
+        TimeValue step,
+        String time
+    ) {
+        return range(bucketBatchSize, staleness, range, step, FORMATTER.parse(time).getLong(INSTANT_SECONDS) * 1000);
     }
 
-    private Map<Map<String, Object>, List<Map.Entry<String, Double>>> valuesInRange(
-        int docBatchSize,
-        TemporalAccessor min,
-        TemporalAccessor max
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> range(
+        int bucketBatchSize,
+        TimeValue staleness,
+        TimeValue range,
+        TimeValue step,
+        long timeMillis
     ) {
         return withMetrics(
-            between(0, 10000),   // Not used by this method
-            docBatchSize,
-            (future, metrics) -> metrics.valuesInRange("v", min, max, new CollectingListener(future))
+            bucketBatchSize,
+            between(0, 10000),  // Not used by this method
+            staleness,
+            (future, metrics) -> metrics.range(List.of(eq("v")), List.of(), timeMillis, range, step, new CollectingListener(future))
         );
     }
 
-    private <R> R withMetrics(int bucketBatchSize, int docBatchSize, BiConsumer<ListenableActionFuture<R>, TimeSeriesMetrics> handle) {
+    private static TimeSeriesMetrics.TimeSeriesMetricSelector eq(String metric) {
+        return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesMetricSelector ne(String metric) {
+        return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.NOT_EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesMetricSelector re(String metric) {
+        return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesMetricSelector rn(String metric) {
+        return new TimeSeriesMetrics.TimeSeriesMetricSelector(TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_NOT_EQUAL, metric);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector eq(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(dimension, TimeSeriesMetrics.TimeSeriesSelectorMatcher.EQUAL, value);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector ne(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(dimension, TimeSeriesMetrics.TimeSeriesSelectorMatcher.NOT_EQUAL, value);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector re(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(dimension, TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_EQUAL, value);
+    }
+
+    private static TimeSeriesMetrics.TimeSeriesDimensionSelector rn(String dimension, String value) {
+        return new TimeSeriesMetrics.TimeSeriesDimensionSelector(
+            dimension,
+            TimeSeriesMetrics.TimeSeriesSelectorMatcher.RE_NOT_EQUAL,
+            value
+        );
+    }
+
+    private <R> R withMetrics(
+        int bucketBatchSize,
+        int docBatchSize,
+        TimeValue staleness,
+        BiConsumer<ListenableActionFuture<R>, TimeSeriesMetrics> handle
+    ) {
         ListenableActionFuture<R> result = new ListenableActionFuture<>();
-        new TimeSeriesMetricsService(client(), bucketBatchSize, docBatchSize).newMetrics(
+        new TimeSeriesMetricsService(client(), bucketBatchSize, docBatchSize, staleness).newMetrics(
             new String[] { "tsdb" },
+            IndicesOptions.STRICT_EXPAND_OPEN,
             new ActionListener<TimeSeriesMetrics>() {
                 @Override
                 public void onResponse(TimeSeriesMetrics metrics) {
@@ -329,22 +496,22 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         return result.actionGet();
     }
 
-    private class CollectingListener implements TimeSeriesMetrics.MetricsCallback {
-        private final Map<Map<String, Object>, List<Map.Entry<String, Double>>> results = new HashMap<>();
-        private final ActionListener<Map<Map<String, Object>, List<Map.Entry<String, Double>>>> delegate;
-        private Map<String, Object> currentDimensions = null;
+    private static class CollectingListener implements TimeSeriesMetrics.MetricsCallback {
+        private final Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> results = new HashMap<>();
+        private final ActionListener<Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>>> delegate;
+        private Tuple<String, Map<String, Object>> currentDimensions = null;
         private List<Map.Entry<String, Double>> currentValues = null;
 
-        CollectingListener(ActionListener<Map<Map<String, Object>, List<Map.Entry<String, Double>>>> delegate) {
+        CollectingListener(ActionListener<Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>>> delegate) {
             this.delegate = delegate;
         }
 
         @Override
-        public void onTimeSeriesStart(Map<String, Object> dimensions) {
+        public void onTimeSeriesStart(String metric, Map<String, Object> dimensions) {
             if (currentDimensions != null) {
                 results.put(currentDimensions, currentValues);
             }
-            currentDimensions = dimensions;
+            currentDimensions = new Tuple<>(metric, dimensions);
             currentValues = new ArrayList<>();
         }
 

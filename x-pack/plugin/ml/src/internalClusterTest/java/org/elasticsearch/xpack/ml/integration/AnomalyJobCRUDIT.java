@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
@@ -50,6 +50,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
 
@@ -80,7 +81,6 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
             clusterService,
             Settings.EMPTY
         );
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), clusterService);
         jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
         waitForMlTemplates();
     }
@@ -190,8 +190,8 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         client().execute(RevertModelSnapshotAction.INSTANCE, new RevertModelSnapshotAction.Request(jobId, "snap_1")).actionGet();
 
         // should fail?
-        Exception ex = expectThrows(
-            Exception.class,
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
             () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId)).actionGet()
         );
         assertThat(
@@ -201,6 +201,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
                     + "please revert to a newer model snapshot or reset the job"
             )
         );
+        assertThat(ex.status(), is(RestStatus.BAD_REQUEST));
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {

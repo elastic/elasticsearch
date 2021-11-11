@@ -318,6 +318,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
     }
 
     public static DiscoveryNodeFilters buildFromSettings(DiscoveryNodeFilters.OpType opType, String prefix, Settings settings) {
-        return DiscoveryNodeFilters.buildFromKeyValues(opType, Setting.prefixKeySetting(prefix, key -> Setting.stringListSetting(key)).getAsMap(settings));
+        var values = Setting.prefixKeySetting(prefix, key -> Setting.stringListSetting(key)).getAsMap(settings);
+        return DiscoveryNodeFilters.buildFromKeyValues(opType, values);
     }
 }

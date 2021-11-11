@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -70,6 +71,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String MODEL_ALIASES = "model_aliases";
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
+    private static final String MODEL_SIZE_HUMAN = "model_size";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField MODEL_TYPE = new ParseField("model_type");
@@ -82,7 +84,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
     public static final ParseField INPUT = new ParseField("input");
-    public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
+    public static final ParseField MODEL_SIZE_BYTES = new ParseField("model_size_bytes");
+    public static final ParseField MODEL_SIZE_BYTES_WITH_DEPRECATION = new ParseField(
+        "model_size_bytes",
+        "estimated_heap_memory_usage_bytes"
+    );
+    public static final ParseField DEPRECATED_ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
     public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
     public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
@@ -116,7 +123,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         parser.declareString((trainedModelConfig, s) -> {}, InferenceIndexConstants.DOC_TYPE);
         parser.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p, ignoreUnknownFields), INPUT);
-        parser.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+        if (ignoreUnknownFields) {
+            // On reading from the index, we automatically translate to the new field, no need have a deprecation warning
+            parser.declareLong(TrainedModelConfig.Builder::setModelSize, DEPRECATED_ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+            parser.declareLong(TrainedModelConfig.Builder::setModelSize, MODEL_SIZE_BYTES);
+        } else {
+            // If this is a new PUT, we should indicate that `estimated_heap_memory_usage_bytes` is deprecated
+            parser.declareLong(TrainedModelConfig.Builder::setModelSize, MODEL_SIZE_BYTES_WITH_DEPRECATION);
+        }
         parser.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
         parser.declareObject(
             TrainedModelConfig.Builder::setLazyDefinition,
@@ -156,7 +170,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final List<String> tags;
     private final Map<String, Object> metadata;
     private final TrainedModelInput input;
-    private final long estimatedHeapMemory;
+    private final long modelSize;
     private final long estimatedOperations;
     private final License.OperationMode licenseLevel;
     private final Map<String, String> defaultFieldMap;
@@ -176,7 +190,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         List<String> tags,
         Map<String, Object> metadata,
         TrainedModelInput input,
-        Long estimatedHeapMemory,
+        Long modelSize,
         Long estimatedOperations,
         String licenseLevel,
         Map<String, String> defaultFieldMap,
@@ -193,12 +207,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
         this.input = ExceptionsHelper.requireNonNull(handleDefaultInput(input, modelType), INPUT);
-        if (ExceptionsHelper.requireNonNull(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES) < 0) {
-            throw new IllegalArgumentException(
-                "[" + ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName() + "] must be greater than or equal to 0"
-            );
+        if (ExceptionsHelper.requireNonNull(modelSize, MODEL_SIZE_BYTES) < 0) {
+            throw new IllegalArgumentException("[" + MODEL_SIZE_BYTES.getPreferredName() + "] must be greater than or equal to 0");
         }
-        this.estimatedHeapMemory = estimatedHeapMemory;
+        this.modelSize = modelSize;
         if (ExceptionsHelper.requireNonNull(estimatedOperations, ESTIMATED_OPERATIONS) < 0) {
             throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
         }
@@ -228,7 +240,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
         metadata = in.readMap();
         input = new TrainedModelInput(in);
-        estimatedHeapMemory = in.readVLong();
+        modelSize = in.readVLong();
         estimatedOperations = in.readVLong();
         licenseLevel = License.OperationMode.parse(in.readString());
         this.defaultFieldMap = in.readBoolean()
@@ -343,8 +355,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return new Builder();
     }
 
-    public long getEstimatedHeapMemory() {
-        return estimatedHeapMemory;
+    public long getModelSize() {
+        return modelSize;
     }
 
     public long getEstimatedOperations() {
@@ -372,7 +384,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeCollection(tags, StreamOutput::writeString);
         out.writeMap(metadata);
         input.writeTo(out);
-        out.writeVLong(estimatedHeapMemory);
+        out.writeVLong(modelSize);
         out.writeVLong(estimatedOperations);
         out.writeString(licenseLevel.description());
         if (defaultFieldMap != null) {
@@ -400,11 +412,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
             builder.field(VERSION.getPreferredName(), version.toString());
             builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
-            builder.humanReadableField(
-                ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-                ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
-                ByteSizeValue.ofBytes(estimatedHeapMemory)
-            );
+            // If we are NOT storing the model, we should return the deprecated field name
+            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false
+                && builder.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
+                builder.humanReadableField(
+                    DEPRECATED_ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                    ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
+                    ByteSizeValue.ofBytes(modelSize)
+                );
+            }
+            builder.humanReadableField(MODEL_SIZE_BYTES.getPreferredName(), MODEL_SIZE_HUMAN, ByteSizeValue.ofBytes(modelSize));
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
             builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
         }
@@ -459,7 +476,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             && Objects.equals(definition, that.definition)
             && Objects.equals(tags, that.tags)
             && Objects.equals(input, that.input)
-            && Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory)
+            && Objects.equals(modelSize, that.modelSize)
             && Objects.equals(estimatedOperations, that.estimatedOperations)
             && Objects.equals(licenseLevel, that.licenseLevel)
             && Objects.equals(defaultFieldMap, that.defaultFieldMap)
@@ -480,7 +497,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             description,
             tags,
             metadata,
-            estimatedHeapMemory,
+            modelSize,
             estimatedOperations,
             input,
             licenseLevel,
@@ -501,7 +518,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private List<String> tags = Collections.emptyList();
         private Map<String, Object> metadata;
         private TrainedModelInput input;
-        private Long estimatedHeapMemory;
+        private Long modelSize;
         private Long estimatedOperations;
         private LazyModelDefinition definition;
         private String licenseLevel;
@@ -523,7 +540,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.metadata = config.getMetadata() == null ? null : new HashMap<>(config.getMetadata());
             this.input = config.getInput();
             this.estimatedOperations = config.estimatedOperations;
-            this.estimatedHeapMemory = config.estimatedHeapMemory;
+            this.modelSize = config.modelSize;
             this.licenseLevel = config.licenseLevel.description();
             this.defaultFieldMap = config.defaultFieldMap == null ? null : new HashMap<>(config.defaultFieldMap);
             this.inferenceConfig = config.inferenceConfig;
@@ -697,8 +714,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setEstimatedHeapMemory(long estimatedHeapMemory) {
-            this.estimatedHeapMemory = estimatedHeapMemory;
+        public Builder setModelSize(long modelSize) {
+            this.modelSize = modelSize;
             return this;
         }
 
@@ -858,7 +875,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 tags,
                 metadata,
                 input,
-                estimatedHeapMemory == null ? 0 : estimatedHeapMemory,
+                modelSize == null ? 0 : modelSize,
                 estimatedOperations == null ? 0 : estimatedOperations,
                 licenseLevel == null ? License.OperationMode.PLATINUM.description() : licenseLevel,
                 defaultFieldMap,

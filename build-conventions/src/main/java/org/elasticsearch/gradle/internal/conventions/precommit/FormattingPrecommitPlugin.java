@@ -50,6 +50,9 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             project.getPlugins().apply(PrecommitTaskPlugin.class);
             project.getPlugins().apply(SpotlessPlugin.class);
 
+            // Spotless resolves required dependencies from project repositories, so we need maven central
+            project.getRepositories().mavenCentral();
+
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
                 String importOrderPath = "build-conventions/elastic.importorder";
                 String formatterConfigPath = "build-conventions/formatterConfig.xml";

@@ -96,10 +96,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
-    // Normally you'd use `apt-get` on a Debian-like system, but this is a
-    // workaround for the following when building on Debian:
-    // https://bugs.launchpad.net/ubuntu/+source/libseccomp/+bug/1916485
-    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : (base == DockerBase.UBI ? 'microdnf' : 'apt'),
+    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : (base == DockerBase.UBI ? 'microdnf' : 'apt-get'),
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",

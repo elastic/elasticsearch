@@ -598,13 +598,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
         if (dimension) {
-            try {
-                // Extract the tsid part of the dimension field
-                BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(value);
-                context.doc().addDimensionBytes(fieldType().name(), bytes);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
-            }
+            // Extract the tsid part of the dimension field
+            BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(value);
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields

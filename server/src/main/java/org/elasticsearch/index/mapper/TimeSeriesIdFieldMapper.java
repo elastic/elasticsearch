@@ -196,7 +196,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static BytesReference extractTsidValue(String value) throws IOException {
+    static BytesReference extractTsidValue(String value) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.write((byte) 's');
             /*
@@ -212,14 +212,18 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
             out.writeBytesRef(bytes);
             return out.bytes();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
         }
     }
 
-    static BytesReference extractTsidValue(long value) throws IOException {
+    static BytesReference extractTsidValue(long value) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.write((byte) 'l');
             out.writeLong(value);
             return out.bytes();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
         }
     }
 }

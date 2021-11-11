@@ -500,13 +500,9 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            try {
-                // Extract the tsid part of the dimension field
-                BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(NetworkAddress.format(address));
-                context.doc().addDimensionBytes(fieldType().name(), bytes);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be serialized.", e);
-            }
+            // Extract the tsid part of the dimension field
+            BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(NetworkAddress.format(address));
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);

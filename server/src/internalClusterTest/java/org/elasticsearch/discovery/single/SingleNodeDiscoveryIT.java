@@ -31,6 +31,9 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
 
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -47,7 +50,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("discovery.type", "single-node")
+            .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
             .put("transport.port", getPortRange())
             .build();
     }
@@ -59,7 +62,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
-                    .put("discovery.type", "single-node")
+                    .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
                     .put("transport.type", getTestTransportType())
                     /*
                      * We align the port ranges of the two as then with zen discovery these two
@@ -125,7 +128,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
-                    .put("discovery.type", "zen")
+                    .put(DISCOVERY_TYPE_SETTING.getKey(), MULTI_NODE_DISCOVERY_TYPE)
                     .put("transport.type", getTestTransportType())
                     .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                     /*

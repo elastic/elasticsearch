@@ -50,7 +50,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -59,7 +58,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -322,7 +320,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             final IndexRequest request = context.getRequestToExecute();
             final SourceToParse sourceToParse = new SourceToParse(
-                request.index(),
                 request.id(),
                 request.source(),
                 request.getContentType(),
@@ -345,7 +342,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 primary.mapperService()
                     .merge(
                         MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
+                        new CompressedXContent(result.getRequiredMappingUpdate()),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
@@ -583,9 +580,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             case CREATE:
             case INDEX:
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                final ShardId shardId = replica.shardId();
                 final SourceToParse sourceToParse = new SourceToParse(
-                    shardId.getIndexName(),
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),

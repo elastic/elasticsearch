@@ -846,9 +846,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> unexpectedTemplates = new HashSet<>();
         if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
             if (hasXPack) {
-                // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
-                // index templates, because these were introduced in 7.7.0:
-                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+                // In case of bwc testing, if all nodes are before 7.8.0 then no need to attempt to delete component and composable
+                // index templates, because these were introduced in 7.8.0:
+                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_8_0))) {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
@@ -1059,8 +1059,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 } else if (warnings.size() > 1) {
                     return true;
                 } else {
-                    return warnings.get(0).startsWith("[transient settings removal]") == false
-                        && warnings.get(0).contains("xpack.monitoring") == false;
+                    return warnings.get(0).contains("xpack.monitoring") == false;
                 }
             }));
 

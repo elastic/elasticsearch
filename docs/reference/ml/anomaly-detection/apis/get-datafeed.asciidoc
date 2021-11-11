@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-datafeed]]
 = Get {dfeeds} API
 

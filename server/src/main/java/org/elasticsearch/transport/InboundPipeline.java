@@ -92,35 +92,38 @@ public class InboundPipeline implements Releasable {
         statsTracker.markBytesRead(reference.length());
 
         if (pending.isEmpty() == false) {
-            if (isClosed == false) {
-                pending.add(reference.retain());
-                doHandleBytesWithPending(channel);
-            }
+            // we already have pending bytes, so we queue these bytes after them and then try to decode from the combined message
+            pending.add(reference.retain());
+            doHandleBytesWithPending(channel);
             return;
         }
 
-        boolean continueDecoding = true;
-        while (continueDecoding && isClosed == false && reference.length() > 0) {
-            final int bytesDecoded = decoder.decode(reference, fragment -> this.forwardFragment(channel, fragment));
+        while (isClosed == false && reference.length() > 0) {
+            final int bytesDecoded = decode(channel, reference);
             if (bytesDecoded != 0) {
                 reference = reference.releasableSlice(bytesDecoded);
             } else {
-                continueDecoding = false;
+                break;
             }
         }
+        // if handling the messages didn't cause the channel to get closed and we did not fully consume the buffer retain it
         if (isClosed == false && reference.length() > 0) {
             pending.add(reference.retain());
         }
     }
 
+    private int decode(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        return decoder.decode(channel, reference, this::forwardFragment);
+    }
+
     private void doHandleBytesWithPending(TcpChannel channel) throws IOException {
-        while (isClosed == false && pending.isEmpty() == false) {
+        do {
             final int bytesDecoded;
             if (pending.size() == 1) {
-                bytesDecoded = decoder.decode(pending.peekFirst(), fragment -> this.forwardFragment(channel, fragment));
+                bytesDecoded = decode(channel, pending.peekFirst());
             } else {
                 try (ReleasableBytesReference toDecode = getPendingBytes()) {
-                    bytesDecoded = decoder.decode(toDecode, fragment -> this.forwardFragment(channel, fragment));
+                    bytesDecoded = decode(channel, toDecode);
                 }
             }
             if (bytesDecoded != 0 && isClosed == false) {
@@ -128,7 +131,7 @@ public class InboundPipeline implements Releasable {
             } else {
                 return;
             }
-        }
+        } while (isClosed == false && pending.isEmpty() == false);
     }
 
     private void forwardFragment(TcpChannel channel, Object fragment) throws IOException {

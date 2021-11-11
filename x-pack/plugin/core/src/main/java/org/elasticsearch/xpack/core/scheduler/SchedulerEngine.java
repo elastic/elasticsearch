@@ -158,6 +158,7 @@ public class SchedulerEngine {
             if (previousSchedule != null) {
                 previousSchedule.cancel();
             }
+            logger.debug(() -> new ParameterizedMessage("added job [{}]", job.getId()));
             return schedule;
         });
     }
@@ -165,6 +166,7 @@ public class SchedulerEngine {
     public boolean remove(String jobId) {
         ActiveSchedule removedSchedule = schedules.remove(jobId);
         if (removedSchedule != null) {
+            logger.debug(() -> new ParameterizedMessage("removed job [{}]", jobId));
             removedSchedule.cancel();
         }
         return removedSchedule != null;
@@ -214,6 +216,7 @@ public class SchedulerEngine {
         public void run() {
             final long triggeredTime = clock.millis();
             try {
+                logger.debug(() -> new ParameterizedMessage("job [{}] triggered with triggeredTime=[{}]", name, triggeredTime));
                 notifyListeners(name, triggeredTime, scheduledTime);
             } catch (final Throwable t) {
                 /*
@@ -236,6 +239,14 @@ public class SchedulerEngine {
                 try {
                     synchronized (this) {
                         if (future == null || future.isCancelled() == false) {
+                            logger.debug(
+                                () -> new ParameterizedMessage(
+                                    "schedule job [{}] with scheduleTime=[{}] and delay=[{}]",
+                                    name,
+                                    scheduledTime,
+                                    delay
+                                )
+                            );
                             future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
                         }
                     }

@@ -43,11 +43,10 @@ RUN chmod 0555 /bin/tini
 ################################################################################
 FROM ${base_image} AS builder
 
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
 # Install required packages to extract the Elasticsearch distribution
+<% if (docker_base == 'default' || docker_base == 'cloud') { %>
 RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ca-certificates-java") %>
 <% } else { %>
-# Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
 

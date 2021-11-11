@@ -265,6 +265,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
+        // Translate update requests into index or delete requests which can be executed directly
         final UpdateHelper.Result updateResult;
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
@@ -286,7 +287,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
             DocWriteRequest<?> translated = updateResult.action();
             translated.process();
-            context.setRequestToExecute(updateRequest);
+            context.setRequestToExecute(translated);
         } else {
             context.setRequestToExecute(context.getCurrent());
             updateResult = null;

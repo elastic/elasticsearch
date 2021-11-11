@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD;
 
 public class ZeroShotClassificationProcessor implements NlpTask.Processor {
 
@@ -113,13 +112,13 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         }
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
+        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException {
             if (inputs.size() > 1) {
                 throw new IllegalArgumentException("Unable to do zero-shot classification on more than one text input at a time");
             }
             List<TokenizationResult.Tokenization> tokenizations = new ArrayList<>(labels.length);
             for (String label : labels) {
-                tokenizations.add(tokenizer.tokenize(inputs.get(0), LoggerMessageFormat.format(null, hypothesisTemplate, label)));
+                tokenizations.add(tokenizer.tokenize(inputs.get(0), LoggerMessageFormat.format(null, hypothesisTemplate, label), truncate));
             }
             TokenizationResult result = tokenizer.buildTokenizationResult(tokenizations);
             return buildRequest(result, requestId);
@@ -198,17 +197,12 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
                 .mapToInt(i -> i)
                 .toArray();
 
-            return new ClassificationInferenceResults(
-                sortedIndices[0],
+            return new NlpClassificationInferenceResults(
                 labels[sortedIndices[0]],
                 Arrays.stream(sortedIndices).mapToObj(i -> new TopClassEntry(labels[i], normalizedScores[i])).collect(Collectors.toList()),
-                List.of(),
-                DEFAULT_TOP_CLASSES_RESULTS_FIELD,
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
-                PredictionFieldType.STRING,
-                0,
                 normalizedScores[sortedIndices[0]],
-                null
+                tokenization.anyTruncated()
             );
         }
     }

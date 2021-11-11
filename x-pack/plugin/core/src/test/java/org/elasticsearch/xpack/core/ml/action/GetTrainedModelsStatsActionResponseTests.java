@@ -12,6 +12,7 @@ import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
 
 import java.util.List;
@@ -33,7 +34,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     id,
                     randomBoolean() ? randomIngestStats() : null,
                     randomIntBetween(0, 10),
-                    randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null
+                    randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null,
+                    randomBoolean() ? AllocationStatsTests.randomDeploymentStats() : null
                 )
             )
             .collect(Collectors.toList());
@@ -69,13 +71,26 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response mutateInstanceForVersion(Response instance, Version version) {
-        if (version.before(Version.V_7_8_0)) {
-            List<Response.TrainedModelStats> stats = instance.getResources()
-                .results()
-                .stream()
-                .map(s -> new Response.TrainedModelStats(s.getModelId(), s.getIngestStats(), s.getPipelineCount(), null))
-                .collect(Collectors.toList());
-            return new Response(new QueryPage<>(stats, instance.getResources().count(), RESULTS_FIELD));
+        if (version.before(Version.V_8_0_0)) {
+            return new Response(
+                new QueryPage<>(
+                    instance.getResources()
+                        .results()
+                        .stream()
+                        .map(
+                            stats -> new Response.TrainedModelStats(
+                                stats.getModelId(),
+                                stats.getIngestStats(),
+                                stats.getPipelineCount(),
+                                stats.getInferenceStats(),
+                                null
+                            )
+                        )
+                        .collect(Collectors.toList()),
+                    instance.getResources().count(),
+                    RESULTS_FIELD
+                )
+            );
         }
         return instance;
     }

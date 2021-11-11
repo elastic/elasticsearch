@@ -136,13 +136,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         || actions.containsKey(ShrinkAction.NAME)
                         || actions.containsKey(SearchableSnapshotAction.NAME))) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
-                    actionMap.put(UnfollowAction.NAME, new UnfollowAction());
+                    actionMap.put(UnfollowAction.NAME, UnfollowAction.INSTANCE);
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
                 }
 
                 if (shouldInjectMigrateStepForPhase(phase)) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
-                    actionMap.put(MigrateAction.NAME, new MigrateAction(true));
+                    actionMap.put(MigrateAction.NAME, MigrateAction.ENABLED);
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
                 }
 

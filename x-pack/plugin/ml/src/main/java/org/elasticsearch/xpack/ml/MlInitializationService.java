@@ -54,6 +54,7 @@ public class MlInitializationService implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
     private final AtomicBoolean mlInternalIndicesHidden = new AtomicBoolean(false);
+    private volatile String previousException;
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
@@ -143,8 +144,13 @@ public class MlInitializationService implements ClusterStateListener {
                 event.state(),
                 MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
+                    if (e.getMessage().equals(previousException)) {
+                        logger.debug("Error creating ML annotations index or aliases", e);
+                    } else {
+                        previousException = e.getMessage();
+                        logger.error("Error creating ML annotations index or aliases", e);
+                    }
                     isIndexCreationInProgress.set(false);
-                    logger.error("Error creating ML annotations index or aliases", e);
                 })
             );
         }
@@ -177,19 +183,12 @@ public class MlInitializationService implements ClusterStateListener {
             IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
             for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
                 String index = entry.key;
-                String[] nonHiddenAliases = entry.value.stream()
-                    .filter(metadata -> metadata.isHidden() == null || metadata.isHidden() == false)
-                    .map(AliasMetadata::alias)
-                    .toArray(String[]::new);
-                if (nonHiddenAliases.length == 0) {
-                    continue;
+                for (AliasMetadata existingAliasMetadata : entry.value) {
+                    if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {
+                        continue;
+                    }
+                    indicesAliasesRequest.addAliasAction(aliasReplacementAction(index, existingAliasMetadata));
                 }
-                indicesAliasesRequest.addAliasAction(
-                    IndicesAliasesRequest.AliasActions.add()
-                        .index(index)
-                        .aliases(entry.value.stream().map(AliasMetadata::alias).toArray(String[]::new))
-                        .isHidden(true)
-                );
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {
                 logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
@@ -239,5 +238,26 @@ public class MlInitializationService implements ClusterStateListener {
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(mlHiddenIndexPatterns)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         client.admin().indices().getSettings(getSettingsRequest, getSettingsListener);
+    }
+
+    private static IndicesAliasesRequest.AliasActions aliasReplacementAction(String index, AliasMetadata existingAliasMetadata) {
+        IndicesAliasesRequest.AliasActions addReplacementAliasAction = IndicesAliasesRequest.AliasActions.add()
+            .index(index)
+            .aliases(existingAliasMetadata.getAlias())
+            .isHidden(true);
+        // Be sure to preserve all attributes apart from is_hidden
+        if (existingAliasMetadata.writeIndex() != null) {
+            addReplacementAliasAction.writeIndex(existingAliasMetadata.writeIndex());
+        }
+        if (existingAliasMetadata.filteringRequired()) {
+            addReplacementAliasAction.filter(existingAliasMetadata.filter().string());
+        }
+        if (existingAliasMetadata.indexRouting() != null) {
+            addReplacementAliasAction.indexRouting(existingAliasMetadata.indexRouting());
+        }
+        if (existingAliasMetadata.searchRouting() != null) {
+            addReplacementAliasAction.searchRouting(existingAliasMetadata.searchRouting());
+        }
+        return addReplacementAliasAction;
     }
 }

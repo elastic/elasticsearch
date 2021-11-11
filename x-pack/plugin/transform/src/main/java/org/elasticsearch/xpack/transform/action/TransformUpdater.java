@@ -224,14 +224,16 @@ public class TransformUpdater {
 
             long lastCheckpoint = currentState.v1().getTransformState().getCheckpoint();
 
+            // if: the state is stored on the latest index, it does not need an update
             if (currentState.v2().getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
                 listener.onResponse(lastCheckpoint);
                 return;
             }
 
+            // else: the state is on an old index, update by persisting it to the latest index
             transformConfigManager.putOrUpdateTransformStoredDoc(
                 currentState.v1(),
-                currentState.v2(),
+                null, // set seqNoPrimaryTermAndIndex to `null` to force optype `create`, gh#80073
                 ActionListener.wrap(r -> { listener.onResponse(lastCheckpoint); }, e -> {
                     if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // if a version conflict occurs a new state has been written between us reading and writing.

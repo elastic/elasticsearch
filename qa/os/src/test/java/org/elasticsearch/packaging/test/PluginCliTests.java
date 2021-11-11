@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+@PackagingTestCase.AwaitsFix(bugUrl = "Needs to be re-enabled")
 public class PluginCliTests extends PackagingTestCase {
 
     private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";

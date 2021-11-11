@@ -154,7 +154,6 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(client, Mockito.atLeast(1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(client, Mockito.atLeast(1)).execute(same(GetJobsAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(any(), any());
-        verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
 
     public void testJobInDeletingStateAlreadyHasDeletionTask() throws InterruptedException {

@@ -47,6 +47,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -54,9 +55,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
-        this.routingRequired = routingRequired((Map<?, ?>) mappingMap.get(this.type));
+        this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
     }
 
+    @SuppressWarnings("unchecked")
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
         try {
@@ -64,9 +66,9 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }
-        Map<?, ?> withoutType = mapping;
+        Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
-            withoutType = (Map<?, ?>) mapping.get(type);
+            withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
     }
@@ -86,12 +88,13 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         });
     }
 
-    private boolean routingRequired(Map<?, ?> withoutType) {
+    @SuppressWarnings("unchecked")
+    private boolean routingRequired(Map<String, Object> withoutType) {
         boolean required = false;
         if (withoutType.containsKey("_routing")) {
-            Map<?, ?> routingNode = (Map<?, ?>) withoutType.get("_routing");
-            for (Map.Entry<?, ?> entry : routingNode.entrySet()) {
-                String fieldName = (String) entry.getKey();
+            Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
+            for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
                     try {

@@ -151,7 +151,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         dependencies.add("compileOnly", "org.locationtech.jts:jts-core:" + VersionProperties.getVersions().get("jts"));
         dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-api:" + VersionProperties.getVersions().get("log4j"));
         dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
-        dependencies.add("compileOnly", "org.elasticsearch:jna:" + VersionProperties.getVersions().get("jna"));
+        dependencies.add("compileOnly", "net.java.dev.jna:jna:" + VersionProperties.getVersions().get("jna"));
     }
 
     /**

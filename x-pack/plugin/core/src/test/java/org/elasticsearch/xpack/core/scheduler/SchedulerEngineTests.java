@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -31,8 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -102,9 +102,7 @@ public class SchedulerEngineTests extends ESTestCase {
                 assertFailedListenerLogMessage(mockLogger, numberOfFailingListeners);
             }
             // Verify the debug logging:
-            verify(mockLogger).debug(anyString(), anyString());
-            verify(mockLogger).debug(anyString(), anyString(), anyLong());
-            verify(mockLogger).debug(anyString(), anyString(), anyLong(), anyLong());
+            verifyDebugLogging(mockLogger);
 
             verifyNoMoreInteractions(mockLogger);
         } finally {
@@ -153,9 +151,7 @@ public class SchedulerEngineTests extends ESTestCase {
             latch.await();
             assertFailedListenerLogMessage(mockLogger, numberOfSchedules * numberOfListeners);
             // Verify the debug logging:
-            verify(mockLogger).debug(anyString(), anyString());
-            verify(mockLogger).debug(anyString(), anyString(), anyLong());
-            verify(mockLogger).debug(anyString(), anyString(), anyLong(), anyLong());
+            verifyDebugLogging(mockLogger);
 
             verifyNoMoreInteractions(mockLogger);
         } finally {
@@ -232,6 +228,10 @@ public class SchedulerEngineTests extends ESTestCase {
             assertThat(throwable, instanceOf(RuntimeException.class));
             assertThat(throwable.getMessage(), equalTo(getTestName()));
         }
+    }
+
+    private static void verifyDebugLogging(Logger mockLogger) {
+        verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
     }
 
 }

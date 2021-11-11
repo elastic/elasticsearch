@@ -106,13 +106,15 @@
     <module name="PackageDeclaration" />
 
     <!-- Checks that a local variable or a parameter does not shadow a field that is defined in the same class. -->
+    <!-- Use a forked version that understands setters that don't start with "set". -->
     <!-- Disabled until existing violations are fixed -->
     <!--
-    <module name="HiddenField">
+    <module name="org.elasticsearch.gradle.internal.checkstyle.HiddenFieldCheck">
         <property name="ignoreConstructorParameter" value="true" />
         <property name="ignoreSetter" value="true" />
         <property name="setterCanReturnItsClass" value="true"/>
         <property name="ignoreFormat" value="^(threadPool)$"/>
+        <message key="hidden.field" value="''{0}'' hides a field." />
     </module>
     -->
 

@@ -1,5 +1,4 @@
 [[snapshots-register-repository]]
-[testenv="basic"]
 == Register a snapshot repository
 ++++
 <titleabbrev>Register a repository</titleabbrev>

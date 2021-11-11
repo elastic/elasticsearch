@@ -19,7 +19,6 @@ include::explain-dfanalytics.asciidoc[leveloffset=+2]
 include::get-dfanalytics.asciidoc[leveloffset=+2]
 include::get-dfanalytics-stats.asciidoc[leveloffset=+2]
 include::get-trained-models.asciidoc[leveloffset=+2]
-include::get-trained-model-deployment-stats.asciidoc[leveloffset=+2]
 include::get-trained-models-stats.asciidoc[leveloffset=+2]
 //INFER
 include::infer-trained-model-deployment.asciidoc[leveloffset=+2]

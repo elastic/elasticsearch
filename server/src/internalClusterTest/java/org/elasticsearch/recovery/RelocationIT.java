@@ -203,7 +203,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
 
         int numDocs = scaledRandomIntBetween(200, 2500);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client(), numDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), numDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", numDocs);
             waitForDocs(numDocs, indexer);
             logger.info("--> {} docs indexed", numDocs);

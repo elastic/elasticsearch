@@ -57,24 +57,27 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
      */
     public void testSearchTimeoutIsFailure() throws Exception {
         ldapServers[0].setProcessingDelayMillis(500);
+        try {
+            final LDAPConnectionOptions options = new LDAPConnectionOptions();
+            options.setConnectTimeoutMillis(1500);
+            options.setResponseTimeoutMillis(5);
+            connect(options);
 
-        final LDAPConnectionOptions options = new LDAPConnectionOptions();
-        options.setConnectTimeoutMillis(1500);
-        options.setResponseTimeoutMillis(5);
-        connect(options);
+            final Settings settings = Settings.builder()
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+                .build();
+            final SearchGroupsResolver resolver = new SearchGroupsResolver(getConfig(settings));
+            final PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+            resolver.resolve(connection, WILLIAM_BUSH, TimeValue.timeValueSeconds(30), logger, null, future);
 
-        final Settings settings = Settings.builder()
-            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
-            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-            .build();
-        final SearchGroupsResolver resolver = new SearchGroupsResolver(getConfig(settings));
-        final PlainActionFuture<List<String>> future = new PlainActionFuture<>();
-        resolver.resolve(connection, WILLIAM_BUSH, TimeValue.timeValueSeconds(30), logger, null, future);
-
-        final ExecutionException exception = expectThrows(ExecutionException.class, future::get);
-        final Throwable cause = exception.getCause();
-        assertThat(cause, instanceOf(LDAPException.class));
-        assertThat(((LDAPException) cause).getResultCode(), is(ResultCode.TIMEOUT));
+            final ExecutionException exception = expectThrows(ExecutionException.class, future::get);
+            final Throwable cause = exception.getCause();
+            assertThat(cause, instanceOf(LDAPException.class));
+            assertThat(((LDAPException) cause).getResultCode(), is(ResultCode.TIMEOUT));
+        } finally {
+            ldapServers[0].setProcessingDelayMillis(0);
+        }
     }
 
     /**

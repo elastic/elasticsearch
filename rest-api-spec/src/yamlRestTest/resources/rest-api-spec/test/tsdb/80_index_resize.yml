@@ -100,19 +100,19 @@ split:
         index: test_split
         body:
           fields:
-            # TODO fetch tsid
+            - field: _tsid
           query:
             query_string:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  # TODO test fetching tsid
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
 
 ---
 shrink:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.shrink:
@@ -126,13 +126,14 @@ shrink:
       search:
         index: test_shrink
         body:
-          # TODO test fetching tsid
+          fields:
+            - field: _tsid
           query:
             query_string:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  # TODO test fetching tsid
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
 
 ---
 clone:
@@ -149,10 +150,11 @@ clone:
       search:
         index: test_clone
         body:
-          # TODO test fetching tsid
+          fields:
+            - field: _tsid
           query:
             query_string:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  # TODO test fetching tsid
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}

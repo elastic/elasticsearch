@@ -125,7 +125,7 @@ public class PluginCliTests extends PackagingTestCase {
     /**
      * Check that the `install` subcommand cannot be used if a plugins config file exists.
      */
-    public void test101InstallFailsIfConfigFilePresent() throws IOException {
+    public void test30InstallFailsIfConfigFilePresent() throws IOException {
         Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
 
         Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
@@ -136,7 +136,7 @@ public class PluginCliTests extends PackagingTestCase {
     /**
      * Check that the `remove` subcommand cannot be used if a plugins config file exists.
      */
-    public void test102RemoveFailsIfConfigFilePresent() throws IOException {
+    public void test31RemoveFailsIfConfigFilePresent() throws IOException {
         Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
 
         Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
@@ -148,7 +148,7 @@ public class PluginCliTests extends PackagingTestCase {
      * Check that when a plugins config file exists, Elasticsearch refuses to start up, since using
      * a config file is only supported in Docker.
      */
-    public void test103FailsToStartWhenPluginsConfigExists() throws Exception {
+    public void test32FailsToStartWhenPluginsConfigExists() throws Exception {
         try {
             Files.writeString(installation.config("elasticsearch-plugins.yml"), "content doesn't matter for this test");
             Shell.Result result = runElasticsearchStartCommand(null, false, true);

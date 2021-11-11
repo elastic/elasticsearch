@@ -26,9 +26,6 @@ setup:
         body:
           name: cow.jpg
           vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
-          comments:
-            - body: "free the cows"
-              vector: [ 0.75, 100.0, 0.33, 16.2, -10.2 ]
 
   - do:
       index:
@@ -37,9 +34,6 @@ setup:
         body:
           name: moose.jpg
           vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
-          comments:
-            - body: "what a great moose"
-              vector: [ 11.4, 99.0, 1.55, -2.9, -10.2 ]
 
   - do:
       index:
@@ -78,10 +72,10 @@ setup:
   - length: { futest.shards: 1 }
 
   - gt: { futest.shards.0.stats.all_fields.any: 0 }
-  - gt: { futest.shards.0.stats.all_fields.vectors: 0 }
+  - gt: { futest.shards.0.stats.all_fields.knn_vectors: 0 }
 
   - gt: { futest.shards.0.stats.fields.vector.any: 0 }
-  - gt: { futest.shards.0.stats.fields.vector.vectors: 0 }
+  - gt: { futest.shards.0.stats.fields.vector.knn_vectors: 0 }
 
   - gt: { futest.shards.0.stats.fields._id.stored_fields: 0 }
-  - match: { futest.shards.0.stats.fields._id.vectors: 0 }
+  - match: { futest.shards.0.stats.fields._id.knn_vectors: 0 }

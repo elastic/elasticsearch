@@ -40,7 +40,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String TERM_VECTORS = "term_vectors"; // possibly refine this one
     public static final String POINTS = "points";
     public static final String PROXIMITY = "proximity";
-    public static final String VECTORS = "vectors";
+    public static final String KNN_VECTORS = "knn_vectors";
 
     private final Map<String, PerFieldUsageStats> stats;
 
@@ -124,7 +124,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
         PAYLOADS,
         TERM_VECTORS, // possibly refine this one
         POINTS,
-        VECTORS,
+        KNN_VECTORS,
     }
 
     public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
@@ -144,7 +144,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
         private final long payloads;
         private final long termVectors;
         private final long points;
-        private final long vectors;
+        private final long knnVectors;
 
         public PerFieldUsageStats(
             long any,
@@ -160,7 +160,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             long payloads,
             long termVectors,
             long points,
-            long vectors
+            long knnVectors
         ) {
             this.any = any;
             this.proximity = proximity;
@@ -175,7 +175,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             this.payloads = payloads;
             this.termVectors = termVectors;
             this.points = points;
-            this.vectors = vectors;
+            this.knnVectors = knnVectors;
         }
 
         private PerFieldUsageStats add(PerFieldUsageStats other) {
@@ -193,7 +193,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
                 payloads + other.payloads,
                 termVectors + other.termVectors,
                 points + other.points,
-                vectors + other.vectors
+                knnVectors + other.knnVectors
             );
         }
 
@@ -212,9 +212,9 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             termVectors = in.readVLong();
             points = in.readVLong();
             if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
-                vectors = in.readVLong();
+                knnVectors = in.readVLong();
             } else {
-                vectors = 0;
+                knnVectors = 0;
             }
         }
 
@@ -234,7 +234,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(termVectors);
             out.writeVLong(points);
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeVLong(vectors);
+                out.writeVLong(knnVectors);
             }
         }
 
@@ -255,7 +255,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             builder.field(POINTS, points);
             builder.field(NORMS, norms);
             builder.field(TERM_VECTORS, termVectors);
-            builder.field(VECTORS, vectors);
+            builder.field(KNN_VECTORS, knnVectors);
             return builder;
         }
 
@@ -294,8 +294,8 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             if (points > 0L) {
                 set.add(UsageContext.POINTS);
             }
-            if (vectors > 0L) {
-                set.add(UsageContext.VECTORS);
+            if (knnVectors > 0L) {
+                set.add(UsageContext.KNN_VECTORS);
             }
             return set;
         }
@@ -344,8 +344,8 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             return points;
         }
 
-        public long getVectors() {
-            return vectors;
+        public long getKnnVectors() {
+            return knnVectors;
         }
 
         public long getProximity() {

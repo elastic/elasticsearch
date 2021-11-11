@@ -87,7 +87,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         void onTermVectorsUsed(String field);
 
-        void onVectorsUsed(String field);
+        void onKnnVectorsUsed(String field);
     }
 
     public static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
@@ -190,7 +190,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public VectorValues getVectorValues(String field) throws IOException {
             VectorValues vectorValues = super.getVectorValues(field);
             if (vectorValues != null) {
-                notifier.onVectorsUsed(field);
+                notifier.onKnnVectorsUsed(field);
             }
             return vectorValues;
         }
@@ -199,7 +199,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
             TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs);
             if (topDocs != null) {
-                notifier.onVectorsUsed(field);
+                notifier.onKnnVectorsUsed(field);
             }
             return topDocs;
         }

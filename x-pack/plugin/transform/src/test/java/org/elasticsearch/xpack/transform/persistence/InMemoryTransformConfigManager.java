@@ -295,13 +295,18 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     }
 
     @Override
-    public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
-        configs.remove(transformId);
-        oldConfigs.remove(transformId);
+    public void resetTransform(String transformId, ActionListener<Boolean> listener) {
         transformStoredDocs.remove(transformId);
         oldTransformStoredDocs.remove(transformId);
         checkpoints.remove(transformId);
         oldCheckpoints.remove(transformId);
+    }
+
+    @Override
+    public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
+        configs.remove(transformId);
+        oldConfigs.remove(transformId);
+        resetTransform(transformId, listener);
     }
 
     public void putOrUpdateOldTransformStoredDoc(

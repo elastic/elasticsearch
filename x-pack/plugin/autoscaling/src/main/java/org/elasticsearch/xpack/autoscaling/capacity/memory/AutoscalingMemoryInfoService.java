@@ -181,7 +181,7 @@ public class AutoscalingMemoryInfoService {
     private void addNodeStats(ImmutableOpenMap.Builder<String, Long> builder, NodeStats nodeStats) {
         // we might add nodes that already died here, but those will be removed on next cluster state update anyway and is only a small
         // waste.
-        builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getTotal().getBytes());
+        builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getAdjustedTotal().getBytes());
     }
 
     public AutoscalingMemoryInfo snapshot() {

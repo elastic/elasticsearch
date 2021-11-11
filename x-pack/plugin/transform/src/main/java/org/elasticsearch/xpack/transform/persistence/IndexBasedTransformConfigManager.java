@@ -49,6 +49,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -597,6 +598,51 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
+    public void resetTransform(String transformId, ActionListener<Boolean> listener) {
+        ActionListener<BulkByScrollResponse> deleteListener = ActionListener.wrap(dbqResponse -> { listener.onResponse(true); }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                listener.onFailure(
+                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                );
+            } else {
+                listener.onFailure(e);
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().indices(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        )
+            .source(
+                new SearchSourceBuilder()
+                    // find and count all the documents corresponding to the given transform id
+                    .query(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+                    .trackTotalHitsUpTo(1)
+            );
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+            if (searchResponse.getHits().getTotalHits().value == 0) {
+                listener.onFailure(
+                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                );
+                return;
+            }
+
+            QueryBuilder dbqQuery = QueryBuilders.constantScoreQuery(
+                QueryBuilders.boolQuery()
+                    // delete documents corresponding to given transform id...
+                    .filter(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+                    // ...except given transform's config document
+                    .mustNot(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))
+            );
+            DeleteByQueryRequest dbqRequest = createDeleteByQueryRequest().indices(
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+            ).setQuery(dbqQuery).setRefresh(true);
+            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, deleteListener);
+        }, deleteListener::onFailure));
+    }
+
+    @Override
     public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest request = createDeleteByQueryRequest();
 
@@ -636,16 +682,20 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(
                 WriteRequest.RefreshPolicy.IMMEDIATE
             ).id(TransformStoredDoc.documentId(storedDoc.getId())).source(source);
-            if (seqNoPrimaryTermAndIndex != null
-                && seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
-                indexRequest.opType(DocWriteRequest.OpType.INDEX)
-                    .setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
-                    .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+            if (seqNoPrimaryTermAndIndex != null) {
+                // if seqNoPrimaryTermAndIndex is set, use optype index even if not on the latest index, because the upgrader
+                // could have been called, see gh#80073
+                indexRequest.opType(DocWriteRequest.OpType.INDEX);
+                // if on the latest index use optimistic concurrency control in addition
+                if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                    indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                        .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+                }
             } else {
-                // If the index is NOT the latest or we are null, that means we have not created this doc before
-                // so, it should be a create option without the seqNo and primaryTerm set
+                // we have not created this doc before or we are called from the upgrader
                 indexRequest.opType(DocWriteRequest.OpType.CREATE);
             }
+
             executeAsyncWithOrigin(
                 client,
                 TRANSFORM_ORIGIN,

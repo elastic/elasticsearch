@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,11 +47,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         id = in.readString();
         source = in.readBytesReference();
         xContentType = in.readEnum(XContentType.class);
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            version = in.readOptionalInt();
-        } else {
-            version = null;
-        }
+        version = in.readOptionalInt();
     }
 
     PutPipelineRequest() {
@@ -86,9 +81,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         out.writeString(id);
         out.writeBytesReference(source);
         XContentHelper.writeTo(out, xContentType);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeOptionalInt(version);
-        }
+        out.writeOptionalInt(version);
     }
 
     @Override

@@ -660,7 +660,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         when(trainedModelConfig.getModelId()).thenReturn(modelId);
         when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
         when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
-        when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(size);
+        when(trainedModelConfig.getModelSize()).thenReturn(size);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
@@ -686,7 +686,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any());
         } else {
             TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
-            when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(0L);
+            when(trainedModelConfig.getModelSize()).thenReturn(0L);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];

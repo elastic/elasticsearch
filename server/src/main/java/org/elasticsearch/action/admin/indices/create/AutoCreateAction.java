@@ -82,7 +82,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             MetadataCreateDataStreamService metadataCreateDataStreamService,
             AutoCreateIndex autoCreateIndex,
             SystemIndices systemIndices,
-            AllocationService allocationService) {
+            AllocationService allocationService
+        ) {
             super(
                 NAME,
                 transportService,
@@ -106,8 +107,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             private final CreateIndexRequest request;
             private final AtomicReference<String> indexNameRef;
 
-            private AutoCreateTask(CreateIndexRequest request, AtomicReference<String> indexNameRef,
-                                   ActionListener<AcknowledgedResponse> listener) {
+            private AutoCreateTask(
+                CreateIndexRequest request,
+                AtomicReference<String> indexNameRef,
+                ActionListener<AcknowledgedResponse> listener
+            ) {
                 super(Priority.URGENT, request, listener);
                 this.request = request;
                 this.indexNameRef = indexNameRef;
@@ -159,9 +163,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         }
                     }
 
-                    final SystemIndexDescriptor mainDescriptor = isSystemIndex
-                        ? systemIndices.findMatchingDescriptor(indexName)
-                        : null;
+                    final SystemIndexDescriptor mainDescriptor = isSystemIndex ? systemIndices.findMatchingDescriptor(indexName) : null;
                     final boolean isManagedSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
 
                     final CreateIndexClusterStateUpdateRequest updateRequest;
@@ -195,10 +197,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 return updateRequest;
             }
 
-            private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
-                String indexName,
-                SystemIndexDescriptor descriptor
-            ) {
+            private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(String indexName, SystemIndexDescriptor descriptor) {
                 String mappings = descriptor.getMappings();
                 Settings settings = descriptor.getSettings();
                 String aliasName = descriptor.getAliasName();
@@ -298,7 +297,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         "bulk auto-create [",
                         "]",
                         1024,
-                        sb);
+                        sb
+                    );
                     state = allocationService.reroute(state, sb.toString());
                 }
                 return builder.build(state);

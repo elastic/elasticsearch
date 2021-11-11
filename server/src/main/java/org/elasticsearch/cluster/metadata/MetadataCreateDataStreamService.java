@@ -136,7 +136,7 @@ public class MetadataCreateDataStreamService {
             return descriptor;
         }
 
-        public CreateDataStreamClusterStateUpdateRequest performReroute(boolean performReroute){
+        public CreateDataStreamClusterStateUpdateRequest performReroute(boolean performReroute) {
             this.performReroute = performReroute;
             return this;
         }

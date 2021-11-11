@@ -545,7 +545,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobsFailsOnReassign() throws Exception {
+    public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobFailsOnReassign() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
@@ -617,7 +617,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         jobResultsPersister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
         UpdateJobAction.Request updateJobRequest = UpdateJobAction.Request.internal(
             jobId,
-            new JobUpdate.Builder(jobId).setModelSnapshotId("123").build()
+            new JobUpdate.Builder(jobId).setModelSnapshotId(snapshotId).build()
         );
         client().execute(UpdateJobAction.INSTANCE, updateJobRequest).actionGet();
         refresh(AnomalyDetectorsIndex.resultsWriteAlias(jobId));

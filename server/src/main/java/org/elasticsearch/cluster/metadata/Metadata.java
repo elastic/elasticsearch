@@ -1668,7 +1668,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
-            purgeMappingsByHash(indices);
+            purgeUnusedEntries(indices);
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1972,23 +1972,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        private void purgeMappingsByHash(ImmutableOpenMap<String, IndexMetadata> indices) {
+        private void purgeUnusedEntries(ImmutableOpenMap<String, IndexMetadata> indices) {
+            final Set<String> sha256HashesInUse = new HashSet<>(mappingsByHash.size());
+            for (var im : indices.values()) {
+                if (im.mapping() != null) {
+                    sha256HashesInUse.add(im.mapping().getSha256());
+                }
+            }
+
             final var iterator = mappingsByHash.entrySet().iterator();
             while (iterator.hasNext()) {
                 final var cacheKey = iterator.next().getKey();
-                boolean used = false;
-                for (var cursor : indices) {
-                    final var mapping = cursor.value.mapping();
-                    if (mapping == null) {
-                        continue;
-                    }
-
-                    if (cacheKey.equals(mapping.getSha256())) {
-                        used = true;
-                        break;
-                    }
-                }
-                if (used == false) {
+                if (sha256HashesInUse.contains(cacheKey) == false) {
                     iterator.remove();
                 }
             }

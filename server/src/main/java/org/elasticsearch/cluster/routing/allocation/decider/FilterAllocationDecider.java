@@ -26,7 +26,6 @@ import java.util.Map;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
-import static org.elasticsearch.common.settings.Setting.stringListSetting;
 
 /**
  * This {@link AllocationDecider} control shard allocation by include and
@@ -65,15 +64,15 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public static final Setting.AffixSetting<List<String>> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".",
-        key -> stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
+        key -> Setting.stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
     );
     public static final Setting.AffixSetting<List<String>> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".",
-        key -> stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
+        key -> Setting.stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
     );
     public static final Setting.AffixSetting<List<String>> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".",
-        key -> stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
+        key -> Setting.stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
     );
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;

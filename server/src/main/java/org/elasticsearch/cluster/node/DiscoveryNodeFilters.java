@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
@@ -45,20 +44,6 @@ public class DiscoveryNodeFilters {
                 }
             }
         }
-    }
-
-    public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
-        Map<String, String[]> bFilters = new HashMap<>();
-        for (Map.Entry<String, String> entry : filters.entrySet()) {
-            String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            if (values.length > 0 && entry.getKey() != null) {
-                bFilters.put(entry.getKey(), values);
-            }
-        }
-        if (bFilters.isEmpty()) {
-            return null;
-        }
-        return new DiscoveryNodeFilters(opType, bFilters);
     }
 
     public static DiscoveryNodeFilters buildFromKeyValues(OpType opType, Map<String, List<String>> filters) {

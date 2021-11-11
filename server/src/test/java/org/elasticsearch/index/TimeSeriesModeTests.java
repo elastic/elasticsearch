@@ -178,8 +178,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
             .build();
-        DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
-            .documentMapper();
+        DocumentMapper mapper = createMapperService(
+            s,
+            mapping(b -> b.startObject("@timestamp").field("type", randomBoolean() ? "date" : "date_nanos").endObject())
+        ).documentMapper();
         mapper.parse(
             new SourceToParse(
                 "test",

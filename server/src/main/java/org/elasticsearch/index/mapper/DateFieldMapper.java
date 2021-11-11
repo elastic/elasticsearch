@@ -201,22 +201,6 @@ public final class DateFieldMapper extends FieldMapper {
          */
         public abstract long roundUpToMillis(long value);
 
-        public final void validateTimestamp(long value, DocumentParserContext context) {
-            if (context.indexSettings().getTimeSeriesStartTime() == null) {
-                assert context.indexSettings().getTimeSeriesEndTime() == null;
-                return;
-            }
-            long startTime = convert(context.indexSettings().getTimeSeriesStartTime());
-            if (value < startTime) {
-                throw new IllegalArgumentException("time series index @timestamp value [" + value + "] must be larger than " + startTime);
-            }
-
-            long endTime = convert(context.indexSettings().getTimeSeriesEndTime());
-            if (value >= endTime) {
-                throw new IllegalArgumentException("time series index @timestamp value [" + value + "] must be smaller than " + endTime);
-            }
-        }
-
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
                 if (ord == resolution.ordinal()) {
@@ -260,7 +244,6 @@ public final class DateFieldMapper extends FieldMapper {
         private final Resolution resolution;
         private final Version indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
-        private final Validate validate;
 
         public Builder(
             String name,
@@ -287,7 +270,6 @@ public final class DateFieldMapper extends FieldMapper {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());
             }
-            this.validate = name.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH) ? resolution::validateTimestamp : (v, c) -> {};
         }
 
         private DateFormatter buildFormatter() {
@@ -361,8 +343,7 @@ public final class DateFieldMapper extends FieldMapper {
                 copyTo.build(),
                 nullTimestamp,
                 resolution,
-                this,
-                validate
+                this
             );
         }
     }
@@ -743,7 +724,6 @@ public final class DateFieldMapper extends FieldMapper {
     private final Script script;
     private final ScriptCompiler scriptCompiler;
     private final FieldValues<Long> scriptValues;
-    private final Validate validate;
 
     private DateFieldMapper(
         String simpleName,
@@ -752,8 +732,7 @@ public final class DateFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Long nullValue,
         Resolution resolution,
-        Builder builder,
-        Validate validate
+        Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
         this.store = builder.store.getValue();
@@ -770,7 +749,6 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
-        this.validate = validate;
     }
 
     @Override
@@ -810,7 +788,6 @@ public final class DateFieldMapper extends FieldMapper {
                 }
             }
         }
-        validate.validate(timestamp, context);
 
         indexValue(context, timestamp);
     }
@@ -845,9 +822,5 @@ public final class DateFieldMapper extends FieldMapper {
 
     public Long getNullValue() {
         return nullValue;
-    }
-
-    private interface Validate {
-        void validate(long value, DocumentParserContext context);
     }
 }

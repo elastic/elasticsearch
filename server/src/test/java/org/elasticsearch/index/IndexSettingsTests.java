@@ -706,7 +706,7 @@ public class IndexSettingsTests extends ESTestCase {
         // success
         long newEndTime = endTime + randomLongBetween(1, 1000);
         indexSettings.updateTimeSeriesEndTime(Instant.ofEpochMilli(newEndTime));
-        assertEquals(Instant.ofEpochMilli(newEndTime), indexSettings.getTimeSeriesEndTime());
+        assertEquals(newEndTime, indexSettings.getTimeSeriesEndTime());
     }
 
     public void testTimeSeriesTimeBoundary() {

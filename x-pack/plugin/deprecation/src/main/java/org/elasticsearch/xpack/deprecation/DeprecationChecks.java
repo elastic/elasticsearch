@@ -50,6 +50,7 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
+            ClusterDeprecationChecks::checkTemplatesWithCustomTypes,
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,

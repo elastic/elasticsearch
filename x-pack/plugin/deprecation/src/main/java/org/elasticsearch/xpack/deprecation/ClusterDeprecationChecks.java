@@ -37,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -228,6 +229,34 @@ public class ClusterDeprecationChecks {
             "https://ela.st/es-deprecation-7-multiple-types",
             "Update or remove the following index templates before upgrading to 8.0: "
                 + templatesWithMultipleTypes
+                + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
+            false,
+            null
+        );
+    }
+
+    static DeprecationIssue checkTemplatesWithCustomTypes(ClusterState state) {
+        Set<String> templatesWithCustomTypes = new TreeSet<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
+            if (mappings != null && mappings.size() == 1) {
+                String typeName = mappings.iterator().next().key;
+                if ("_doc".equals(typeName) == false) {
+                    templatesWithCustomTypes.add(templateName);
+                }
+            }
+        });
+        if (templatesWithCustomTypes.isEmpty()) {
+            return null;
+        }
+
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Custom mapping types in index templates are deprecated",
+            "https://ela.st/es-deprecation-7-custom-types",
+            "Update or remove the following index templates before upgrading to 8.0: "
+                + templatesWithCustomTypes
                 + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
             false,
             null

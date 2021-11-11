@@ -41,8 +41,7 @@ import java.util.zip.Inflater;
  */
 public final class CompressedXContent {
 
-    private static final ThreadLocal<InflaterAndBuffer> inflater1 = ThreadLocal.withInitial(InflaterAndBuffer::new);
-    private static final ThreadLocal<InflaterAndBuffer> inflater2 = ThreadLocal.withInitial(InflaterAndBuffer::new);
+    private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
 
     private static String sha256(BytesReference data) {
         MessageDigest messageDigest = MessageDigests.sha256();
@@ -57,7 +56,7 @@ public final class CompressedXContent {
 
     private static String sha256FromCompressed(byte[] compressed) {
         MessageDigest messageDigest = MessageDigests.sha256();
-        try (InflaterAndBuffer inflaterAndBuffer = inflater1.get()) {
+        try (InflaterAndBuffer inflaterAndBuffer = inflater.get()) {
             final Inflater inflater = inflaterAndBuffer.inflater;
             final ByteBuffer buffer = inflaterAndBuffer.buffer;
             assert assertBufferIsCleared(buffer);
@@ -200,38 +199,6 @@ public final class CompressedXContent {
         return sha256.equals(that.sha256);
     }
 
-    // package private for testing
-    static boolean equalsWhenUncompressed(byte[] compressed1, byte[] compressed2) {
-        try (InflaterAndBuffer inflaterAndBuffer1 = inflater1.get(); InflaterAndBuffer inflaterAndBuffer2 = inflater2.get()) {
-            final Inflater inf1 = inflaterAndBuffer1.inflater;
-            final Inflater inf2 = inflaterAndBuffer2.inflater;
-            setInflaterInput(compressed1, inf1);
-            setInflaterInput(compressed2, inf2);
-            final ByteBuffer buf1 = inflaterAndBuffer1.buffer;
-            assert assertBufferIsCleared(buf1);
-            final ByteBuffer buf2 = inflaterAndBuffer2.buffer;
-            assert assertBufferIsCleared(buf2);
-            while (true) {
-                while (inf1.inflate(buf1) > 0 && buf1.hasRemaining())
-                    ;
-                while (inf2.inflate(buf2) > 0 && buf2.hasRemaining())
-                    ;
-                if (buf1.flip().equals(buf2.flip()) == false) {
-                    return false;
-                }
-                if (inf1.finished()) {
-                    // if the first inflater is done but the second one still has data we fail here, if it's the other way around we fail
-                    // on the next round because we will only read bytes into 2
-                    return inf2.finished();
-                }
-                buf1.clear();
-                buf2.clear();
-            }
-        } catch (DataFormatException e) {
-            throw new ElasticsearchException(e);
-        }
-    }
-
     @Override
     public int hashCode() {
         return sha256.hashCode();
@@ -244,7 +211,7 @@ public final class CompressedXContent {
 
     private static int crc32FromCompressed(byte[] compressed) {
         CRC32 crc32 = new CRC32();
-        try (InflaterAndBuffer inflaterAndBuffer = inflater1.get()) {
+        try (InflaterAndBuffer inflaterAndBuffer = inflater.get()) {
             final Inflater inflater = inflaterAndBuffer.inflater;
             final ByteBuffer buffer = inflaterAndBuffer.buffer;
             assert assertBufferIsCleared(buffer);

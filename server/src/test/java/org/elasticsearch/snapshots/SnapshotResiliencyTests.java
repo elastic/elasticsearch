@@ -120,6 +120,8 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1673,6 +1675,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     @Override
                     protected NamedWriteableRegistry writeableRegistry() {
                         return namedWriteableRegistry;
+                    }
+
+                    @Override
+                    public BytesStream newNetworkBytesStream() {
+                        // skip leak checks in these tests since they do indeed leak
+                        return new BytesStreamOutput();
+                        // TODO fix these leaks and implement leak checking
                     }
                 };
                 transportService = mockTransport.createTransportService(

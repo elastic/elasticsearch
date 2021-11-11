@@ -139,7 +139,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), is(nullValue()));
-        assertThat(storedModel.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
+        assertThat(storedModel.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
         if (analyticsConfig.getAnalysis() instanceof Classification) {
             assertThat(storedModel.getInferenceConfig().getName(), equalTo("classification"));

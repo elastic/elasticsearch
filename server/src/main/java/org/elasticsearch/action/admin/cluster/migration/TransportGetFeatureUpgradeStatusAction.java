@@ -20,17 +20,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
+import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskState;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
@@ -51,6 +54,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
 
     private final SystemIndices systemIndices;
+    PersistentTasksService persistentTasksService;
 
     @Inject
     public TransportGetFeatureUpgradeStatusAction(
@@ -59,6 +63,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         ActionFilters actionFilters,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        PersistentTasksService persistentTasksService,
         SystemIndices systemIndices
     ) {
         super(
@@ -73,6 +78,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             ThreadPool.Names.SAME
         );
         this.systemIndices = systemIndices;
+        this.persistentTasksService = persistentTasksService;
     }
 
     @Override
@@ -90,13 +96,16 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             .map(feature -> getFeatureUpgradeStatus(state, feature))
             .collect(Collectors.toList());
 
-        GetFeatureUpgradeStatusResponse.UpgradeStatus status = features.stream()
-            .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getUpgradeStatus)
-            .reduce(GetFeatureUpgradeStatusResponse.UpgradeStatus::combine)
-            .orElseGet(() -> {
-                assert false : "get feature statuses API doesn't have any features";
-                return NO_MIGRATION_NEEDED;
-            });
+        boolean migrationTaskExists = PersistentTasksCustomMetadata.getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME) != null;
+        GetFeatureUpgradeStatusResponse.UpgradeStatus initalStatus = migrationTaskExists ? IN_PROGRESS : NO_MIGRATION_NEEDED;
+
+        GetFeatureUpgradeStatusResponse.UpgradeStatus status = Stream.concat(
+            Stream.of(initalStatus),
+            features.stream().map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getUpgradeStatus)
+        ).reduce(GetFeatureUpgradeStatusResponse.UpgradeStatus::combine).orElseGet(() -> {
+            assert false : "get feature statuses API doesn't have any features";
+            return NO_MIGRATION_NEEDED;
+        });
 
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, status));
     }
@@ -104,10 +113,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(ClusterState state, SystemIndices.Feature feature) {
         String featureName = feature.getName();
 
-        final String currentFeature = Optional.ofNullable(
-            state.metadata().<PersistentTasksCustomMetadata>custom(PersistentTasksCustomMetadata.TYPE)
-        )
-            .map(tasksMetdata -> tasksMetdata.getTask(SYSTEM_INDEX_UPGRADE_TASK_NAME))
+        PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> migrationTask = PersistentTasksCustomMetadata
+            .getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME);
+        final String currentFeature = Optional.ofNullable(migrationTask)
             .map(task -> task.getState())
             .map(taskState -> ((SystemIndexMigrationTaskState) taskState).getCurrentFeature())
             .orElse(null);

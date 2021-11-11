@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -211,56 +214,55 @@ public class ClusterDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkTemplatesWithMultipleTypes(ClusterState state) {
-        Set<String> templatesWithMultipleTypes = new HashSet<>();
-        state.getMetadata().getTemplates().forEach((templateCursor) -> {
-            String templateName = templateCursor.key;
-            ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
-            if (mappings != null && mappings.size() > 1) {
-                templatesWithMultipleTypes.add(templateName);
-            }
-        });
-        if (templatesWithMultipleTypes.isEmpty()) {
-            return null;
-        }
-        return new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "Multiple mapping types in index templates and indices is not supported",
-            "https://ela.st/es-deprecation-7-multiple-types",
-            "Update or remove the following index templates before upgrading to 8.0: "
-                + templatesWithMultipleTypes
-                + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
-            false,
-            null
-        );
-    }
-
-    static DeprecationIssue checkTemplatesWithCustomTypes(ClusterState state) {
+    static DeprecationIssue checkTemplatesWithCustomAndMultipleTypes(ClusterState state) {
+        Set<String> templatesWithMultipleTypes = new TreeSet<>();
         Set<String> templatesWithCustomTypes = new TreeSet<>();
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
-            if (mappings != null && mappings.size() == 1) {
-                String typeName = mappings.iterator().next().key;
-                if ("_doc".equals(typeName) == false) {
-                    templatesWithCustomTypes.add(templateName);
+            if (mappings != null) {
+                if (mappings.size() > 1) {
+                    templatesWithMultipleTypes.add(templateName);
+                }
+                for (ObjectObjectCursor<String, CompressedXContent> mapping : mappings) {
+                    String typeName = mapping.key;
+                    if (MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false) {
+                        templatesWithCustomTypes.add(templateName);
+                    }
                 }
             }
         });
-        if (templatesWithCustomTypes.isEmpty()) {
-            return null;
+        final DeprecationIssue deprecationIssue;
+        if (templatesWithMultipleTypes.isEmpty() && templatesWithCustomTypes.isEmpty()) {
+            deprecationIssue = null;
+        } else if (templatesWithMultipleTypes.isEmpty()) {
+            deprecationIssue = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Custom mapping types in index templates are deprecated",
+                "https://ela.st/es-deprecation-7-custom-types",
+                "Update or remove the following index templates before upgrading to 8.0: "
+                    + templatesWithCustomTypes
+                    + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
+                false,
+                null
+            );
+        } else {
+            // There were multiple mapping types, so at least one of them had to be a custom type as well
+            Set<String> allBadTemplates = new TreeSet<>();
+            allBadTemplates.addAll(templatesWithMultipleTypes);
+            allBadTemplates.addAll(templatesWithCustomTypes);
+            deprecationIssue = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Multiple mapping types and custom mapping types in index templates and indices are deprecated",
+                "https://ela.st/es-deprecation-7-multiple-types",
+                "Update or remove the following index templates before upgrading to 8.0: "
+                    + templatesWithMultipleTypes
+                    + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
+                false,
+                null
+            );
         }
-
-        return new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "Custom mapping types in index templates are deprecated",
-            "https://ela.st/es-deprecation-7-custom-types",
-            "Update or remove the following index templates before upgrading to 8.0: "
-                + templatesWithCustomTypes
-                + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
-            false,
-            null
-        );
+        return deprecationIssue;
     }
 
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {

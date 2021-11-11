@@ -275,12 +275,12 @@ public abstract class Streams {
         }
 
         @Override
-        public void flush() throws IOException {
+        public void flush() {
             delegate.flush();
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             flush();
         }
 

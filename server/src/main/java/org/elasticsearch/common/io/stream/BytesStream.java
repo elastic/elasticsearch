@@ -9,8 +9,15 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Releasable;
 
-public abstract class BytesStream extends StreamOutput {
+public abstract class BytesStream extends StreamOutput implements Releasable {
 
     public abstract BytesReference bytes();
+
+    @Override // implementations are in-memory things and don't throw IOException
+    public abstract void close();
+
+    @Override // implementations are in-memory things and don't throw IOException
+    public abstract void flush();
 }

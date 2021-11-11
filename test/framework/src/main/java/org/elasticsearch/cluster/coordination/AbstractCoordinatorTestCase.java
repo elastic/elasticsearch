@@ -39,9 +39,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -1091,6 +1093,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             private void setUp() {
                 final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
+                delegatingBigArrays = new DelegatingBigArrays(bigArrays);
                 mockTransport = new DisruptableMockTransport(localNode, logger, deterministicTaskQueue) {
                     @Override
                     protected void execute(Runnable runnable) {
@@ -1140,6 +1143,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                         super.onSendRequest(requestId, action, request, options, destinationTransport);
                     }
+
+                    @Override
+                    public BytesStream newNetworkBytesStream() {
+                        return new ReleasableBytesStreamOutput(delegatingBigArrays);
+                    }
                 };
                 final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey())
                     ? nodeSettings
@@ -1181,7 +1189,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                delegatingBigArrays = new DelegatingBigArrays(bigArrays);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
                 client.initialize(
                     singletonMap(
@@ -1198,7 +1205,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     "test_node",
                     settings,
                     clusterSettings,
-                    delegatingBigArrays,
                     transportService,
                     client,
                     getNamedWriteableRegistry(),

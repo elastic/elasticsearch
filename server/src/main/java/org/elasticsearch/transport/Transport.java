@@ -12,6 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
@@ -78,6 +80,10 @@ public interface Transport extends LifecycleComponent {
     ResponseHandlers getResponseHandlers();
 
     RequestHandlers getRequestHandlers();
+
+    default BytesStream newNetworkBytesStream() {
+        return new BytesStreamOutput();
+    }
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}

@@ -13,8 +13,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -44,6 +51,7 @@ public class StubbableTransport implements Transport {
     private volatile SendRequestBehavior defaultSendRequest = null;
     private volatile OpenConnectionBehavior defaultConnectBehavior = null;
     private final Transport delegate;
+    private final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public StubbableTransport(Transport transport) {
         this.delegate = transport;
@@ -335,5 +343,10 @@ public class StubbableTransport implements Transport {
             throws Exception;
 
         default void clearCallback() {}
+    }
+
+    @Override
+    public BytesStream newNetworkBytesStream() {
+        return new ReleasableBytesStreamOutput(bigArrays);
     }
 }

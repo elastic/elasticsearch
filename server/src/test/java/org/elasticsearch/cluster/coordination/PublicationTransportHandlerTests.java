@@ -21,11 +21,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
@@ -53,14 +56,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PublicationTransportHandlerTests extends ESTestCase {
 
     public void testDiffSerializationFailure() {
         final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final TransportService transportService = mock(TransportService.class);
+        final MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+        when(transportService.newNetworkBytesStream()).then(invocation -> new ReleasableBytesStreamOutput(bigArrays));
+
         final PublicationTransportHandler handler = new PublicationTransportHandler(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
-            mock(TransportService.class),
+            transportService,
             writableRegistry(),
             pu -> null,
             (pu, l) -> {}
@@ -130,6 +138,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final boolean simulateFailures = randomBoolean();
             final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+            final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
             final MockTransport mockTransport = new MockTransport() {
 
                 @Nullable
@@ -167,7 +176,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                         handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, exception));
                     }
                 }
+
+                @Override
+                public BytesStream newNetworkBytesStream() {
+                    return new ReleasableBytesStreamOutput(bigArrays);
+                }
             };
+
             final TransportService transportService = mockTransport.createTransportService(
                 Settings.EMPTY,
                 threadPool,
@@ -177,7 +192,6 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 Collections.emptySet()
             );
             final PublicationTransportHandler handler = new PublicationTransportHandler(
-                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
                 transportService,
                 writableRegistry(),
                 pu -> null,

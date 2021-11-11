@@ -324,21 +324,25 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     private void failTask(JobTask jobTask, String reason) {
-        auditor.error(jobTask.getJobId(), reason);
+        String jobId = jobTask.getJobId();
+        auditor.error(jobId, reason);
         JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason);
         jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(r -> {
-            logger.debug(() -> new ParameterizedMessage("[{}] updated task state to failed", jobTask.getJobId()));
-            stopAssociatedDatafeedForFailedJob(jobTask.getJobId());
+            logger.debug("[{}] updated task state to failed", jobId);
+            stopAssociatedDatafeedForFailedJob(jobId);
         }, e -> {
-            logger.error(
-                new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobTask.getJobId()),
-                e
-            );
+            logger.error(new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobId), e);
             jobTask.markAsFailed(e);
+            stopAssociatedDatafeedForFailedJob(jobId);
         }));
     }
 
     private void stopAssociatedDatafeedForFailedJob(String jobId) {
+
+        if (autodetectProcessManager.isNodeDying()) {
+            // The node shutdown caught us at a bad time, and we cannot stop the datafeed
+            return;
+        }
 
         ActionListener<String> getRunningDatafeedListener = ActionListener.wrap(runningDatafeedId -> {
             if (runningDatafeedId == null) {
@@ -352,6 +356,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 StopDatafeedAction.INSTANCE,
                 request,
                 ActionListener.wrap(
+                    // StopDatafeedAction will audit the stopping of the datafeed if it succeeds so we don't need to do that here
                     r -> logger.info("[{}] stopped associated datafeed [{}] after job failure", jobId, runningDatafeedId),
                     e -> {
                         if (autodetectProcessManager.isNodeDying() == false) {
@@ -363,6 +368,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                 ),
                                 e
                             );
+                            auditor.error(jobId, "failed to stop associated datafeed after job failure");
                         }
                     }
                 )

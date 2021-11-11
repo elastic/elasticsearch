@@ -145,7 +145,7 @@ public class DatafeedNodeSelector {
         }
 
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
-            // lets try again later when the job has been opened:
+            // let's try again later when the job has been opened:
             String reason = "cannot start datafeed ["
                 + datafeedId
                 + "], because the job's ["

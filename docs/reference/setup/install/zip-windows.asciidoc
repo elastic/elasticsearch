@@ -47,7 +47,7 @@ window, `cd` to the `%ES_HOME%` directory, for instance:
 
 ["source","sh",subs="attributes"]
 ----------------------------
-cd c:\elasticsearch-{version}
+cd C:\elasticsearch-{version}
 ----------------------------
 
 endif::[]
@@ -86,6 +86,7 @@ added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
 :os-dir:       %ES_HOME%
+:slash:        \
 
 include::check-running.asciidoc[]
 
@@ -102,7 +103,7 @@ automatically at boot time without user interaction.
 ----
 C:\elasticsearch-{version}{backslash}bin>elasticsearch-service.bat install
 Installing service      :  "elasticsearch-service-x64"
-Using ES_JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
+Using ES_JAVA_HOME (64-bit):  "C:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
 ----
 
@@ -116,7 +117,7 @@ C:\elasticsearch-{version}{backslash}bin>bin\elasticsearch-service.bat start
 +
 NOTE: TLS is not enabled or configured when you start {es} as a service.
 
-. Generate a password for the `elastic` user, run the
+. Generate a password for the `elastic` user with the
 <<reset-password,`elasticsearch-reset-password`>> tool. The password is output
 to the command line.
 +

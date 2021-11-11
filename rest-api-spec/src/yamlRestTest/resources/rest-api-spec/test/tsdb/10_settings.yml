@@ -194,7 +194,7 @@ set start_time and end_time:
               end_time: 1632625793000
 
   - do:
-      catch: /index.time_series.end_time must be larger than current value \[2021-09-26T03:09:53Z\]/
+      catch: /index.time_series.end_time must be larger than current value \[1632625793000\]/
       indices.put_settings:
         index: test_index
         body:

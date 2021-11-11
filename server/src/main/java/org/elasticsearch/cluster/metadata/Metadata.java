@@ -209,7 +209,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final String[] visibleClosedIndices;
 
     private SortedMap<String, IndexAbstraction> indicesLookup;
-    private final Map<String, MappingMetadata> cache;
+    private final Map<String, MappingMetadata> mappingsByHash;
 
     private Metadata(
         String clusterUUID,
@@ -232,7 +232,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] allClosedIndices,
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
-        Map<String, MappingMetadata> cache
+        Map<String, MappingMetadata> mappingsByHash
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -254,7 +254,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
-        this.cache = cache;
+        this.mappingsByHash = mappingsByHash;
     }
 
     public Metadata withIncrementedVersion() {
@@ -279,7 +279,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             allClosedIndices,
             visibleClosedIndices,
             indicesLookup,
-            cache
+            mappingsByHash
         );
     }
 
@@ -946,8 +946,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return builder;
     }
 
-    Map<String, MappingMetadata> getCache() {
-        return cache;
+    Map<String, MappingMetadata> getMappingsByHash() {
+        return mappingsByHash;
     }
 
     private static class MetadataDiff implements Diff<Metadata> {
@@ -1104,7 +1104,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
-        private final Map<String, MappingMetadata> cache;
+        private final Map<String, MappingMetadata> mappingsByHash;
 
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
@@ -1113,7 +1113,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             customs = ImmutableOpenMap.builder();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
             previousIndicesLookup = null;
-            cache = new HashMap<>();
+            mappingsByHash = new HashMap<>();
         }
 
         Builder(Metadata metadata) {
@@ -1128,13 +1128,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             previousIndicesLookup = metadata.getIndicesLookup();
-            this.cache = new HashMap<>(metadata.cache);
+            this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             // we know its a new one, increment the version and store
             indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
-            reuseMappings(indexMetadataBuilder);
+            dedupeMapping(indexMetadataBuilder);
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
@@ -1147,7 +1147,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (indices.get(indexMetadata.getIndex().getName()) == indexMetadata) {
                 return this;
             }
-            indexMetadata = reuseMappings(indexMetadata);
+            indexMetadata = dedupeMapping(indexMetadata);
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
                 indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
@@ -1214,7 +1214,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             previousIndicesLookup = null;
 
             indices.clear();
-            cache.clear();
+            mappingsByHash.clear();
             return this;
         }
 
@@ -1668,7 +1668,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
             }
 
-            purgeMappingCache(indices);
+            purgeMappingsByHash(indices);
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1711,7 +1711,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
                 indicesLookup,
-                Collections.unmodifiableMap(cache)
+                Collections.unmodifiableMap(mappingsByHash)
             );
         }
 
@@ -1931,39 +1931,49 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return builder.build();
         }
 
-        private IndexMetadata reuseMappings(IndexMetadata indexMetadata) {
+        /**
+         * Dedupes {@link MappingMetadata} instance from the provided indexMetadata parameter using the sha256
+         * hash from the compressed source of the mapping. If there is a mapping with the same sha256 hash then
+         * a new {@link IndexMetadata} is returned with the found {@link MappingMetadata} instance, otherwise
+         * the {@link MappingMetadata} instance of the indexMetadata parameter is recorded and the indexMetadata
+         * parameter is then returned.
+         */
+        private IndexMetadata dedupeMapping(IndexMetadata indexMetadata) {
             if (indexMetadata.mapping() == null) {
                 return indexMetadata;
             }
 
             String digest = indexMetadata.mapping().getSha256();
-            MappingMetadata entry = cache.get(digest);
+            MappingMetadata entry = mappingsByHash.get(digest);
             if (entry != null) {
                 IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(indexMetadata);
                 imBuilder.putMapping(entry);
                 return imBuilder.build();
             } else {
-                cache.put(digest, indexMetadata.mapping());
+                mappingsByHash.put(digest, indexMetadata.mapping());
                 return indexMetadata;
             }
         }
 
-        private void reuseMappings(IndexMetadata.Builder indexMetadataBuilder) {
+        /**
+         * Similar to {@link #dedupeMapping(IndexMetadata)}.
+         */
+        private void dedupeMapping(IndexMetadata.Builder indexMetadataBuilder) {
             if (indexMetadataBuilder.mapping() == null) {
                 return;
             }
 
             String digest = indexMetadataBuilder.mapping().getSha256();
-            MappingMetadata entry = cache.get(digest);
+            MappingMetadata entry = mappingsByHash.get(digest);
             if (entry != null) {
                 indexMetadataBuilder.putMapping(entry);
             } else {
-                cache.put(digest, indexMetadataBuilder.mapping());
+                mappingsByHash.put(digest, indexMetadataBuilder.mapping());
             }
         }
 
-        private void purgeMappingCache(ImmutableOpenMap<String, IndexMetadata> indices) {
-            final var iterator = cache.entrySet().iterator();
+        private void purgeMappingsByHash(ImmutableOpenMap<String, IndexMetadata> indices) {
+            final var iterator = mappingsByHash.entrySet().iterator();
             while (iterator.hasNext()) {
                 final var cacheKey = iterator.next().getKey();
                 boolean used = false;

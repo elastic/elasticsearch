@@ -510,6 +510,7 @@ public class RefreshListenersTests extends ESTestCase {
             TestSeqNoListener acceptedListener = new TestSeqNoListener();
             assertFalse(listeners.addOrNotify(index("1").getSeqNo(), acceptedListener));
             assertFalse(acceptedListener.isDone.get());
+            assertNull(acceptedListener.error);
             expectedPending = 3;
         }
         assertEquals(expectedPending, listeners.pendingCount());

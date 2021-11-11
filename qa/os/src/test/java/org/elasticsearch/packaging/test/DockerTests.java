@@ -104,6 +104,9 @@ public class DockerTests extends PackagingTestCase {
     private Path tempDir;
     private static final String PASSWORD = "nothunter2";
 
+    private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
+    private static final String EXAMPLE_PLUGIN_PATH = System.getProperty(EXAMPLE_PLUGIN_SYSPROP);
+
     @BeforeClass
     public static void filterDistros() {
         assumeTrue("only Docker", distribution().isDocker());
@@ -167,7 +170,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that Cloud images bundle a selection of plugins.
      */
-    public void test021PluginsListWithPlugins() {
+    public void test021PluginsListWithDefaultCloudPlugins() {
         assumeTrue(
             "Only applies to Cloud images",
             distribution.packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS
@@ -184,33 +187,94 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Checks that ESS images can install plugins from the local archive.
+     * Check that a plugin can be installed without special permissions.
      */
-    public void test022InstallPluginsFromLocalArchive() {
-        assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
+    public void test022InstallPlugin() {
+        runContainer(
+            distribution(),
+            builder().envVar("ELASTIC_PASSWORD", PASSWORD).volume(Path.of(EXAMPLE_PLUGIN_PATH), "/analysis-icu.zip")
+        );
 
         final String plugin = "analysis-icu";
+        assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
 
         final Installation.Executables bin = installation.executables();
-        List<String> plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
+        sh.run(bin.pluginTool + " install file:///analysis-icu.zip");
 
-        assertThat("Expected " + plugin + " to not be installed", plugins, not(hasItems(plugin)));
+        final boolean isCloudImage = distribution().packaging == Packaging.DOCKER_CLOUD
+            || distribution().packaging == Packaging.DOCKER_CLOUD_ESS;
+
+        final List<String> expectedPlugins = isCloudImage
+            ? List.of("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
+            : List.of("analysis-icu");
+
+        assertThat("Expected installed plugins to be listed", listPlugins(), equalTo(expectedPlugins));
+    }
+
+    /**
+     * Checks that ESS images can install plugins from the local archive.
+     */
+    public void test023InstallPluginsFromLocalArchive() {
+        assumeTrue("Only ESS images have a local archive", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
+
+        final String plugin = "analysis-icu";
+        final Installation.Executables bin = installation.executables();
+
+        assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
             .put("ES_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
         sh.run(bin.pluginTool + " install --batch analysis-icu");
 
-        plugins = sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
-
-        assertThat("Expected " + plugin + " to be installed", plugins, hasItems(plugin));
+        assertThat("Expected " + plugin + " to be installed", listPlugins(), hasItems(plugin));
     }
 
     /**
-     * Checks that ESS images can manage plugins by deploying a plugins config file.
+     * Checks that plugins can be installed by deploying a plugins config file.
      */
-    public void test023InstallPluginsUsingConfigFile() {
-        assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
+    public void test024InstallPluginUsingConfigFile() {
+        final boolean isCloudImage = distribution().packaging == Packaging.DOCKER_CLOUD
+            || distribution().packaging == Packaging.DOCKER_CLOUD_ESS;
+
+        final StringJoiner pluginsDescriptor = new StringJoiner("\n", "", "\n");
+        pluginsDescriptor.add("plugins:");
+        pluginsDescriptor.add("  - id: analysis-icu");
+        pluginsDescriptor.add("    location: file:///analysis-icu.zip");
+        if (isCloudImage) {
+            // The repository plugins have to be present, because (1) they are preinstalled, and (2) they
+            // are owned by `root` and can't be removed.
+            Stream.of("repository-s3", "repository-azure", "repository-gcs").forEach(plugin -> pluginsDescriptor.add("  - id: " + plugin));
+        }
+
+        final String filename = "elasticsearch-plugins.yml";
+        append(tempDir.resolve(filename), pluginsDescriptor.toString());
+
+        // Restart the container. This will sync the plugins automatically. Also
+        // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
+        // command should instead use the bundled plugin archive.
+        runContainer(
+            distribution(),
+            builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
+                .volume(Path.of(EXAMPLE_PLUGIN_PATH), "/analysis-icu.zip")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar(
+                    "ES_JAVA_OPTS",
+                    "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+                )
+        );
+
+        // Since ES is doing the installing, give it a chance to complete
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+
+        assertThat("List of installed plugins is incorrect", listPlugins(), hasItems("analysis-icu"));
+    }
+
+    /**
+     * Checks that ESS images can manage plugins from the local archive by deploying a plugins config file.
+     */
+    public void test025InstallPluginFromArchiveUsingConfigFile() {
+        assumeTrue("Only ESS image has a plugin archive", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
 
         // The repository plugins have to be present, because (1) they are preinstalled, and (2) they
         // are owned by `root` and can't be removed.
@@ -241,10 +305,7 @@ public class DockerTests extends PackagingTestCase {
         // Since ES is doing the installing, give it a chance to complete
         waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final List<String> actualPlugins = sh.run(installation.executables().pluginTool + " list").stdout.lines()
-            .collect(Collectors.toList());
-
-        assertThat("List of installed plugins is incorrect", actualPlugins, containsInAnyOrder(plugins));
+        assertThat("List of installed plugins is incorrect", listPlugins(), containsInAnyOrder(plugins));
     }
 
     /**
@@ -1154,5 +1215,10 @@ public class DockerTests extends PackagingTestCase {
             assertThat(Path.of("/opt/" + beat + "/module"), file(Directory, "root", "root", p755));
             assertThat(Path.of("/opt/" + beat + "/modules.d"), file(Directory, "root", "root", p755));
         });
+    }
+
+    private List<String> listPlugins() {
+        final Installation.Executables bin = installation.executables();
+        return sh.run(bin.pluginTool + " list").stdout.lines().collect(Collectors.toList());
     }
 }

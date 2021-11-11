@@ -282,7 +282,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (updateResult.getResponseResult() == DocWriteResponse.Result.NOOP) {
                 context.markOperationAsNoOp(updateResult.action());
                 context.markAsCompleted(context.getExecutionResult());
-                return true;                
+                return true;
             }
             DocWriteRequest<?> translated = updateResult.action();
             translated.process();

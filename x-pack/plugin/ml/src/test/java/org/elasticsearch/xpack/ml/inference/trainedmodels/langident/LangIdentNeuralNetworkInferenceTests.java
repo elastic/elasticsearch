@@ -75,6 +75,13 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             classificationConfig
         );
         assertThat(singleValueInferenceResults.valueAsString(), equalTo("vi"));
+
+        // Should not throw
+        inferenceDefinition.infer(inferenceObj("행 A A"), classificationConfig);
+        inferenceDefinition.infer(inferenceObj("행 A성 xx"), classificationConfig);
+        inferenceDefinition.infer(inferenceObj("행 A성 성x"), classificationConfig);
+        inferenceDefinition.infer(inferenceObj("행A A성 x성"), classificationConfig);
+        inferenceDefinition.infer(inferenceObj("행A 성 x"), classificationConfig);
     }
 
     public void testMixedLangInference() throws Exception {
@@ -104,6 +111,8 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             classificationConfig
         );
         assertThat(singleValueInferenceResults.valueAsString(), equalTo("ko"));
+
+
     }
 
     public void testLangInference() throws Exception {

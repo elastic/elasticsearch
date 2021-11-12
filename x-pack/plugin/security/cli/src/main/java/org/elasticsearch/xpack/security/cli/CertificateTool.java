@@ -31,17 +31,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
@@ -982,9 +981,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      */
     static Collection<CertificateInformation> parseFile(Path file) throws Exception {
         try (Reader reader = Files.newBufferedReader(file)) {
-            // EMPTY is safe here because we never use namedObject
-            XContentParser xContentParser = XContentType.YAML.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, reader);
+            XContentParser xContentParser = XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, reader);
             return CertificateToolParser.PARSER.parse(xContentParser, new ArrayList<>(), null);
         }
     }

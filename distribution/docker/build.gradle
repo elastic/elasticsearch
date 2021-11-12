@@ -96,7 +96,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
-    'package_manager'    : base == DockerBase.UBI ? 'microdnf' : 'yum',
+    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : 'microdnf',
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
@@ -121,7 +121,7 @@ private static String toCamel(String input) {
 private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
-    (base == DockerBase.CENTOS ? "" : toCamel(base.name())) +
+    (base == DockerBase.DEFAULT ? "" : toCamel(base.name())) +
     suffix
 }
 
@@ -367,7 +367,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else if (base == DockerBase.CENTOS || base == DockerBase.CLOUD) {
+      } else if (base == DockerBase.DEFAULT || base == DockerBase.CLOUD) {
         baseImages = ['alpine:3.13', base.image]
       } else {
         baseImages = [base.image]
@@ -449,7 +449,7 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
-    DockerBase base = DockerBase.CENTOS
+    DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ubi-')) {
       base = DockerBase.UBI
     } else if (subProject.name.contains('ironbank-')) {

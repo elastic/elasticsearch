@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PH
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
@@ -40,17 +41,17 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
     @Override
     protected MigrateAction createTestInstance() {
-        return new MigrateAction(randomBoolean());
+        return randomBoolean() ? MigrateAction.ENABLED : MigrateAction.DISABLED;
     }
 
     @Override
     protected MigrateAction mutateInstance(MigrateAction instance) throws IOException {
-        return new MigrateAction(instance.isEnabled() == false);
+        return instance.isEnabled() == false ? MigrateAction.ENABLED : MigrateAction.DISABLED;
     }
 
     @Override
     protected Reader<MigrateAction> instanceReader() {
-        return MigrateAction::new;
+        return MigrateAction::readFrom;
     }
 
     public void testToSteps() {
@@ -61,8 +62,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
             randomAlphaOfLengthBetween(1, 10)
         );
         {
-            MigrateAction action = new MigrateAction();
-            List<Step> steps = action.toSteps(null, phase, nextStepKey);
+            List<Step> steps = MigrateAction.ENABLED.toSteps(null, phase, nextStepKey);
             assertNotNull(steps);
             assertEquals(3, steps.size());
             StepKey expectedFirstStepKey = new StepKey(phase, MigrateAction.NAME, MigrateAction.CONDITIONAL_SKIP_MIGRATE_STEP);
@@ -79,8 +79,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         }
 
         {
-            MigrateAction disabledMigrateAction = new MigrateAction(false);
-            List<Step> steps = disabledMigrateAction.toSteps(null, phase, nextStepKey);
+            List<Step> steps = MigrateAction.DISABLED.toSteps(null, phase, nextStepKey);
             assertEquals(0, steps.size());
         }
     }
@@ -91,19 +90,18 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        MigrateAction action = new MigrateAction();
         {
-            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            List<Step> steps = MigrateAction.ENABLED.toSteps(null, HOT_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
             assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_HOT));
         }
         {
-            List<Step> steps = action.toSteps(null, WARM_PHASE, nextStepKey);
+            List<Step> steps = MigrateAction.ENABLED.toSteps(null, WARM_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
             assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_WARM + "," + DATA_HOT));
         }
         {
-            List<Step> steps = action.toSteps(null, COLD_PHASE, nextStepKey);
+            List<Step> steps = MigrateAction.ENABLED.toSteps(null, COLD_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
             assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
         }
@@ -115,7 +113,6 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        MigrateAction action = new MigrateAction();
 
         // does not skip an ordinary index
         {
@@ -129,7 +126,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
                 .metadata(Metadata.builder().put(indexMetadata, true).build())
                 .build();
 
-            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            List<Step> steps = MigrateAction.ENABLED.toSteps(null, HOT_PHASE, nextStepKey);
             BranchingStep firstStep = (BranchingStep) steps.get(0);
             UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
             firstStep.performAction(indexMetadata.getIndex(), clusterState);
@@ -152,11 +149,17 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
                 .metadata(Metadata.builder().put(indexMetadata, true).build())
                 .build();
 
-            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            List<Step> steps = MigrateAction.ENABLED.toSteps(null, HOT_PHASE, nextStepKey);
             BranchingStep firstStep = (BranchingStep) steps.get(0);
             firstStep.performAction(indexMetadata.getIndex(), clusterState);
 
             assertEquals(nextStepKey, firstStep.getNextStepKey());
         }
+    }
+
+    @Override
+    protected void assertEqualInstances(MigrateAction expectedInstance, MigrateAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

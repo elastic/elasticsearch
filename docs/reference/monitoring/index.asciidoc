@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[monitor-elasticsearch-cluster]]
 = Monitor a cluster
 

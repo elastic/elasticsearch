@@ -176,7 +176,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
 
         BytesReference doc2 = new BytesArray("{ \"field\": { \"key\": \"value\" ");
-        expectThrows(MapperParsingException.class, () -> mapper.parse(new SourceToParse("test", "1", doc2, XContentType.JSON)));
+        expectThrows(MapperParsingException.class, () -> mapper.parse(new SourceToParse("1", doc2, XContentType.JSON)));
     }
 
     public void testFieldMultiplicity() throws Exception {
@@ -262,7 +262,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     public void testIgnoreAbove() throws IOException {
         // First verify the default behavior when ignore_above is not set.
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = mapperService.documentMapper();
 
         ParsedDocument parsedDoc = mapper.parse(source(b -> {
             b.startArray("field");
@@ -280,15 +281,66 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("ignore_above", 10);
         }));
 
-        ParsedDocument newParsedDoc = newMapper.parse(source(b -> {
+        parsedDoc = newMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field("key", "a longer then usual value").endObject();
             }
             b.endArray();
         }));
-        IndexableField[] newFields = newParsedDoc.rootDoc().getFields("field");
+        IndexableField[] newFields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, newFields.length);
+
+        // using a key bigger than ignore_above should not prevent the field from being indexed, although we store key:value pairs
+        parsedDoc = newMapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("key_longer_than_10chars", "value").endObject();
+            }
+            b.endArray();
+        }));
+        newFields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+    }
+
+    /**
+     * using a key:value pair above the Lucene term length limit would throw an error on indexing
+     * that we pre-empt with a nices exception
+     */
+    public void testImmenseKeyedTermException() throws IOException {
+        DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
+
+        String longKey = "x".repeat(32800);
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field(longKey, "value").endObject();
+            }
+            b.endArray();
+        })));
+        assertEquals(
+            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+                + "than the allowed max length of 32766 bytes. Key length: "
+                + longKey.length()
+                + ", value length: 5 for key starting with [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]",
+            ex.getCause().getMessage()
+        );
+
+        String value = "x".repeat(32800);
+        ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("key", value).endObject();
+            }
+            b.endArray();
+        })));
+        assertEquals(
+            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+                + "than the allowed max length of 32766 bytes. Key length: 3, value length: "
+                + value.length()
+                + " for key starting with [key]",
+            ex.getCause().getMessage()
+        );
     }
 
     public void testNullValues() throws Exception {

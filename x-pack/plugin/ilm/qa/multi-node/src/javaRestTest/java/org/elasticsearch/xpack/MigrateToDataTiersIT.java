@@ -113,7 +113,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction()))
+            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(
@@ -266,7 +266,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction()))
+            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(

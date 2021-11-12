@@ -77,6 +77,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
@@ -337,6 +338,7 @@ public class DockerTests extends PackagingTestCase {
         copyFromContainer(installation.config("elasticsearch.keystore"), tempEsConfigDir);
         copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
         final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_*\"");
+        assertThat(autoConfigurationDir, notNullValue());
         final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
         copyFromContainer(autoConfigurationDir, tempEsConfigDir.resolve(autoConfigurationDirName));
 
@@ -344,20 +346,24 @@ public class DockerTests extends PackagingTestCase {
         chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
         chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
 
-        // Restart the container
-        runContainer(
-            distribution(),
-            builder().envVar("ELASTIC_PASSWORD", PASSWORD)
-                .uid(501, 501)
-                .volume(tempEsDataDir.toAbsolutePath(), installation.data)
-                .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
-                .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
-        );
+        try {
+            // Restart the container
+            runContainer(
+                distribution(),
+                builder().envVar("ELASTIC_PASSWORD", PASSWORD)
+                    .uid(501, 501)
+                    .volume(tempEsDataDir.toAbsolutePath(), installation.data)
+                    .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
+                    .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
+            );
 
-        waitForElasticsearch(installation, "elastic", PASSWORD);
-        rmDirWithPrivilegeEscalation(tempEsConfigDir);
-        rmDirWithPrivilegeEscalation(tempEsDataDir);
-        rmDirWithPrivilegeEscalation(tempEsLogsDir);
+            waitForElasticsearch(installation, "elastic", PASSWORD);
+            removeContainer();
+        } finally {
+            rmDirWithPrivilegeEscalation(tempEsConfigDir);
+            rmDirWithPrivilegeEscalation(tempEsDataDir);
+            rmDirWithPrivilegeEscalation(tempEsLogsDir);
+        }
     }
 
     /**

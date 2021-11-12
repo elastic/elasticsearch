@@ -233,7 +233,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
             BytesReference arrayedDoc = BytesReference.bytes(
                 XContentFactory.jsonBuilder().startObject().field("field", "Bad shape").endObject()
             );
-            SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
+            SourceToParse sourceToParse = new SourceToParse("1", arrayedDoc, XContentType.JSON);
             ParsedDocument document = ignoreMapper.parse(sourceToParse);
             assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
             MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
@@ -250,7 +250,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
                     )
                     .endObject()
             );
-            SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
+            SourceToParse sourceToParse = new SourceToParse("1", arrayedDoc, XContentType.JSON);
             ParsedDocument document = ignoreMapper.parse(sourceToParse);
             assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
             MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
@@ -386,7 +386,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
                 .endObject()
         );
 
-        SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
+        SourceToParse sourceToParse = new SourceToParse("1", arrayedDoc, XContentType.JSON);
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
         IndexableField[] fields = document.docs().get(0).getFields("shape.type");

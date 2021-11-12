@@ -1946,9 +1946,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             String digest = indexMetadata.mapping().getSha256();
             MappingMetadata entry = mappingsByHash.get(digest);
             if (entry != null) {
-                IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(indexMetadata);
-                imBuilder.putMapping(entry);
-                return imBuilder.build();
+                return new IndexMetadata(indexMetadata, entry);
             } else {
                 mappingsByHash.put(digest, indexMetadata.mapping());
                 return indexMetadata;

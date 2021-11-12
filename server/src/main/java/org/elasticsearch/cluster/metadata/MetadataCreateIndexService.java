@@ -51,6 +51,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -1195,13 +1196,18 @@ public class MetadataCreateIndexService {
         return blocksBuilder;
     }
 
-    private static void updateIndexMappingsAndBuildSortOrder(
+    private void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
+        List<Map<String, Object>> mergedMappings = new ArrayList<>(mappings);
+        if (indexService.getIndexSettings().getMode() != null && indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+            Map<String, Object> timeSeriesTimestampMapping = MapperService.parseMapping(xContentRegistry, MetadataIndexTemplateService.DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING);
+            mergedMappings.add(timeSeriesTimestampMapping);
+        }
         for (Map<String, Object> mapping : mappings) {
             if (mapping.isEmpty() == false) {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);

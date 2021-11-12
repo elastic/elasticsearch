@@ -334,12 +334,16 @@ public class Environment {
 
     @SuppressForbidden(reason = "using PathUtils#get since libffi resolves paths without interference from the JVM")
     private static Path getLibffiTemporaryDirectory() {
-        final String workingDirectory = System.getProperty("user.dir");
-        if (workingDirectory == null) {
-            return null;
-        }
         final String environmentVariable = System.getenv(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE);
         if (environmentVariable == null) {
+            return null;
+        }
+        // Explicitly resolve into an absolute path since the working directory might be different from the one in which we were launched
+        // and it would be confusing to report that the given relative path doesn't exist simply because it's being resolved relative to a
+        // different location than the one the user expects.
+        final String workingDirectory = System.getProperty("user.dir");
+        if (workingDirectory == null) {
+            assert false;
             return null;
         }
         return PathUtils.get(workingDirectory).resolve(environmentVariable);

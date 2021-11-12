@@ -112,7 +112,6 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         );
         assertThat(singleValueInferenceResults.valueAsString(), equalTo("ko"));
 
-
     }
 
     public void testLangInference() throws Exception {

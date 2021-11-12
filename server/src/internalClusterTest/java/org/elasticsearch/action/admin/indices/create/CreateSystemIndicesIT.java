@@ -126,8 +126,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
                 .get()
         );
 
-        internalCluster().startNodes(1);
-
         assertAcked(prepareCreate(INDEX_NAME + "-2"));
         ensureGreen(PRIMARY_INDEX_NAME);
 
@@ -174,8 +172,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
                 new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
             ).get()
         );
-
-        internalCluster().startNodes(1);
 
         assertAcked(prepareCreate(INDEX_NAME + "-2"));
         ensureGreen(PRIMARY_INDEX_NAME);

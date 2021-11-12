@@ -131,8 +131,6 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
         assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
 
-        internalCluster().startNodes(1);
-
         assertTrue(indexExists(nonPrimaryIndex));
 
         final GetAliasesResponse getAliasesResponse = client().admin()
@@ -146,7 +144,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             containsInAnyOrder(".test-index", ".test-index-legacy-alias")
         );
-        getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> { assertThat(alias.isHidden(), is(true)); });
+        getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> assertThat(alias.isHidden(), is(true)));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
@@ -174,8 +172,6 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             ).get()
         );
 
-        internalCluster().startNodes(1);
-
         String nonPrimaryIndex = INDEX_NAME + "-2";
         CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
         assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
@@ -195,7 +191,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             containsInAnyOrder(".test-index", ".test-index-composable-alias")
         );
-        getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> { assertThat(alias.isHidden(), is(true)); });
+        getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> assertThat(alias.isHidden(), is(true)));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }

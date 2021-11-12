@@ -33,6 +33,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,6 +63,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
 
     private final MetadataIndexAliasesService indexAliasesService;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportIndicesAliasesAction(
@@ -71,7 +73,8 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         final MetadataIndexAliasesService indexAliasesService,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final RequestValidators<IndicesAliasesRequest> requestValidators
+        final RequestValidators<IndicesAliasesRequest> requestValidators,
+        final SystemIndices systemIndices
     ) {
         super(
             IndicesAliasesAction.NAME,
@@ -85,6 +88,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         );
         this.indexAliasesService = indexAliasesService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -211,7 +215,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                                     action.indexRouting(),
                                     action.searchRouting(),
                                     action.writeIndex(),
-                                    action.isHidden()
+                                    systemIndices.isSystemName(resolvedName) ? Boolean.TRUE : action.isHidden()
                                 )
                             );
                         }

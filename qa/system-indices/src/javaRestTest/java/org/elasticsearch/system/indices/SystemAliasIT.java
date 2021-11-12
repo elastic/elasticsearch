@@ -40,7 +40,7 @@ public class SystemAliasIT extends ESRestTestCase {
     public void testCreatingSystemIndexWithAlias() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
-            request.setJsonEntity("{" + "  \"aliases\": {" + "    \".internal-unmanaged-alias\": {}" + "  }" + "}");
+            request.setJsonEntity("{\"aliases\": {\".internal-unmanaged-alias\": {}}}");
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -75,19 +75,89 @@ public class SystemAliasIT extends ESRestTestCase {
         assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
     }
 
-    // TODO[wrb] test create with v2 alias template
-
-    // TODO[wrb] test auto-create with v1 alias template
-
-    // TODO[wrb] test auto-create with v2 alias template
-
     // TODO[wrb] test index alias api
+    public void testCreatingSystemIndexWithIndexAliasEndpoint() throws Exception {
+        {
+            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
 
-    // TODO[wrb] test alias api
+        {
+            Request request = new Request("PUT", "/.internal-unmanaged-index-8/_alias/.internal-unmanaged-alias");
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.internal-unmanaged-index-8], "
+                        + "but in a future major version, direct access to system indices will be prevented by default"
+                )
+            );
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
 
-    // TODO[wrb] test aliases api
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+    }
 
-    // TODO[wrb] test managed system index
+    public void testCreatingSystemIndexWithAliasEndpoint() throws Exception {
+        {
+            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
+
+        {
+            Request request = new Request("PUT", "/_alias/.internal-unmanaged-alias");
+            request.setJsonEntity("{\"index\": \".internal-unmanaged-index-8\"}");
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.internal-unmanaged-index-8], "
+                        + "but in a future major version, direct access to system indices will be prevented by default"
+                )
+            );
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
+
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+    }
+
+    public void testCreatingSystemIndexWithAliasesEndpoint() throws Exception {
+        {
+            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
+
+        {
+            Request request = new Request("POST", "/_aliases");
+            request.setJsonEntity(
+                "{"
+                    + "  \"actions\": ["
+                    + "    {"
+                    + "      \"add\": {"
+                    + "        \"index\": \".internal-unmanaged-index-8\","
+                    + "        \"alias\": \".internal-unmanaged-alias\""
+                    + "      }"
+                    + "    }"
+                    + "  ]"
+                    + "}"
+            );
+
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.internal-unmanaged-index-8], "
+                        + "but in a future major version, direct access to system indices will be prevented by default"
+                )
+            );
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
+
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+    }
 
     @SuppressWarnings("unchecked")
     private void assertAliasIsHiddenInIndexResponse(String indexName, String aliasName) throws IOException {

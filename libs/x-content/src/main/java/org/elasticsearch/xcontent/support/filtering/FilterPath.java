@@ -38,7 +38,7 @@ public class FilterPath {
         return hasDoubleWildcard;
     }
 
-    public void insert(String filter) {
+    private void insert(String filter) {
         int end = filter.length();
         int splitPosition = -1;
         boolean findEscapes = false;

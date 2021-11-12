@@ -141,10 +141,10 @@ noop update:
       catch: /update is not supported because the destination index \[test\] is in time series mode/
       update:
         index:   test
-        id:      $body.hits.hits.0._id
+        id:      1
         body:
           doc:
-            $body.hits.hits.0._source
+            {}
 
 ---
 update:

@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;

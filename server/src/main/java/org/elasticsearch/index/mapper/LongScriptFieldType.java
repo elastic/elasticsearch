@@ -20,10 +20,10 @@ import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.LongFieldScript.LeafFactory;
-import org.elasticsearch.script.QueryableExpression;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
@@ -153,7 +153,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     ) {
         applyScriptContext(context);
         return NumberType.longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
-            Query approximation = approximateFirst ? queryableExpression(context).rangeQuery(l, u, context) : new MatchAllDocsQuery();
+            Query approximation = approximateFirst ? queryableExpression(context).approximateRangeQuery(l, u) : new MatchAllDocsQuery();
             return new LongScriptFieldRangeQuery(script, name(), approximation, leafFactory(context)::newInstance, l, u);
         });
     }
@@ -165,7 +165,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
         applyScriptContext(context);
         long v = NumberType.objectToLong(value, true);
-        Query approximation = approximateFirst ? queryableExpression(context).termQuery(v, context) : new MatchAllDocsQuery();
+        Query approximation = approximateFirst ? queryableExpression(context).approximateTermQuery(v) : new MatchAllDocsQuery();
         return new LongScriptFieldTermQuery(script, name(), approximation, leafFactory(context)::newInstance, v);
     }
 

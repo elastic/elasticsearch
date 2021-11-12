@@ -18,8 +18,8 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.CompositeFieldScript;
-import org.elasticsearch.script.QueryableExpression;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -206,7 +206,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     protected final QueryableExpression queryableExpression(SearchExecutionContext context) {
         return factory.queryableExpression(key -> {
             MappedFieldType ft = context.getFieldType(key);
-            return ft == null ? QueryableExpression.UNQUERYABLE : ft.asQueryableExpression();
+            return ft == null ? QueryableExpression.UNQUERYABLE : ft.asQueryableExpression(context);
         });
     }
 

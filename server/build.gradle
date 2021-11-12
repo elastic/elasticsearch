@@ -30,6 +30,7 @@ dependencies {
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
   api project(":libs:elasticsearch-lz4")
+  api project(":libs:elasticsearch-queryable-expression")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
 

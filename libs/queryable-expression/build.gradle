@@ -1,0 +1,29 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  api project(':libs:elasticsearch-core')
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-queryable-expression'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // does not depend on server
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+}
+
+tasks.named("jarHell").configure { enabled = false }

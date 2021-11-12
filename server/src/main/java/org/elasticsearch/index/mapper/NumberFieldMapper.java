@@ -40,10 +40,10 @@ import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.LongQueryableExpression;
+import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.LongQueryableExpression;
-import org.elasticsearch.script.QueryableExpression;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -942,16 +942,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public QueryableExpression asQueryableExpression(String field, boolean hasDocValues) {
+            public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
                 return new LongQueryableExpression.Field() {
                     @Override
-                    public Query termQuery(long term, SearchExecutionContext context) {
+                    public Query approximateTermQuery(long term) {
                         return LongPoint.newExactQuery(field, term);
                     }
 
                     @Override
-                    public Query rangeQuery(long lower, long upper, SearchExecutionContext context) {
+                    public Query approximateRangeQuery(long lower, long upper) {
                         return rangeQueryWithKnownBounds(field, lower, upper, hasDocValues, context);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return field;
                     }
                 };
             }
@@ -1012,7 +1017,7 @@ public class NumberFieldMapper extends FieldMapper {
             return value;
         }
 
-        public QueryableExpression asQueryableExpression(String field, boolean hasDocValues) {
+        public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
             return QueryableExpression.UNQUERYABLE;
         }
 
@@ -1333,11 +1338,11 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public QueryableExpression asQueryableExpression() {
+        public QueryableExpression asQueryableExpression(SearchExecutionContext context) {
             if (false == isSearchable()) {
                 return QueryableExpression.UNQUERYABLE;
             }
-            return type.asQueryableExpression(name(), hasDocValues());
+            return type.asQueryableExpression(name(), hasDocValues(), context);
         }
     }
 

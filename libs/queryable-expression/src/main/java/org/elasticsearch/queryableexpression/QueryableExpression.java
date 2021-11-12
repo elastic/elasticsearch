@@ -6,11 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.queryableexpression;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.function.LongFunction;
 
@@ -31,11 +30,14 @@ public abstract class QueryableExpression {
 
     public abstract QueryableExpression divide(QueryableExpression rhs);
 
-    public abstract Query termQuery(long term, SearchExecutionContext context);
+    public abstract Query approximateTermQuery(long term);
 
-    public abstract Query rangeQuery(long lower, long upper, SearchExecutionContext context);
+    public abstract Query approximateRangeQuery(long lower, long upper);
 
     protected abstract QueryableExpression asConstantLong(LongFunction<QueryableExpression> map);
+
+    @Override
+    public abstract String toString();
 
     private static class Unqueryable extends QueryableExpression {
         private Unqueryable() {}
@@ -61,13 +63,18 @@ public abstract class QueryableExpression {
         }
 
         @Override
-        public Query termQuery(long term, SearchExecutionContext context) {
+        public Query approximateTermQuery(long term) {
             return new MatchAllDocsQuery();
         }
 
         @Override
-        public Query rangeQuery(long lower, long upper, SearchExecutionContext context) {
+        public Query approximateRangeQuery(long lower, long upper) {
             return new MatchAllDocsQuery();
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName();
         }
     }
 

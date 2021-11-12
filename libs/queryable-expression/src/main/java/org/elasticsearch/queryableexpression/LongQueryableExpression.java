@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.queryableexpression;
 
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -14,8 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.QueryableExpression.Chain;
+import org.elasticsearch.queryableexpression.QueryableExpression.Chain;
 
 import java.util.function.LongFunction;
 
@@ -38,6 +37,9 @@ public class LongQueryableExpression {
         @Override
         public QueryableExpression multiply(QueryableExpression rhs) {
             return rhs.asConstantLong(c -> {
+                if (c == -1L) {
+                    return new Negate(this);
+                }
                 if (c == 0L) {
                     return new Constant(0);
                 }
@@ -52,7 +54,7 @@ public class LongQueryableExpression {
         public QueryableExpression divide(QueryableExpression rhs) {
             return rhs.asConstantLong(c -> {
                 if (c == -1L) {
-                    return new Multiply(this, -1L);
+                    return new Negate(this);
                 }
                 if (c == 0L) {
                     // The script is likely to return NaN, but we can't query for that.
@@ -99,21 +101,71 @@ public class LongQueryableExpression {
         }
 
         @Override
-        public Query termQuery(long term, SearchExecutionContext context) {
-            return next.termQuery(term - n, context);
+        public Query approximateTermQuery(long term) {
+            return next.approximateTermQuery(term - n);
         }
 
         @Override
-        public Query rangeQuery(long lower, long upper, SearchExecutionContext context) {
+        public Query approximateRangeQuery(long lower, long upper) {
             lower -= n;
             upper -= n;
             if (lower < upper) {
-                return next.rangeQuery(lower, upper, context);
+                return next.approximateRangeQuery(lower, upper);
             }
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            bool.add(next.rangeQuery(Long.MIN_VALUE, upper, context), Occur.SHOULD);
-            bool.add(next.rangeQuery(lower, Long.MAX_VALUE, context), Occur.SHOULD);
+            bool.add(next.approximateRangeQuery(Long.MIN_VALUE, upper), Occur.SHOULD);
+            bool.add(next.approximateRangeQuery(lower, Long.MAX_VALUE), Occur.SHOULD);
             return bool.build();
+        }
+
+        @Override
+        public String toString() {
+            return next + " + " + n;
+        }
+    }
+
+    /**
+     * Flip the sign of a value
+     */
+    static class Negate extends Chain {
+        private Negate(QueryableExpression next) {
+            super(next);
+        }
+
+        @Override
+        public QueryableExpression add(QueryableExpression rhs) {
+            // TODO chain these properly
+            return UNQUERYABLE;
+        }
+
+        @Override
+        public QueryableExpression multiply(QueryableExpression rhs) {
+            // TODO combine?
+            return UNQUERYABLE;
+        }
+
+        @Override
+        public QueryableExpression divide(QueryableExpression rhs) {
+            // TODO combine?
+            return UNQUERYABLE;
+        }
+
+        @Override
+        public Query approximateTermQuery(long term) {
+            return next.approximateTermQuery(-term);
+        }
+
+        @Override
+        public Query approximateRangeQuery(long lower, long upper) {
+            if (lower == upper) {
+                return approximateTermQuery(upper);
+            }
+            return next.approximateRangeQuery(-upper, lower == Long.MIN_VALUE ? Long.MAX_VALUE : -lower);
+        }
+
+        @Override
+        public String toString() {
+            return "-(" + next + ")";
         }
     }
 
@@ -127,6 +179,9 @@ public class LongQueryableExpression {
 
         private Multiply(QueryableExpression next, long n) {
             super(next);
+            if (n == 0) {
+                throw new IllegalArgumentException("Use Negate for * -1");
+            }
             if (n == 0) {
                 throw new IllegalArgumentException("Don't create Multiply nodes 0");
             }
@@ -155,15 +210,15 @@ public class LongQueryableExpression {
         }
 
         @Override
-        public Query termQuery(long term, SearchExecutionContext context) {
-            return withOverflow(next.termQuery(term / n, context), context);
+        public Query approximateTermQuery(long term) {
+            return withOverflow(next.approximateTermQuery(term / n));
         }
 
         @Override
-        public Query rangeQuery(long lower, long upper, SearchExecutionContext context) {
+        public Query approximateRangeQuery(long lower, long upper) {
             long scaledLower = lower / n;
             long scaledUpper = upper / n;
-            return withOverflow(next.rangeQuery(Math.min(scaledLower, scaledUpper), Math.max(scaledLower, scaledUpper), context), context);
+            return withOverflow(next.approximateRangeQuery(Math.min(scaledLower, scaledUpper), Math.max(scaledLower, scaledUpper)));
         }
 
         /**
@@ -172,14 +227,19 @@ public class LongQueryableExpression {
          * The current implementation just ORs the query with everything that
          * would overflow the long. It works, but its inefficient if they overlap.
          */
-        private Query withOverflow(Query query, SearchExecutionContext context) {
+        private Query withOverflow(Query query) {
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
             bool.add(query, Occur.SHOULD);
             long overflowFromMin = Long.MIN_VALUE / n;
             long overflowFromMax = Long.MAX_VALUE / n;
-            bool.add(next.rangeQuery(Math.max(overflowFromMin, overflowFromMax), Long.MAX_VALUE, context), Occur.SHOULD);
-            bool.add(next.rangeQuery(Long.MIN_VALUE, Math.min(overflowFromMin, overflowFromMax), context), Occur.SHOULD);
+            bool.add(next.approximateRangeQuery(Math.max(overflowFromMin, overflowFromMax), Long.MAX_VALUE), Occur.SHOULD);
+            bool.add(next.approximateRangeQuery(Long.MIN_VALUE, Math.min(overflowFromMin, overflowFromMax)), Occur.SHOULD);
             return bool.build();
+        }
+
+        @Override
+        public String toString() {
+            return next + " * " + n;
         }
     }
 
@@ -192,14 +252,14 @@ public class LongQueryableExpression {
 
         private Divide(QueryableExpression next, long n) {
             super(next);
+            if (n == -1) {
+                throw new IllegalArgumentException("Use Negatate for / -1");
+            }
             if (n == 0) {
                 throw new IllegalArgumentException("Don't create Divide nodes for 0");
             }
             if (n == 1) {
                 throw new IllegalArgumentException("Don't create Divide nodes for identity");
-            }
-            if (n == -1) {
-                throw new IllegalArgumentException("Use Mutliply for division by -1");
             }
             this.n = n;
         }
@@ -223,16 +283,16 @@ public class LongQueryableExpression {
         }
 
         @Override
-        public Query termQuery(long term, SearchExecutionContext context) {
+        public Query approximateTermQuery(long term) {
             /*
              * Division rounds to 0. So let's get 0 out of the way because
              * everything rounds towards it.
              */
             if (term == 0) {
                 if (n < 0) {
-                    return next.rangeQuery(n + 1, -(n + 1), context);
+                    return next.approximateRangeQuery(n + 1, -(n + 1));
                 }
-                return next.rangeQuery(-(n - 1), n - 1, context);
+                return next.approximateRangeQuery(-(n - 1), n - 1);
             }
             long precise = term * n;
             if (precise / n != term) {
@@ -249,7 +309,7 @@ public class LongQueryableExpression {
                 if (min > precise) {
                     min = Long.MIN_VALUE;
                 }
-                return next.rangeQuery(min, precise, context);
+                return next.approximateRangeQuery(min, precise);
             }
             /*
              * Division always rounds towards 0. Here `precise` is a
@@ -261,11 +321,11 @@ public class LongQueryableExpression {
             if (max < precise) {
                 max = Long.MAX_VALUE;
             }
-            return next.rangeQuery(precise, max, context);
+            return next.approximateRangeQuery(precise, max);
         }
 
         @Override
-        public Query rangeQuery(long lower, long upper, SearchExecutionContext context) {
+        public Query approximateRangeQuery(long lower, long upper) {
             long ln = clampedScale(lower);
             long un = clampedScale(upper);
             long min = Math.min(ln, un);
@@ -283,7 +343,7 @@ public class LongQueryableExpression {
                     max = Long.MAX_VALUE;
                 }
             }
-            return next.rangeQuery(min, max, context);
+            return next.approximateRangeQuery(min, max);
         }
 
         @SuppressForbidden(reason = "abs is safe because we can't pass Long.MIN_VALUE")
@@ -303,6 +363,11 @@ public class LongQueryableExpression {
                 return v < 0 ^ n < 0 ? Long.MIN_VALUE : Long.MAX_VALUE;
             }
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return next + " / " + n;
         }
     }
 
@@ -346,7 +411,7 @@ public class LongQueryableExpression {
         }
 
         @Override
-        public Query termQuery(long term, SearchExecutionContext context) {
+        public Query approximateTermQuery(long term) {
             if (n == term) {
                 return new MatchAllDocsQuery();
             }
@@ -354,11 +419,16 @@ public class LongQueryableExpression {
         }
 
         @Override
-        public Query rangeQuery(long lower, long upper, SearchExecutionContext context) {
+        public Query approximateRangeQuery(long lower, long upper) {
             if (lower <= n && n <= upper) {
                 return new MatchAllDocsQuery();
             }
             return new MatchNoDocsQuery("value [" + n + "] is not between [" + lower + "] and [" + upper + "]");
+        }
+
+        @Override
+        public String toString() {
+            return Long.toString(n);
         }
     }
 }

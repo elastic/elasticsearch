@@ -214,7 +214,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         false,
                         false
-                    );
+                    ).singleValue(true);
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,
@@ -585,24 +585,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 // new aggregate metric types are added (histogram, cardinality etc)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
-                // We don't accept arrays of metrics
-                if (context.doc().getField(delegateFieldMapper.fieldType().name()) != null) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + name()
-                            + "] of type ["
-                            + typeName()
-                            + "] does not support indexing multiple values for the same field in the same document"
-                    );
-                }
                 // Delegate parsing the field to a numeric field mapper
                 delegateFieldMapper.parse(context);
-
                 // Ensure a value_count metric does not have a negative value
                 if (Metric.value_count == metric) {
                     // context.doc().getField() method iterates over all fields in the document.
                     // Making the following call slow down. Maybe we can think something smarter.
-                    Number n = context.doc().getField(delegateFieldMapper.name()).numericValue();
+                    Number n = context.doc().getByKey(delegateFieldMapper.name()).numericValue();
                     if (n.intValue() < 0) {
                         throw new IllegalArgumentException(
                             "Aggregate metric [" + metric.name() + "] of field [" + mappedFieldType.name() + "] cannot be a negative number"

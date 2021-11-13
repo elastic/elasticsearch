@@ -52,6 +52,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.lang.reflect.Parameter;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,6 +105,8 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
+
+        private final Parameter<Boolean> singleValue;
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings) {
             this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
@@ -165,6 +168,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
+
+            this.singleValue = Parameter.boolParam("single_value", false, m -> toType(m).singleValue, false);
         }
 
         Builder nullValue(Number number) {
@@ -194,6 +199,11 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder singleValue(boolean singleValue) {
+            this.singleValue.setValue(singleValue);
+            return this;
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
             return List.of(
@@ -207,7 +217,8 @@ public class NumberFieldMapper extends FieldMapper {
                 onScriptError,
                 meta,
                 dimension,
-                metric
+                metric,
+                singleValue
             );
         }
 
@@ -1313,6 +1324,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
+    private final boolean singleValue;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
@@ -1330,6 +1342,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
+        this.singleValue = builder.singleValue.get();
     }
 
     boolean coerce() {
@@ -1389,10 +1402,10 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        if (dimension) {
-            // Check that a dimension field is single-valued and not an array
+        if (dimension || singleValue) {
+            // Check that field is single-valued and not an array
             if (context.doc().getByKey(fieldType().name()) != null) {
-                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+                throw new IllegalArgumentException("field [" + fieldType().name() + "] cannot be a multi-valued field.");
             }
             if (fields.size() > 0) {
                 // Add the first field by key so that we can validate if it has been added
@@ -1422,6 +1435,7 @@ public class NumberFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault).dimension(dimension)
             .metric(metricType)
+            .singleValue(singleValue)
             .init(this);
     }
 }

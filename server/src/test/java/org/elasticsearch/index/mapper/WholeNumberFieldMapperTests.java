@@ -78,7 +78,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        assertThat(e.getCause().getMessage(), containsString("field [field] cannot be a multi-valued field"));
     }
 
     public void testMetricAndDimension() {
@@ -90,6 +90,19 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
             e.getCause().getMessage(),
             containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
         );
+    }
+
+    public void testSingleValuedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("single_value", true);
+        }));
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("field [field] cannot be a multi-valued field"));
     }
 
     @Override

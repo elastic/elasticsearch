@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -586,7 +587,15 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
                 // Delegate parsing the field to a numeric field mapper
-                delegateFieldMapper.parse(context);
+                try {
+                    delegateFieldMapper.parse(context);
+                } catch (MapperParsingException e) {
+                    if (e.getCause() instanceof IllegalArgumentException) {
+                        throw (IllegalArgumentException) e.getCause();
+                    } else {
+                        throw e;
+                    }
+                }
                 // Ensure a value_count metric does not have a negative value
                 if (Metric.value_count == metric) {
                     // context.doc().getField() method iterates over all fields in the document.

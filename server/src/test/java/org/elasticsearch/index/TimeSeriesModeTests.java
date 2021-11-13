@@ -272,43 +272,6 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertTrue(((DataStreamTimestampFieldMapper) timestampField).isEnabled());
     }
 
-    public void testDisabledTimeStampMapper() throws IOException {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
-        XContentBuilder mappings = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject(DataStreamTimestampFieldMapper.NAME)
-            .field("enabled", false)
-            .endObject()
-            .endObject()
-            .endObject();
-
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(s, mappings).documentMapper());
-        assertThat(
-            e.getMessage(),
-            equalTo("Failed to parse mapping: time series index [_data_stream_timestamp] meta field must be enabled")
-        );
-    }
-
-    public void testBadTimeStampMapper() throws IOException {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
-        XContentBuilder mappings = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .field(DataStreamTimestampFieldMapper.NAME, "enabled")
-            .endObject()
-            .endObject();
-
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(s, mappings).documentMapper());
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: time series index [_data_stream_timestamp] meta field format error"));
-    }
-
     public void testWithoutRoutingPath() {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));

@@ -1203,12 +1203,14 @@ public class MetadataCreateIndexService {
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        List<Map<String, Object>> mergedMappings = new ArrayList<>(mappings);
-        if (indexService.getIndexSettings().getMode() != null && indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+        List<Map<String, Object>> mergedMappings = new ArrayList<>();
+        boolean isTimeSeriesMode = indexService.getIndexSettings().getMode() != null && indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+        if (isTimeSeriesMode) {
             Map<String, Object> timeSeriesTimestampMapping = MapperService.parseMapping(xContentRegistry, MetadataIndexTemplateService.DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING);
             mergedMappings.add(timeSeriesTimestampMapping);
         }
-        for (Map<String, Object> mapping : mappings) {
+        mergedMappings.addAll(mappings);
+        for (Map<String, Object> mapping : mergedMappings) {
             if (mapping.isEmpty() == false) {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
@@ -1221,7 +1223,7 @@ public class MetadataCreateIndexService {
             // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
         }
-        if (request.dataStreamName() != null) {
+        if (request.dataStreamName() != null || isTimeSeriesMode) {
             validateTimestampFieldMapping(mapperService.mappingLookup());
         }
     }

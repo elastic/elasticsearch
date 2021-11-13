@@ -138,8 +138,8 @@ shrink:
 ---
 clone:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.clone:

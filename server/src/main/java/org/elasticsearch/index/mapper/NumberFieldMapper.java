@@ -625,6 +625,11 @@ public class NumberFieldMapper extends FieldMapper {
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );
             }
+
+            @Override
+            public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
+                return INTEGER.asQueryableExpression(field, hasDocValues, context);
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -695,6 +700,11 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );
+            }
+
+            @Override
+            public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
+                return INTEGER.asQueryableExpression(field, hasDocValues, context);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -792,6 +802,10 @@ public class NumberFieldMapper extends FieldMapper {
                         --u;
                     }
                 }
+                return rangeQueryWithKnownBounds(field, l, u, hasDocValues, context);
+            }
+
+            private Query rangeQueryWithKnownBounds(String field, int l, int u, boolean hasDocValues, SearchExecutionContext context) {
                 Query query = IntPoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
@@ -825,6 +839,21 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );
+            }
+
+            @Override
+            public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
+                return LongQueryableExpression.field(field, new LongQueryableExpression.IntQueries() {
+                    @Override
+                    public Query approximateTermQuery(int term) {
+                        return IntPoint.newExactQuery(field, term);
+                    }
+
+                    @Override
+                    public Query approximateRangeQuery(int lower, int upper) {
+                        return rangeQueryWithKnownBounds(field, lower, upper, hasDocValues, context);
+                    }
+                }).castToLong();
             }
         },
         LONG("long", NumericType.LONG) {
@@ -943,7 +972,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
-                return new LongQueryableExpression.Field() {
+                return LongQueryableExpression.field(field, new LongQueryableExpression.LongQueries() {
                     @Override
                     public Query approximateTermQuery(long term) {
                         return LongPoint.newExactQuery(field, term);
@@ -953,12 +982,7 @@ public class NumberFieldMapper extends FieldMapper {
                     public Query approximateRangeQuery(long lower, long upper) {
                         return rangeQueryWithKnownBounds(field, lower, upper, hasDocValues, context);
                     }
-
-                    @Override
-                    public String toString() {
-                        return field;
-                    }
-                };
+                });
             }
         };
 

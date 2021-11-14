@@ -16,6 +16,7 @@ import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.symbol.IRDecorations;
 import org.elasticsearch.painless.symbol.QueryableExpressionScope;
+import org.elasticsearch.queryableexpression.LongQueryableExpression;
 import org.elasticsearch.queryableexpression.QueryableExpression;
 
 import java.lang.reflect.Method;
@@ -58,9 +59,9 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
         Object value = irConstantNode.getDecorationValue(IRDecorations.IRDConstant.class);
         Class<?> type = irConstantNode.getDecorationValue(IRDecorations.IRDExpressionType.class);
         if (type == long.class) {
-            scope.push(QueryableExpression.constant((long) value));
+            scope.push(LongQueryableExpression.constant((long) value));
         } else if (type == int.class) {
-            scope.push(QueryableExpression.constant((int) value));
+            scope.push(LongQueryableExpression.constant((int) value));
         } else {
             scope.push(QueryableExpression.UNQUERYABLE);
         }
@@ -77,7 +78,7 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
                 return lhs.add(rhs);
             } else if (operation == Operation.SUB) {
                 // TODO: do we need `subtract`?
-                return lhs.add(rhs.multiply(QueryableExpression.constant(-1)));
+                return lhs.add(rhs.multiply(LongQueryableExpression.constant(-1)));
             } else if (operation == Operation.MUL) {
                 return lhs.multiply(rhs);
             } else if (operation == Operation.DIV) {

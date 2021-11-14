@@ -13,7 +13,6 @@ import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.LongFieldScript;
-import org.junit.Ignore;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,7 +27,7 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("11", qe("emit(1l + 10l)").toString());
     }
 
-    @Ignore
+    @AwaitsFix(bugUrl = "plaid")
     public void testFieldAccess() {
         assertEquals("a", qe("emit(doc['a'].value)").toString());
     }

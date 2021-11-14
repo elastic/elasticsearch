@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -17,6 +18,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.LongQueryableExpression;
 import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.LongFieldScript;
@@ -242,6 +245,22 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         }
     }
 
+    private Query expectedTermApproximationFooLongTimesTen(Query precise) {
+        return should(
+            precise,
+            longRangeQuery("foo", Long.MAX_VALUE / 10, Long.MAX_VALUE),
+            longRangeQuery("foo", Long.MIN_VALUE, Long.MIN_VALUE / 10)
+        );
+    }
+
+    private Query expectedTermApproximationFooLongTimesNegativeTwo(Query precise) {
+        return should(
+            precise,
+            longRangeQuery("foo", Long.MIN_VALUE / -2, Long.MAX_VALUE),
+            longRangeQuery("foo", Long.MIN_VALUE, Long.MAX_VALUE / -2)
+        );
+    }
+
     public void testTermWithApproximationFromLong() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1), new LongPoint("foo", 1)));
@@ -265,7 +284,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher,
                     ft.termQuery(10, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesTen(LongPoint.newExactQuery("foo", 1))
+                    expectedTermApproximationFooLongTimesTen(LongPoint.newExactQuery("foo", 1))
                 );
                 assertCountAndQuery(
                     searcher,
@@ -277,13 +296,13 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher,
                     ft.termQuery(20, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesTen(LongPoint.newExactQuery("foo", 2))
+                    expectedTermApproximationFooLongTimesTen(LongPoint.newExactQuery("foo", 2))
                 );
                 assertCountAndApproximation(
                     searcher,
                     ft.termQuery(30, context),
                     equalTo(0),
-                    expectedTermApproximationFooTimesTen(LongPoint.newExactQuery("foo", 3))
+                    expectedTermApproximationFooLongTimesTen(LongPoint.newExactQuery("foo", 3))
                 );
 
                 ft = build("foo_times_negative_two", Map.of(), true);
@@ -291,13 +310,13 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher,
                     ft.termQuery(-2, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesNegativeTwo(LongPoint.newExactQuery("foo", 1))
+                    expectedTermApproximationFooLongTimesNegativeTwo(LongPoint.newExactQuery("foo", 1))
                 );
                 assertCountAndApproximation(
                     searcher,
                     ft.termQuery(-4, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesNegativeTwo(LongPoint.newExactQuery("foo", 2))
+                    expectedTermApproximationFooLongTimesNegativeTwo(LongPoint.newExactQuery("foo", 2))
                 );
 
                 ft = build("foo_divided_by_ten", Map.of(), true);
@@ -305,22 +324,6 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertCountAndApproximation(searcher, ft.termQuery(1, context), equalTo(0), longRangeQuery("foo", 10, 19));
             }
         }
-    }
-
-    private Query expectedTermApproximationFooTimesTen(Query precise) {
-        return should(
-            precise,
-            longRangeQuery("foo", Long.MAX_VALUE / 10, Long.MAX_VALUE),
-            longRangeQuery("foo", Long.MIN_VALUE, Long.MIN_VALUE / 10)
-        );
-    }
-
-    private Query expectedTermApproximationFooTimesNegativeTwo(Query precise) {
-        return should(
-            precise,
-            longRangeQuery("foo", Long.MIN_VALUE / -2, Long.MAX_VALUE),
-            longRangeQuery("foo", Long.MIN_VALUE, Long.MAX_VALUE / -2)
-        );
     }
 
     public void testTermNearMaxIntWithApproximationFromLong() throws IOException {
@@ -342,7 +345,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher,
                     ft.termQuery((Long.MAX_VALUE - 1) * 10, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesTen(LongPoint.newExactQuery("foo", -2))
+                    expectedTermApproximationFooLongTimesTen(LongPoint.newExactQuery("foo", -2))
                     /*
                      * The -2 in the above query comes from the overflow of
                      * (Long.MAX_VALUE - 1) * 10.
@@ -354,7 +357,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher,
                     ft.termQuery((Long.MAX_VALUE - 1) * -2, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesNegativeTwo(LongPoint.newExactQuery("foo", -2))
+                    expectedTermApproximationFooLongTimesNegativeTwo(LongPoint.newExactQuery("foo", -2))
                 );
             }
         }
@@ -406,19 +409,19 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher,
                     ft.rangeQuery(9, 11, false, false, ShapeRelation.CONTAINS, null, null, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesTen(longRangeQuery("foo", 1, 1))
+                    expectedTermApproximationFooLongTimesTen(longRangeQuery("foo", 1, 1))
                 );
                 assertCountAndApproximation(
                     searcher,
                     ft.rangeQuery(9, 11, false, true, ShapeRelation.CONTAINS, null, null, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesTen(longRangeQuery("foo", 1, 1))
+                    expectedTermApproximationFooLongTimesTen(longRangeQuery("foo", 1, 1))
                 );
                 assertCountAndApproximation(
                     searcher,
                     ft.rangeQuery(0, 100, false, true, ShapeRelation.CONTAINS, null, null, context),
                     equalTo(2),
-                    expectedTermApproximationFooTimesTen(longRangeQuery("foo", 0, 10))
+                    expectedTermApproximationFooLongTimesTen(longRangeQuery("foo", 0, 10))
                 );
 
                 ft = build("foo_times_negative_two", Map.of(), true);
@@ -426,19 +429,19 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher,
                     ft.rangeQuery(-3, 0, false, false, ShapeRelation.CONTAINS, null, null, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesNegativeTwo(longRangeQuery("foo", 0, 1))
+                    expectedTermApproximationFooLongTimesNegativeTwo(longRangeQuery("foo", 0, 1))
                 );
                 assertCountAndApproximation(
                     searcher,
                     ft.rangeQuery(-5, -4, false, true, ShapeRelation.CONTAINS, null, null, context),
                     equalTo(1),
-                    expectedTermApproximationFooTimesNegativeTwo(longRangeQuery("foo", 2, 2))
+                    expectedTermApproximationFooLongTimesNegativeTwo(longRangeQuery("foo", 2, 2))
                 );
                 assertCountAndApproximation(
                     searcher,
                     ft.rangeQuery(-100, 0, false, true, ShapeRelation.CONTAINS, null, null, context),
                     equalTo(2),
-                    expectedTermApproximationFooTimesNegativeTwo(longRangeQuery("foo", 0, 49))
+                    expectedTermApproximationFooLongTimesNegativeTwo(longRangeQuery("foo", 0, 49))
                 );
 
                 ft = build("foo_divided_by_ten", Map.of(), true);
@@ -490,9 +493,193 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         }
     }
 
+    public void testTermWithApproximationFromIntOrSmaller() throws IOException {
+        NumberType numberType = randomFrom(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER);
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1), new IntPoint("foo", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 2), new IntPoint("foo", 2)));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                SearchExecutionContext context = mockContext(true, new NumberFieldMapper.NumberFieldType("foo", numberType));
+                MappedFieldType ft = build("foo_plus_five", Map.of(), true);
+                assertCountAndApproximation(searcher, ft.termQuery(6, context), equalTo(1), IntPoint.newExactQuery("foo", 1));
+                assertCountAndQuery(
+                    searcher,
+                    ft.termQuery(6.1, context),
+                    equalTo(0),
+                    new MatchNoDocsQuery("Value [6.1] has a decimal part")
+                );
+                assertCountAndApproximation(searcher, ft.termQuery(7, context), equalTo(1), IntPoint.newExactQuery("foo", 2));
+                assertCountAndApproximation(searcher, ft.termQuery(8, context), equalTo(0), IntPoint.newExactQuery("foo", 3));
+
+                ft = build("foo_times_ten", Map.of(), true);
+                assertCountAndApproximation(
+                    searcher,
+                    ft.termQuery(10, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesTen(IntPoint.newExactQuery("foo", 1))
+                );
+                assertCountAndQuery(
+                    searcher,
+                    ft.termQuery(10.1, context),
+                    equalTo(0),
+                    new MatchNoDocsQuery("Value [10.1] has a decimal part")
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.termQuery(20, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesTen(IntPoint.newExactQuery("foo", 2))
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.termQuery(30, context),
+                    equalTo(0),
+                    expectedTermApproximationFooIntTimesTen(IntPoint.newExactQuery("foo", 3))
+                );
+
+                ft = build("foo_times_negative_two", Map.of(), true);
+                assertCountAndApproximation(
+                    searcher,
+                    ft.termQuery(-2, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesNegativeTwo(IntPoint.newExactQuery("foo", 1))
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.termQuery(-4, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesNegativeTwo(IntPoint.newExactQuery("foo", 2))
+                );
+
+                ft = build("foo_divided_by_ten", Map.of(), true);
+                assertCountAndApproximation(searcher, ft.termQuery(0, context), equalTo(2), intRangeQuery("foo", -9, 9));
+                assertCountAndApproximation(searcher, ft.termQuery(1, context), equalTo(0), intRangeQuery("foo", 10, 19));
+            }
+        }
+    }
+
+    public void testRangeWithApproximationFromIntOrSmaller() throws IOException {
+        NumberType numberType = randomFrom(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER);
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1), new IntPoint("foo", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 2), new IntPoint("foo", 2)));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                SearchExecutionContext context = mockContext(true, new NumberFieldMapper.NumberFieldType("foo", numberType));
+                MappedFieldType ft = build("foo_plus_five", Map.of(), true);
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 6, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(1),
+                    intRangeQuery("foo", -4, 1)
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 10, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    intRangeQuery("foo", -4, 5)
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(6, 10, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(1),
+                    intRangeQuery("foo", 2, 5)
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0.1, 11.2, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    intRangeQuery("foo", -4, 6)
+                );
+
+                ft = build("foo_times_ten", Map.of(), true);
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(9, 11, false, false, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesTen(intRangeQuery("foo", 1, 1))
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(9, 11, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesTen(intRangeQuery("foo", 1, 1))
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 100, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    expectedTermApproximationFooIntTimesTen(intRangeQuery("foo", 0, 10))
+                );
+
+                ft = build("foo_times_negative_two", Map.of(), true);
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(-3, 0, false, false, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesNegativeTwo(intRangeQuery("foo", 0, 1))
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(-5, -4, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(1),
+                    expectedTermApproximationFooIntTimesNegativeTwo(intRangeQuery("foo", 2, 2))
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(-100, 0, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    expectedTermApproximationFooIntTimesNegativeTwo(intRangeQuery("foo", 0, 49))
+                );
+
+                ft = build("foo_divided_by_ten", Map.of(), true);
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(-1, 0, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    intRangeQuery("foo", -9, 9)
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(-1, 1, false, false, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    intRangeQuery("foo", -9, 9)
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 2, true, false, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    intRangeQuery("foo", -9, 19)
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 1, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(0),
+                    intRangeQuery("foo", 10, 19)
+                );
+            }
+        }
+    }
+
+    private Query expectedTermApproximationFooIntTimesTen(Query precise) {
+        return should(precise, new BoostQuery(new MatchNoDocsQuery(), 2f));
+    }
+
+    private Query expectedTermApproximationFooIntTimesNegativeTwo(Query precise) {
+        return should(precise, new BoostQuery(new MatchNoDocsQuery(), 2f));
+    }
+
     private Query longRangeQuery(String field, long lower, long upper) {
         return new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery(field, lower, upper),
+            SortedNumericDocValuesField.newSlowRangeQuery(field, lower, upper)
+        );
+    }
+
+    private Query intRangeQuery(String field, int lower, int upper) {
+        return new IndexOrDocValuesQuery(
+            IntPoint.newRangeQuery(field, lower, upper),
             SortedNumericDocValuesField.newSlowRangeQuery(field, lower, upper)
         );
     }
@@ -503,12 +690,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         assertThat(query, equalTo(expectedQuery));
     }
 
-    private void assertCountAndApproximation(IndexSearcher searcher, Query query, Matcher<Integer> count, Query approximation)
+    private void assertCountAndApproximation(IndexSearcher searcher, Query query, Matcher<Integer> count, Query expectedApproximation)
         throws IOException {
         assertThat(searcher.count(query), count);
         assertThat(query, instanceOf(AbstractScriptFieldQuery.class));
 
-        assertThat(((AbstractScriptFieldQuery<?>) searcher.rewrite(query)).approximation(), equalTo(approximation));
+        assertThat(((AbstractScriptFieldQuery<?>) searcher.rewrite(query)).approximation(), equalTo(expectedApproximation));
     }
 
     @Override
@@ -587,7 +774,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").add(QueryableExpression.constant(5));
+                        return lookup.apply("foo").add(LongQueryableExpression.constant(5L));
                     }
                 };
             case "foo_times_ten":
@@ -606,7 +793,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").multiply(QueryableExpression.constant(10));
+                        return lookup.apply("foo").multiply(LongQueryableExpression.constant(10L));
                     }
                 };
             case "foo_times_negative_two":
@@ -625,7 +812,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").multiply(QueryableExpression.constant(-2));
+                        return lookup.apply("foo").multiply(LongQueryableExpression.constant(-2L));
                     }
                 };
             case "foo_divided_by_ten":
@@ -644,7 +831,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").divide(QueryableExpression.constant(10));
+                        return lookup.apply("foo").divide(LongQueryableExpression.constant(10L));
                     }
                 };
             case "add_param":

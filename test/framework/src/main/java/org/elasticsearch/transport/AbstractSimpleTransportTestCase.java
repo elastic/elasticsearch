@@ -2753,9 +2753,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportException exception = receivedException.get();
             assertNotNull(exception);
             BytesStreamOutput streamOutput = new BytesStreamOutput();
+            streamOutput.setVersion(version0);
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
-            // 49 bytes are the non-exception message bytes that have been received. It should include the initial
+            // 53 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
             assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
             assertEquals(111, stats.getTxSize().getBytes());

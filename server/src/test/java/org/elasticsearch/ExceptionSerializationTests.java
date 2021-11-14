@@ -340,9 +340,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testActionTransportException() throws IOException {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         ActionTransportException ex = serialize(new ActionTransportException("name?", transportAddress, "ACTION BABY!", "message?", null));
-        assertEquals("ACTION BABY!", ex.action());
-        assertEquals(transportAddress, ex.address());
-        assertEquals("[name?][" + transportAddress.toString() + "][ACTION BABY!] message?", ex.getMessage());
+        assertEquals("[name?][" + transportAddress + "][ACTION BABY!] message?", ex.getMessage());
     }
 
     public void testSearchContextMissingException() throws IOException {
@@ -411,15 +409,13 @@ public class ExceptionSerializationTests extends ESTestCase {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         DiscoveryNode node = new DiscoveryNode("thenode", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
-        assertEquals("[][" + transportAddress.toString() + "][action] msg", ex.getMessage());
+        assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
-        assertEquals("action", ex.action());
         assertNull(ex.getCause());
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
-        assertEquals("action", ex.action());
         assertTrue(ex.getCause() instanceof NullPointerException);
     }
 

@@ -1821,8 +1821,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             fail("message round trip did not complete within a sensible time frame");
         }
 
-        assertTrue(nodeA.getAddress().address().equals(addressA.get()));
-        assertTrue(nodeB.getAddress().address().equals(addressB.get()));
+        // nodeA opened the connection so the request originates from an ephemeral port, but from the right interface at least
+        assertEquals(nodeA.getAddress().address().getAddress(), addressA.get().getAddress());
+
+        // the response originates from the expected transport port
+        assertEquals(nodeB.getAddress().address(), addressB.get());
     }
 
     public void testRejectEarlyIncomingRequests() throws Exception {

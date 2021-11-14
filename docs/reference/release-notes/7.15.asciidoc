@@ -17,8 +17,9 @@ Authorization::
 Aggregations::
 * Possible source of leaked delayable writables {es-pull}80166[#80166]
 
-NOTE: The only arises when using <<search-search-api-query-params,allow_partial_search_results=false>> on a search with aggregations 
-AND if one of the underlying shard level search requests fail. Kibana uses `allow_partial_search_results=true` (Elasticsearch default).
+NOTE: This issue only arises when using <<search-search-api-query-params,allow_partial_search_results=false>> 
+(e.g. <<transform-overview,transforms>>) on a search with aggregations AND if one of the underlying 
+shard level search requests fail. Kibana uses `allow_partial_search_results=true` (Elasticsearch default).
 
 Authorization::
 * Marking operator user no longer depends on license state {es-pull}79595[#79595]

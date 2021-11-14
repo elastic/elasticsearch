@@ -1792,8 +1792,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testHostOnMessages() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(2);
-        final AtomicReference<TransportAddress> addressA = new AtomicReference<>();
-        final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> addressA = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> addressB = new AtomicReference<>();
         serviceB.registerRequestHandler("internal:action1", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
             addressA.set(request.remoteAddress());
             channel.sendResponse(new TestResponse((String) null));
@@ -1821,8 +1821,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             fail("message round trip did not complete within a sensible time frame");
         }
 
-        assertTrue(nodeA.getAddress().getAddress().equals(addressA.get().getAddress()));
-        assertTrue(nodeB.getAddress().getAddress().equals(addressB.get().getAddress()));
+        assertTrue(nodeA.getAddress().address().equals(addressA.get()));
+        assertTrue(nodeB.getAddress().address().equals(addressB.get()));
     }
 
     public void testRejectEarlyIncomingRequests() throws Exception {

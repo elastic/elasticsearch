@@ -55,7 +55,7 @@ public class TaskTracer {
                 assert false : e;
                 logger.warn(
                     new ParameterizedMessage(
-                        "task tracing listener [{}] failed on registration of task [{}][{}]",
+                        "task tracing listener [{}] failed on unregistration of task [{}][{}]",
                         tracer,
                         task.getId(),
                         task.getAction()

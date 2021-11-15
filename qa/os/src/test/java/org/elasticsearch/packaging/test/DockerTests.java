@@ -208,7 +208,7 @@ public class DockerTests extends PackagingTestCase {
             ? List.of("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
             : List.of("analysis-icu");
 
-        assertThat("Expected installed plugins to be listed", listPlugins(), equalTo(expectedPlugins));
+        assertThat("Expected installed plugins to be listed", listPlugins(), containsInAnyOrder(expectedPlugins));
     }
 
     /**

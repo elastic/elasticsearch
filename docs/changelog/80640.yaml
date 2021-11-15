@@ -1,0 +1,5 @@
+pr: 80640
+summary: Ubuntu docker base image
+area: Packaging
+type: enhancement
+issues: []

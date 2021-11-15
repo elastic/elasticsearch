@@ -20,7 +20,13 @@ import java.util.stream.Stream;
 
 public class QueryableExpressionTests extends ScriptTestCase {
 
-    public void testSimpleLongMathExpression() {
+    public void testIntConst() {
+        QueryableExpression qe = qe("emit(100)");
+
+        assertEquals(qe.toString(), "100");
+    }
+    
+    public void testLongMathExpression() {
         QueryableExpression qe = qe("emit(1l + 10l)");
 
         assertEquals(qe.toString(), "11");

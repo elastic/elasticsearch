@@ -59,6 +59,8 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
         Class<?> type = irConstantNode.getDecorationValue(IRDecorations.IRDExpressionType.class);
         if (type == long.class) {
             scope.push(QueryableExpression.constant((long) value));
+        } else if (type == int.class) {
+            scope.push(QueryableExpression.constant((int) value));
         } else {
             scope.push(QueryableExpression.UNQUERYABLE);
         }

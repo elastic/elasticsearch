@@ -681,7 +681,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return searchOperationListeners;
     }
 
-    public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+    public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
         if (mapperService != null) {
             mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
         }

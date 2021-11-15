@@ -143,6 +143,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.routingTable().index(index));
         assertNull(after.blocks().indices().get(index));
         assertNull(after.metadata().getIndicesLookup().get(alias));
+        assertNull(after.metadata().aliases().get(alias));
     }
 
     public void testDeleteBackingIndexForDataStream() {

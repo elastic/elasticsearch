@@ -172,8 +172,11 @@ PUT _cluster/settings
 }
 ----
 +
-This issue is fixed in {es} versions 7.14.1 and later. For more details, see
-{es-issue}75598[#75598].
+This issue is fixed in {es} versions 7.14.1 and later. It is not possible to
+repair a repository once it is affected by this issue, so you must restore the
+repository from a backup, or clear the repository by executing `DELETE
+_snapshot/<repository name>/*`, or move to a fresh repository. For more
+details, see {es-issue}75598[#75598].
 // end::snapshot-repo-corruption-75598-known-issue[]
 
 [[bug-7.13.1]]
@@ -220,15 +223,7 @@ maximum value of `512`. This allows autoscaling to run reliably as it relies on
 assigning jobs only via memory. Having `xpack.ml.max_open_jobs` as a small
 number may cause autoscaling to behave unexpectedly.
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[deprecation-7.13.0]]
 [float]

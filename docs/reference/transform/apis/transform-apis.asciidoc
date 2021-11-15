@@ -7,6 +7,7 @@
 * <<get-transform>>
 * <<get-transform-stats>>
 * <<preview-transform>>
+* <<reset-transform>>
 * <<start-transform>>
 * <<stop-transform>>
 * <<update-transform>>

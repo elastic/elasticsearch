@@ -229,7 +229,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setCreatedBy(config.getCreatedBy())
             .setCreateTime(config.getCreateTime())
             .setDescription(config.getDescription())
-            .setEstimatedHeapMemory(config.getEstimatedHeapMemory())
+            .setModelSize(config.getModelSize())
             .setEstimatedOperations(config.getEstimatedOperations())
             .setInput(config.getInput())
             .setModelId(config.getModelId())
@@ -463,7 +463,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .setEstimatedOperations(0)
             .setInput(TrainedModelInputTests.createRandomInput());
     }

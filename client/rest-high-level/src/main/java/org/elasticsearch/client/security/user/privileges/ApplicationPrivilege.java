@@ -129,13 +129,13 @@ public final class ApplicationPrivilege implements ToXContentObject {
 
         private Builder() {}
 
-        public Builder application(String applicationName) {
-            this.applicationName = Objects.requireNonNull(applicationName, "application name must be provided");
+        public Builder application(String name) {
+            this.applicationName = Objects.requireNonNull(name, "application name must be provided");
             return this;
         }
 
-        public Builder privilege(String privilegeName) {
-            this.privilegeName = Objects.requireNonNull(privilegeName, "privilege name must be provided");
+        public Builder privilege(String name) {
+            this.privilegeName = Objects.requireNonNull(name, "privilege name must be provided");
             return this;
         }
 

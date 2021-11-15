@@ -27,7 +27,9 @@ import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -83,14 +85,30 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterService.state());
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
-        ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(
-            inferenceStats -> listener.onResponse(
-                responseBuilder.setInferenceStatsByModelId(
-                    inferenceStats.stream().collect(Collectors.toMap(InferenceStats::getModelId, Function.identity()))
+        ActionListener<GetDeploymentStatsAction.Response> getDeploymentStats = ActionListener.wrap(
+            deploymentStats -> listener.onResponse(
+                responseBuilder.setDeploymentStatsByModelId(
+                    deploymentStats.getStats()
+                        .results()
+                        .stream()
+                        .collect(Collectors.toMap(AllocationStats::getModelId, Function.identity()))
                 ).build()
             ),
             listener::onFailure
         );
+
+        ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(inferenceStats -> {
+            responseBuilder.setInferenceStatsByModelId(
+                inferenceStats.stream().collect(Collectors.toMap(InferenceStats::getModelId, Function.identity()))
+            );
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                GetDeploymentStatsAction.INSTANCE,
+                new GetDeploymentStatsAction.Request(request.getResourceId()),
+                getDeploymentStats
+            );
+        }, listener::onFailure);
 
         ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(nodesStatsResponse -> {
             Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()

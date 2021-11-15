@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.apm;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.sdk.trace.data.SpanData;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,8 +39,7 @@ public class ApmIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), APM.class);
     }
 
-    @TestLogging(reason = "testing DEBUG logging", value = "org.elasticsearch.xpack.apm:DEBUG")
-    public void testModule() throws IllegalAccessException {
+    public void testModule() {
         List<TracingPlugin> plugins = internalCluster().getMasterNodeInstance(PluginsService.class).filterPlugins(TracingPlugin.class);
         assertThat(plugins, hasSize(1));
 
@@ -48,35 +49,18 @@ public class ApmIT extends ESIntegTestCase {
 
         final Task testTask = new Task(randomNonNegativeLong(), "test", "action", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "register",
-                APMTracer.class.getName(),
-                Level.DEBUG,
-                "creating span for task [" + testTask.getId() + "]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "unregister",
-                APMTracer.class.getName(),
-                Level.DEBUG,
-                "closing span for task [" + testTask.getId() + "]"
-            )
-        );
+        taskTracer.onTaskRegistered(testTask);
+        taskTracer.onTaskUnregistered(testTask);
 
-        Logger classLogger = LogManager.getLogger(APMTracer.class);
-        Loggers.addAppender(classLogger, mockAppender);
-
-        try {
-            taskTracer.onTaskRegistered(testTask);
-            taskTracer.onTaskUnregistered(testTask);
-        } finally {
-            Loggers.removeAppender(classLogger, mockAppender);
-            mockAppender.stop();
+        final List<SpanData> capturedSpans = APMTracer.CAPTURING_SPAN_EXPORTER.getCapturedSpans();
+        boolean found = false;
+        final Long targetId = testTask.getId();
+        for (SpanData capturedSpan : capturedSpans) {
+            if (targetId.equals(capturedSpan.getAttributes().get(AttributeKey.longKey("es.task.id")))) {
+                found = true;
+                assertTrue(capturedSpan.hasEnded());
+            }
         }
-        mockAppender.assertAllExpectationsMatched();
+        assertTrue(found);
     }
 }

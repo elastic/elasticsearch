@@ -70,10 +70,10 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 [[restore-snapshot-api-prereqs]]
 ==== {api-prereq-title}
 
-// tag::restore-prereqs[]
-* If you use the {es} security features, you must have the `manage` or
-`cluster:admin/snapshot/*` cluster privilege to restore a snapshot.
+* If you use {es} security features, you must have the `manage` or
+`cluster:admin/snapshot/*` cluster privilege to use this API.
 
+// tag::restore-prereqs[]
 * You can only restore a snapshot to a running cluster with an elected
 <<master-node,master node>>. The snapshot's repository must be
 <<snapshots-register-repository,registered>> and available to the cluster.
@@ -81,10 +81,24 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 * The snapshot and cluster versions must be compatible. See
 <<snapshot-restore-version-compatibility>>.
 
-* If you restore a data stream, ensure the cluster contains a
-<<create-index-template,matching index template>> with data stream enabled.
-Without a matching index template, a data stream can't roll over or create
-backing indices.
+* To restore a snapshot, the cluster's global metadata must be writable. Ensure
+there aren't any <<cluster-read-only,cluster blocks>> that prevent writes. The
+restore operation ignores <<index-modules-blocks,index blocks>>.
+
+* Before you restore a data stream, ensure the cluster contains a
+<<create-index-template,matching index template>> with data stream enabled. To
+check, use {kib}'s <<manage-index-templates,**Index Management**>> feature or
+the <<indices-get-template,get index template API>>:
++
+[source,console]
+----
+GET /_index_template/*?filter_path=index_templates.name,index_templates.index_template.index_patterns,index_templates.index_template.data_stream
+----
++
+If no such template exists, you can <<create-index-template,create one>> or
+<<restore-entire-cluster,restore a cluster state>> that
+contains one. Without a matching index template, a data stream can't roll over
+or create backing indices.
 
 * If your snapshot contains data from App Search or Workplace Search, ensure
 you've restored the {enterprise-search-ref}/encryption-keys.html[Enterprise
@@ -151,8 +165,7 @@ The cluster state includes:
 * <<indices-templates-v1,Legacy index templates>>
 * <<ingest,Ingest pipelines>>
 * <<index-lifecycle-management,{ilm-init} policies>>
-* For snapshots taken after 7.12.0, data stored in system indices, such as
-  Watches and task records.
+* For snapshots taken after 7.12.0, <<feature-state,feature states>>
 // end::cluster-state-contents[]
 
 If `include_global_state` is `true` then the restore operation merges the
@@ -162,20 +175,18 @@ It completely removes all persistent settings, non-legacy index templates,
 ingest pipelines and {ilm-init} lifecycle policies that exist in your cluster
 and replaces them with the corresponding items from the snapshot.
 
-You can use the `feature_states` parameter to configure how system indices
-are restored from the cluster state.
+Use the `feature_states` parameter to configure how feature states are restored.
 --
 
 [[restore-snapshot-api-feature-states]]
 `feature_states`::
 (Optional, array of strings)
-A comma-separated list of feature states you wish to restore. Each feature state contains one or more system indices. The list of feature states
-available in a given snapshot are returned by the <<get-snapshot-api-feature-states, Get Snapshot API>>. Note that feature
-states restored this way will completely replace any existing configuration, rather than returning an error if the system index already exists.
-Providing an empty array will restore no feature states, regardless of the value of `include_global_state`.
+<<feature-state,Feature states>> to restore.
 +
-By default, all available feature states will be restored if `include_global_state` is `true`, and no feature states will be restored if
-`include_global_state` is `false`.
+If `include_global_state` is `true`, the request restores all feature states
+in the snapshot by default. If `include_global_state` is `false`, the request
+restores no feature states by default. To restore no feature states, regardless
+of the `include_global_state` value, specify an empty array (`[]`).
 
 [[restore-snapshot-api-index-settings]]
 `index_settings`::

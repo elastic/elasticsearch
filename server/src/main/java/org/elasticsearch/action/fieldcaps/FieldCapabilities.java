@@ -135,6 +135,53 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isMetadataField Whether this field is a metadata field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param isSingleValued True if all documents hold only a single value.
+     * @param indices The list of indices where this field name is defined as {@code type},
+     *                or null if all indices have the same {@code type} for the field.
+     * @param nonSearchableIndices The list of indices where this field is not searchable,
+     *                             or null if the field is searchable in all indices.
+     * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
+     *                               or null if the field is aggregatable in all indices.
+     * @param meta Merged metadata across indices.
+     */
+    public FieldCapabilities(
+        String name,
+        String type,
+        boolean isMetadataField,
+        boolean isSearchable,
+        boolean isAggregatable,
+        boolean isSingleValued,
+        String[] indices,
+        String[] nonSearchableIndices,
+        String[] nonAggregatableIndices,
+        Map<String, Set<String>> meta
+    ) {
+        this(
+            name,
+            type,
+            isMetadataField,
+            isSearchable,
+            isAggregatable,
+            false,
+            isSingleValued,
+            null,
+            indices,
+            nonSearchableIndices,
+            nonAggregatableIndices,
+            null,
+            null,
+            meta
+        );
+
+    }
+    /**
+     * Constructor for non-timeseries field caps. Useful for testing
+     * Constructor for a set of indices.
+     * @param name The name of the field
+     * @param type The type associated with the field.
+     * @param isMetadataField Whether this field is a metadata field.
+     * @param isSearchable Whether this field is indexed for search.
+     * @param isAggregatable Whether this field can be aggregated on.
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
@@ -161,7 +208,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isSearchable,
             isAggregatable,
             false,
-            false,
+            false, //Default assumption for single-valued-ness in majority of tests
             null,
             indices,
             nonSearchableIndices,
@@ -172,7 +219,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         );
 
     }
-
     /**
      * Constructor for a set of indices used by parser
      * @param name The name of the field

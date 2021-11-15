@@ -1309,6 +1309,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             false,
             true,
             true,
+            true,
             new String[] { "index2" },
             null,
             null,
@@ -1322,6 +1323,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             false,
             true,
             true,
+            false, // TODO - once the Long field implements single-value-detection correctly I expect this to be true.
             new String[] { "index1" },
             null,
             null,
@@ -1339,6 +1341,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             "text",
             false,
             true,
+            false,
             false,
             null,
             null,

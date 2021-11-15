@@ -37,7 +37,7 @@ public class ApmIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), APM.class);
     }
 
-    @TestLogging(reason="testing DEBUG logging", value="org.elasticsearch.xpack.apm:DEBUG")
+    @TestLogging(reason = "testing DEBUG logging", value = "org.elasticsearch.xpack.apm:DEBUG")
     public void testModule() throws IllegalAccessException {
         List<TracingPlugin> plugins = internalCluster().getMasterNodeInstance(PluginsService.class).filterPlugins(TracingPlugin.class);
         assertThat(plugins, hasSize(1));

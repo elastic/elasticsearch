@@ -45,7 +45,7 @@ include::migrate_8_0/transform.asciidoc[]
 === Deprecations
 
 The following functionality has been deprecated in {es} 8.0
-and will be removed in 8.0
+and will be removed in a future version.
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to 8.0.
@@ -80,7 +80,6 @@ settings instead. See the
 {ref}/transient-settings-migration-guide.html[Transient settings migration
 guide]. 
 ====
-//end::notable-breaking-changes[]
 
 [discrete]
 [[breaking_80_command_line_tool_deprecations]]
@@ -105,6 +104,7 @@ Passwords are generated automatically for the `elastic` user when you start {es}
 starting {es}, it will fail because the `elastic`
 user password is already configured.
 ====
+//end::notable-breaking-changes[]
 
 include::migrate_8_0/migrate_to_java_time.asciidoc[]
 include::transient-settings-migration-guide.asciidoc[]

@@ -35,10 +35,6 @@ setup:
 
 ---
 constant matching none:
-  - skip:
-      version: all
-      reason:  not yet wired up
-
   - do:
       search:
         index: test
@@ -55,9 +51,9 @@ constant matching none:
                 gt: 1
   - match: { hits.total.value: 0 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'constant:[2 TO 9223372036854775807] approximated by MatchNoDocsQuery("value [0] is not between [2] and [9223372036854775807]' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'constant:[2 TO 9223372036854775807] approximated by MatchNoDocsQuery("value [0] is not between [2] and [9223372036854775807]")' }
   # match=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
-  - match: { profile.shards.0.searches.0.query.0.match: 0 }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 0 }
 
 ---
 division matching none:
@@ -84,7 +80,7 @@ division matching none:
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
   - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[100 TO 200] approximated by tx:[102400 to 204800]' }
   # match=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
-  - match: { profile.shards.0.searches.0.query.0.match: 0 }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 0 }
 
 ---
 division matching one:
@@ -110,7 +106,7 @@ division matching one:
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
   - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[6837713 TO 9223372036854775807] approximated by tx:[7001818112 to 9223372036854775807]' }
   # match=1 means we only ever had to run the script one time
-  - match: { profile.shards.0.searches.0.query.0.match: 1 }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 1 }
 
 ---
 division matching two:
@@ -136,4 +132,4 @@ division matching two:
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
   - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[-9223372036854775808 TO 1954902] approximated by tx:[-9223372036854775808 to 2001819648]' }
   # match=1 means we only ever had to run the script twice - once for each possible match
-  - match: { profile.shards.0.searches.0.query.0.match: 2 }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 2 }

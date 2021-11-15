@@ -221,13 +221,16 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(ft.rangeQuery(1.1, 3, true, true, null, null, null, mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.rangeQuery(1.1, 3, false, true, null, null, null, mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.rangeQuery(2, 3, false, true, null, null, null, mockContext())), equalTo(0));
+                assertThat(ft.rangeQuery(3, 2, false, false, null, null, null, mockContext()), instanceOf(MatchNoDocsQuery.class));
             }
         }
     }
 
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
+        long a = randomLong();
+        long b = randomLong();
+        return ft.rangeQuery(Math.min(a, b), Math.max(a, b), randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override

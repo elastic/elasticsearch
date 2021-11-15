@@ -12,6 +12,7 @@ import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
@@ -153,6 +154,9 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     ) {
         applyScriptContext(context);
         return NumberType.longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
+            if (l > u) {
+                return new MatchNoDocsQuery(l + " > " + u);
+            }
             Query approximation = approximateFirst
                 ? queryableExpression(context).castToLong().approximateRangeQuery(l, u)
                 : new MatchAllDocsQuery();

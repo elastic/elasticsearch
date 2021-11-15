@@ -36,6 +36,7 @@ public class ScriptScope extends Decorator {
     protected boolean deterministic = true;
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
+    protected QueryableExpressionScope queryableExpressionScope = new QueryableExpressionScope();
 
     public ScriptScope(
         PainlessLookup painlessLookup,
@@ -114,6 +115,10 @@ public class ScriptScope extends Decorator {
 
     public Map<String, Object> getStaticConstants() {
         return Collections.unmodifiableMap(staticConstants);
+    }
+
+    public QueryableExpressionScope getQueryableExpressionScope() {
+        return queryableExpressionScope;
     }
 
     public <T extends Decoration> T putDecoration(ANode node, T decoration) {

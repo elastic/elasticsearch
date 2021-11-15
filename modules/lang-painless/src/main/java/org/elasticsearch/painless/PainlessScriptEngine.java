@@ -15,6 +15,7 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.queryableexpression.DelayedQueryableExpression;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -298,13 +299,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.endMethod();
 
         Method reflect = null;
-        Method docFieldsReflect = null;
+        Method optim = null;
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {
                 reflect = method;
             } else if ("newFactory".equals(method.getName())) {
                 reflect = method;
+            } else if ("emitExpression".equals(method.getName())) {
+                optim = method;
             }
         }
 
@@ -316,6 +319,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
             "<init>",
             MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString()
         );
+
+        org.objectweb.asm.commons.Method optimize = null;
+        if (optim != null) {
+            optimize = new org.objectweb.asm.commons.Method(
+                optim.getName(),
+                MethodType.methodType(optim.getReturnType(), optim.getParameterTypes()).toMethodDescriptorString()
+            );
+        }
 
         GeneratorAdapter adapter = new GeneratorAdapter(
             Opcodes.ASM5,
@@ -348,10 +359,34 @@ public final class PainlessScriptEngine implements ScriptEngine {
         deterAdapter.returnValue();
         deterAdapter.endMethod();
 
+        if (optimize != null) {
+            writer.visitField(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "QE",
+                Type.getType(DelayedQueryableExpression.class).getDescriptor(),
+                null,
+                null
+            ).visitEnd();
+
+            GeneratorAdapter optimAdapter = new GeneratorAdapter(
+                Opcodes.ASM5,
+                instance,
+                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, optimize.getName(), optimize.getDescriptor(), null, null)
+            );
+            optimAdapter.visitCode();
+            optimAdapter.getStatic(Type.getType("L" + className + ";"), "QE", Type.getType(DelayedQueryableExpression.class));
+            optimAdapter.returnValue();
+            optimAdapter.endMethod();
+        }
+
         writer.visitEnd();
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 
         try {
+            if (optimize != null) {
+                factory.getField("QE").set(null, scriptScope.getQueryableExpressionScope().result());
+            }
+
             return context.factoryClazz.cast(factory.getConstructor().newInstance());
         } catch (Exception exception) {
             // Catch everything to let the user know this is something caused internally.

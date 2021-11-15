@@ -8,16 +8,31 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.ScriptContext;
 
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class QueryableExpressionTests extends ScriptTestCase {
+
+    @Override
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.long_field.txt"));
+        return Collections.singletonMap(LongFieldScript.CONTEXT, whitelists);
+    }
+
+    public QueryableExpression qe(String script) {
+        return scriptEngine.compile("qe_test", script, LongFieldScript.CONTEXT, Collections.emptyMap())
+            .emitExpression()
+            .undelay(null, null);
+    }
 
     public void testIntConst() {
         assertEquals("100", qe("emit(100)").toString());
@@ -35,20 +50,4 @@ public class QueryableExpressionTests extends ScriptTestCase {
     public void testComplexStatement() {
         assertEquals(QueryableExpression.UNQUERYABLE, qe("for(int i = 0; i < 10; i++) { emit(1l) }"));
     }
-
-    private QueryableExpression qe(String script) {
-        PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(
-            Stream.concat(
-                PainlessPlugin.BASE_WHITELISTS.stream(),
-                Stream.of(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.long_field.txt"))
-            ).collect(Collectors.toList())
-        );
-
-        return new Compiler(LongFieldScript.class, null, null, lookup).compileQueryableExpression(
-            "testScript",
-            script,
-            new CompilerSettings()
-        );
-    }
-
 }

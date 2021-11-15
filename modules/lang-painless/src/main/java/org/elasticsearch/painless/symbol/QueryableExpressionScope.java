@@ -17,6 +17,7 @@ import java.util.function.BiFunction;
  * Tracks information for building the QueryableExpression of a script.
  */
 public class QueryableExpressionScope {
+
     private final Stack<DelayedQueryableExpression> expressionStack;
 
     public QueryableExpressionScope() {

@@ -124,6 +124,13 @@ public class MetadataDeleteIndexService {
                 metadataBuilder.put(parent.removeBackingIndex(index));
             }
         }
+        // delete associated aliases from the cluster state
+        for (final Index index : indices) {
+            IndexMetadata idxMeta = meta.index(index);
+            for (AliasMetadata aliasMeta : idxMeta.getAliases().values()) {
+                metadataBuilder.removeAlias(aliasMeta.alias(), index);
+            }
+        }
         // add tombstones to the cluster state for each deleted index
         final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
         metadataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata

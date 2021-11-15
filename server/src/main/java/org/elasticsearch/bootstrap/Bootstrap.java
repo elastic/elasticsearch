@@ -173,6 +173,11 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        try {
+            environment.validateNativesConfig(); // temporary directories are important for JNA
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
         initializeNatives(
             environment.tmpFile(),
             BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),

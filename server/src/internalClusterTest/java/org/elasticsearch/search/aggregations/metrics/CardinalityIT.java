@@ -480,28 +480,8 @@ public class CardinalityIT extends ESIntegTestCase {
         );
 
         // Make sure we are starting with a clear cache
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
-            equalTo(0L)
-        );
+        assertCacheHits(0L);
+        assertCacheMisses(0L);
 
         // Test that a request using a nondeterministic script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx")
@@ -512,28 +492,8 @@ public class CardinalityIT extends ESIntegTestCase {
             .get();
         assertSearchResponse(r);
 
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
-            equalTo(0L)
-        );
+        assertCacheHits(0L);
+        assertCacheMisses(0L);
 
         // Test that a request using a deterministic script gets cached
         r = client().prepareSearch("cache_test_idx")
@@ -544,44 +504,18 @@ public class CardinalityIT extends ESIntegTestCase {
             .get();
         assertSearchResponse(r);
 
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
-            equalTo(1L)
-        );
+        assertCacheHits(0L);
+        assertCacheMisses(1L);
 
         // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(cardinality("foo").field("d")).get();
         assertSearchResponse(r);
 
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
-            equalTo(0L)
-        );
+        assertCacheHits(0L);
+        assertCacheMisses(2L);
+    }
+
+    private static void assertCacheMisses(long missesCount) {
         assertThat(
             client().admin()
                 .indices()
@@ -591,7 +525,21 @@ public class CardinalityIT extends ESIntegTestCase {
                 .getTotal()
                 .getRequestCache()
                 .getMissCount(),
-            equalTo(2L)
+            equalTo(missesCount)
+        );
+    }
+
+    private static void assertCacheHits(long hitsCount) {
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareStats("cache_test_idx")
+                .setRequestCache(true)
+                .get()
+                .getTotal()
+                .getRequestCache()
+                .getHitCount(),
+            equalTo(hitsCount)
         );
     }
 }

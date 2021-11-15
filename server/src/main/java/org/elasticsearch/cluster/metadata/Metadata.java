@@ -195,6 +195,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
     private final ImmutableOpenMap<String, IndexMetadata> indices;
+    private final ImmutableOpenMap<String, List<Index>> aliases;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
     private final ImmutableOpenMap<String, Custom> customs;
 
@@ -222,6 +223,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         int totalNumberOfShards,
         int totalOpenIndexShards,
         ImmutableOpenMap<String, IndexMetadata> indices,
+        ImmutableOpenMap<String, List<Index>> aliases,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
         ImmutableOpenMap<String, Custom> customs,
         String[] allIndices,
@@ -241,6 +243,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.settings = settings;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.indices = indices;
+        this.aliases = aliases;
         this.customs = customs;
         this.templates = templates;
         this.totalNumberOfShards = totalNumberOfShards;
@@ -267,6 +270,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             totalNumberOfShards,
             totalOpenIndexShards,
             indices,
+            aliases,
             templates,
             customs,
             allIndices,
@@ -1040,6 +1044,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
+            builder.aliases.put(in.readString(), in.readList(Index::new));
+        }
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
             builder.put(IndexTemplateMetadata.readFrom(in));
         }
         int customSize = in.readVInt();
@@ -1064,6 +1072,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         out.writeVInt(indices.size());
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeVInt(aliases.size());
+            for (ObjectObjectCursor<String, List<Index>> cursor : aliases) {
+                out.writeString(cursor.key);
+                out.writeList(cursor.value);
+            }
         }
         out.writeVInt(templates.size());
         for (IndexTemplateMetadata template : templates.values()) {
@@ -1092,6 +1107,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
+        private final ImmutableOpenMap.Builder<String, List<Index>> aliases;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
@@ -1100,6 +1116,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = ImmutableOpenMap.builder();
+            aliases = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
@@ -1115,6 +1132,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
             this.indices = ImmutableOpenMap.builder(metadata.indices);
+            this.aliases = ImmutableOpenMap.builder(metadata.aliases);
             this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             previousIndicesLookup = metadata.getIndicesLookup();
@@ -1684,6 +1702,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 totalNumberOfShards,
                 totalOpenIndexShards,
                 indices,
+                aliases.build(),
                 templates.build(),
                 customs.build(),
                 allIndicesArray,

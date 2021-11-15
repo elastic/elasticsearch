@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -758,15 +756,15 @@ public class ShardStateAction {
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
-            for (ObjectObjectCursor<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting()) {
-                assert cursor.value.allPrimaryShardsActive() == false
-                    || clusterState.metadata().index(cursor.key).getTimestampRange().isComplete()
+            for (Map.Entry<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting().entrySet()) {
+                assert cursor.getValue().allPrimaryShardsActive() == false
+                    || clusterState.metadata().index(cursor.getKey()).getTimestampRange().isComplete()
                     : "index ["
-                        + cursor.key
+                        + cursor.getKey()
                         + "] should have complete timestamp range, but got "
-                        + clusterState.metadata().index(cursor.key).getTimestampRange()
+                        + clusterState.metadata().index(cursor.getKey()).getTimestampRange()
                         + " for "
-                        + cursor.value.prettyPrint();
+                        + cursor.getValue().prettyPrint();
             }
             return true;
         }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -244,8 +242,8 @@ public class GatewayMetaState implements Closeable {
     ) {
         // collect current data
         Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> customCursor : existingData) {
-            existingMap.put(customCursor.key, customCursor.value);
+        for (Map.Entry<String, IndexTemplateMetadata> customCursor : existingData.entrySet()) {
+            existingMap.put(customCursor.getKey(), customCursor.getValue());
         }
         // upgrade global custom meta data
         Map<String, IndexTemplateMetadata> upgradedCustoms = upgrader.apply(existingMap);

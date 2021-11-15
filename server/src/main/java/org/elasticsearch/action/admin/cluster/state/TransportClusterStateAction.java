@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -37,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
@@ -194,18 +193,18 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             // filter out metadata that shouldn't be returned by the API
-            for (ObjectObjectCursor<String, Custom> custom : currentState.metadata().customs()) {
-                if (custom.value.context().contains(Metadata.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.key);
+            for (Map.Entry<String, Custom> custom : currentState.metadata().customs().entrySet()) {
+                if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
+                    mdBuilder.removeCustom(custom.getKey());
                 }
             }
         }
         builder.metadata(mdBuilder);
 
         if (request.customs()) {
-            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
-                if (custom.value.isPrivate() == false) {
-                    builder.putCustom(custom.key, custom.value);
+            for (Map.Entry<String, ClusterState.Custom> custom : currentState.customs().entrySet()) {
+                if (custom.getValue().isPrivate() == false) {
+                    builder.putCustom(custom.getKey(), custom.getValue());
                 }
             }
         }

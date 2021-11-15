@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.Strings;
@@ -153,9 +151,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (updatedEntry == null) {
                 continue;
             }
-            for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> oldShardAssignment : entry.shardsByRepoShardId()) {
-                final RepositoryShardId repositoryShardId = oldShardAssignment.key;
-                final ShardSnapshotStatus oldStatus = oldShardAssignment.value;
+            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> oldShardAssignment : entry.shardsByRepoShardId().entrySet()) {
+                final RepositoryShardId repositoryShardId = oldShardAssignment.getKey();
+                final ShardSnapshotStatus oldStatus = oldShardAssignment.getValue();
                 final ShardSnapshotStatus newStatus = updatedEntry.shardsByRepoShardId().get(repositoryShardId);
                 if (oldStatus.state == ShardState.SUCCESS
                     && oldStatus.generation() != null
@@ -338,15 +336,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert entriesForRepository.isEmpty() == false : "found empty list of snapshots for " + repository + " in " + entries;
             for (Entry entry : entriesForRepository) {
                 assert entry.repository().equals(repository) : "mismatched repository " + entry + " tracked under " + repository;
-                for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId()) {
-                    final RepositoryShardId sid = shard.key;
+                for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId().entrySet()) {
+                    final RepositoryShardId sid = shard.getKey();
                     assert assertShardStateConsistent(
                         entriesForRepository,
                         assignedShards,
                         queuedShards,
                         sid.indexName(),
                         sid.shardId(),
-                        shard.value
+                        shard.getValue()
                     );
                 }
             }
@@ -773,13 +771,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = ImmutableOpenMap.builder(
                     shards.size()
                 );
-                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
-                    final ShardId shardId = entry.key;
+                for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
+                    final ShardId shardId = entry.getKey();
                     final IndexId indexId = indices.get(shardId.getIndexName());
                     final Index index = shardId.getIndex();
                     final Index existing = res.put(indexId.getName(), index);
                     assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
-                    byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), entry.value);
+                    byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), entry.getValue());
                 }
                 this.shardStatusByRepoShardId = byRepoShardIdBuilder.build();
                 snapshotIndices = Map.copyOf(res);
@@ -872,11 +870,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             if (source == null) {
                 assert shards.size() == statusByRepoShardId.size();
-                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
-                    final ShardId routingShardId = entry.key;
+                for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
+                    final ShardId routingShardId = entry.getKey();
                     assert statusByRepoShardId.get(
                         new RepositoryShardId(indices.get(routingShardId.getIndexName()), routingShardId.id())
-                    ) == entry.value : "found inconsistent values tracked by routing- and repository shard id";
+                    ) == entry.getValue() : "found inconsistent values tracked by routing- and repository shard id";
                 }
             }
             return true;
@@ -943,8 +941,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
             boolean completed = true;
             boolean allQueued = true;
-            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : shards) {
-                ShardSnapshotStatus status = shardEntry.value;
+            for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : shards.entrySet()) {
+                ShardSnapshotStatus status = shardEntry.getValue();
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
@@ -956,7 +954,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     );
                 }
                 completed &= status.state().completed();
-                shardsBuilder.put(shardEntry.key, status);
+                shardsBuilder.put(shardEntry.getKey(), status);
             }
             if (allQueued) {
                 return null;
@@ -1190,9 +1188,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             builder.field("repository_state_id", repositoryStateId);
             builder.startArray("shards");
             {
-                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : shards) {
-                    ShardId shardId = shardEntry.key;
-                    writeShardSnapshotStatus(builder, shardId.getIndex(), shardId.getId(), shardEntry.value);
+                for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : shards.entrySet()) {
+                    ShardId shardId = shardEntry.getKey();
+                    writeShardSnapshotStatus(builder, shardId.getIndex(), shardId.getId(), shardEntry.getValue());
                 }
             }
             builder.endArray();
@@ -1207,9 +1205,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 builder.field("source", source);
                 builder.startArray("clones");
                 {
-                    for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shardEntry : shardStatusByRepoShardId) {
-                        RepositoryShardId shardId = shardEntry.key;
-                        writeShardSnapshotStatus(builder, shardId.index(), shardId.shardId(), shardEntry.value);
+                    for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : shardStatusByRepoShardId.entrySet()) {
+                        RepositoryShardId shardId = shardEntry.getKey();
+                        writeShardSnapshotStatus(builder, shardId.index(), shardId.shardId(), shardEntry.getValue());
                     }
                 }
                 builder.endArray();

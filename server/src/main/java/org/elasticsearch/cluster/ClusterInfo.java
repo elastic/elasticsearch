@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -119,9 +117,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(this.leastAvailableSpaceUsage.size());
-        for (ObjectObjectCursor<String, DiskUsage> c : this.leastAvailableSpaceUsage) {
-            out.writeString(c.key);
-            c.value.writeTo(out);
+        for (Map.Entry<String, DiskUsage> c : this.leastAvailableSpaceUsage.entrySet()) {
+            out.writeString(c.getKey());
+            c.getValue().writeTo(out);
         }
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
@@ -137,18 +135,18 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("nodes");
         {
-            for (ObjectObjectCursor<String, DiskUsage> c : this.leastAvailableSpaceUsage) {
-                builder.startObject(c.key);
+            for (Map.Entry<String, DiskUsage> c : this.leastAvailableSpaceUsage.entrySet()) {
+                builder.startObject(c.getKey());
                 { // node
-                    builder.field("node_name", c.value.getNodeName());
+                    builder.field("node_name", c.getValue().getNodeName());
                     builder.startObject("least_available");
                     {
-                        c.value.toShortXContent(builder);
+                        c.getValue().toShortXContent(builder);
                     }
                     builder.endObject(); // end "least_available"
                     builder.startObject("most_available");
                     {
-                        DiskUsage most = this.mostAvailableSpaceUsage.get(c.key);
+                        DiskUsage most = this.mostAvailableSpaceUsage.get(c.getKey());
                         if (most != null) {
                             most.toShortXContent(builder);
                         }
@@ -161,33 +159,33 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         builder.endObject(); // end "nodes"
         builder.startObject("shard_sizes");
         {
-            for (ObjectObjectCursor<String, Long> c : this.shardSizes) {
-                builder.humanReadableField(c.key + "_bytes", c.key, new ByteSizeValue(c.value));
+            for (Map.Entry<String, Long> c : this.shardSizes.entrySet()) {
+                builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), new ByteSizeValue(c.getValue()));
             }
         }
         builder.endObject(); // end "shard_sizes"
         builder.startObject("shard_data_set_sizes");
         {
-            for (ObjectObjectCursor<ShardId, Long> c : this.shardDataSetSizes) {
-                builder.humanReadableField(c.key + "_bytes", c.key.toString(), new ByteSizeValue(c.value));
+            for (Map.Entry<ShardId, Long> c : this.shardDataSetSizes.entrySet()) {
+                builder.humanReadableField(c.getKey() + "_bytes", c.getKey().toString(), new ByteSizeValue(c.getValue()));
             }
         }
         builder.endObject(); // end "shard_data_set_sizes"
         builder.startObject("shard_paths");
         {
-            for (ObjectObjectCursor<ShardRouting, String> c : this.routingToDataPath) {
-                builder.field(c.key.toString(), c.value);
+            for (Map.Entry<ShardRouting, String> c : this.routingToDataPath.entrySet()) {
+                builder.field(c.getKey().toString(), c.getValue());
             }
         }
         builder.endObject(); // end "shard_paths"
         builder.startArray("reserved_sizes");
         {
-            for (ObjectObjectCursor<NodeAndPath, ReservedSpace> c : this.reservedSpace) {
+            for (Map.Entry<NodeAndPath, ReservedSpace> c : this.reservedSpace.entrySet()) {
                 builder.startObject();
                 {
-                    builder.field("node_id", c.key.nodeId);
-                    builder.field("path", c.key.path);
-                    c.value.toXContent(builder, params);
+                    builder.field("node_id", c.getKey().nodeId);
+                    builder.field("path", c.getKey().path);
+                    c.getValue().toXContent(builder, params);
                 }
                 builder.endObject(); // NodeAndPath
             }

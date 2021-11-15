@@ -160,6 +160,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -1973,7 +1974,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
-                        EmptySystemIndices.INSTANCE.getExecutorSelector()
+                        EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                        TracingPlugin.NO_TRACING
                     )
                 );
                 actions.put(

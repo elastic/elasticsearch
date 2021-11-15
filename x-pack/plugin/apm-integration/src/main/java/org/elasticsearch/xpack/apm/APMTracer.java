@@ -10,13 +10,19 @@ package org.elasticsearch.xpack.apm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.plugins.TracingPlugin;
+import org.elasticsearch.tasks.Task;
+
+import java.util.Map;
 
 public class APMTracer extends AbstractLifecycleComponent implements TracingPlugin.Tracer {
 
-    private static final Logger logger = LogManager.getLogger(APMTracer.class);
+    private static final Logger logger = LogManager.getLogger();
 
-    public APMTracer() {}
+    private final Map<Long, Releasable> taskSpans = ConcurrentCollections.newConcurrentMap();
 
     @Override
     protected void doStart() {}
@@ -28,7 +34,15 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     protected void doClose() {}
 
     @Override
-    public void trace(String something) {
-        logger.info("tracing {}", something);
+    public void onTaskRegistered(Task task) {
+        taskSpans.computeIfAbsent(task.getId(), taskId -> {
+            logger.info("creating span for task [{}]", taskId);
+            return () -> { logger.info("closing span for task [{}]", taskId); };
+        });
+    }
+
+    @Override
+    public void onTaskUnregistered(Task task) {
+        Releasables.close(taskSpans.remove(task.getId()));
     }
 }

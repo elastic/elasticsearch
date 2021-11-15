@@ -1237,6 +1237,28 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        public Builder putAlias(String alias, Index index) {
+            previousIndicesLookup = null;
+
+            List<Index> indices = new ArrayList<>(aliases.getOrDefault(alias, List.of()));
+            indices.add(index); // TODO what if it's a duplicate? maybe use a Set<Index> instead?
+            aliases.put(alias, indices);
+            return this;
+        }
+
+        public Builder removeAlias(String alias, Index index) {
+            previousIndicesLookup = null;
+
+            List<Index> indices = new ArrayList<>(aliases.getOrDefault(alias, List.of()));
+            indices.remove(index); // TODO what if it wasn't in the list already?
+            if (indices.isEmpty()) {
+                aliases.remove(alias); // for consistency, we don't store empty lists, so null it out -- TODO how best to represent this?
+            } else {
+                aliases.put(alias, indices);
+            }
+            return this;
+        }
+
         public Builder put(IndexTemplateMetadata.Builder template) {
             return put(template.build());
         }

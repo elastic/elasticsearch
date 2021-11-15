@@ -70,7 +70,7 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.Single
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

@@ -981,7 +981,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Document doc = new Document();
         String json;
 
-        if (vst.equals(CoreValuesSourceType.NUMERIC)) {
+        // NOCOMMI: Break out long and double logic?
+        if (vst.equals(CoreValuesSourceType.DOUBLE) || vst.equals(CoreValuesSourceType.LONG)) {
             long v;
             if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
                 double d = Math.abs(randomDouble());

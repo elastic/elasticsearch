@@ -187,6 +187,7 @@ public class ValuesSourceConfig {
         return fieldContext.indexFieldData().getValuesSourceType();
     }
 
+    // NOCOMMIT: This whole method should probably get removed
     private static ValuesSourceType getLegacyMapping(
         FieldContext fieldContext,
         ValueType userValueTypeHint,
@@ -194,7 +195,7 @@ public class ValuesSourceConfig {
     ) {
         IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
         if (indexFieldData instanceof IndexNumericFieldData) {
-            return CoreValuesSourceType.NUMERIC;
+            return CoreValuesSourceType.DOUBLE;
         } else if (indexFieldData instanceof IndexGeoPointFieldData) {
             return CoreValuesSourceType.GEOPOINT;
         } else if (fieldContext.fieldType() instanceof RangeFieldMapper.RangeFieldType) {

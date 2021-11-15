@@ -46,7 +46,6 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
 import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.hamcrest.Matchers.equalTo;
@@ -307,7 +306,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.NUMERIC);
+        return List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG);
     }
 
     @Override

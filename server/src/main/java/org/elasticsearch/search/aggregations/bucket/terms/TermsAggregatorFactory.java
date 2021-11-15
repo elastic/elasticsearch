@@ -54,7 +54,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         builder.register(
             TermsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG),
             TermsAggregatorFactory.numericSupplier(),
             true
         );

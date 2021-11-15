@@ -112,7 +112,13 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
         registry.registerUsage(NAME);
-        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), MultiTermsAggregator::buildNumericTermValues, false);
+        // NOCOMMIT: Should Longs use the LongTermsValuesSource? This mirrors the numeric behavior, but might be wrong.
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG),
+            MultiTermsAggregator::buildNumericTermValues,
+            false
+        );
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),

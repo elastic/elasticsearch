@@ -74,7 +74,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     /**

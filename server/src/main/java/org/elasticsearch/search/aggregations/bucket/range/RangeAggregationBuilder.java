@@ -48,7 +48,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             RangeAggregator::build,
             true
         );

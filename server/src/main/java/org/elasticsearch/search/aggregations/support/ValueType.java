@@ -29,9 +29,9 @@ public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", CoreValuesSourceType.KEYWORD, DocValueFormat.RAW),
 
-    LONG((byte) 2, "byte|short|integer|long", "long", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
-    DOUBLE((byte) 3, "float|double", "double", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
-    NUMBER((byte) 4, "number", "number", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
+    LONG((byte) 2, "byte|short|integer|long", "long", CoreValuesSourceType.LONG, DocValueFormat.RAW),
+    DOUBLE((byte) 3, "float|double", "double", CoreValuesSourceType.DOUBLE, DocValueFormat.RAW),
+    NUMBER((byte) 4, "number", "number", CoreValuesSourceType.DOUBLE, DocValueFormat.RAW),
     DATE(
         (byte) 5,
         "date",
@@ -40,7 +40,7 @@ public enum ValueType implements Writeable {
         new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS)
     ),
     IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, DocValueFormat.IP),
-    NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
+    NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.DOUBLE, DocValueFormat.RAW),
     GEOPOINT((byte) 8, "geo_point", "geo_point", CoreValuesSourceType.GEOPOINT, DocValueFormat.GEOHASH),
     BOOLEAN((byte) 9, "boolean", "boolean", CoreValuesSourceType.BOOLEAN, DocValueFormat.BOOLEAN),
     RANGE((byte) 10, "range", "range", CoreValuesSourceType.RANGE, DocValueFormat.RAW);

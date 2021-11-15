@@ -87,7 +87,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                 config.getMissing(),
                 config.getTimeZone(),
                 null,
-                CoreValuesSourceType.NUMERIC
+                CoreValuesSourceType.DOUBLE
             );
             MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
             metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);

@@ -123,7 +123,7 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

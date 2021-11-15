@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -54,7 +55,7 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             RateAggregationBuilder.REGISTRY_KEY,
-            Collections.singletonList(CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG),
             NumericRateAggregator::new,
             true
         );

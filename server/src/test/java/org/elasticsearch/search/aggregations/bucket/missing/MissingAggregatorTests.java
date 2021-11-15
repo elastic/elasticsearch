@@ -338,7 +338,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
-            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DOUBLE,
+            CoreValuesSourceType.LONG,
             CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,

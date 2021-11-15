@@ -30,7 +30,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (
                 String name,
                 int shardSize,

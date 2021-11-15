@@ -100,7 +100,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

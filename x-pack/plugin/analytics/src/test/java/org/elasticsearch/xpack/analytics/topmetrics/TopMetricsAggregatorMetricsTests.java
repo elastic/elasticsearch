@@ -56,7 +56,8 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
     }
 
     public void testNoNumbers() throws IOException {
-        assertNoValues(toConfig(null, CoreValuesSourceType.NUMERIC, DocValueFormat.RAW, false));
+        assertNoValues(toConfig(null, CoreValuesSourceType.DOUBLE, DocValueFormat.RAW, false));
+        assertNoValues(toConfig(null, CoreValuesSourceType.LONG, DocValueFormat.RAW, false));
     }
 
     public void testNoDates() throws IOException {
@@ -203,7 +204,8 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         when(source.isFloatingPoint()).thenReturn(false);
         when(source.longValues(null)).thenReturn(values);
         if (randomBoolean()) {
-            return toConfig(source, CoreValuesSourceType.NUMERIC, randomWholeNumberDocValuesFormat(), true);
+            // NOCOMMIT: should we have a case for CVST.LONG here?
+            return toConfig(source, CoreValuesSourceType.DOUBLE, randomWholeNumberDocValuesFormat(), true);
         }
         DocValueFormat dateFormatter = new DocValueFormat.DateTime(
             DateFormatter.forPattern(randomDateFormatterPattern()),
@@ -217,12 +219,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         ValuesSource.Numeric source = mock(ValuesSource.Numeric.class);
         when(source.isFloatingPoint()).thenReturn(true);
         when(source.doubleValues(null)).thenReturn(values);
-        return toConfig(
-            source,
-            CoreValuesSourceType.NUMERIC,
-            randomFrom(DocValueFormat.RAW, new DocValueFormat.Decimal("####.####")),
-            true
-        );
+        return toConfig(source, CoreValuesSourceType.DOUBLE, randomFrom(DocValueFormat.RAW, new DocValueFormat.Decimal("####.####")), true);
     }
 
     private ValuesSourceConfig toConfig(SortedSetDocValues values) throws IOException {

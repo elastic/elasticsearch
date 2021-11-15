@@ -55,7 +55,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     private int tails = 2;
 
     public static void registerUsage(ValuesSourceRegistry.Builder builder) {
-        builder.registerUsage(NAME, CoreValuesSourceType.NUMERIC);
+        builder.registerUsage(NAME, CoreValuesSourceType.DOUBLE);
     }
 
     public TTestAggregationBuilder(String name) {
@@ -121,7 +121,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

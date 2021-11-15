@@ -67,7 +67,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM);
+        return List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, AnalyticsValuesSourceType.HISTOGRAM);
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -26,7 +27,7 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             VariableWidthHistogramAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.NUMERIC,
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG),
             VariableWidthHistogramAggregator::new,
             true
         );

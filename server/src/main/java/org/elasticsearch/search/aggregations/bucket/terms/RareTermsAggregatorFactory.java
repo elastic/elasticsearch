@@ -45,7 +45,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         builder.register(
             RareTermsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.LONG, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DOUBLE),
             RareTermsAggregatorFactory.numericSupplier(),
             true
         );

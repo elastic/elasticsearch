@@ -123,7 +123,8 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
         return List.of(
-            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DOUBLE,
+            CoreValuesSourceType.LONG,
             CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,

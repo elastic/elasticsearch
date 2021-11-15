@@ -1809,17 +1809,4 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
-    /**
-     * Returns a minimal source that discards information that aren't required by shard-level search requests.
-     * The purpose is to minimize the memory usage and serialization cost of shard-level search requests.
-     */
-    public SearchSourceBuilder minimalSourceForShardRequests() {
-        if (pointInTimeBuilder != null) {
-            final SearchSourceBuilder source = shallowCopy();
-            source.pointInTimeBuilder(null);
-            return source;
-        } else {
-            return this;
-        }
-    }
 }

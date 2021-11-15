@@ -1860,6 +1860,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (ShardSearchRequest shardRequest : shardRequests) {
             assertNotNull(shardRequest.source());
             assertNotNull(shardRequest.source().pointInTimeBuilder());
+            assertThat(shardRequest.source().pointInTimeBuilder().getEncodedId(), equalTo(""));
         }
     }
 

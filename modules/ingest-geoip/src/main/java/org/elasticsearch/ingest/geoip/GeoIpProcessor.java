@@ -409,7 +409,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
-                DEPRECATION_LOGGER.critical(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
             DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);
@@ -486,7 +486,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
                     HeaderWarning.addWarning(
-                        DeprecationLogger.CRITICAL,
                         "database [{}] was not updated for over 25 days, geoip processor"
                             + " will stop working if there is no update for 30 days",
                         databaseFile

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-overall-buckets]]
 = Get overall buckets API
 ++++

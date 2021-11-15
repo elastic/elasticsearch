@@ -8,22 +8,25 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.test.PackagingTestCase.AwaitsFix;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
-@AwaitsFix(bugUrl = "Needs to be re-enabled")
+@PackagingTestCase.AwaitsFix(bugUrl = "Needs to be re-enabled")
 public class PluginCliTests extends PackagingTestCase {
 
     private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";
@@ -31,7 +34,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     static {
         // re-read before each test so the plugin path can be manipulated within tests
-        EXAMPLE_PLUGIN_ZIP = Paths.get(System.getProperty("tests.example-plugin", "/dummy/path"));
+        EXAMPLE_PLUGIN_ZIP = Paths.get(System.getProperty("tests.example-plugin"));
     }
 
     @Before
@@ -46,7 +49,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     private Shell.Result assertWithPlugin(Installation.Executable pluginTool, Path pluginZip, String pluginName, PluginAction action)
         throws Exception {
-        Shell.Result installResult = pluginTool.run("install --batch \"" + pluginZip.toUri().toString() + "\"");
+        Shell.Result installResult = pluginTool.run("install --batch \"" + pluginZip.toUri() + "\"");
         action.run(installResult);
         return pluginTool.run("remove " + pluginName);
     }
@@ -70,15 +73,13 @@ public class PluginCliTests extends PackagingTestCase {
         Platforms.onLinux(() -> sh.run("chown elasticsearch:elasticsearch " + linkedPlugins.toString()));
         Files.createSymbolicLink(pluginsDir, linkedPlugins);
         // Packaged installation don't get autoconfigured yet
-        // TODO: Remove this in https://github.com/elastic/elasticsearch/pull/75144
-        String protocol = distribution.isPackage() ? "http" : "https";
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
-                final String pluginsResponse = makeRequest(protocol + "://localhost:9200/_cat/plugins?h=component").strip();
+                final String pluginsResponse = makeRequest("https://localhost:9200/_cat/plugins?h=component").strip();
                 assertThat(pluginsResponse, equalTo(EXAMPLE_PLUGIN_NAME));
 
                 String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
-                final String settingsResponse = makeRequest(protocol + "://localhost:9200/" + settingsPath).strip();
+                final String settingsResponse = makeRequest("https://localhost:9200/" + settingsPath).strip();
                 assertThat(settingsResponse, equalTo("{\"defaults\":{\"custom\":{\"simple\":\"foo\"}}}"));
             });
         });
@@ -118,5 +119,45 @@ public class PluginCliTests extends PackagingTestCase {
     public void test25Umask() throws Exception {
         sh.setUmask("0077");
         assertWithExamplePlugin(installResult -> {});
+    }
+
+    /**
+     * Check that the `install` subcommand cannot be used if a plugins config file exists.
+     */
+    public void test30InstallFailsIfConfigFilePresent() throws IOException {
+        Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
+
+        Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
+        assertThat(result.isSuccess(), is(false));
+        assertThat(result.stderr, matchesPattern("^Plugins config \\[[^+]] exists.*"));
+    }
+
+    /**
+     * Check that the `remove` subcommand cannot be used if a plugins config file exists.
+     */
+    public void test31RemoveFailsIfConfigFilePresent() throws IOException {
+        Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
+
+        Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
+        assertThat(result.isSuccess(), is(false));
+        assertThat(result.stderr, matchesPattern("^Plugins config \\[[^+]] exists.*"));
+    }
+
+    /**
+     * Check that when a plugins config file exists, Elasticsearch refuses to start up, since using
+     * a config file is only supported in Docker.
+     */
+    public void test32FailsToStartWhenPluginsConfigExists() throws Exception {
+        try {
+            Files.writeString(installation.config("elasticsearch-plugins.yml"), "content doesn't matter for this test");
+            Shell.Result result = runElasticsearchStartCommand(null, false, true);
+            assertThat(result.isSuccess(), equalTo(false));
+            assertThat(
+                result.stderr,
+                containsString("Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]")
+            );
+        } finally {
+            FileUtils.rm(installation.config("elasticsearch-plugins.yml"));
+        }
     }
 }

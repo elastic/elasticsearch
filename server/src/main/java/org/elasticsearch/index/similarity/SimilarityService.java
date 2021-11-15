@@ -114,7 +114,7 @@ public final class SimilarityService {
             ? providers.get("default").get()
             : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.QUERIES,
                 "base_similarity_ignored",
                 "The [base] similarity is ignored since query normalization and coords have been removed"

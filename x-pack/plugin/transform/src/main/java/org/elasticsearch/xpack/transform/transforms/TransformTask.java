@@ -210,7 +210,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      * @param startingCheckpoint The starting checkpoint, could null. Null indicates that there is no starting checkpoint
      * @param listener The listener to alert once started
      */
-    synchronized void start(Long startingCheckpoint, ActionListener<StartTransformAction.Response> listener) {
+    void start(Long startingCheckpoint, ActionListener<StartTransformAction.Response> listener) {
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
         if (context.getTaskState() == TransformTaskState.FAILED) {
             listener.onFailure(
@@ -221,73 +221,76 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             );
             return;
         }
-        if (getIndexer() == null) {
-            // If our state is failed AND the indexer is null, the user needs to _stop?force=true so that the indexer gets
-            // fully initialized.
-            // If we are NOT failed, then we can assume that `start` was just called early in the process.
-            String msg = context.getTaskState() == TransformTaskState.FAILED
-                ? "It failed during the initialization process; force stop to allow reinitialization."
-                : "Try again later.";
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Task for transform [{}] not fully initialized. {}",
-                    RestStatus.CONFLICT,
-                    getTransformId(),
-                    msg
-                )
-            );
-            return;
-        }
-        final IndexerState newState = getIndexer().start();
-        if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
-            listener.onFailure(
-                new ElasticsearchException("Cannot start task for transform [{}], because state was [{}]", transform.getId(), newState)
-            );
-            return;
-        }
-        context.resetTaskState();
 
-        if (startingCheckpoint != null) {
-            context.setCheckpoint(startingCheckpoint);
+        synchronized (context) {
+            if (getIndexer() == null) {
+                // If our state is failed AND the indexer is null, the user needs to _stop?force=true so that the indexer gets
+                // fully initialized.
+                // If we are NOT failed, then we can assume that `start` was just called early in the process.
+                String msg = context.getTaskState() == TransformTaskState.FAILED
+                    ? "It failed during the initialization process; force stop to allow reinitialization."
+                    : "Try again later.";
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Task for transform [{}] not fully initialized. {}",
+                        RestStatus.CONFLICT,
+                        getTransformId(),
+                        msg
+                    )
+                );
+                return;
+            }
+            final IndexerState newState = getIndexer().start();
+            if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
+                listener.onFailure(
+                    new ElasticsearchException("Cannot start task for transform [{}], because state was [{}]", transform.getId(), newState)
+                );
+                return;
+            }
+            context.resetTaskState();
+
+            if (startingCheckpoint != null) {
+                context.setCheckpoint(startingCheckpoint);
+            }
+
+            final TransformState state = new TransformState(
+                TransformTaskState.STARTED,
+                IndexerState.STOPPED,
+                getIndexer().getPosition(),
+                context.getCheckpoint(),
+                null,
+                getIndexer().getProgress(),
+                null,
+                context.shouldStopAtCheckpoint()
+            );
+
+            logger.info("[{}] updating state for transform to [{}].", transform.getId(), state.toString());
+            // Even though the indexer information is persisted to an index, we still need TransformTaskState in the clusterstate
+            // This keeps track of STARTED, FAILED, STOPPED
+            // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
+            // we could not read the previous state information from said index.
+            persistStateToClusterState(state, ActionListener.wrap(task -> {
+                auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
+                long now = System.currentTimeMillis();
+                // kick off the indexer
+                triggered(new Event(schedulerJobName(), now, now));
+                registerWithSchedulerJob();
+                listener.onResponse(new StartTransformAction.Response(true));
+            }, exc -> {
+                auditor.warning(
+                    transform.getId(),
+                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
+                );
+                logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
+                getIndexer().stop();
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
+                        exc
+                    )
+                );
+            }));
         }
-
-        final TransformState state = new TransformState(
-            TransformTaskState.STARTED,
-            IndexerState.STOPPED,
-            getIndexer().getPosition(),
-            context.getCheckpoint(),
-            null,
-            getIndexer().getProgress(),
-            null,
-            context.shouldStopAtCheckpoint()
-        );
-
-        logger.info("[{}] updating state for transform to [{}].", transform.getId(), state.toString());
-        // Even though the indexer information is persisted to an index, we still need TransformTaskState in the clusterstate
-        // This keeps track of STARTED, FAILED, STOPPED
-        // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
-        // we could not read the previous state information from said index.
-        persistStateToClusterState(state, ActionListener.wrap(task -> {
-            auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
-            long now = System.currentTimeMillis();
-            // kick off the indexer
-            triggered(new Event(schedulerJobName(), now, now));
-            registerWithSchedulerJob();
-            listener.onResponse(new StartTransformAction.Response(true));
-        }, exc -> {
-            auditor.warning(
-                transform.getId(),
-                "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
-            );
-            logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
-            getIndexer().stop();
-            listener.onFailure(
-                new ElasticsearchException(
-                    "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
-                    exc
-                )
-            );
-        }));
     }
 
     /**
@@ -296,10 +299,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
-    public synchronized void setShouldStopAtCheckpoint(
-        boolean shouldStopAtCheckpoint,
-        ActionListener<Void> shouldStopAtCheckpointListener
-    ) {
+    public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
         // this should be called from the generic threadpool
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
         logger.debug(
@@ -308,20 +308,22 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             shouldStopAtCheckpoint,
             getState()
         );
-        if (context.getTaskState() != TransformTaskState.STARTED || getIndexer() == null) {
-            shouldStopAtCheckpointListener.onResponse(null);
-            return;
-        }
+        synchronized (context) {
+            if (context.getTaskState() != TransformTaskState.STARTED || getIndexer() == null) {
+                shouldStopAtCheckpointListener.onResponse(null);
+                return;
+            }
 
-        if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
-            shouldStopAtCheckpointListener.onResponse(null);
-            return;
-        }
+            if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
+                shouldStopAtCheckpointListener.onResponse(null);
+                return;
+            }
 
-        getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+            getIndexer().setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
+        }
     }
 
-    public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
+    public void stop(boolean force, boolean shouldStopAtCheckpoint) {
         logger.debug(
             "[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}], indexerstate[{}]",
             getTransformId(),
@@ -331,49 +333,53 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             getIndexer() != null ? getIndexer().getState() : null
         );
 
-        if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
-            throw new ElasticsearchStatusException(
-                TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
-                RestStatus.CONFLICT
-            );
-        }
+        synchronized (context) {
+            if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
+                throw new ElasticsearchStatusException(
+                    TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
+                    RestStatus.CONFLICT
+                );
+            }
 
-        // cleanup potentially failed state.
-        boolean wasFailed = context.setTaskState(TransformTaskState.FAILED, TransformTaskState.STARTED);
-        context.resetReasonAndFailureCounter();
+            // cleanup potentially failed state.
+            boolean wasFailed = context.setTaskState(TransformTaskState.FAILED, TransformTaskState.STARTED);
+            context.resetReasonAndFailureCounter();
 
-        if (getIndexer() == null) {
-            // If there is no indexer the task has not been triggered
-            // but it still needs to be stopped and removed
-            shutdown();
-            return;
-        }
+            if (getIndexer() == null) {
+                // If there is no indexer the task has not been triggered
+                // but it still needs to be stopped and removed
+                shutdown();
+                return;
+            }
 
-        // If state was in a failed state, we should stop immediately
-        if (wasFailed) {
-            getIndexer().stopAndMaybeSaveState();
-            return;
-        }
+            // If state was in a failed state, we should stop immediately
+            if (wasFailed) {
+                getIndexer().stopAndMaybeSaveState();
+                return;
+            }
 
-        IndexerState indexerState = getIndexer().getState();
+            IndexerState indexerState = getIndexer().getState();
 
-        if (indexerState == IndexerState.STOPPED || indexerState == IndexerState.STOPPING) {
-            return;
-        }
+            if (indexerState == IndexerState.STOPPED || indexerState == IndexerState.STOPPING) {
+                return;
+            }
 
-        // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
-        // if it is false, stop immediately
-        if (shouldStopAtCheckpoint == false ||
-        // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
-        // or has yet to even start one.
-        // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
-            (indexerState == IndexerState.STARTED && getIndexer().initialRun())) {
-            getIndexer().stopAndMaybeSaveState();
+            // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
+            // if it is false, stop immediately
+            if (shouldStopAtCheckpoint == false ||
+            // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
+            // or has yet to even start one.
+            // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
+                (indexerState == IndexerState.STARTED && getIndexer().initialRun())) {
+                getIndexer().stopAndMaybeSaveState();
+            }
         }
     }
 
-    public synchronized void applyNewSettings(SettingsConfig newSettings) {
-        getIndexer().applyNewSettings(newSettings);
+    public void applyNewSettings(SettingsConfig newSettings) {
+        synchronized (context) {
+            getIndexer().applyNewSettings(newSettings);
+        }
     }
 
     @Override
@@ -387,43 +393,45 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     @Override
-    public synchronized void triggered(Event event) {
+    public void triggered(Event event) {
         // Ignore if event is not for this job
         if (event.getJobName().equals(schedulerJobName()) == false) {
             return;
         }
 
-        if (getIndexer() == null) {
-            logger.warn("[{}] transform task triggered with an unintialized indexer.", getTransformId());
-            return;
-        }
+        synchronized (context) {
+            if (getIndexer() == null) {
+                logger.warn("[{}] transform task triggered with an unintialized indexer.", getTransformId());
+                return;
+            }
 
-        if (context.getTaskState() == TransformTaskState.FAILED || context.getTaskState() == TransformTaskState.STOPPED) {
-            logger.debug(
-                "[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
-                getTransformId(),
-                context.getTaskState()
-            );
-            return;
-        }
+            if (context.getTaskState() == TransformTaskState.FAILED || context.getTaskState() == TransformTaskState.STOPPED) {
+                logger.debug(
+                    "[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
+                    getTransformId(),
+                    context.getTaskState()
+                );
+                return;
+            }
 
-        // ignore trigger if indexer is running or completely stopped
-        IndexerState indexerState = getIndexer().getState();
-        if (IndexerState.INDEXING.equals(indexerState)
-            || IndexerState.STOPPING.equals(indexerState)
-            || IndexerState.STOPPED.equals(indexerState)) {
-            logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getTransformId(), indexerState);
-            return;
-        }
+            // ignore trigger if indexer is running or completely stopped
+            IndexerState indexerState = getIndexer().getState();
+            if (IndexerState.INDEXING.equals(indexerState)
+                || IndexerState.STOPPING.equals(indexerState)
+                || IndexerState.STOPPED.equals(indexerState)) {
+                logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getTransformId(), indexerState);
+                return;
+            }
 
-        logger.debug("[{}] transform indexer schedule has triggered, state: [{}].", event.getJobName(), indexerState);
+            logger.debug("[{}] transform indexer schedule has triggered, state: [{}].", event.getJobName(), indexerState);
 
-        // if it runs for the 1st time we just do it, if not we check for changes
-        if (context.getCheckpoint() == 0) {
-            logger.debug("[{}] trigger initial run.", getTransformId());
-            getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
-        } else if (getIndexer().isContinuous()) {
-            getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
+            // if it runs for the 1st time we just do it, if not we check for changes
+            if (context.getCheckpoint() == 0) {
+                logger.debug("[{}] trigger initial run.", getTransformId());
+                getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
+            } else if (getIndexer().isContinuous()) {
+                getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
+            }
         }
     }
 
@@ -438,7 +446,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      * This tries to remove the job from the scheduler and completes the persistent task
      */
     @Override
-    public synchronized void shutdown() {
+    public void shutdown() {
         logger.debug("[{}] shutdown of transform requested", transform.getId());
         deregisterSchedulerJob();
         markAsCompleted();
@@ -455,52 +463,55 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     @Override
-    public synchronized void fail(String reason, ActionListener<Void> listener) {
-        // If we are already flagged as failed, this probably means that a second trigger started firing while we were attempting to
-        // flag the previously triggered indexer as failed. Exit early as we are already flagged as failed.
-        if (context.getTaskState() == TransformTaskState.FAILED) {
-            logger.warn("[{}] is already failed but encountered new failure; reason [{}].", getTransformId(), reason);
-            listener.onResponse(null);
-            return;
-        }
-        // If the indexer is `STOPPING` this means that `TransformTask#stop` was called previously, but something caused
-        // the indexer to fail. Since `ClientTransformIndexer#doSaveState` will persist the state to the index once the indexer stops,
-        // it is probably best to NOT change the internal state of the task and allow the normal stopping logic to continue.
-        if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPING) {
-            logger.info("[{}] attempt to fail transform with reason [{}] while it was stopping.", getTransformId(), reason);
-            listener.onResponse(null);
-            return;
-        }
-        // If we are stopped, this means that between the failure occurring and being handled, somebody called stop
-        // We should just allow that stop to continue
-        if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPED) {
-            logger.info("[{}] encountered a failure but indexer is STOPPED; reason [{}].", getTransformId(), reason);
-            listener.onResponse(null);
-            return;
-        }
+    public void fail(String reason, ActionListener<Void> listener) {
+        synchronized (context) {
+            // If we are already flagged as failed, this probably means that a second trigger started firing while we were attempting to
+            // flag the previously triggered indexer as failed. Exit early as we are already flagged as failed.
+            if (context.getTaskState() == TransformTaskState.FAILED) {
+                logger.warn("[{}] is already failed but encountered new failure; reason [{}].", getTransformId(), reason);
+                listener.onResponse(null);
+                return;
+            }
+            // If the indexer is `STOPPING` this means that `TransformTask#stop` was called previously, but something caused
+            // the indexer to fail. Since `ClientTransformIndexer#doSaveState` will persist the state to the index once the indexer stops,
+            // it is probably best to NOT change the internal state of the task and allow the normal stopping logic to continue.
+            if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPING) {
+                logger.info("[{}] attempt to fail transform with reason [{}] while it was stopping.", getTransformId(), reason);
+                listener.onResponse(null);
+                return;
+            }
+            // If we are stopped, this means that between the failure occurring and being handled, somebody called stop
+            // We should just allow that stop to continue
+            if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPED) {
+                logger.info("[{}] encountered a failure but indexer is STOPPED; reason [{}].", getTransformId(), reason);
+                listener.onResponse(null);
+                return;
+            }
 
-        logger.error("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
-        auditor.error(transform.getId(), reason);
-        // We should not keep retrying. Either the task will be stopped, or started
-        // If it is started again, it is registered again.
-        deregisterSchedulerJob();
-        // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
-        // we should set this flag to false.
-        context.setShouldStopAtCheckpoint(false);
+            logger.error("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
+            auditor.error(transform.getId(), reason);
+            // We should not keep retrying. Either the task will be stopped, or started
+            // If it is started again, it is registered again.
+            deregisterSchedulerJob();
+            // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
+            // we should set this flag to false.
+            context.setShouldStopAtCheckpoint(false);
 
-        // The end user should see that the task is in a failed state, and attempt to stop it again but with force=true
-        context.setTaskStateToFailed(reason);
-        TransformState newState = getState();
-        // Even though the indexer information is persisted to an index, we still need TransformTaskState in the clusterstate
-        // This keeps track of STARTED, FAILED, STOPPED
-        // This is because a FAILED state could occur because we failed to read the config from the internal index, which would imply that
-        // we could not read the previous state information from said index.
-        persistStateToClusterState(newState, ActionListener.wrap(r -> listener.onResponse(null), e -> {
-            String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
-            auditor.warning(transform.getId(), msg + " Failure: " + e.getMessage());
-            logger.error(new ParameterizedMessage("[{}] {}", getTransformId(), msg), e);
-            listener.onFailure(e);
-        }));
+            // The end user should see that the task is in a failed state, and attempt to stop it again but with force=true
+            context.setTaskStateToFailed(reason);
+            TransformState newState = getState();
+            // Even though the indexer information is persisted to an index, we still need TransformTaskState in the clusterstate
+            // This keeps track of STARTED, FAILED, STOPPED
+            // This is because a FAILED state could occur because we failed to read the config from the internal index, which would imply
+            // that
+            // we could not read the previous state information from said index.
+            persistStateToClusterState(newState, ActionListener.wrap(r -> listener.onResponse(null), e -> {
+                String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
+                auditor.warning(transform.getId(), msg + " Failure: " + e.getMessage());
+                logger.error(new ParameterizedMessage("[{}] {}", getTransformId(), msg), e);
+                listener.onFailure(e);
+            }));
+        }
     }
 
     /**
@@ -509,9 +520,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      * shut down from the inside.
      */
     @Override
-    public synchronized void onCancelled() {
+    public void onCancelled() {
         logger.info("[{}] received cancellation request for transform, state: [{}].", getTransformId(), context.getTaskState());
-        if (getIndexer() != null && getIndexer().abort()) {
+        ClientTransformIndexer theIndexer = getIndexer();
+        if (theIndexer != null && theIndexer.abort()) {
             // there is no background transform running, we can shutdown safely
             shutdown();
         }
@@ -544,7 +556,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         };
     }
 
-    synchronized void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
+    void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
         indexer.set(indexerBuilder.build(getThreadPool(), context));
     }
 

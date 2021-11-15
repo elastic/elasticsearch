@@ -74,7 +74,7 @@ public class CardinalityIT extends ESIntegTestCase {
 
             scripts.put("doc[' + multiNumericField(false) + ']", vars -> {
                 Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-                return (ScriptDocValues<?>) doc.get(multiNumericField(false));
+                return (ScriptDocValues<?>) doc.get(multiNumericField());
             });
 
             return scripts;
@@ -173,7 +173,7 @@ public class CardinalityIT extends ESIntegTestCase {
         return randomBoolean() ? "l_value" : "d_value";
     }
 
-    private static String multiNumericField(boolean hash) {
+    private static String multiNumericField() {
         return randomBoolean() ? "l_values" : "d_values";
     }
 
@@ -286,7 +286,7 @@ public class CardinalityIT extends ESIntegTestCase {
 
     public void testMultiValuedNumeric() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField(false)))
+            .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField()))
             .get();
 
         assertSearchResponse(response);
@@ -299,7 +299,7 @@ public class CardinalityIT extends ESIntegTestCase {
 
     public void testMultiValuedNumericHashed() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField(true)))
+            .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(multiNumericField()))
             .get();
 
         assertSearchResponse(response);
@@ -430,7 +430,7 @@ public class CardinalityIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
                 cardinality("cardinality").precisionThreshold(precisionThreshold)
-                    .field(multiNumericField(false))
+                    .field(multiNumericField())
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value", emptyMap()))
             )
             .get();

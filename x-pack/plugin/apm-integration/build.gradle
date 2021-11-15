@@ -16,9 +16,34 @@ esplugin {
 }
 
 dependencies {
+  implementation "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-api-metrics:${versions.opentelemetry}-alpha"
+  implementation "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-sdk:${versions.opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-sdk-common:${versions.opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}-alpha"
+  implementation "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
+  implementation "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
+
   compileOnly project(path: xpackModule('core'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 // no unit-test for now
 tasks.named("test").configure { enabled = false }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
+    'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess'
+  )
+  ignoreMissingClasses(
+    'io.opentelemetry.sdk.logs.data.Body',
+    'io.opentelemetry.sdk.logs.data.LogData',
+    'io.opentelemetry.sdk.logs.export.LogExporter'
+  )
+}

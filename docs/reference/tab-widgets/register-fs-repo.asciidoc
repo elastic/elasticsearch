@@ -9,13 +9,15 @@ path:
     - /mount/long_term_backups
 ----
 
-After restarting each node, use the <<put-snapshot-repo-api,create or update
-snapshot repository>> API to register the file system repository. Specify the
-file system's path in `settings.location`:
+// tag::register-fs-repo[]
+After restarting each node, use {kib} or the <<put-snapshot-repo-api,create
+snapshot repository API>> to register the repository. When registering the
+repository, specify the file system's path:
+// end::register-fs-repo[]
 
 [source,console]
 ----
-PUT /_snapshot/my_fs_backup
+PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
@@ -26,12 +28,14 @@ PUT /_snapshot/my_fs_backup
 ----
 // TEST[skip:no access to path]
 
-If you specify a relative path in `settings.location`, {es} resolves the path
-using the first value in the `path.repo` setting.
+// tag::relative-path[]
+If you specify a relative path, {es} resolves the path using the first value in
+the `path.repo` setting.
+// end::relative-path[]
 
 [source,console]
 ----
-PUT /_snapshot/my_fs_backup
+PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
@@ -45,6 +49,27 @@ PUT /_snapshot/my_fs_backup
 <1> The first value in the `path.repo` setting is `/mount/backups`. This
 relative path, `my_fs_backup_location`, resolves to
 `/mount/backups/my_fs_backup_location`.
+
+include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-cluster-repo]
+
+// tag::fs-repo-read-only[]
+To register a file system repository as read-only using the create snapshot
+repository API, set the `readonly` parameter to true. Alternatively, you can
+register a <<snapshots-read-only-repository,URL repository>> for the file
+system.
+// end::fs-repo-read-only[]
+
+[source,console]
+----
+PUT _snapshot/my_fs_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_fs_backup_location",
+    "readonly": true
+  }
+}
+----
 // end::unix[]
 
 
@@ -64,13 +89,11 @@ path:
 <1> DOS path
 <2> UNC path
 
-After restarting each node, use the <<put-snapshot-repo-api,create or update
-snapshot repository>> API to register the file system repository. Specify the
-file system's path in `settings.location`:
+include::register-fs-repo.asciidoc[tag=register-fs-repo]
 
 [source,console]
 ----
-PUT /_snapshot/my_fs_backup
+PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
@@ -81,12 +104,11 @@ PUT /_snapshot/my_fs_backup
 ----
 // TEST[skip:no access to path]
 
-If you specify a relative path in `settings.location`, {es} resolves the path
-using the first value in the `path.repo` setting.
+include::register-fs-repo.asciidoc[tag=relative-path]
 
 [source,console]
 ----
-PUT /_snapshot/my_fs_backup
+PUT _snapshot/my_fs_backup
 {
   "type": "fs",
   "settings": {
@@ -100,4 +122,21 @@ PUT /_snapshot/my_fs_backup
 <1> The first value in the `path.repo` setting is `E:\Mount\Backups`. This
 relative path, `My_fs_backup_location`, resolves to
 `E:\Mount\Backups\My_fs_backup_location`.
+
+include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-cluster-repo]
+
+include::register-fs-repo.asciidoc[tag=fs-repo-read-only]
+
+[source,console]
+----
+PUT _snapshot/my_fs_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_fs_backup_location",
+    "readonly": true
+  }
+}
+----
+// TEST[skip:no access to path]
 // end::win[]

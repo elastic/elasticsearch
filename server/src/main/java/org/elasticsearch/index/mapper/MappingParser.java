@@ -112,7 +112,7 @@ public final class MappingParser {
             if (typeParser != null) {
                 iterator.remove();
                 if (false == fieldNode instanceof Map) {
-                    throw new IllegalArgumentException("[_parent] must be an object containing [type]");
+                    throw new IllegalArgumentException("[" + fieldName + "] config must be an object");
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;

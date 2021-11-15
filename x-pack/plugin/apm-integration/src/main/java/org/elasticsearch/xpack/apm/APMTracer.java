@@ -36,8 +36,8 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     @Override
     public void onTaskRegistered(Task task) {
         taskSpans.computeIfAbsent(task.getId(), taskId -> {
-            logger.info("creating span for task [{}]", taskId);
-            return () -> { logger.info("closing span for task [{}]", taskId); };
+            logger.debug("creating span for task [{}]", taskId);
+            return () -> { logger.debug("closing span for task [{}]", taskId); };
         });
     }
 

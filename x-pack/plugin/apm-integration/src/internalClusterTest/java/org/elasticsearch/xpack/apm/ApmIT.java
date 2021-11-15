@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskTracer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
@@ -36,6 +37,7 @@ public class ApmIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), APM.class);
     }
 
+    @TestLogging(reason="testing DEBUG logging", value="org.elasticsearch.xpack.apm:DEBUG")
     public void testModule() throws IllegalAccessException {
         List<TracingPlugin> plugins = internalCluster().getMasterNodeInstance(PluginsService.class).filterPlugins(TracingPlugin.class);
         assertThat(plugins, hasSize(1));
@@ -52,7 +54,7 @@ public class ApmIT extends ESIntegTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "register",
                 APMTracer.class.getName(),
-                Level.INFO,
+                Level.DEBUG,
                 "creating span for task [" + testTask.getId() + "]"
             )
         );
@@ -60,7 +62,7 @@ public class ApmIT extends ESIntegTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "unregister",
                 APMTracer.class.getName(),
-                Level.INFO,
+                Level.DEBUG,
                 "closing span for task [" + testTask.getId() + "]"
             )
         );

@@ -203,7 +203,7 @@ PUT _slm/policy/nightly-snapshots
 ----
 
 <1> When to take snapshots, written in <<schedule-cron,Cron syntax>>.
-<2> Snapshot name. Supports <<api-date-math-index-names,date math>>. To prevent
+<2> Snapshot name. Supports <<date-math-index-names,date math>>. To prevent
     naming conflicts, the policy also appends a UUID to each snapshot name.
 <3> <<snapshots-register-repository,Registered snapshot repository>> used to
     store the policy's snapshots.
@@ -283,7 +283,7 @@ set up your {slm-init} policy's retention rules to enforce this limit.
 
 To take a snapshot without an {slm-init} policy, use the
 <<create-snapshot-api,create snapshot API>>. The snapshot name supports
-<<api-date-math-index-names,date math>>.
+<<date-math-index-names,date math>>.
 
 [source,console]
 ----

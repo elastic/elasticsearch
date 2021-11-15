@@ -21,11 +21,14 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.PainlessUserTreeToIRTreePhase;
+import org.elasticsearch.painless.phase.QueryableExpressionCollectionPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
+import org.elasticsearch.painless.symbol.QueryableExpressionScope;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Method;
@@ -257,6 +260,27 @@ final class Compiler {
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
 
         return classNode.getBytes();
+    }
+
+    // TODO: this method is just here because I didn't knew where to best put the QueryableExpression. It should probably be returned with
+    // the `ScriptScope` from `compile`.
+    QueryableExpression compileQueryableExpression(String name, String source, CompilerSettings settings) {
+        String scriptName = Location.computeSourceName(name);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
+        SClass root = Walker.buildPainlessTree(scriptName, source, settings);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
+
+        QueryableExpressionScope qeScope = new QueryableExpressionScope();
+        new QueryableExpressionCollectionPhase().visitClass(classNode, qeScope);
+
+        return qeScope.result();
     }
 
     /**

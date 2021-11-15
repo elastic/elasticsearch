@@ -176,13 +176,25 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             .build();
         DocumentMapper mapper = createMapperService(
             s,
-            mapping(b -> b.startObject("@timestamp").field("type", randomBoolean() ? "date" : "date_nanos").endObject())
+            mapping(
+                b -> b.startObject("@timestamp")
+                    .field("type", randomBoolean() ? "date" : "date_nanos")
+                    .endObject()
+                    .startObject("foo")
+                    .field("type", "keyword")
+                    .field("time_series_dimension", true)
+            ).endObject()
         ).documentMapper();
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
                 "1",
                 BytesReference.bytes(
-                    XContentFactory.jsonBuilder().startObject().field("@timestamp", randomLongBetween(startTime, endTime)).endObject()
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("@timestamp", randomLongBetween(startTime, endTime))
+                        .field("foo", "bar")
+                        .endObject()
+
                 ),
                 XContentType.JSON
             )

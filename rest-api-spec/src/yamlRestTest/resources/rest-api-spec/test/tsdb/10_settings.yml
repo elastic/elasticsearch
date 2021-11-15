@@ -184,6 +184,13 @@ set start_time and end_time:
               time_series:
                 start_time: 1632625782000
                 end_time: 1632625792000
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
 
   - do:
       indices.put_settings:

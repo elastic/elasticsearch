@@ -45,11 +45,23 @@ public class SameShardAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
+    // For historical reason, default value is false, skip check host name check if host address exist
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME = Setting.boolSetting(
+        "cluster.routing.allocation.same_shard.host.always_check_host_name",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile boolean sameHost;
+
+    private volatile boolean alwaysCheckHostName;
 
     public SameShardAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.sameHost = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
+        this.alwaysCheckHostName = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME, this::setAlwaysCheckHostName);
     }
 
     /**
@@ -59,6 +71,10 @@ public class SameShardAllocationDecider extends AllocationDecider {
      */
     private void setSameHost(boolean sameHost) {
         this.sameHost = sameHost;
+    }
+
+    private void setAlwaysCheckHostName(boolean alwaysCheckHostName) {
+        this.alwaysCheckHostName = alwaysCheckHostName;
     }
 
     private static final Decision YES_NONE_HOLD_COPY = Decision.single(
@@ -93,13 +109,18 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 boolean checkNodeOnSameHostName = false;
                 boolean checkNodeOnSameHostAddress = false;
+                boolean addressExist = false;
                 if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
+                    addressExist = true;
                     if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
                         checkNodeOnSameHostAddress = true;
                     }
-                } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
-                    if (checkNode.node().getHostName().equals(node.node().getHostName())) {
-                        checkNodeOnSameHostName = true;
+                }
+                if (addressExist == false || alwaysCheckHostName) {
+                    if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
+                        if (checkNode.node().getHostName().equals(node.node().getHostName())) {
+                            checkNodeOnSameHostName = true;
+                        }
                     }
                 }
                 if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {

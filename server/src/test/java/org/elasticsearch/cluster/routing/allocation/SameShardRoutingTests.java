@@ -52,14 +52,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
         );
 
-        final Settings.Builder indexSettings = settings(Version.CURRENT);
-        if (randomBoolean()) {
-            indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
-        }
-
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(indexSettings).numberOfShards(2).numberOfReplicas(1))
-            .build();
+        Metadata metadata = initIndexMetadata();
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
@@ -68,37 +61,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
 
         logger.info("--> adding two nodes with the same host");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(
-                        new DiscoveryNode(
-                            "node1",
-                            "node1",
-                            "node1",
-                            "test1",
-                            "test1",
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            MASTER_DATA_ROLES,
-                            Version.CURRENT
-                        )
-                    )
-                    .add(
-                        new DiscoveryNode(
-                            "node2",
-                            "node2",
-                            "node2",
-                            "test1",
-                            "test1",
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            MASTER_DATA_ROLES,
-                            Version.CURRENT
-                        )
-                    )
-            )
-            .build();
+        clusterState = initTwoNodes(clusterState, "test1", "test1", "test1", "test1");
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
@@ -135,6 +98,144 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         for (ShardRouting shardRouting : shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)) {
             assertThat(shardRouting.currentNodeId(), equalTo("node3"));
         }
+    }
+
+    public void testSameHostNameDifferentHostAddressWithAlwaysCheckHostNameOff() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
+                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME.getKey(), false)
+                .build()
+        );
+
+        Metadata metadata = initIndexMetadata();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        logger.info(
+            "--> adding two nodes with the same host name and different host address. "
+                + "They are treated as different hosts when ALWAYS_CHECK_HOSTNAME is off"
+        );
+        clusterState = initTwoNodes(clusterState, "test1", "test1_1", "test1", "test1_2");
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+
+        logger.info("--> start all primary shards");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+        logger.info("--> all shards will be started");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(4));
+    }
+
+    public void testSameHostNameDifferentHostAddressWithAlwaysCheckHostNameOn() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
+                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME.getKey(), true)
+                .build()
+        );
+
+        Metadata metadata = initIndexMetadata();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        logger.info(
+            "--> adding two nodes with the same host name and different host address. "
+                + "They are treated as the same host when ALWAYS_CHECK_HOSTNAME is on"
+        );
+        clusterState = initTwoNodes(clusterState, "test1", "test1_1", "test1", "test1_2");
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+
+        logger.info("--> start all primary shards, no replica will be started since its on the same host");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(0));
+
+        logger.info("--> add another node, with a different host, replicas will be allocating");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder(clusterState.nodes())
+                    .add(
+                        new DiscoveryNode(
+                            "node3",
+                            "node3",
+                            "node3",
+                            "test2",
+                            "test2",
+                            buildNewFakeTransportAddress(),
+                            emptyMap(),
+                            MASTER_DATA_ROLES,
+                            Version.CURRENT
+                        )
+                    )
+            )
+            .build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+        for (ShardRouting shardRouting : shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)) {
+            assertThat(shardRouting.currentNodeId(), equalTo("node3"));
+        }
+    }
+
+    private Metadata initIndexMetadata() {
+        final Settings.Builder indexSettings = settings(Version.CURRENT);
+        if (randomBoolean()) {
+            indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
+        }
+
+        return Metadata.builder().put(IndexMetadata.builder("test").settings(indexSettings).numberOfShards(2).numberOfReplicas(1)).build();
+    }
+
+    private ClusterState initTwoNodes(ClusterState clusterState, String hostName1, String address1, String hostName2, String address2) {
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        new DiscoveryNode(
+                            "node1",
+                            "node1",
+                            "node1",
+                            hostName1,
+                            address1,
+                            buildNewFakeTransportAddress(),
+                            emptyMap(),
+                            MASTER_DATA_ROLES,
+                            Version.CURRENT
+                        )
+                    )
+                    .add(
+                        new DiscoveryNode(
+                            "node2",
+                            "node2",
+                            "node2",
+                            hostName2,
+                            address2,
+                            buildNewFakeTransportAddress(),
+                            emptyMap(),
+                            MASTER_DATA_ROLES,
+                            Version.CURRENT
+                        )
+                    )
+            )
+            .build();
+        return clusterState;
     }
 
     public void testSameHostCheckDisabledByAutoExpandReplicas() {

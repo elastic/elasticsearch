@@ -21,28 +21,20 @@ import java.util.stream.Stream;
 public class QueryableExpressionTests extends ScriptTestCase {
 
     public void testIntConst() {
-        QueryableExpression qe = qe("emit(100)");
-
-        assertEquals(qe.toString(), "100");
+        assertEquals("100", qe("emit(100)").toString());
     }
-    
-    public void testLongMathExpression() {
-        QueryableExpression qe = qe("emit(1l + 10l)");
 
-        assertEquals(qe.toString(), "11");
+    public void testLongMathExpression() {
+        assertEquals("11", qe("emit(1l + 10l)").toString());
     }
 
     @Ignore
     public void testFieldAccess() {
-        QueryableExpression qe = qe("emit(doc['a'].value)");
-
-        assertEquals(qe.toString(), "a");
+        assertEquals("a", qe("emit(doc['a'].value)").toString());
     }
 
     public void testComplexStatement() {
-        QueryableExpression qe = qe("for(int i = 0; i < 10; i++) { emit(1l) }");
-
-        assertEquals(qe, QueryableExpression.UNQUERYABLE);
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("for(int i = 0; i < 10; i++) { emit(1l) }"));
     }
 
     private QueryableExpression qe(String script) {

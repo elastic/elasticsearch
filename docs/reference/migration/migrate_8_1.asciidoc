@@ -11,6 +11,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[8.1.0]
 
+////
 [discrete]
 [[breaking-changes-8.1]]
 === Breaking changes
@@ -32,7 +33,8 @@ enable <<deprecation-logging, deprecation logging>>.
 
 //tag::notable-breaking-changes[]
 
-// end::notable-breaking-changes[]
+//end::notable-breaking-changes[]
+////
 
 [discrete]
 [[deprecated-8.1]]
@@ -48,6 +50,8 @@ NOTE: Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
+//tag::notable-breaking-changes[]
 
 [discrete]
 [[breaking_8.1_cluster_node_setting_deprecations]]
@@ -86,3 +90,4 @@ actions.
 Ensure that bulk actions are well-formed JSON objects containing a single entry
 with the correct key.
 ====
+//end::notable-breaking-changes[]

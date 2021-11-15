@@ -147,6 +147,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -725,6 +726,12 @@ public class Node implements Closeable {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
+
+            final TracingPlugin.Tracer tracer = (TracingPlugin.Tracer) pluginComponents.stream()
+                .filter(c -> c instanceof TracingPlugin.Tracer)
+                .findFirst()
+                .orElse(null);
+
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -966,6 +973,7 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
+                b.bind(TracingPlugin.Tracer.class).toInstance(tracer);
             });
             injector = modules.createInjector();
 

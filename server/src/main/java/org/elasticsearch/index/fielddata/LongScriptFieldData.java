@@ -61,7 +61,7 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public ValuesSourceType getValuesSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

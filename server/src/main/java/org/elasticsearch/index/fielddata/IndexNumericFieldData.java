@@ -39,15 +39,15 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      */
     public enum NumericType {
         BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.LONG),
+        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.LONG),
+        INT(false, SortField.Type.LONG, CoreValuesSourceType.LONG),
+        LONG(false, SortField.Type.LONG, CoreValuesSourceType.LONG),
         DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
         DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
-        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
+        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.DOUBLE),
+        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.DOUBLE),
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.DOUBLE);
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;

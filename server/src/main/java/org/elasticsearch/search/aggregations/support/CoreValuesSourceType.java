@@ -44,7 +44,7 @@ import java.util.function.Function;
  */
 public enum CoreValuesSourceType implements ValuesSourceType {
 
-    NUMERIC() {
+    DOUBLE() {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.Numeric.EMPTY;
@@ -52,7 +52,67 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return new ValuesSource.Numeric.Script(script, scriptValueType);
+            return new ValuesSource.Numeric.Script(script, true);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+
+            if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
+                throw new IllegalArgumentException(
+                    "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
+            }
+
+            ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
+            if (script != null) {
+                // Value script case
+                dataSource = new ValuesSource.Numeric.WithScript(dataSource, script);
+            }
+            return dataSource;
+        }
+
+        @Override
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
+            Number missing;
+            if (rawMissing instanceof Number) {
+                missing = (Number) rawMissing;
+            } else {
+                missing = docValueFormat.parseDouble(rawMissing.toString(), false, context::nowInMillis);
+            }
+            return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
+        }
+
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            /* TODO: this silently ignores a timezone argument, whereas NumberFieldType#docValueFormat throws if given a time zone.
+                     Before we can solve this, we need to resolve https://github.com/elastic/elasticsearch/issues/47469 which deals
+                     with the fact that the same formatter is used for input and output values.  We want to support a use case in SQL
+                     (and elsewhere) that allows for passing a long value milliseconds since epoch into date aggregations.  In that case,
+                     the timezone is sensible as part of the bucket key format.
+             */
+            if (format == null) {
+                return DocValueFormat.RAW;
+            } else {
+                return new DocValueFormat.Decimal(format);
+            }
+
+        }
+    },
+    LONG() {
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.Numeric.EMPTY;
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return new ValuesSource.Numeric.Script(script, false);
         }
 
         @Override
@@ -251,12 +311,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     DATE() {
         @Override
         public ValuesSource getEmpty() {
-            return NUMERIC.getEmpty();
+            return DOUBLE.getEmpty();
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return NUMERIC.getScript(script, scriptValueType);
+            return DOUBLE.getScript(script, scriptValueType);
         }
 
         @Override
@@ -355,7 +415,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             DocValueFormat docValueFormat,
             AggregationContext context
         ) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return DOUBLE.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
         @Override
@@ -372,17 +432,17 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     BOOLEAN() {
         @Override
         public ValuesSource getEmpty() {
-            return NUMERIC.getEmpty();
+            return DOUBLE.getEmpty();
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return NUMERIC.getScript(script, scriptValueType);
+            return DOUBLE.getScript(script, scriptValueType);
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            return NUMERIC.getField(fieldContext, script, context);
+            return DOUBLE.getField(fieldContext, script, context);
         }
 
         @Override
@@ -392,7 +452,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             DocValueFormat docValueFormat,
             AggregationContext context
         ) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return DOUBLE.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
         @Override

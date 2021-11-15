@@ -25,7 +25,8 @@ import static org.mockito.Mockito.verify;
 public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
 
     public void testFromString() {
-        assertThat(CoreValuesSourceType.fromString("numeric"), equalTo(CoreValuesSourceType.NUMERIC));
+        assertThat(CoreValuesSourceType.fromString("double"), equalTo(CoreValuesSourceType.DOUBLE));
+        assertThat(CoreValuesSourceType.fromString("long"), equalTo(CoreValuesSourceType.LONG));
         assertThat(CoreValuesSourceType.fromString("keyword"), equalTo(CoreValuesSourceType.KEYWORD));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));
         assertThat(CoreValuesSourceType.fromString("range"), equalTo(CoreValuesSourceType.RANGE));

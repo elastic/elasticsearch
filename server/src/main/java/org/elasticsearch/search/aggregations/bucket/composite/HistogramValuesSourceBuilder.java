@@ -68,7 +68,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG),
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
@@ -166,7 +166,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     @Override
     protected ValuesSourceType getDefaultValuesSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

@@ -83,7 +83,7 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

@@ -55,7 +55,12 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateRangeAggregationBuilder.class);
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE), RangeAggregator::build, true);
+        builder.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.DATE),
+            RangeAggregator::build,
+            true
+        );
 
         builder.register(
             REGISTRY_KEY,

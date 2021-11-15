@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -45,7 +46,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.NUMERIC,
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG),
             MedianAbsoluteDeviationAggregator::new,
             true
         );

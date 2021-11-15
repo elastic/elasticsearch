@@ -69,7 +69,7 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     /**

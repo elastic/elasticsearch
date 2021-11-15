@@ -58,7 +58,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.Single
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

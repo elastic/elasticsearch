@@ -50,7 +50,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     public static void registerUsage(ValuesSourceRegistry.Builder builder) {
-        builder.registerUsage(NAME, CoreValuesSourceType.NUMERIC);
+        builder.registerUsage(NAME, CoreValuesSourceType.DOUBLE);
     }
 
     public WeightedAvgAggregationBuilder(String name) {
@@ -87,7 +87,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

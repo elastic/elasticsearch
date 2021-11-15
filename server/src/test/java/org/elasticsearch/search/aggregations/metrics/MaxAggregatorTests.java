@@ -153,7 +153,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE);
+        return List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE);
     }
 
     @Override

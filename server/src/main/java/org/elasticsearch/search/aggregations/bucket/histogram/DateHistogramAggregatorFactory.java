@@ -32,7 +32,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             DateHistogramAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG),
             DateHistogramAggregator::build,
             true
         );

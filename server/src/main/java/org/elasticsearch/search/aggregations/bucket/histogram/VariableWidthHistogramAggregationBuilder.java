@@ -84,7 +84,7 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     public VariableWidthHistogramAggregationBuilder setNumBuckets(int numBuckets) {

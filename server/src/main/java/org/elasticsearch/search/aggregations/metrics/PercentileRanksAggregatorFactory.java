@@ -32,7 +32,7 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             PercentileRanksAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> percentilesConfig
                 .createPercentileRanksAggregator(name, valuesSource, context, parent, percents, keyed, formatter, metadata),
             true

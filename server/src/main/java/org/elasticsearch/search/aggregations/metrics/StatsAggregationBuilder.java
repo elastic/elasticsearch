@@ -77,7 +77,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Metr
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     @Override

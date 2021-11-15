@@ -29,7 +29,7 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             MaxAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             MaxAggregator::new,
             true
         );

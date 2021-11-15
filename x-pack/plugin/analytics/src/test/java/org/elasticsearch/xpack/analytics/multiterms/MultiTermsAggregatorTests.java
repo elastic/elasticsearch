@@ -90,7 +90,8 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
-            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DOUBLE,
+            CoreValuesSourceType.LONG,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
             CoreValuesSourceType.KEYWORD,

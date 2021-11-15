@@ -150,7 +150,8 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
-            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DOUBLE,
+            CoreValuesSourceType.LONG,
             CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,

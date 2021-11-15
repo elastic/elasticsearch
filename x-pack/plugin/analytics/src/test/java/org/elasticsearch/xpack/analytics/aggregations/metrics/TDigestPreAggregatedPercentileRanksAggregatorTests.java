@@ -54,7 +54,8 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
         return List.of(
-            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DOUBLE,
+            CoreValuesSourceType.LONG,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
             AnalyticsValuesSourceType.HISTOGRAM

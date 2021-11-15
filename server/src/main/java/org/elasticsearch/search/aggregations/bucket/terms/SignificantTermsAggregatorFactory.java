@@ -48,7 +48,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         builder.register(
             SignificantTermsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.LONG, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DOUBLE),
             SignificantTermsAggregatorFactory.numericSupplier(),
             true
         );

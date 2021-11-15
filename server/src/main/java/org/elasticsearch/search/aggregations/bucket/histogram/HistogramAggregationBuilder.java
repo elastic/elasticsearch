@@ -103,7 +103,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.DOUBLE;
     }
 
     /** Create a new builder with the given name. */

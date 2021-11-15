@@ -17,6 +17,8 @@
  */
 package org.elasticsearch.xpack.ml.aggs.heuristic;
 
+import org.apache.commons.math3.exception.OutOfRangeException;
+import org.apache.commons.math3.special.Beta;
 import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
 import org.apache.commons.math3.util.MathUtils;
@@ -92,6 +94,68 @@ public class LongBinomialDistribution {
             ret = logBinomialProbability(x, numberOfTrials, probabilityOfSuccess, 1.0 - probabilityOfSuccess);
         }
         return ret;
+    }
+
+    public long inverseCumulativeProbability(final double p) throws OutOfRangeException {
+        if (p < 0.0 || p > 1.0) {
+            throw new OutOfRangeException(p, 0, 1);
+        }
+
+        long lower = -1;
+        long upper = numberOfTrials;
+
+        // use the one-sided Chebyshev inequality to narrow the bracket
+        // cf. AbstractRealDistribution.inverseCumulativeProbability(double)
+        final double mu = numberOfTrials * probabilityOfSuccess;
+        final double sigma = FastMath.sqrt(numberOfTrials * probabilityOfSuccess * (1 - probabilityOfSuccess));
+        double k = FastMath.sqrt((1.0 - p) / p);
+        double tmp = mu - k * sigma;
+        if (tmp > lower) {
+            lower = ((int) FastMath.ceil(tmp)) - 1;
+        }
+        k = 1.0 / k;
+        tmp = mu + k * sigma;
+        if (tmp < upper) {
+            upper = ((int) FastMath.ceil(tmp)) - 1;
+        }
+        return solveInverseCumulativeProbability(p, lower, upper);
+    }
+
+    public double cumulativeProbability(long x) {
+        double ret;
+        if (x < 0) {
+            ret = 0.0;
+        } else if (x >= numberOfTrials) {
+            ret = 1.0;
+        } else {
+            ret = 1.0 - Beta.regularizedBeta(probabilityOfSuccess, x + 1.0, numberOfTrials - x);
+        }
+        return ret;
+    }
+
+    protected long solveInverseCumulativeProbability(final double p, long lower, long upper) {
+        while (lower + 1 < upper) {
+            long xm = (lower + upper) / 2;
+            if (xm < lower || xm > upper) {
+                /*
+                 * Overflow.
+                 * There will never be an overflow in both calculation methods
+                 * for xm at the same time
+                 */
+                xm = lower + (upper - lower) / 2;
+            }
+
+            double pm = cumulativeProbability(xm);
+            if (Double.isNaN(pm)) {
+                throw new IllegalStateException("cdf of binomial distrib threw NaN");
+            }
+            if (pm >= p) {
+                upper = xm;
+            } else {
+                lower = xm;
+            }
+        }
+        return upper;
     }
 
     /**

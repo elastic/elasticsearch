@@ -71,6 +71,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -266,8 +267,11 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAllocationSt
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.aggs.betterrandom.RandomSamplerAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
+import org.elasticsearch.xpack.ml.aggs.confidence.ConfidenceAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.confidence.InternalConfidenceAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -339,6 +343,7 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.randomsampling.RandomSamplingQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestSetUpgradeModeAction;
@@ -1392,7 +1397,26 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
+            new AggregationSpec(ConfidenceAggregationBuilder.NAME, ConfidenceAggregationBuilder::new, ConfidenceAggregationBuilder.PARSER)
+                .addResultReader(InternalConfidenceAggregation::new)
+                .setAggregatorRegistrar(s -> s.registerUsage(ConfidenceAggregationBuilder.NAME)),
+            new AggregationSpec(
+                RandomSamplerAggregationBuilder.NAME,
+                RandomSamplerAggregationBuilder::new,
+                RandomSamplerAggregationBuilder.PARSER
+            ).addResultReader(InternalSampler::new).setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME))
+        );
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return List.of(
+            new QuerySpec<>(
+                RandomSamplingQueryBuilder.NAME,
+                RandomSamplingQueryBuilder::new,
+                p -> RandomSamplingQueryBuilder.PARSER.parse(p, null)
+            )
         );
     }
 

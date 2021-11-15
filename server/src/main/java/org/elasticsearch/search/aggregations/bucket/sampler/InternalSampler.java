@@ -19,7 +19,7 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     // InternalSampler and UnmappedSampler share the same parser name, so we use this when identifying the aggregation type
     public static final String PARSER_NAME = "sampler";
 
-    InternalSampler(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
+    public InternalSampler(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
         super(name, docCount, subAggregations, metadata);
     }
 

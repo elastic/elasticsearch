@@ -54,7 +54,7 @@ public class TemporaryDirectoryConfigTests extends PackagingTestCase {
         sh.getEnv().put("LIBFFI_TMPDIR", tmpDir.toString());
         withLibffiTmpdir(
             tmpDir.toString(),
-            confPath -> assertWhileRunning(() -> ServerUtils.makeRequest(Request.Get("https://localhost:9200/")))
+            confPath -> assertWhileRunning(() -> ServerUtils.makeRequest(Request.Get("http://localhost:9200/")))
         ); // just checking it doesn't throw
     }
 

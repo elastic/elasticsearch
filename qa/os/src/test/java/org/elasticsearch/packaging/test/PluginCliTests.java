@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;

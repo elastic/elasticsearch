@@ -62,8 +62,6 @@ enable <<deprecation-logging, deprecation logging>>.
 [[breaking_80_cluster_node_setting_deprecations]]
 ==== Cluster and node setting deprecations
 
-TIP: {ess-setting-change}
-
 [[deprecate-transient-cluster-settings]]
 .Transient cluster settings are deprecated.
 [%collapsible]

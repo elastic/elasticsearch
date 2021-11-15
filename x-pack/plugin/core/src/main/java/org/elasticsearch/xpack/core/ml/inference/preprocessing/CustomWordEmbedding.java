@@ -257,7 +257,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         text = FeatureUtils.cleanAndLowerText(text);
         text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
         final String finalText = text;
-        if (finalText.isEmpty() || finalText.isBlank()) {
+        if (finalText.isEmpty() || finalText.codePoints().allMatch(Character::isWhitespace)) {
             fields.put(
                 destField,
                 Collections.singletonList(

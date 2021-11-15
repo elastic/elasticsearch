@@ -9,15 +9,7 @@ Also see <<breaking-changes-7.12,Breaking changes in 7.12>>.
 
 include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[enhancement-7.12.1]]
 [float]
@@ -163,15 +155,7 @@ For more details, see {es-issue}79371[#79371].
   sizes may increase much higher than required. Elasticsearch 7.13.0 contains a fix for this.
   For more details, see {es-issue}72509[#72509]
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[breaking-7.12.0]]
 [float]

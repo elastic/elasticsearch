@@ -19,7 +19,7 @@ subprojects {
   targetCompatibility = 11
 
   repositories {
-    if (gradle.includedBuilds == false) {
+    if (!gradle.includedBuilds) {
       // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
       maven {
         url = 'https://snapshots.elastic.co/maven/'

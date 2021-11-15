@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
@@ -58,6 +59,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        ServerUtils.disableSecurityFeatures(installation);
         setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
@@ -147,10 +149,10 @@ public class PluginCliTests extends PackagingTestCase {
         try {
             Files.writeString(installation.config("elasticsearch-plugins.yml"), "content doesn't matter for this test");
             Shell.Result result = runElasticsearchStartCommand(null, false, true);
-            assertThat(result.isSuccess(), equalTo(false));
-            assertThat(
-                FileUtils.slurp(installation.logs.resolve("elasticsearch.log")),
-                containsString("Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]")
+            assertElasticsearchFailure(
+                result,
+                "Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]",
+                null
             );
         } finally {
             FileUtils.rm(installation.config("elasticsearch-plugins.yml"));

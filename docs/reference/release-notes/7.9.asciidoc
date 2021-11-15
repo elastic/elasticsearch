@@ -16,15 +16,7 @@ with a `NOT IN` operator.
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[bug-7.9.3]]
 [float]
@@ -104,15 +96,7 @@ with a `NOT IN` operator.
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[deprecation-7.9.2]]
 [float]
@@ -223,15 +207,7 @@ with a `NOT IN` operator.
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[feature-7.9.1]]
 [float]
@@ -390,15 +366,30 @@ with a `NOT IN` operator.
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
+// tag::snapshot-repo-corruption-73456-known-issue[]
 * Snapshot and restore: If an index is deleted while the cluster is
 concurrently taking more than one snapshot then there is a risk that one of the
 snapshots may never complete and also that some shard data may be lost from the
 repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
+problem, set `snapshot.max_concurrent_operations: 1` to prevent concurrent
+snapshot operations:
 +
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "snapshot.max_concurrent_operations" : 1
+  }
+}
+----
++
+This issue is fixed in {es} versions 7.13.1 and later. It is not possible to
+repair a repository once it is affected by this issue, so you must restore the
+repository from a backup, or clear the repository by executing
+`DELETE _snapshot/<repository name>/*`, or move to a fresh repository. For more
+details, see {es-issue}73456[#73456].
+// end::snapshot-repo-corruption-73456-known-issue[]
 
 [[breaking-7.9.0]]
 [discrete]

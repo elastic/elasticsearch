@@ -33,7 +33,7 @@ public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
         super(script, fieldName, approximation, leafFactory);
         this.lowerValue = lowerValue;
         this.upperValue = upperValue;
-        assert lowerValue <= upperValue;
+        assert lowerValue <= upperValue : lowerValue + " <= " + upperValue;
     }
 
     @Override

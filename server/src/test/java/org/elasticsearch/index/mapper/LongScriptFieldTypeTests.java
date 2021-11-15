@@ -41,8 +41,8 @@ import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.DelayedQueryableExpression;
 import org.elasticsearch.queryableexpression.LongQueryableExpression;
-import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.LongFieldScript.LeafFactory;
@@ -58,7 +58,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -776,8 +775,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").add(LongQueryableExpression.constant(5L));
+                    public DelayedQueryableExpression emitExpression() {
+                        return (lookup, params) -> lookup.apply("foo").add(LongQueryableExpression.constant(5L));
                     }
                 };
             case "foo_times_ten":
@@ -795,8 +794,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").multiply(LongQueryableExpression.constant(10L));
+                    public DelayedQueryableExpression emitExpression() {
+                        return (lookup, params) -> lookup.apply("foo").multiply(LongQueryableExpression.constant(10L));
                     }
                 };
             case "foo_times_negative_two":
@@ -814,8 +813,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").multiply(LongQueryableExpression.constant(-2L));
+                    public DelayedQueryableExpression emitExpression() {
+                        return (lookup, params) -> lookup.apply("foo").multiply(LongQueryableExpression.constant(-2L));
                     }
                 };
             case "foo_divided_by_ten":
@@ -833,8 +832,8 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
-                        return lookup.apply("foo").divide(LongQueryableExpression.constant(10L));
+                    public DelayedQueryableExpression emitExpression() {
+                        return (lookup, params) -> lookup.apply("foo").divide(LongQueryableExpression.constant(10L));
                     }
                 };
             case "add_param":

@@ -451,6 +451,20 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         public String toString() {
             return Long.toString(n);
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            Constant other = (Constant) obj;
+            return n == other.n;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(n);
+        }
     }
 
     abstract static class Chain extends AbstractLongQueryableExpression {

@@ -280,7 +280,7 @@ final class Compiler {
         QueryableExpressionScope qeScope = new QueryableExpressionScope();
         new QueryableExpressionCollectionPhase().visitClass(classNode, qeScope);
 
-        return qeScope.result();
+        return qeScope.result().undelay(null, null);
     }
 
     /**

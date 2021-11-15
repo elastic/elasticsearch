@@ -17,6 +17,13 @@ public interface QueryableExpression {
      */
     QueryableExpression UNQUERYABLE = UnqueryableExpression.UNQUERYABLE;
 
+    static QueryableExpression constant(Object c) {
+        if (c instanceof Long) {
+            return LongQueryableExpression.constant((Long) c);
+        }
+        return UNQUERYABLE;
+    }
+
     QueryableExpression add(QueryableExpression rhs);
 
     QueryableExpression multiply(QueryableExpression rhs);

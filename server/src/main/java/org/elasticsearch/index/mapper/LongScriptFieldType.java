@@ -102,7 +102,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
             @Override
             public QueryableExpression queryableExpression(Function<String, QueryableExpression> lookup) {
-                return scriptFactory.emitExpression(lookup, script.getParams());
+                return scriptFactory.emitExpression().undelay(lookup, script.getParams());
             }
         }, script, scriptFactory.isResultDeterministic(), meta);
         this.approximateFirst = approximateFirst;

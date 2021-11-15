@@ -8,7 +8,7 @@
 
 package org.elasticsearch.painless.symbol;
 
-import org.elasticsearch.queryableexpression.QueryableExpression;
+import org.elasticsearch.queryableexpression.DelayedQueryableExpression;
 
 import java.util.Stack;
 import java.util.function.BiFunction;
@@ -17,17 +17,17 @@ import java.util.function.BiFunction;
  * Tracks information for building the QueryableExpression of a script.
  */
 public class QueryableExpressionScope {
-    private Stack<QueryableExpression> expressionStack;
+    private final Stack<DelayedQueryableExpression> expressionStack;
 
     public QueryableExpressionScope() {
         this.expressionStack = new Stack<>();
     }
 
-    public void push(QueryableExpression expression) {
+    public void push(DelayedQueryableExpression expression) {
         this.expressionStack.push(expression);
     }
 
-    public void consume(BiFunction<QueryableExpression, QueryableExpression, QueryableExpression> fn) {
+    public void consume(BiFunction<DelayedQueryableExpression, DelayedQueryableExpression, DelayedQueryableExpression> fn) {
         if (expressionStack.size() >= 2) {
             push(fn.apply(expressionStack.pop(), expressionStack.pop()));
         } else {
@@ -36,15 +36,15 @@ public class QueryableExpressionScope {
     }
 
     public void unqueryable() {
-        this.expressionStack = new Stack<>();
-        this.expressionStack.push(QueryableExpression.UNQUERYABLE);
+        this.expressionStack.clear();
+        this.expressionStack.push(DelayedQueryableExpression.UNQUERYABLE);
     }
 
-    public QueryableExpression result() {
+    public DelayedQueryableExpression result() {
         if (this.expressionStack.size() == 1) {
             return this.expressionStack.pop();
         } else {
-            return QueryableExpression.UNQUERYABLE;
+            return DelayedQueryableExpression.UNQUERYABLE;
         }
     }
 }

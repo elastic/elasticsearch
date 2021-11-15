@@ -8,6 +8,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -75,7 +76,7 @@ public class PluginCliTests extends PackagingTestCase {
         // Packaged installation don't get autoconfigured yet
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
-                final String pluginsResponse = makeRequest("https://localhost:9200/_cat/plugins?h=component").strip();
+                final String pluginsResponse = makeRequest("http://localhost:9200/_cat/plugins?h=component").strip();
                 assertThat(pluginsResponse, equalTo(EXAMPLE_PLUGIN_NAME));
             });
         });

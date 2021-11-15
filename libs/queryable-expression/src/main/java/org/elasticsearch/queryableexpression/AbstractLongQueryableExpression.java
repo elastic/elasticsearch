@@ -313,10 +313,7 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
              * everything rounds towards it.
              */
             if (term == 0) {
-                if (n < 0) {
-                    return next.approximateRangeQuery(n + 1, -(n + 1));
-                }
-                return next.approximateRangeQuery(-(n - 1), n - 1);
+                return next.approximateRangeQuery(-extraMagnitude(), extraMagnitude());
             }
             long precise = term * n;
             if (precise / n != term) {

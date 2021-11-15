@@ -43,6 +43,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
     private final ObjectObjectHashMap<KType, VType> map;
 
+    /**
+     * Holds cached entrySet().
+     */
+    private Set<Map.Entry<KType, VType>> entrySet;
+
     private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
         this.map = map;
     }
@@ -110,6 +115,100 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     @Override
     public Iterator<ObjectObjectCursor<KType, VType>> iterator() {
         return map.iterator();
+    }
+
+    public Set<Map.Entry<KType, VType>> entrySet() {
+        Set<Map.Entry<KType,VType>> es;
+        return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
+    }
+
+    private final class ImmutableEntry implements Map.Entry<KType, VType> {
+        private final KType key;
+        private final VType value;
+
+        ImmutableEntry(KType key, VType value) {
+            this.key = key;
+            this.value = value;
+        }
+        @Override
+        public KType getKey() {
+            return key;
+        }
+
+        @Override
+        public VType getValue() {
+            return value;
+        }
+
+        @Override
+        public VType setValue(VType value) {
+            throw new UnsupportedOperationException("collection is immutable");
+        }
+    }
+
+    private final class ConversionIterator implements Iterator<Map.Entry<KType, VType>> {
+
+        private final Iterator<ObjectObjectCursor<KType, VType>> original;
+
+        ConversionIterator() {
+            this.original = map.iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return original.hasNext();
+        }
+
+        @Override
+        public Map.Entry<KType, VType> next() {
+            final ObjectObjectCursor<KType, VType> obj = original.next();
+            if (obj == null) {
+                return null;
+            }
+            return new ImmutableEntry(obj.key, obj.value);
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("removal is unsupported");
+        }
+    }
+
+    private final class EntrySet extends AbstractSet<Map.Entry<KType, VType>> {
+        public int size() {
+            return map.size();
+        }
+
+        public void clear() {
+            map.clear();
+        }
+
+        public Iterator<Map.Entry<KType, VType>> iterator() {
+            return new ConversionIterator();
+        }
+
+        public boolean contains(Object o) {
+            if (o instanceof Map.Entry<?, ?> == false) {
+                return false;
+            }
+            Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+            Object key = e.getKey();
+            return map.containsKey((KType) key);
+        }
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+
+        public Spliterator<Map.Entry<KType, VType>> spliterator() {
+            return Spliterators.spliteratorUnknownSize(iterator(), 0);
+        }
+
+        public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
+            map.forEach((Consumer<? super ObjectObjectCursor<KType, VType>>) ooCursor -> {
+                ImmutableEntry entry = new ImmutableEntry(ooCursor.key, ooCursor.value);
+                action.accept(entry);
+            });
+        }
     }
 
     /**

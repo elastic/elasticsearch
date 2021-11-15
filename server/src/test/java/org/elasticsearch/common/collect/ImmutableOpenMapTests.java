@@ -129,6 +129,26 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertThat(collectedViaStream, equalTo(collectedIteratively));
     }
 
+    public void testEntrySet() {
+        ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
+
+        ImmutableOpenMap.Builder<Long, String> builder1 = ImmutableOpenMap.builder(map.size());
+        map.entrySet().forEach(entry -> builder1.put(entry.getKey(), entry.getValue()));
+
+        ImmutableOpenMap.Builder<Long, String> builder2 = ImmutableOpenMap.builder(map.size());
+        map.entrySet().stream().forEach(entry -> builder2.put(entry.getKey(), entry.getValue()));
+
+        Map<Long, String> hMap = new HashMap<>(map.size());
+        map.entrySet().forEach(entry -> hMap.put(entry.getKey(), entry.getValue()));
+
+        ImmutableOpenMap.Builder<Long, String> builder3 = ImmutableOpenMap.builder(map.size());
+        builder3.putAll(hMap);
+
+        assertThat("forEach should match", map, equalTo(builder1.build()));
+        assertThat("forEach on a stream should match", map, equalTo(builder2.build()));
+        assertThat("hashmap should match", map, equalTo(builder3.build()));
+    }
+
     public void testEmptyKeySetWorks() {
         assertThat(ImmutableOpenMap.of().keySet().size(), equalTo(0));
     }

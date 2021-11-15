@@ -148,7 +148,7 @@ public class PluginCliTests extends PackagingTestCase {
     public void test32FailsToStartWhenPluginsConfigExists() throws Exception {
         try {
             Files.writeString(installation.config("elasticsearch-plugins.yml"), "content doesn't matter for this test");
-            Shell.Result result = runElasticsearchStartCommand(null, false, true);
+            Shell.Result result = runElasticsearchStartCommand(null, false, false);
             assertElasticsearchFailure(
                 result,
                 "Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]",

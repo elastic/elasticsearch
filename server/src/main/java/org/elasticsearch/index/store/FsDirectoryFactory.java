@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
@@ -34,10 +33,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_DIRECT_IO_DEFAULT_MERGE_BUFFER_SIZE_SETTING;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_DIRECT_IO_DEFAULT_MIN_BYTES_DIRECT_SETTING;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_USE_DIRECT_IO_SETTING;
-
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
@@ -57,13 +52,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         final LockFactory lockFactory = indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING);
         Files.createDirectories(location);
         Directory directory = newFSDirectory(location, lockFactory, indexSettings);
-        if (indexSettings.getValue(INDEX_STORE_USE_DIRECT_IO_SETTING)) {
-            assert directory instanceof FSDirectory;
-            return new DirectIODirectory(
-                (FSDirectory) directory,
-                Math.toIntExact(indexSettings.getValue(INDEX_STORE_DIRECT_IO_DEFAULT_MERGE_BUFFER_SIZE_SETTING).getBytes()),
-                indexSettings.getValue(INDEX_STORE_DIRECT_IO_DEFAULT_MIN_BYTES_DIRECT_SETTING).getBytes()
-            );
+        if (directory instanceof FSDirectory) {
+            return new ESDirectIODirectory((FSDirectory) directory, indexSettings);
         }
         return directory;
     }

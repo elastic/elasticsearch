@@ -3425,6 +3425,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }
 
+    public static final IOContext SNAPSHOT_IO_CONTEXT = new IOContext(IOContext.READONCE, true);
+
     /**
      * Snapshot individual file
      * @param fileInfo file to be snapshotted
@@ -3439,7 +3441,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
-        try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
+        try (IndexInput indexInput = store.openVerifyingInput(file, SNAPSHOT_IO_CONTEXT, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 

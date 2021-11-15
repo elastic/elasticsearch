@@ -103,8 +103,15 @@ public final class IndexModule {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> INDEX_STORE_USE_DIRECT_IO_SETTING = Setting.boolSetting(
-        "index.store.use_direct_io",
+    public static final Setting<Boolean> INDEX_STORE_USE_DIRECT_IO_FOR_MERGES_SETTING = Setting.boolSetting(
+        "index.store.direct_io.enabled_for_merges",
+        false,
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> INDEX_STORE_USE_DIRECT_IO_FOR_SNAPSHOTS_SETTING = Setting.boolSetting(
+        "index.store.direct_io.enabled_for_snapshots",
         false,
         Property.IndexScope,
         Property.NodeScope

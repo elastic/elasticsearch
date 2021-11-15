@@ -27,17 +27,17 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-include::migrate_8_0/_cluster-node-setting-changes.asciidoc[]
-include::migrate_8_0/_command-line-tool-changes.asciidoc[]
-include::migrate_8_0/_index-setting-changes.asciidoc[]
-include::migrate_8_0/_java-api-changes.asciidoc[]
-include::migrate_8_0/_jvm-option-changes.asciidoc[]
-include::migrate_8_0/_logging-changes.asciidoc[]
-include::migrate_8_0/_mapping-changes.asciidoc[]
-include::migrate_8_0/_packaging-changes.asciidoc[]
-include::migrate_8_0/_painless-changes.asciidoc[]
-include::migrate_8_0/_rest-api-changes.asciidoc[]
-include::migrate_8_0/_system-req-changes.asciidoc[]
+include::migrate_8_0/cluster-node-setting-changes.asciidoc[]
+include::migrate_8_0/command-line-tool-changes.asciidoc[]
+include::migrate_8_0/index-setting-changes.asciidoc[]
+include::migrate_8_0/java-api-changes.asciidoc[]
+include::migrate_8_0/jvm-option-changes.asciidoc[]
+include::migrate_8_0/logging-changes.asciidoc[]
+include::migrate_8_0/mapping-changes.asciidoc[]
+include::migrate_8_0/packaging-changes.asciidoc[]
+include::migrate_8_0/painless-changes.asciidoc[]
+include::migrate_8_0/rest-api-changes.asciidoc[]
+include::migrate_8_0/system-req-changes.asciidoc[]
 include::migrate_8_0/transform.asciidoc[]
 
 [discrete]

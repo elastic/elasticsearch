@@ -1,9 +1,6 @@
 [[breaking-changes]]
 = Migration guide
 
-:ess-setting-change: {ess-icon} indicates a change to a supported {cloud}/ec-add-user-settings.html[user setting] for {ess}.
-:ess-skip-section: If you use {ess}, skip this section. {ess} handles these changes for you.
-
 This section discusses the changes that you need to be aware of to migrate
 your application to {version}. For more information about what's new in this
 release, see the <<release-highlights>> and <<es-release-notes>>.

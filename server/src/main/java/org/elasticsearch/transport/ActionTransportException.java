@@ -8,69 +8,56 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 
 /**
  * An action invocation failure.
- *
- *
  */
 public class ActionTransportException extends TransportException {
 
-    private final TransportAddress address;
-
-    private final String action;
-
     public ActionTransportException(StreamInput in) throws IOException {
         super(in);
-        address = in.readOptionalWriteable(TransportAddress::new);
-        action = in.readOptionalString();
+        if (in.getVersion().before(Version.V_8_1_0)) {
+            in.readOptionalWriteable(TransportAddress::new);
+            in.readOptionalString();
+        }
     }
 
     public ActionTransportException(String name, TransportAddress address, String action, Throwable cause) {
-        super(buildMessage(name, address, action, null), cause);
-        this.address = address;
-        this.action = action;
+        this(name, address, action, null, cause);
     }
 
     public ActionTransportException(String name, TransportAddress address, String action, String msg, Throwable cause) {
+        this(name, address == null ? null : address.address(), action, msg, cause);
+    }
+
+    public ActionTransportException(String name, InetSocketAddress address, String action, String msg, Throwable cause) {
         super(buildMessage(name, address, action, msg), cause);
-        this.address = address;
-        this.action = action;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalWriteable(address);
-        out.writeOptionalString(action);
+        if (out.getVersion().before(Version.V_8_1_0)) {
+            out.writeBoolean(false); // optional transport address
+            out.writeBoolean(false); // optional action
+        }
     }
 
-    /**
-     * The target address to invoke the action on.
-     */
-    public TransportAddress address() {
-        return address;
-    }
-
-    /**
-     * The action to invoke.
-     */
-    public String action() {
-        return action;
-    }
-
-    private static String buildMessage(String name, TransportAddress address, String action, String msg) {
+    private static String buildMessage(String name, InetSocketAddress address, String action, String msg) {
         StringBuilder sb = new StringBuilder();
         if (name != null) {
             sb.append('[').append(name).append(']');
         }
         if (address != null) {
-            sb.append('[').append(address).append(']');
+            sb.append('[').append(NetworkAddress.format(address)).append(']');
         }
         if (action != null) {
             sb.append('[').append(action).append(']');

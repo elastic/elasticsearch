@@ -18,14 +18,7 @@ public enum DockerBase {
     UBI("docker.elastic.co/ubi8/ubi-minimal:latest", "-ubi8"),
 
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
-    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank"),
-
-    // Base image with extras for Cloud
-    CLOUD("almalinux:8.4-minimal", "-cloud"),
-
-    // Based on CLOUD above, with more extras. We don't set a base image because
-    // we programmatically extend from the Cloud image.
-    CLOUD_ESS(null, "-cloud-ess");
+    IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank");
 
     private final String image;
     private final String suffix;

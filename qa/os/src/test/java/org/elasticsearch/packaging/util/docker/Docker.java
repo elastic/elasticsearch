@@ -428,38 +428,6 @@ public class Docker {
                     dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
                 )
             );
-
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
-            verifyCloudContainerInstallation(es);
-        }
-    }
-
-    private static void verifyCloudContainerInstallation(Installation es) {
-        final String pluginArchive = "/opt/plugins/archive";
-        final List<String> plugins = listContents(pluginArchive);
-
-        logger.info("Contents of [" + pluginArchive + "] : " + plugins);
-
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
-            assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
-
-            final List<String> repositoryPlugins = plugins.stream()
-                .filter(p -> p.matches("^repository-(?:s3|gcs|azure)$"))
-                .collect(Collectors.toList());
-            // Assert on equality to that the error reports the unexpected values.
-            assertThat(
-                "ESS image should not have repository plugins in " + pluginArchive,
-                repositoryPlugins,
-                equalTo(Collections.emptyList())
-            );
-        } else {
-            List<String> pluginsCopy = new ArrayList<>(plugins);
-            if (pluginsCopy.isEmpty() == false) {
-                logger.warn("plugins (and pluginsCopy) should be empty, but: " + plugins + " / " + pluginsCopy);
-                logger.warn("Contents of [" + pluginArchive + "] : " + dockerShell.run("ls -1 --color=never " + pluginArchive).stdout);
-            }
-            assertThat("Cloud image should not have any plugins in " + pluginArchive, pluginsCopy, empty());
-        }
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

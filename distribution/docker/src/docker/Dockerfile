@@ -109,30 +109,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
-<% if (docker_base == "cloud") { %>
-# Preinstall common plugins. Note that these are installed as root, meaning the `elasticsearch` user cannot delete them.
-COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
-RUN bin/elasticsearch-plugin install --batch --verbose \\
-    file:/tmp/repository-s3-${version}.zip \\
-    file:/tmp/repository-gcs-${version}.zip \\
-    file:/tmp/repository-azure-${version}.zip
-# Generate a replacement example plugins config that reflects what is actually installed
-RUN echo "plugins:" > config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-azure" >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-gcs"   >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-s3"    >> config/elasticsearch-plugins.example.yml
-
-<% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
-COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
-RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
-    tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
-    tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
-
-# Add plugins infrastructure
-RUN mkdir -p /opt/plugins/archive
-RUN chmod -R 0555 /opt/plugins
-<% } %>
-
 ################################################################################
 # Build stage 1 (the actual Elasticsearch image):
 #
@@ -175,10 +151,6 @@ WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-
-<% if (docker_base == 'cloud') { %>
-COPY --from=builder --chown=0:0 /opt /opt
-<% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
@@ -247,14 +219,6 @@ COPY LICENSE /licenses/LICENSE.addendum
 USER elasticsearch:root
 <% } %>
 
-<% if (docker_base == "cloud") { %>
-ENTRYPOINT ["/bin/tini", "--"]
-CMD ["/app/elasticsearch.sh"]
-# Generate a stub command that will be overwritten at runtime
-RUN mkdir /app && \\
-    echo -e '#!/bin/sh\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
-    chmod 0555 /app/elasticsearch.sh
-<% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]

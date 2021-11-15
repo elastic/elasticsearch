@@ -12,32 +12,30 @@ TIP: {ess-setting-change}
 [%collapsible]
 ====
 *Details* +
-Setting `xpack.searchable.snapshot.shared_cache.size` to be positive on a node
+Setting `xpack.searchable.snapshot.shared_cache.size` on a node
 that does not have the `data_frozen` role was deprecated in {es} 7.12.0 and has
 been removed in {es} 8.0.0.
 
 *Impact* +
 {es} only allocates partially mounted indices to nodes with the `data_frozen`
-role. Do not set `xpack.searchable.snapshot.shared_cache.size` on nodes without
-the `data_frozen` role. Removing the setting on nodes without the `data_frozen`
-role will not impact functionality.
+role. Remove the `xpack.searchable.snapshot.shared_cache.size` setting from nodes that don't have the `data_frozen` role. 
 ====
 
 .`action.destructive_requires_name` now defaults to `false`. {ess-icon}
 [%collapsible]
 ====
 *Details* +
-The default value of the setting `action.destructive_requires_name` changes from `false`
+The default for the `action.destructive_requires_name` setting changes from `false`
 to `true` in {es} 8.0.0.
 
-In previous versions, the default setting allowed users to use wildcard
-patterns to delete, close, or change index blocks on indices. In order
-to prevent the accidental deletion of indices that happen to match a
-wildcard pattern, we now require, by default, that any such destructive
-operation explicitly name the indices it intends to modify.
+Previously, defaulting to `false` allowed users to use wildcard
+patterns to delete, close, or change index blocks on indices. 
+To prevent the accidental deletion of indices that happen to match a
+wildcard pattern, we now default to requiring that destructive
+operations explicitly name the indices to be modified.
 
 *Impact* +
-If you would like to use wildcard patterns for destructive actions, set
+To use wildcard patterns for destructive actions, set
 `action.destructive_requires_name` to `false` using the
 {ref}/cluster-update-settings.html[] cluster settings API].
 ====
@@ -49,13 +47,13 @@ If you would like to use wildcard patterns for destructive actions, set
 *Details* +
 Previously, the `indices.query.bool.max_clause_count` would apply to the number
 of clauses of a single `bool` query. It now applies to the total number of
-clauses of the rewritten query. In order to reduce chances of breaks, its
+clauses of the rewritten query. To reduce chances of breaks, its
 default value has been bumped from 1024 to 4096.
 
 *Impact* +
-Queries with many clauses should be avoided whenever possible. If you had bumped
-this setting already in order to accomodate for some heavy queries, you might
-need to bump it further so that these heavy queries keep working.
+Queries with many clauses should be avoided whenever possible. 
+If you previously bumped this setting to accommodate heavy queries, 
+you might need to increase it further. 
 ====
 
 [[ilm-poll-interval-limit]]
@@ -63,13 +61,12 @@ need to bump it further so that these heavy queries keep working.
 [%collapsible]
 ====
 *Details* +
-The setting `indices.lifecycle.poll_interval`, if set too low, can cause
-excessive load on a cluster. This setting must now be set to `1s` (one second)
-or greater.
+Setting `indices.lifecycle.poll_interval` too low can cause
+excessive load on a cluster. The poll interval must now be at least `1s` (one second).
 
 *Impact* +
-Update the `indices.lifecycle.poll_interval` setting to a value of `1s` or
-greater using `elasticsearch.yml` or the
+Set `indices.lifecycle.poll_interval` setting to `1s` or
+greater in `elasticsearch.yml` or through the
 {ref}/cluster-update-settings.html[cluster update settings API].
 
 Setting `indices.lifecycle.poll_interval` to less than `1s` in
@@ -145,16 +142,14 @@ xpack.security.authc.realms.kerberos.kerb1:
 [%collapsible]
 ====
 *Details* +
-By default {es} will account for the sizes of relocating shards when making
+{es} now always accounts for the sizes of relocating shards when making
 allocation decisions based on the disk usage of the nodes in the cluster. In
-earlier versions the `cluster.routing.allocation.disk.include_relocations`
-setting allowed this accounting to be disabled, which would result in poor
-allocation decisions that might overshoot watermarks and require significant
-extra work to correct. This behaviour is no longer optional, and this setting
-has been removed.
+earlier versions, you could disable this by setting `cluster.routing.allocation.disk.include_relocations` to `false`.
+That could result in poor allocation decisions that could overshoot watermarks and require significant
+extra work to correct. The `cluster.routing.allocation.disk.include_relocations` setting has been removed.
 
 *Impact* +
-Discontinue use of the `cluster.routing.allocation.disk.include_relocations`
+Remove the `cluster.routing.allocation.disk.include_relocations`
 setting. Specifying this setting in `elasticsearch.yml` will result in an error
 on startup.
 ====
@@ -167,15 +162,14 @@ The `cluster.join.timeout` setting has been removed. Join attempts no longer
 time out.
 
 *Impact* +
-Do not set `cluster.join.timeout` in your `elasticsearch.yml` file.
+Remove `cluster.join.timeout` from `elasticsearch.yml`.
 ====
 
 .`discovery.zen` settings have been removed.
 [%collapsible]
 ====
 *Details* +
-All settings under the `discovery.zen` namespace, which existed only for BWC reasons in 7.x,
-are no longer supported. In particular, this includes:
+All settings under the `discovery.zen` namespace are no longer supported. They existed only only for BWC reasons in 7.x. This includes:
 
 - `discovery.zen.minimum_master_nodes`
 - `discovery.zen.no_master_block`
@@ -203,8 +197,7 @@ are no longer supported. In particular, this includes:
 - `discovery.zen.publish.max_pending_cluster_states`
 
 *Impact* +
-Discontinue use of the `discovery.zen` settings. Specifying these settings in
-`elasticsearch.yml` will result in an error on startup.
+Remove the `discovery.zen` settings from `elasticsearch.yml`. Specifying these settings will result in an error on startup.
 ====
 
 .`http.content_type.required` has been removed.
@@ -217,20 +210,18 @@ Elasticsearch 5.3 to prepare users for Elasticsearch 6.0, where content type
 auto detection was removed for HTTP requests.
 
 *Impact* +
-Discontinue use of the `http.content_type.required` setting. Specifying this
-setting in `elasticsearch.yml` will result in an error on startup.
+Remove the `http.content_type.required` setting from `elasticsearch.yml`. Specifying this setting  will result in an error on startup.
 ====
 
 .`http.tcp_no_delay` has been removed.
 [%collapsible]
 ====
 *Details* +
-The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. It has been replaced by
-`http.tcp.no_delay`.
+The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. Use`http.tcp.no_delay` instead.
 
 *Impact* +
-Use the `http.tcp.no_delay` setting. Discontinue use of the `http.tcp_no_delay`
-setting. Specifying the `http.tcp_no_delay` setting in `elasticsearch.yml` will
+Replace the `http.tcp_no_delay` setting with `http.tcp.no_delay`.  
+Specifying  `http.tcp_no_delay` in `elasticsearch.yml` will
 result in an error on startup.
 ====
 
@@ -242,10 +233,10 @@ The `network.tcp.connect_timeout` setting was deprecated in 7.x and has been rem
 was a fallback setting for `transport.connect_timeout`.
 
 *Impact* +
+Remove the`network.tcp.connect_timeout` setting. 
 Use the `transport.connect_timeout` setting to change the default connection
-timeout for client connections. Discontinue use of the
-`network.tcp.connect_timeout` setting. Specifying the
-`network.tcp.connect_timeout` setting in `elasticsearch.yml` will result in an
+timeout for client connections. Specifying
+`network.tcp.connect_timeout` in `elasticsearch.yml` will result in an
 error on startup.
 ====
 
@@ -258,7 +249,7 @@ has been removed in 8.0. Nodes should be run on separate data paths
 to ensure that each node is consistently assigned to the same data path.
 
 *Impact* +
-Discontinue use of the `node.max_local_storage_nodes` setting. Specifying this
+Remove the `node.max_local_storage_nodes` setting. Specifying this
 setting in `elasticsearch.yml` will result in an error on startup.
 ====
 
@@ -268,12 +259,11 @@ setting in `elasticsearch.yml` will result in an error on startup.
 ====
 *Details* +
 The `xpack.security.authc.accept_default_password` setting has not had any affect
-since the 6.0 release of {es}. It has been removed and cannot be used.
+since the 6.0 release of {es} and is no longer allowed.
 
 *Impact* +
-Discontinue use of the `xpack.security.authc.accept_default_password` setting.
-Specifying this setting in `elasticsearch.yml` will result in an error on
-startup.
+Remove  the `xpack.security.authc.accept_default_password` setting from `elasticsearch.yml`.
+Specifying this setting will result in an error on startup.
 ====
 
 [[roles-index-cache-removed]]
@@ -287,9 +277,9 @@ been removed. These settings have been redundant and deprecated
 since the 5.2 release of {es}.
 
 *Impact* +
-Discontinue use of the `xpack.security.authz.store.roles.index.cache.max_size`
-and `xpack.security.authz.store.roles.index.cache.ttl` settings. Specifying
-these settings in `elasticsearch.yml` will result in an error on startup.
+Remove the `xpack.security.authz.store.roles.index.cache.max_size`
+and `xpack.security.authz.store.roles.index.cache.ttl` settings from `elasticsearch.yml` . 
+Specifying these settings will result in an error on startup.
 ====
 
 [[separating-node-and-client-traffic]]
@@ -297,14 +287,13 @@ these settings in `elasticsearch.yml` will result in an error on startup.
 [%collapsible]
 ====
 *Details* +
-The `transport.profiles.*.xpack.security.type` setting has been removed since
-the Transport Client has been removed and therefore all client traffic now uses
+The `transport.profiles.*.xpack.security.type` setting is no longer supported.
+The Transport Client has been removed and all client traffic now uses
 the HTTP transport. Transport profiles using this setting should be removed.
 
 *Impact* +
-Discontinue use of the `transport.profiles.*.xpack.security.type` setting.
-Specifying this setting in a transport profile in `elasticsearch.yml` will
-result in an error on startup.
+Remove the `transport.profiles.*.xpack.security.type` setting from `elasticsearch.yml`.
+Specifying this setting in a transport profile will result in an error on startup.
 ====
 
 [discrete]

@@ -95,18 +95,17 @@ TIP: {ess-skip-section}
 [%collapsible]
 ====
 *Details* +
-In 8.0, we're deprecating the `elasticsearch-setup-passwords` tool. To
+The `elasticsearch-setup-passwords` tool is deprecated in 8.0. To
 manually reset the password for built-in users (including the `elastic` user), use
 the {ref}/reset-password.html[`elasticsearch-reset-password`] tool, the {es}
 {ref}/security-api-change-password.html[change passwords API], or the
-User Management features in {kib}. We will remove the
-`elasticsearch-setup-passwords` tool in a future release.
+User Management features in {kib}. 
+`elasticsearch-setup-passwords` will be removed in a future release.
 
 *Impact* +
-When starting {es} for the first time, passwords are generated automatically for
-the `elastic` user. If you run the `elasticsearch-setup-passwords` tool after
-starting {es}, the command will fail  because the password for the `elastic`
-user is already configured.
+Passwords are generated automatically for the `elastic` user when you start {es} for the first time. If you run `elasticsearch-setup-passwords` after
+starting {es}, it will fail because the `elastic`
+user password is already configured.
 ====
 
 include::migrate_8_0/migrate_to_java_time.asciidoc[]

@@ -16,7 +16,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Distribution.Packaging;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
@@ -50,9 +48,7 @@ import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.getImageName;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 

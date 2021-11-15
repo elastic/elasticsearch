@@ -1104,6 +1104,10 @@ public class MetadataCreateIndexService {
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
+        // TODO maybe non-trivial interplay between this for and the next if/accept in some circumstances
+        for (AliasMetadata alias : indexMetadata.getAliases().values()) {
+            builder.putAlias(alias.alias(), indexMetadata.getIndex());
+        }
         if (metadataTransformer != null) {
             metadataTransformer.accept(builder, indexMetadata);
         }
@@ -1146,7 +1150,7 @@ public class MetadataCreateIndexService {
 
         // apply the aliases in reverse order as the lower index ones have higher order
         for (int i = aliases.size() - 1; i >= 0; i--) {
-            indexMetadataBuilder.putAlias(aliases.get(i));
+            indexMetadataBuilder.putAlias(aliases.get(i)); // see ClusterState alias juggling in clusterStateCreateIndex
         }
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);

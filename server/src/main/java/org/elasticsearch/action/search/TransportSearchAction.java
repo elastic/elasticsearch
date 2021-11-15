@@ -49,7 +49,6 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -77,7 +76,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -131,7 +129,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final CircuitBreaker circuitBreaker;
     private final ExecutorSelector executorSelector;
     private final int defaultPreFilterShardSize;
-    private final TracingPlugin.Tracer tracer;
 
     @Inject
     public TransportSearchAction(
@@ -145,8 +142,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
-        ExecutorSelector executorSelector,
-        TracingPlugin.Tracer tracer
+        ExecutorSelector executorSelector
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.threadPool = threadPool;
@@ -161,7 +157,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
-        this.tracer = Objects.requireNonNull(tracer);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(

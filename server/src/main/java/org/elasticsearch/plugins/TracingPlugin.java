@@ -8,11 +8,13 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.tasks.Task;
+
 public interface TracingPlugin {
 
-    Tracer NO_TRACING = something -> {};
-
     interface Tracer {
-        void trace(String something);
+        void onTaskRegistered(Task task);
+
+        void onTaskUnregistered(Task task);
     }
 }

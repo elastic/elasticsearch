@@ -168,6 +168,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.tasks.TaskTracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -208,7 +209,6 @@ import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Types.forciblyCast;
-import static org.elasticsearch.plugins.TracingPlugin.NO_TRACING;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -728,11 +728,6 @@ public class Node implements Closeable {
             }
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
 
-            final TracingPlugin.Tracer tracer = (TracingPlugin.Tracer) pluginComponents.stream()
-                .filter(c -> c instanceof TracingPlugin.Tracer)
-                .findFirst()
-                .orElse(NO_TRACING);
-
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -756,6 +751,11 @@ public class Node implements Closeable {
             );
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
+
+            final TaskTracer taskTracer = transportService.getTaskManager().getTaskTracer();
+            pluginComponents.stream()
+                .map(c -> c instanceof TracingPlugin.Tracer ? (TracingPlugin.Tracer) c : null)
+                .forEach(taskTracer::addTracer);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(
@@ -974,7 +974,6 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
-                b.bind(TracingPlugin.Tracer.class).toInstance(tracer);
             });
             injector = modules.createInjector();
 

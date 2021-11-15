@@ -195,7 +195,6 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             ESTestCase::randomNonNegativeLong
         );
 
-
         ExecuteEnrichPolicyTask task = mock(ExecuteEnrichPolicyTask.class);
         expectThrows(ResourceNotFoundException.class, () -> testExecutor.runPolicyLocally(task, "my-policy", null));
     }

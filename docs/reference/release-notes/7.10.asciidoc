@@ -19,15 +19,7 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22132[CVE-2021-22132]
 [discrete]
 === Known issues
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[bug-7.10.2]]
 [float]
@@ -105,15 +97,7 @@ Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
 ** With nested `inner_hits`, the fast vector highlighter may load snippets from the wrong document. ({es-issue}65533[#65533])
 ** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[bug-7.10.1]]
 [float]
@@ -211,15 +195,7 @@ see {es-issue}65488[#65488].
 ** With nested `inner_hits`, the fast vector highlighter may load snippets from the wrong document. ({es-issue}65533[#65533])
 ** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
 
-* Snapshot and restore: If an index is deleted while the cluster is
-concurrently taking more than one snapshot then there is a risk that one of the
-snapshots may never complete and also that some shard data may be lost from the
-repository, causing future restore operations to fail. To mitigate this
-problem, prevent concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
-+
-This issue is fixed in {es} versions 7.13.1 and later. For more details, see
-{es-issue}73456[#73456].
+include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 [[breaking-7.10.0]]
 [float]

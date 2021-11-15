@@ -41,8 +41,7 @@ import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.queryableexpression.DelayedQueryableExpression;
-import org.elasticsearch.queryableexpression.LongQueryableExpression;
+import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.LongFieldScript.LeafFactory;
@@ -775,8 +774,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public DelayedQueryableExpression emitExpression() {
-                        return (lookup, params) -> lookup.apply("foo").add(LongQueryableExpression.constant(5L));
+                    public QueryableExpressionBuilder emitExpression() {
+                        return QueryableExpressionBuilder.add(
+                            QueryableExpressionBuilder.field("foo"),
+                            QueryableExpressionBuilder.constant(5L)
+                        );
                     }
                 };
             case "foo_times_ten":
@@ -794,8 +796,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public DelayedQueryableExpression emitExpression() {
-                        return (lookup, params) -> lookup.apply("foo").multiply(LongQueryableExpression.constant(10L));
+                    public QueryableExpressionBuilder emitExpression() {
+                        return QueryableExpressionBuilder.multiply(
+                            QueryableExpressionBuilder.field("foo"),
+                            QueryableExpressionBuilder.constant(10L)
+                        );
                     }
                 };
             case "foo_times_negative_two":
@@ -813,8 +818,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public DelayedQueryableExpression emitExpression() {
-                        return (lookup, params) -> lookup.apply("foo").multiply(LongQueryableExpression.constant(-2L));
+                    public QueryableExpressionBuilder emitExpression() {
+                        return QueryableExpressionBuilder.multiply(
+                            QueryableExpressionBuilder.field("foo"),
+                            QueryableExpressionBuilder.constant(-2L)
+                        );
                     }
                 };
             case "foo_divided_by_ten":
@@ -832,8 +840,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public DelayedQueryableExpression emitExpression() {
-                        return (lookup, params) -> lookup.apply("foo").divide(LongQueryableExpression.constant(10L));
+                    public QueryableExpressionBuilder emitExpression() {
+                        return QueryableExpressionBuilder.divide(
+                            QueryableExpressionBuilder.field("foo"),
+                            QueryableExpressionBuilder.constant(10L)
+                        );
                     }
                 };
             case "add_param":

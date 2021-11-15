@@ -19,54 +19,48 @@ import static org.mockito.Mockito.mock;
 public class DelayedQueryableExpressionTests extends ESTestCase {
     public void testConstantLong() {
         long n = randomLong();
-        QueryableExpression e = DelayedQueryableExpression.constant(n).undelay(null, null);
-        assertThat(e, equalTo(LongQueryableExpression.constant(n)));
+        QueryableExpression e = QueryableExpressionBuilder.constant(n).build(null, null);
+        assertThat(e, equalTo(new AbstractLongQueryableExpression.Constant(n)));
     }
 
     public void testConstantOther() {
-        QueryableExpression e = DelayedQueryableExpression.constant(randomAlphaOfLength(5)).undelay(null, null);
+        QueryableExpression e = QueryableExpressionBuilder.constant(randomAlphaOfLength(5)).build(null, null);
         assertThat(e, equalTo(QueryableExpression.UNQUERYABLE));
     }
 
     public void testFieldLong() {
+        String key = randomAlphaOfLength(5);
         QueryableExpression f = mock(QueryableExpression.class);
-        QueryableExpression e = DelayedQueryableExpression.field(randomAlphaOfLength(5)).undelay(k -> f, null);
+        QueryableExpression e = QueryableExpressionBuilder.field(key).build(Map.of(key, f)::get, null);
         assertThat(e, sameInstance(f));
     }
 
     public void testFieldUnqueryable() {
-        QueryableExpression e = DelayedQueryableExpression.field(randomAlphaOfLength(5))
-            .undelay(k -> QueryableExpression.UNQUERYABLE, null);
+        String key = randomAlphaOfLength(5);
+        QueryableExpression e = QueryableExpressionBuilder.field(key).build(Map.of(key, QueryableExpression.UNQUERYABLE)::get, null);
         assertThat(e, equalTo(QueryableExpression.UNQUERYABLE));
     }
 
     public void testParamLong() {
         String key = randomAlphaOfLength(5);
         long n = randomLong();
-        QueryableExpression e = DelayedQueryableExpression.param(key).undelay(null, Map.of(key, n));
-        assertThat(e, equalTo(LongQueryableExpression.constant(n)));
+        QueryableExpression e = QueryableExpressionBuilder.param(key).build(null, Map.of(key, n)::get);
+        assertThat(e, equalTo(new AbstractLongQueryableExpression.Constant(n)));
     }
 
     public void testParamOther() {
         String key = randomAlphaOfLength(5);
-        QueryableExpression e = DelayedQueryableExpression.param(key).undelay(null, Map.of(key, randomAlphaOfLength(5)));
+        QueryableExpression e = QueryableExpressionBuilder.param(key).build(null, Map.of(key, randomAlphaOfLength(5))::get);
         assertThat(e, equalTo(QueryableExpression.UNQUERYABLE));
     }
 
     public void testAddConstants() {
-        QueryableExpression e = DelayedQueryableExpression.add(
-            DelayedQueryableExpression.constant(1L),
-            DelayedQueryableExpression.constant(2L)
-        ).undelay(null, null);
-        assertThat(e, equalTo(LongQueryableExpression.constant(3)));
-    }
-
-    public void testAddFieldAndConstant() {
-        QueryableExpression field = LongQueryableExpression.field("f", mock(LongQueryableExpression.LongQueries.class));
-        QueryableExpression e = DelayedQueryableExpression.add(
-            DelayedQueryableExpression.constant(1L),
-            DelayedQueryableExpression.constant(2L)
-        ).undelay(null, null);
-        assertThat(e, equalTo(LongQueryableExpression.constant(3)));
+        long lhs = randomLong();
+        long rhs = randomLong();
+        QueryableExpression e = QueryableExpressionBuilder.add(
+            QueryableExpressionBuilder.constant(lhs),
+            QueryableExpressionBuilder.constant(rhs)
+        ).build(null, null);
+        assertThat(e, equalTo(new AbstractLongQueryableExpression.Constant(lhs + rhs)));
     }
 }

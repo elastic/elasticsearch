@@ -853,7 +853,7 @@ public class NumberFieldMapper extends FieldMapper {
                     public Query approximateRangeQuery(int lower, int upper) {
                         return rangeQueryWithKnownBounds(field, lower, upper, hasDocValues, context);
                     }
-                }).castToLong();
+                });
             }
         },
         LONG("long", NumericType.LONG) {

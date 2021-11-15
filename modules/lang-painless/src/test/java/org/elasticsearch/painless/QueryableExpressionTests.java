@@ -31,7 +31,7 @@ public class QueryableExpressionTests extends ScriptTestCase {
     public QueryableExpression qe(String script) {
         return scriptEngine.compile("qe_test", script, LongFieldScript.CONTEXT, Collections.emptyMap())
             .emitExpression()
-            .undelay(null, null);
+            .build(null, null);
     }
 
     public void testIntConst() {

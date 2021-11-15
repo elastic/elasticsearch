@@ -12,11 +12,10 @@ import org.apache.lucene.search.Query;
 
 import java.util.function.LongFunction;
 
+/**
+ * {@code long} flavored expression.
+ */
 public interface LongQueryableExpression extends QueryableExpression {
-    static LongQueryableExpression constant(long n) {
-        return new AbstractLongQueryableExpression.Constant(n);
-    }
-
     interface LongQueries {
         Query approximateTermQuery(long term);
 
@@ -37,9 +36,19 @@ public interface LongQueryableExpression extends QueryableExpression {
         return field(name, new AbstractLongQueryableExpression.IntQueriesToLongQueries(queries));
     }
 
+    /**
+     * Build a query that approximates a term query on this expression.
+     */
     Query approximateTermQuery(long term);
 
+    /**
+     * Build a query that approximates a range query on this expression.
+     */
     Query approximateRangeQuery(long lower, long upper);
 
+    /**
+     * Transform this expression, returning an {@link UnqueryableExpression}
+     * if there isn't a way to query.
+     */
     QueryableExpression mapConstant(LongFunction<QueryableExpression> map);
 }

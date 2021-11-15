@@ -10,19 +10,16 @@ package org.elasticsearch.queryableexpression;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 
+/**
+ * An expression that can be approximated with queries. See
+ * {@link #castToLong()} for a way to make queries.
+ */
 public interface QueryableExpression {
     /**
      * An expression that can not be queried, so it always returned
      * {@link MatchAllDocsQuery}.
      */
     QueryableExpression UNQUERYABLE = UnqueryableExpression.UNQUERYABLE;
-
-    static QueryableExpression constant(Object c) {
-        if (c instanceof Long) {
-            return LongQueryableExpression.constant((Long) c);
-        }
-        return UNQUERYABLE;
-    }
 
     QueryableExpression add(QueryableExpression rhs);
 

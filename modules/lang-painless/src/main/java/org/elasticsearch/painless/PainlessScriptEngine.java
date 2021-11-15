@@ -15,7 +15,7 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.queryableexpression.DelayedQueryableExpression;
+import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -363,7 +363,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             writer.visitField(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                 "QE",
-                Type.getType(DelayedQueryableExpression.class).getDescriptor(),
+                Type.getType(QueryableExpressionBuilder.class).getDescriptor(),
                 null,
                 null
             ).visitEnd();
@@ -374,7 +374,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, optimize.getName(), optimize.getDescriptor(), null, null)
             );
             optimAdapter.visitCode();
-            optimAdapter.getStatic(Type.getType("L" + className + ";"), "QE", Type.getType(DelayedQueryableExpression.class));
+            optimAdapter.getStatic(Type.getType("L" + className + ";"), "QE", Type.getType(QueryableExpressionBuilder.class));
             optimAdapter.returnValue();
             optimAdapter.endMethod();
         }

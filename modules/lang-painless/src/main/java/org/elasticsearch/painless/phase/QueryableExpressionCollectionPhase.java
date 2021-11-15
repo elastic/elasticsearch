@@ -16,7 +16,7 @@ import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.symbol.IRDecorations;
 import org.elasticsearch.painless.symbol.QueryableExpressionScope;
-import org.elasticsearch.queryableexpression.DelayedQueryableExpression;
+import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 
 import java.lang.reflect.Method;
 
@@ -56,7 +56,7 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
     @Override
     public void visitConstant(ConstantNode irConstantNode, QueryableExpressionScope scope) {
         Object value = irConstantNode.getDecorationValue(IRDecorations.IRDConstant.class);
-        scope.push(DelayedQueryableExpression.constant(value));
+        scope.push(QueryableExpressionBuilder.constant(value));
     }
 
     @Override
@@ -67,15 +67,15 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
 
         scope.consume((lhs, rhs) -> {
             if (operation == Operation.ADD) {
-                return DelayedQueryableExpression.add(lhs, rhs);
+                return QueryableExpressionBuilder.add(lhs, rhs);
             } else if (operation == Operation.SUB) {
-                return DelayedQueryableExpression.subtract(lhs, rhs);
+                return QueryableExpressionBuilder.subtract(lhs, rhs);
             } else if (operation == Operation.MUL) {
-                return DelayedQueryableExpression.multiply(lhs, rhs);
+                return QueryableExpressionBuilder.multiply(lhs, rhs);
             } else if (operation == Operation.DIV) {
-                return DelayedQueryableExpression.divide(lhs, rhs);
+                return QueryableExpressionBuilder.divide(lhs, rhs);
             } else {
-                return DelayedQueryableExpression.UNQUERYABLE;
+                return QueryableExpressionBuilder.UNQUERYABLE;
             }
         });
     }

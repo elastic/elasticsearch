@@ -10,7 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.queryableexpression.DelayedQueryableExpression;
+import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -62,8 +62,8 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
 
-        default DelayedQueryableExpression emitExpression() {
-            return DelayedQueryableExpression.UNQUERYABLE;
+        default QueryableExpressionBuilder emitExpression() {
+            return QueryableExpressionBuilder.UNQUERYABLE;
         }
     }
 

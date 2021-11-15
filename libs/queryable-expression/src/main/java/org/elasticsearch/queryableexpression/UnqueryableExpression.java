@@ -13,6 +13,9 @@ import org.apache.lucene.search.Query;
 
 import java.util.function.LongFunction;
 
+/**
+ * An expression that approximates itself as {@link MatchAllDocsQuery}.
+ */
 class UnqueryableExpression implements QueryableExpression, LongQueryableExpression {
     static final UnqueryableExpression UNQUERYABLE = new UnqueryableExpression();
 

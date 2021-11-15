@@ -784,6 +784,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return indices();
     }
 
+    public ImmutableOpenMap<String, List<Index>> aliases() {
+        return this.aliases;
+    }
+
+    public ImmutableOpenMap<String, List<Index>> getAliases() {
+        return aliases();
+    }
+
     public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
         return this.templates;
     }

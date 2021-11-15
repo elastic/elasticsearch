@@ -1204,9 +1204,13 @@ public class MetadataCreateIndexService {
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         List<Map<String, Object>> mergedMappings = new ArrayList<>();
-        boolean isTimeSeriesMode = indexService.getIndexSettings().getMode() != null && indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+        boolean isTimeSeriesMode = indexService.getIndexSettings().getMode() != null
+            && indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
         if (isTimeSeriesMode) {
-            Map<String, Object> timeSeriesTimestampMapping = MapperService.parseMapping(xContentRegistry, MetadataIndexTemplateService.DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING);
+            Map<String, Object> timeSeriesTimestampMapping = MapperService.parseMapping(
+                xContentRegistry,
+                MetadataIndexTemplateService.DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING
+            );
             mergedMappings.add(timeSeriesTimestampMapping);
         }
         mergedMappings.addAll(mappings);

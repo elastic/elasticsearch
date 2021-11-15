@@ -208,6 +208,7 @@ import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Types.forciblyCast;
+import static org.elasticsearch.plugins.TracingPlugin.NO_TRACING;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -730,7 +731,7 @@ public class Node implements Closeable {
             final TracingPlugin.Tracer tracer = (TracingPlugin.Tracer) pluginComponents.stream()
                 .filter(c -> c instanceof TracingPlugin.Tracer)
                 .findFirst()
-                .orElse(null);
+                .orElse(NO_TRACING);
 
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(

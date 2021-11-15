@@ -10,6 +10,8 @@ package org.elasticsearch.plugins;
 
 public interface TracingPlugin {
 
+    Tracer NO_TRACING = something -> {};
+
     interface Tracer {
         void trace(String something);
     }

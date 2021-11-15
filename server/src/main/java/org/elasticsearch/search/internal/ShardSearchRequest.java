@@ -236,7 +236,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         shardRequestIndex = in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readVInt() : -1;
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
-        source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        source(in.readOptionalWriteable(SearchSourceBuilder::new));
         if (in.getVersion().before(Version.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();

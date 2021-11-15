@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.MMapDirectory;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -97,6 +99,27 @@ public final class IndexModule {
         "index.store.type",
         "",
         Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> INDEX_STORE_USE_DIRECT_IO_SETTING = Setting.boolSetting(
+        "index.store.use_direct_io",
+        false,
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> INDEX_STORE_DIRECT_IO_DEFAULT_MERGE_BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
+        "index.store.direct_io.default_merge_buffer_size",
+        ByteSizeValue.ofBytes(DirectIODirectory.DEFAULT_MERGE_BUFFER_SIZE),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> INDEX_STORE_DIRECT_IO_DEFAULT_MIN_BYTES_DIRECT_SETTING = Setting.byteSizeSetting(
+        "index.store.direct_io.default_min_bytes_direct",
+        ByteSizeValue.ofBytes(DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT),
         Property.IndexScope,
         Property.NodeScope
     );

@@ -43,7 +43,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -331,7 +330,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setScript(
                     new Script(ScriptType.INLINE, MockScriptEngine.NAME, ADD_ONE_SCRIPT, Collections.singletonMap("fieldname", INT_FIELD))
-                ).setUserValueTypeHint(ValueType.LONG).build(),
+                ).setUserValueTypeHint(CoreValuesSourceType.LONG).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).build()
             ),
             null,

@@ -77,7 +77,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
@@ -925,7 +925,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         searchRequest.source(
             new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-                .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(0))
+                .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(CoreValuesSourceType.KEYWORD).minDocCount(0))
         );
         assertTrue(
             service.canMatch(
@@ -1068,20 +1068,20 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertFalse(
             SearchService.canRewriteToMatchNone(
                 new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-                    .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(0))
+                    .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(CoreValuesSourceType.KEYWORD).minDocCount(0))
             )
         );
         assertTrue(SearchService.canRewriteToMatchNone(new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar"))));
         assertTrue(
             SearchService.canRewriteToMatchNone(
                 new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-                    .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(1))
+                    .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(CoreValuesSourceType.KEYWORD).minDocCount(1))
             )
         );
         assertFalse(
             SearchService.canRewriteToMatchNone(
                 new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
-                    .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(ValueType.STRING).minDocCount(1))
+                    .aggregation(new TermsAggregationBuilder("test").userValueTypeHint(CoreValuesSourceType.KEYWORD).minDocCount(1))
                     .suggest(new SuggestBuilder())
             )
         );

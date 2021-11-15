@@ -46,10 +46,9 @@ public interface ValuesSourceType {
      * operating without an underlying field.  Scripts operating over fields are handled by the script argument to getField below.
      *
      * @param script - The script being wrapped
-     * @param scriptValueType - The expected output type of the script
      * @return - Script specialization of the base {@link ValuesSource}
      */
-    ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
+    ValuesSource getScript(AggregationScript.LeafFactory script);
 
     /**
      * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.

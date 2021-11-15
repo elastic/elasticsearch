@@ -23,7 +23,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,7 +62,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             dataset,
             aggregation -> aggregation.field(LONG_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
-            ValueType.NUMERIC // with type hint
+            CoreValuesSourceType.DOUBLE // with type hint
         );
     }
 
@@ -87,7 +88,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(9L - i));
             }
         },
-            ValueType.NUMERIC // with type hint
+            CoreValuesSourceType.DOUBLE // with type hint
         );
     }
 
@@ -122,7 +123,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 dataset,
                 aggregation -> aggregation.field(LONG_FIELD).includeExclude(includeExclude).format("yyyy-MM-dd"),
                 agg -> fail("test should have failed with exception"),
-                ValueType.NUMERIC // with type hint
+                CoreValuesSourceType.DOUBLE // with type hint
             )
         );
         assertThat(
@@ -141,7 +142,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         List<Long> dataset,
         Consumer<TermsAggregationBuilder> configure,
         Consumer<InternalMappedTerms<?, ?>> verify,
-        ValueType valueType
+        ValuesSourceType valueType
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {

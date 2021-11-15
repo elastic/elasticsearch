@@ -63,7 +63,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         );
 
         objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValueType type = ValueType.lenientParse(p.text());
+            ValuesSourceType type = ValueType.lenientParse(p.text());
             if (type == null) {
                 throw new IllegalArgumentException("Unknown value type [" + p.text() + "]");
             }
@@ -189,7 +189,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     private String field = null;
     private Script script = null;
-    private ValueType userValueTypeHint = null;
+    private ValuesSourceType userValueTypeHint = null;
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
@@ -235,7 +235,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             script = new Script(in);
         }
         if (in.readBoolean()) {
-            userValueTypeHint = ValueType.readFromStream(in);
+            // NOCOMMIT: Make ValuesSourceType writeable
+            userValueTypeHint = ValueType.readFromStream(in).getValuesSourceType();
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
@@ -257,7 +258,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            userValueTypeHint.writeTo(out);
+            // NOCOMMIT: Make ValuesSourceType writeable
+            ValueType.writeValuesSourceType(userValueTypeHint, out);
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
@@ -327,7 +329,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      * @return - The modified builder instance, for chaining.
      */
     @SuppressWarnings("unchecked")
-    public AB userValueTypeHint(ValueType valueType) {
+    public AB userValueTypeHint(ValuesSourceType valueType) {
         if (valueType == null) {
             // TODO: This is nonsense. We allow the value to be null (via constructor), but don't allow it to be set to null. This means
             // thing looking to copy settings (like RollupRequestTranslator) need to check if userValueTypeHint is not null, and then
@@ -338,7 +340,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         return (AB) this;
     }
 
-    public ValueType userValueTypeHint() {
+    public ValuesSourceType userValueTypeHint() {
         return userValueTypeHint;
     }
 
@@ -480,7 +482,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             builder.field("time_zone", timeZone.toString());
         }
         if (userValueTypeHint != null) {
-            builder.field("value_type", userValueTypeHint.getPreferredName());
+            builder.field("value_type", userValueTypeHint.typeName());
         }
         doXContentBody(builder, params);
         builder.endObject();

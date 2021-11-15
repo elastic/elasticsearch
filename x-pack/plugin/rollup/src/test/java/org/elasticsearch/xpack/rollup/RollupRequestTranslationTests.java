@@ -22,7 +22,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -266,7 +266,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testStringTerms() throws IOException {
 
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("test_string_terms").userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("test_string_terms").userValueTypeHint(CoreValuesSourceType.KEYWORD);
         terms.field("foo")
             .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
             .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));

@@ -14,7 +14,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
@@ -52,7 +52,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
 
     public void testValidate() {
         AggregationBuilder singleBucketAgg = new GlobalAggregationBuilder("global");
-        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING);
+        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.KEYWORD);
         final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(singleBucketAgg);
         aggBuilders.add(multiBucketAgg);

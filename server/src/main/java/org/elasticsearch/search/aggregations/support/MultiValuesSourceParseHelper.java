@@ -14,17 +14,19 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.Collection;
+
 public final class MultiValuesSourceParseHelper {
 
     public static <T> void declareCommon(
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean formattable,
-        ValueType expectedValueType
+        Collection<ValuesSourceType> expectedValueType
     ) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValueType valueType = ValueType.lenientParse(p.text());
-            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
+            ValuesSourceType valueType = ValueType.lenientParse(p.text());
+            if (expectedValueType != null && expectedValueType.contains(valueType)) {
                 throw new ParsingException(
                     p.getTokenLocation(),
                     "Aggregation ["

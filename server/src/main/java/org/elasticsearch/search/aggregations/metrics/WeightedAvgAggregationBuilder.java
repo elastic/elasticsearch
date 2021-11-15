@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatio
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -33,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<WeightedAvgAggregationBuilder> {
     public static final String NAME = "weighted_avg";
@@ -44,7 +44,11 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
         WeightedAvgAggregationBuilder::new
     );
     static {
-        MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
+        MultiValuesSourceParseHelper.declareCommon(
+            PARSER,
+            true,
+            Set.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN)
+        );
         MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false, false, false);
         MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false, false, false);
     }

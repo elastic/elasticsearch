@@ -37,7 +37,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     // supported only if filtered == true
     private final QueryBuilder filter;
     // supported only if heterogeneous == true
-    private final ValueType userValueTypeHint;
+    private final ValuesSourceType userValueTypeHint;
     private final String format;
 
     private static final String NAME = "field_config";
@@ -125,7 +125,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         Script script,
         ZoneId timeZone,
         QueryBuilder filter,
-        ValueType userValueTypeHint,
+        ValuesSourceType userValueTypeHint,
         String format
     ) {
         this.fieldName = fieldName;
@@ -152,7 +152,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             this.filter = null;
         }
         if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
+            // NOCOMMIT: Make VST writeable
+            ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
+            this.userValueTypeHint = valueType.getValuesSourceType();
             this.format = in.readOptionalString();
         } else {
             this.userValueTypeHint = null;
@@ -180,7 +182,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         return filter;
     }
 
-    public ValueType getUserValueTypeHint() {
+    public ValuesSourceType getUserValueTypeHint() {
         return userValueTypeHint;
     }
 
@@ -202,7 +204,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             out.writeOptionalNamedWriteable(filter);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalWriteable(userValueTypeHint);
+            out.writeOptionalWriteable(ValueType.reverseMap(userValueTypeHint));
             out.writeOptionalString(format);
         }
     }
@@ -227,7 +229,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             filter.toXContent(builder, params);
         }
         if (userValueTypeHint != null) {
-            builder.field(AggregationBuilder.CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
+            builder.field(AggregationBuilder.CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.typeName());
         }
         if (format != null) {
             builder.field(AggregationBuilder.CommonFields.FORMAT.getPreferredName(), format);
@@ -266,7 +268,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         private Script script = null;
         private ZoneId timeZone = null;
         private QueryBuilder filter = null;
-        private ValueType userValueTypeHint = null;
+        private ValuesSourceType userValueTypeHint = null;
         private String format = null;
 
         public String getFieldName() {
@@ -310,12 +312,12 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             return this;
         }
 
-        public Builder setUserValueTypeHint(ValueType userValueTypeHint) {
+        public Builder setUserValueTypeHint(ValuesSourceType userValueTypeHint) {
             this.userValueTypeHint = userValueTypeHint;
             return this;
         }
 
-        public ValueType getUserValueTypeHint() {
+        public ValuesSourceType getUserValueTypeHint() {
             return userValueTypeHint;
         }
 

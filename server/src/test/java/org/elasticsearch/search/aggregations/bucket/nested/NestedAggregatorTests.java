@@ -69,7 +69,7 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -423,9 +423,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("num_pages", NumberFieldMapper.NumberType.LONG);
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("author");
 
-                TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(ValueType.STRING)
-                    .field("author")
-                    .order(BucketOrder.aggregation("chapters>num_pages.value", true));
+                TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(
+                    CoreValuesSourceType.KEYWORD
+                ).field("author").order(BucketOrder.aggregation("chapters>num_pages.value", true));
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder("chapters", "nested_chapters");
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder("num_pages").field("num_pages");
                 nestedBuilder.subAggregation(maxAgg);
@@ -478,7 +478,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(70, (int) numPages.getValue());
 
                 // reverse order:
-                termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(ValueType.STRING)
+                termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(CoreValuesSourceType.KEYWORD)
                     .field("author")
                     .order(BucketOrder.aggregation("chapters>num_pages.value", false));
                 nestedBuilder = new NestedAggregationBuilder("chapters", "nested_chapters");
@@ -569,7 +569,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("num_pages", NumberFieldMapper.NumberType.LONG);
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("author");
 
-                TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(ValueType.STRING)
+                TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(
+                    CoreValuesSourceType.KEYWORD
+                )
                     .size(books.size())
                     .field("author")
                     .order(BucketOrder.compound(BucketOrder.aggregation("chapters>num_pages.value", true), BucketOrder.key(true)));
@@ -667,9 +669,10 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 iw.commit();
             }
             try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
-                TermsAggregationBuilder valueBuilder = new TermsAggregationBuilder("value").userValueTypeHint(ValueType.STRING)
+                TermsAggregationBuilder valueBuilder = new TermsAggregationBuilder("value").userValueTypeHint(CoreValuesSourceType.KEYWORD)
                     .field("value");
-                TermsAggregationBuilder keyBuilder = new TermsAggregationBuilder("key").userValueTypeHint(ValueType.STRING).field("key");
+                TermsAggregationBuilder keyBuilder = new TermsAggregationBuilder("key").userValueTypeHint(CoreValuesSourceType.KEYWORD)
+                    .field("key");
                 keyBuilder.subAggregation(valueBuilder);
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, "nested_field");
                 nestedBuilder.subAggregation(keyBuilder);
@@ -780,7 +783,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     new TermsAggregationBuilder("terms").field(VALUE_FIELD_NAME)
-                        .userValueTypeHint(ValueType.NUMERIC)
+                        .userValueTypeHint(CoreValuesSourceType.DOUBLE)
                         .subAggregation(new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME))
                         .subAggregation(
                             new BucketScriptPipelineAggregationBuilder(

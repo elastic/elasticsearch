@@ -65,7 +65,7 @@ public class MultiTermsAggregationBuilderTests extends AbstractSerializingTestCa
             .setScript(null)
             .setTimeZone(timeZone)
             .setFormat(format)
-            .setUserValueTypeHint(userValueTypeHint)
+            .setUserValueTypeHint(userValueTypeHint.getValuesSourceType())
             .build();
     }
 

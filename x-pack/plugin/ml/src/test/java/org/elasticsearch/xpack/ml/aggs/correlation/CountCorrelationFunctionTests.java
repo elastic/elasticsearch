@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.correlation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -53,7 +53,7 @@ public class CountCorrelationFunctionTests extends ESTestCase {
     }
 
     public void testValidation() {
-        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING);
+        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.KEYWORD);
         final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(multiBucketAgg);
         CountCorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());

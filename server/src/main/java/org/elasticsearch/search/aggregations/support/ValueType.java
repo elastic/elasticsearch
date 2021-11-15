@@ -105,29 +105,57 @@ public enum ValueType implements Writeable {
         return defaultFormat;
     }
 
-    public static ValueType lenientParse(String type) {
+    public static ValuesSourceType lenientParse(String type) {
         switch (type) {
             case "string":
-                return STRING;
+                return STRING.getValuesSourceType();
             case "double":
             case "float":
-                return DOUBLE;
+                return DOUBLE.getValuesSourceType();
             case "number":
             case "numeric":
             case "long":
             case "integer":
             case "short":
             case "byte":
-                return LONG;
+                return LONG.getValuesSourceType();
             case "date":
-                return DATE;
+                return DATE.getValuesSourceType();
             case "ip":
-                return IP;
+                return IP.getValuesSourceType();
             case "boolean":
-                return BOOLEAN;
+                return BOOLEAN.getValuesSourceType();
             default:
                 // TODO: do not be lenient here
                 return null;
+        }
+    }
+
+    // NOCOMMIT: This is a utter kludge until I can make ValuesSourceType writeable
+    public static ValueType reverseMap(ValuesSourceType valuesSourceType) throws IOException {
+        if (valuesSourceType == CoreValuesSourceType.KEYWORD) {
+            return STRING;
+        } else if (valuesSourceType == CoreValuesSourceType.DOUBLE) {
+            return DOUBLE;
+        } else if (valuesSourceType == CoreValuesSourceType.LONG) {
+            return LONG;
+        } else if (valuesSourceType == CoreValuesSourceType.DATE) {
+            return DATE;
+        } else if (valuesSourceType == CoreValuesSourceType.IP) {
+            return IP;
+        } else if (valuesSourceType == CoreValuesSourceType.BOOLEAN) {
+            return BOOLEAN;
+        } else {
+            return null;
+        }
+    }
+
+    public static void writeValuesSourceType(ValuesSourceType valuesSourceType, StreamOutput out) throws IOException {
+        ValueType toWrite = reverseMap(valuesSourceType);
+        if (toWrite != null) {
+            toWrite.writeTo(out);
+        } else {
+            throw new IOException("Unwriteable value type hint.  How did you even get that parsed?");
         }
     }
 

@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -154,7 +154,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertTrue(((FiltersAggregationBuilder) rewritten).isKeyed());
 
         // test sub-agg filter that does rewrite
-        original = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.BOOLEAN)
+        original = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.BOOLEAN)
             .subAggregation(new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter", new BoolQueryBuilder())));
         rewritten = original.rewrite(new QueryRewriteContext(parserConfig(), null, null, () -> 0L));
         assertNotSame(original, rewritten);

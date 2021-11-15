@@ -64,7 +64,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     }
 
     private Map<String, MultiValuesSourceFieldConfig> fields = new HashMap<>();
-    private ValueType userValueTypeHint = null;
+    private ValuesSourceType userValueTypeHint = null;
     private String format = null;
 
     protected MultiValuesSourceAggregationBuilder(String name) {
@@ -97,14 +97,16 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = in.readMap(StreamInput::readString, MultiValuesSourceFieldConfig::new);
-        userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
+        // NOCOMMIT: Make VST writeable
+        ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
+        this.userValueTypeHint = valueType.getValuesSourceType();
         format = in.readOptionalString();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
-        out.writeOptionalWriteable(userValueTypeHint);
+        out.writeOptionalWriteable(ValueType.reverseMap(userValueTypeHint));
         out.writeOptionalString(format);
         innerWriteTo(out);
     }
@@ -127,7 +129,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB userValueTypeHint(ValueType valueType) {
+    public AB userValueTypeHint(ValuesSourceType valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[userValueTypeHint] must not be null: [" + name + "]");
         }
@@ -184,14 +186,14 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
     public static DocValueFormat resolveFormat(
         @Nullable String format,
-        @Nullable ValueType valueType,
+        @Nullable ValuesSourceType valueType,
         ValuesSourceType defaultValuesSourceType
     ) {
         if (valueType == null) {
             // If the user didn't send a hint, all we can do is fall back to the default
             return defaultValuesSourceType.getFormatter(format, null);
         }
-        DocValueFormat valueFormat = valueType.defaultFormat;
+        DocValueFormat valueFormat = valueType.getFormatter(format, null);
         if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
             valueFormat = new DocValueFormat.Decimal(format);
         }
@@ -219,7 +221,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
         }
         if (userValueTypeHint != null) {
-            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
+            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.typeName());
         }
         doXContentBody(builder, params);
         builder.endObject();

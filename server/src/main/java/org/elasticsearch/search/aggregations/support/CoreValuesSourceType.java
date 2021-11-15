@@ -51,7 +51,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
             return new ValuesSource.Numeric.Script(script, true);
         }
 
@@ -111,7 +111,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
             return new ValuesSource.Numeric.Script(script, false);
         }
 
@@ -171,7 +171,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
             return new ValuesSource.Bytes.Script(script);
         }
 
@@ -213,7 +213,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
             throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
         }
 
@@ -252,7 +252,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
             throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
         }
 
@@ -284,8 +284,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return KEYWORD.getScript(script, scriptValueType);
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
+            return KEYWORD.getScript(script);
         }
 
         @Override
@@ -311,12 +311,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     DATE() {
         @Override
         public ValuesSource getEmpty() {
-            return DOUBLE.getEmpty();
+            return LONG.getEmpty();
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return DOUBLE.getScript(script, scriptValueType);
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
+            return LONG.getScript(script);
         }
 
         @Override
@@ -415,7 +415,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             DocValueFormat docValueFormat,
             AggregationContext context
         ) {
-            return DOUBLE.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return LONG.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
         @Override
@@ -432,17 +432,17 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     BOOLEAN() {
         @Override
         public ValuesSource getEmpty() {
-            return DOUBLE.getEmpty();
+            return LONG.getEmpty();
         }
 
         @Override
-        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return DOUBLE.getScript(script, scriptValueType);
+        public ValuesSource getScript(AggregationScript.LeafFactory script) {
+            return LONG.getScript(script);
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            return DOUBLE.getField(fieldContext, script, context);
+            return LONG.getField(fieldContext, script, context);
         }
 
         @Override
@@ -452,7 +452,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             DocValueFormat docValueFormat,
             AggregationContext context
         ) {
-            return DOUBLE.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return LONG.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
         @Override

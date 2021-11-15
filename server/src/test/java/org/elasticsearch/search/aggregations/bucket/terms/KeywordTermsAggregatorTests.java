@@ -22,7 +22,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
-            ValueType.STRING // with type hint
+            CoreValuesSourceType.KEYWORD // with type hint
         );
     }
 
@@ -86,7 +87,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(9L - i));
             }
         },
-            ValueType.STRING // with type hint
+            CoreValuesSourceType.KEYWORD // with type hint
         );
     }
 
@@ -95,7 +96,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         List<String> dataset,
         Consumer<TermsAggregationBuilder> configure,
         Consumer<InternalMappedTerms<?, ?>> verify,
-        ValueType valueType
+        ValuesSourceType valueType
     ) throws IOException {
         MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(
             KEYWORD_FIELD,

@@ -35,7 +35,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected final String name;
     private String field = null;
     private Script script = null;
-    private ValueType userValueTypeHint = null;
+    private ValuesSourceType userValueTypeHint = null;
     private boolean missingBucket = false;
     private MissingOrder missingOrder = MissingOrder.DEFAULT;
     private SortOrder order = SortOrder.ASC;
@@ -52,7 +52,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.script = new Script(in);
         }
         if (in.readBoolean()) {
-            this.userValueTypeHint = ValueType.readFromStream(in);
+            // NOCOMMIT: Make ValuesSourceType writeable
+            this.userValueTypeHint = ValueType.readFromStream(in).getValuesSourceType();
         }
         this.missingBucket = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
@@ -74,7 +75,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            userValueTypeHint.writeTo(out);
+            // NOCOMMIT: Make ValuesSourceType writeable
+            ValueType.writeValuesSourceType(userValueTypeHint, out);
         }
         out.writeBoolean(missingBucket);
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
@@ -103,7 +105,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             builder.field("missing_order", missingOrder.toString());
         }
         if (userValueTypeHint != null) {
-            builder.field("value_type", userValueTypeHint.getPreferredName());
+            builder.field("value_type", userValueTypeHint.typeName());
         }
         if (format != null) {
             builder.field("format", format);
@@ -181,9 +183,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     /**
      * Sets the {@link ValueType} for the value produced by this source
+     * @param valueType
      */
     @SuppressWarnings("unchecked")
-    public AB userValuetypeHint(ValueType valueType) {
+    public AB userValuetypeHint(ValuesSourceType valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[userValueTypeHint] must not be null");
         }
@@ -193,8 +196,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     /**
      * Gets the {@link ValueType} for the value produced by this source
+     * @return
      */
-    public ValueType userValuetypeHint() {
+    public ValuesSourceType userValuetypeHint() {
         return userValueTypeHint;
     }
 

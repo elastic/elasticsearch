@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatio
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -33,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<TTestAggregationBuilder> {
     public static final String NAME = "t_test";
@@ -44,7 +44,11 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     public static final ObjectParser<TTestAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, TTestAggregationBuilder::new);
 
     static {
-        MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
+        MultiValuesSourceParseHelper.declareCommon(
+            PARSER,
+            true,
+            Set.of(CoreValuesSourceType.DOUBLE, CoreValuesSourceType.LONG, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN)
+        );
         MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true, false);
         MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true, false);
         PARSER.declareString(TTestAggregationBuilder::testType, TYPE_FIELD);

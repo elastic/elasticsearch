@@ -94,7 +94,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                         updated = true;
                     }
                     if (isSystem && indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-                        builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
+                        builder.settings(
+                            Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, false)
+                        );
                         updated = true;
                     }
                     if (updated) {

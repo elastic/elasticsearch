@@ -118,7 +118,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     public Set<Map.Entry<KType, VType>> entrySet() {
-        Set<Map.Entry<KType,VType>> es;
+        Set<Map.Entry<KType, VType>> es;
         return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
     }
 
@@ -130,6 +130,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             this.key = key;
             this.value = value;
         }
+
         @Override
         public KType getKey() {
             return key;
@@ -187,6 +188,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             return new ConversionIterator();
         }
 
+        @SuppressWarnings("unchecked")
         public boolean contains(Object o) {
             if (o instanceof Map.Entry<?, ?> == false) {
                 return false;
@@ -195,6 +197,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             Object key = e.getKey();
             return map.containsKey((KType) key);
         }
+
         public boolean remove(Object o) {
             throw new UnsupportedOperationException("removal is not supported");
         }

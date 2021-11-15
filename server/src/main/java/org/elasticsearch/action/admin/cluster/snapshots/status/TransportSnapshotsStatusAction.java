@@ -195,7 +195,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 SnapshotIndexShardStatus shardStatus = shardStatues.get(sid);
                                 if (shardStatus != null) {
                                     // We have full information about this shard
-                                    if (shardStatus.getStage() == SnapshotIndexShardStage.DONE && shardEntry.getValue().state() != SUCCESS) {
+                                    if (shardStatus.getStage() == SnapshotIndexShardStage.DONE
+                                        && shardEntry.getValue().state() != SUCCESS) {
                                         // Unlikely edge case:
                                         // Data node has finished snapshotting the shard but the cluster state has not yet been updated
                                         // to reflect this. We adjust the status to show up as snapshot metadata being written because

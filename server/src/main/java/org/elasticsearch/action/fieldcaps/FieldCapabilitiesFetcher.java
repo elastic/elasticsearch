@@ -86,7 +86,8 @@ class FieldCapabilitiesFetcher {
                         ft.isAggregatable(),
                         ft.isDimension(),
                         ft.getMetricType(),
-                        ft.meta()
+                        ft.meta(),
+                        ft.isSingleValued(searcher)
                     );
                     responseMap.put(field, fieldCap);
                 } else {
@@ -119,7 +120,10 @@ class FieldCapabilitiesFetcher {
                                     false,
                                     false,
                                     null,
-                                    Collections.emptyMap()
+                                    Collections.emptyMap(),
+                                    // TODO - perhaps we report on a new object mapper property "allows_multiple_values"
+                                    // that rejects arrays of objects at index time. Here we assume multi-valued always...
+                                    false
                                 );
                                 responseMap.put(parentField, fieldCap);
                             }

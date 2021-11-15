@@ -56,6 +56,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
     private static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
     private static final ParseField META_FIELD = new ParseField("meta");
+    private static final ParseField IS_SINGLE_VALUED_FIELD = new ParseField("is_single_valued");
 
     private final String name;
     private final String type;
@@ -63,6 +64,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final boolean isSearchable;
     private final boolean isAggregatable;
     private final boolean isDimension;
+    private final boolean isSingleValued;
     private final TimeSeriesParams.MetricType metricType;
 
     private final String[] indices;
@@ -81,6 +83,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
      * @param isDimension Whether this field can be used as dimension
+     * @param isSingleValued True if all fields hold single values
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
@@ -99,6 +102,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isSearchable,
         boolean isAggregatable,
         boolean isDimension,
+        boolean isSingleValued,
         TimeSeriesParams.MetricType metricType,
         String[] indices,
         String[] nonSearchableIndices,
@@ -113,6 +117,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
         this.isDimension = isDimension;
+        this.isSingleValued = isSingleValued;
         this.metricType = metricType;
         this.indices = indices;
         this.nonSearchableIndices = nonSearchableIndices;
@@ -156,6 +161,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isSearchable,
             isAggregatable,
             false,
+            false,
             null,
             indices,
             nonSearchableIndices,
@@ -175,6 +181,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
      * @param isDimension Whether this field can be used as dimension
+     * @param isSingleValueField True if all documents have only a single value for the field 
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
@@ -195,6 +202,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isSearchable,
         boolean isAggregatable,
         Boolean isDimension,
+        Boolean isSingleValueField,
         String metricType,
         List<String> indices,
         List<String> nonSearchableIndices,
@@ -210,6 +218,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isSearchable,
             isAggregatable,
             isDimension == null ? false : isDimension,
+            isSingleValueField == null ? false : isSingleValueField,
             metricType != null ? Enum.valueOf(TimeSeriesParams.MetricType.class, metricType) : null,
             indices != null ? indices.toArray(new String[0]) : null,
             nonSearchableIndices != null ? nonSearchableIndices.toArray(new String[0]) : null,
@@ -244,6 +253,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.metricConflictsIndices = null;
         }
         meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            this.isSingleValued = in.readBoolean();
+        } else {
+            this.isSingleValued = false;
+        }        
     }
 
     @Override
@@ -265,6 +279,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             out.writeOptionalStringArray(metricConflictsIndices);
         }
         out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeBoolean(isSingleValued);
+        }
     }
 
     @Override
@@ -306,6 +323,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
             builder.endObject();
         }
+        builder.field(IS_SINGLE_VALUED_FIELD.getPreferredName(), isSingleValued);
         builder.endObject();
         return builder;
     }
@@ -328,6 +346,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_DIMENSION_FIELD);
+        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_SINGLE_VALUED_FIELD);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_METRIC_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD);
@@ -375,6 +394,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      */
     public boolean isDimension() {
         return isDimension;
+    }
+
+    /**
+     * True if all documents hold single values.
+     */
+    public boolean isSingleValued() {
+        return isSingleValued;
     }
 
     /**
@@ -445,6 +471,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
             && isDimension == that.isDimension
+            && isSingleValued == that.isSingleValued
             && Objects.equals(metricType, that.metricType)
             && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
@@ -458,7 +485,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, metricType, meta);
+        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, isSingleValued, metricType, meta);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
@@ -479,6 +506,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private boolean isSearchable;
         private boolean isAggregatable;
         private boolean isDimension;
+        private boolean isSingleValued;
         private TimeSeriesParams.MetricType metricType;
         private boolean metricTypeIsSet;
         private List<IndexCaps> indiceList;
@@ -490,6 +518,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isSearchable = true;
             this.isAggregatable = true;
             this.isDimension = true;
+            this.isSingleValued = true;
             this.metricType = null;
             this.metricTypeIsSet = false;
             this.indiceList = new ArrayList<>();
@@ -506,7 +535,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             boolean agg,
             boolean isDimension,
             TimeSeriesParams.MetricType metricType,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isSingleValued
         ) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg, isDimension, metricType);
             indiceList.add(indexCaps);
@@ -514,6 +544,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isAggregatable &= agg;
             this.isMetadataField |= isMetadataField;
             this.isDimension &= isDimension;
+            this.isSingleValued &= isSingleValued;
             // If we have discrepancy in metric types or in some indices this field is not marked as a metric field - we will
             // treat is a non-metric field and report this discrepancy in metricConflictsIndices
             if (this.metricTypeIsSet) {
@@ -598,6 +629,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 isSearchable,
                 isAggregatable,
                 isDimension,
+                isSingleValued,
                 metricType,
                 indices,
                 nonSearchableIndices,

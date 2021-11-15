@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -429,6 +430,21 @@ public final class KeywordFieldMapper extends FieldMapper {
                     return normalizeValue(normalizer(), name(), keywordValue);
                 }
             };
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            IndexReader reader = searcher.getTopReaderContext().reader();
+            // Check all segments have one value per doc, exiting early if not.
+            for (LeafReaderContext ctx : reader.leaves()) {
+                Terms subTerms = ctx.reader().terms(name());
+                if (subTerms != null) {
+                    if (subTerms.size() != subTerms.getDocCount()) {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
 
         @Override

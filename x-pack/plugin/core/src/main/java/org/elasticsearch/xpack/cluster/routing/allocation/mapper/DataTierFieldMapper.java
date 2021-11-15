@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -47,6 +48,11 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) {
+            return true;
         }
 
         @Override

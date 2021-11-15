@@ -24,6 +24,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
@@ -119,6 +120,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         /** Return the value that this field wraps. This may be {@code null} if the field is not configured yet. */
         public String value() {
             return value;
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) {
+            return true;
         }
 
         @Override
@@ -309,5 +315,4 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

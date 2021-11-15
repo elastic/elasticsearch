@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
@@ -191,6 +192,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 NumericType.LONG,
                 (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
             );
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            return true;
         }
     }
 

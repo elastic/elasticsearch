@@ -41,9 +41,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
 
     public void testBuilder() {
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true, false, false, null, Collections.emptyMap());
-        builder.add("index2", false, true, false, false, null, Collections.emptyMap());
-        builder.add("index3", false, true, false, false, null, Collections.emptyMap());
+        builder.add("index1", false, true, false, false, null, Collections.emptyMap(), false);
+        builder.add("index2", false, true, false, false, null, Collections.emptyMap(), false);
+        builder.add("index3", false, true, false, false, null, Collections.emptyMap(), false);
 
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -71,9 +71,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, false, true, true, null, Collections.emptyMap());
-        builder.add("index2", false, true, false, false, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add("index3", false, false, false, false, null, Collections.emptyMap());
+        builder.add("index1", false, false, true, true, null, Collections.emptyMap(), false);
+        builder.add("index2", false, true, false, false, TimeSeriesParams.MetricType.counter, Collections.emptyMap(), false);
+        builder.add("index3", false, false, false, false, null, Collections.emptyMap(), false);
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
@@ -100,9 +100,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add("index2", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "bar"));
-        builder.add("index3", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add("index1", false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap(), false);
+        builder.add("index2", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "bar"), false);
+        builder.add("index3", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"), false);
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -129,9 +129,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add("index1", false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add("index2", false, true, true, true, TimeSeriesParams.MetricType.gauge, Map.of("foo", "bar"));
-        builder.add("index3", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add("index1", false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap(), false);
+        builder.add("index2", false, true, true, true, TimeSeriesParams.MetricType.gauge, Map.of("foo", "bar"), false);
+        builder.add("index3", false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"), false);
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -217,6 +217,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomFrom(TimeSeriesParams.MetricType.values()),
             indices,
             nonSearchableIndices,
@@ -235,6 +236,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         boolean isSearchable = instance.isSearchable();
         boolean isAggregatable = instance.isAggregatable();
         boolean isDimension = instance.isDimension();
+        boolean isSingleValued = instance.isSingleValued();
         TimeSeriesParams.MetricType metricType = instance.getMetricType();
         String[] indices = instance.indices();
         String[] nonSearchableIndices = instance.nonSearchableIndices();
@@ -242,7 +244,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         String[] nonDimensionIndices = instance.nonDimensionIndices();
         String[] metricConflictsIndices = instance.metricConflictsIndices();
         Map<String, Set<String>> meta = instance.meta();
-        switch (between(0, 12)) {
+        switch (between(0, 13)) {
             case 0:
                 name += randomAlphaOfLengthBetween(1, 10);
                 break;
@@ -354,6 +356,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
                 }
                 metricConflictsIndices = newMetricConflictsIndices;
                 break;
+            case 13:
+                isSingleValued = isSingleValued == false;
+                break;
             default:
                 throw new AssertionError();
         }
@@ -364,6 +369,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             isSearchable,
             isAggregatable,
             isDimension,
+            isSingleValued,
             metricType,
             indices,
             nonSearchableIndices,

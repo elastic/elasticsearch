@@ -243,7 +243,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             typeMap.put("unmapped", unmapped);
             for (String index : unmappedIndices) {
-                unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
+                unmapped.add(index, false, false, false, false, null, Collections.emptyMap(), false);
             }
         }
     }
@@ -271,7 +271,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),
                 fieldCap.getMetricType(),
-                fieldCap.meta()
+                fieldCap.meta(),
+                fieldCap.isSingleValued()
             );
         }
     }

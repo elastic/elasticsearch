@@ -31,6 +31,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -691,6 +692,21 @@ public final class DateFieldMapper extends FieldMapper {
             // milliseconds. The only special case here is docvalue fields, which are handled somewhere else
             // TODO maybe aggs should force millis because lots so of other places want nanos?
             return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            IndexReader reader = searcher.getTopReaderContext().reader();
+            // Check all segments have one value per doc, exiting early if not.
+            for (LeafReaderContext ctx : reader.leaves()) {
+                PointValues values = ctx.reader().getPointValues(name());
+                if (values != null) {
+                    if (values.size() != values.getDocCount()) {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
     }
 

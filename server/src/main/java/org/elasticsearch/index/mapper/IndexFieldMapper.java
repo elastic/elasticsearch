@@ -12,6 +12,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
@@ -87,6 +89,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                     return indexName;
                 }
             };
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            return true;
         }
     }
 

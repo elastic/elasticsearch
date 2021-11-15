@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.TimestampBounds;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,6 +45,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
     public static final class TimestampFieldType extends MappedFieldType {
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            return true;
+        }
 
         static final TimestampFieldType INSTANCE = new TimestampFieldType();
 

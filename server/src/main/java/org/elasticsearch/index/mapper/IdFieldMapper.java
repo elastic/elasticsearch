@@ -22,6 +22,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -207,6 +208,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     };
                 }
             };
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            return true;
         }
     }
 

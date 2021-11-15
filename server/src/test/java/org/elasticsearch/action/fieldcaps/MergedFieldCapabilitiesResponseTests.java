@@ -120,7 +120,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                     "aggregatable": true,
                     "time_series_dimension": true,
                     "indices": [ "index3", "index4" ],
-                    "non_searchable_indices": [ "index4" ]
+                    "non_searchable_indices": [ "index4" ],
+                    "is_single_valued": true
                   },
                   "long": {
                     "type": "long",
@@ -130,7 +131,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                     "time_series_metric": "counter",
                     "indices": [ "index1", "index2" ],
                     "non_aggregatable_indices": [ "index1" ],
-                    "non_dimension_indices": [ "index4" ]
+                    "non_dimension_indices": [ "index4" ],
+                    "is_single_valued": false
                   }
                 },
                 "title": {
@@ -138,7 +140,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                     "type": "text",
                     "metadata_field": false,
                     "searchable": true,
-                    "aggregatable": false
+                    "aggregatable": false,
+                    "is_single_valued": false
                   }
                 }
               },
@@ -162,7 +165,22 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
         titleCapabilities.put(
             "text",
-            new FieldCapabilities("title", "text", false, true, false, false, null, null, null, null, null, null, Collections.emptyMap())
+            new FieldCapabilities(
+                "title",
+                "text",
+                false,
+                true,
+                false,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            )
         );
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
@@ -173,6 +191,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                 "long",
                 false,
                 true,
+                false,
                 false,
                 false,
                 TimeSeriesParams.MetricType.counter,
@@ -191,6 +210,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                 "keyword",
                 false,
                 false,
+                true,
                 true,
                 true,
                 null,

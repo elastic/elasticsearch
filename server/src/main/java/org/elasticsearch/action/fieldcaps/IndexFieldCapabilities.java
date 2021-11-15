@@ -32,6 +32,7 @@ public class IndexFieldCapabilities implements Writeable {
     private final boolean isSearchable;
     private final boolean isAggregatable;
     private final boolean isDimension;
+    private final boolean isSingleValued;
     private final TimeSeriesParams.MetricType metricType;
     private final Map<String, String> meta;
 
@@ -41,6 +42,7 @@ public class IndexFieldCapabilities implements Writeable {
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
      * @param meta Metadata about the field.
+     * @param isSingleValued true if all documents are single-valued
      */
     IndexFieldCapabilities(
         String name,
@@ -50,7 +52,8 @@ public class IndexFieldCapabilities implements Writeable {
         boolean isAggregatable,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
-        Map<String, String> meta
+        Map<String, String> meta,
+        boolean isSingleValued
     ) {
 
         this.name = name;
@@ -61,6 +64,7 @@ public class IndexFieldCapabilities implements Writeable {
         this.isDimension = isDimension;
         this.metricType = metricType;
         this.meta = meta;
+        this.isSingleValued = isSingleValued;
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
@@ -77,6 +81,11 @@ public class IndexFieldCapabilities implements Writeable {
             this.metricType = null;
         }
         this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            this.isSingleValued = in.readBoolean();
+        } else {
+            this.isSingleValued = false;
+        }
     }
 
     @Override
@@ -91,6 +100,9 @@ public class IndexFieldCapabilities implements Writeable {
             out.writeOptionalEnum(metricType);
         }
         out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeBoolean(isSingleValued);
+        }
     }
 
     public String getName() {
@@ -117,6 +129,10 @@ public class IndexFieldCapabilities implements Writeable {
         return isDimension;
     }
 
+    public boolean isSingleValued() {
+        return isSingleValued;
+    }
+
     public TimeSeriesParams.MetricType getMetricType() {
         return metricType;
     }
@@ -134,6 +150,7 @@ public class IndexFieldCapabilities implements Writeable {
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
             && isDimension == that.isDimension
+            && isSingleValued == that.isSingleValued
             && Objects.equals(metricType, that.metricType)
             && Objects.equals(name, that.name)
             && Objects.equals(type, that.type)
@@ -142,6 +159,6 @@ public class IndexFieldCapabilities implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, isMetadatafield, isSearchable, isAggregatable, isDimension, metricType, meta);
+        return Objects.hash(name, type, isMetadatafield, isSearchable, isAggregatable, isDimension, isSingleValued, metricType, meta);
     }
 }

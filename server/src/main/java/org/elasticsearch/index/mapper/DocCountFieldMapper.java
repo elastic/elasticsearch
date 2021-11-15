@@ -9,6 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentParser;
@@ -73,6 +74,12 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 }
             };
         }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            return true;
+        }
+
     }
 
     private DocCountFieldMapper() {

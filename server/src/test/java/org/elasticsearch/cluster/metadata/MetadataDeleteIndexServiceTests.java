@@ -121,6 +121,30 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         verify(allocationService).reroute(any(ClusterState.class), any(String.class));
     }
 
+    public void testDeleteIndexWithAnAlias() {
+        String index = randomAlphaOfLength(5);
+        String alias = randomAlphaOfLength(5);
+
+        IndexMetadata idxMetadata = IndexMetadata.builder(index)
+            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(idxMetadata, false))
+            .routingTable(RoutingTable.builder().addAsNew(idxMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
+            .build();
+
+        ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
+
+        assertNull(after.metadata().getIndices().get(index));
+        assertNull(after.routingTable().index(index));
+        assertNull(after.blocks().indices().get(index));
+        assertNull(after.metadata().getIndicesLookup().get(alias));
+    }
+
     public void testDeleteBackingIndexForDataStream() {
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);

@@ -25,7 +25,10 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -83,6 +86,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         void onPointsUsed(String field);
 
         void onTermVectorsUsed(String field);
+
+        void onKnnVectorsUsed(String field);
     }
 
     public static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
@@ -179,6 +184,24 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 notifier.onNormsUsed(field);
             }
             return numericDocValues;
+        }
+
+        @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            VectorValues vectorValues = super.getVectorValues(field);
+            if (vectorValues != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return vectorValues;
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs);
+            if (topDocs != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return topDocs;
         }
 
         @Override

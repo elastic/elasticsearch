@@ -7,8 +7,19 @@
 
 package org.elasticsearch.xpack.apm;
 
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.plugins.TracingPlugin;
 
@@ -16,10 +27,23 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
+    private volatile Tracer tracer;
+
     public APMTracer() {}
 
     @Override
-    protected void doStart() {}
+    protected void doStart() {
+        SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(new LoggingSpanExporter()))
+            .build();
+
+        OpenTelemetry openTelemetry = OpenTelemetrySdk.builder()
+            .setTracerProvider(sdkTracerProvider)
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .build();
+        tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
+        tracer.spanBuilder("startup").startSpan().end();
+    }
 
     @Override
     protected void doStop() {}
@@ -29,6 +53,11 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     @Override
     public void trace(String something) {
-        logger.info("tracing {}", something);
+        final Tracer tracer = this.tracer;
+        if (tracer == null) {
+            return;
+        }
+        final Span span = tracer.spanBuilder("something").startSpan();
+        span.end();
     }
 }

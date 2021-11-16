@@ -77,6 +77,12 @@ exist prior to the policy's creation. You can create a repository using the
 (Optional, object)
 Retention rules used to retain and delete snapshots created by the policy.
 +
+We recommend you include retention rules in your {slm-init} policy to delete
+snapshots you no longer need. A snapshot repository can safely scale to
+thousands of snapshots. However, to manage its metadata, a large repository
+requires more memory on the master node. Retention rules ensure a repository's
+metadata doesn't grow to a size that could destabilize the master node.
++
 .Properties of `retention`
 [%collapsible%open]
 ====
@@ -93,10 +99,6 @@ expired. If the number of snapshots in the repository exceeds this limit, the
 policy retains the most recent snapshots and deletes older snapshots. This limit
 only includes snapshots with a <<get-snapshot-api-response-state,`state`>> of
 `SUCCESS`.
-+
-NOTE: The maximum number of snapshots in a repository should not exceed `200`. This ensures that the snapshot repository metadata does not
-grow to a size which might destabilize the master node. If the `max_count` setting is not set, this limit should be enforced by configuring
-other retention rules such that the repository size does not exceed `200` snapshots.
 
 `min_count`::
 (Optional, integer)

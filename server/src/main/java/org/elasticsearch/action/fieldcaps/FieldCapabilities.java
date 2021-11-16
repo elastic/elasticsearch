@@ -208,7 +208,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isSearchable,
             isAggregatable,
             false,
-            false, //Default assumption for single-valued-ness in majority of tests
+            false, // Default assumption for single-valued-ness in majority of tests
             null,
             indices,
             nonSearchableIndices,
@@ -219,6 +219,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         );
 
     }
+
     /**
      * Constructor for a set of indices used by parser
      * @param name The name of the field
@@ -303,7 +304,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isSingleValued = in.readBoolean();
         } else {
             this.isSingleValued = false;
-        }        
+        }
     }
 
     @Override

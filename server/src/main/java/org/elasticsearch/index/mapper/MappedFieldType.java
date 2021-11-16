@@ -567,7 +567,7 @@ public abstract class MappedFieldType {
 
     /**
      * Returns true if *all* documents in the shard are single-valued.
-     * @throws IOException 
+     * @throws IOException Errors accessing data
      */
     public boolean isSingleValued(Searcher searcher) throws IOException {
         return false;

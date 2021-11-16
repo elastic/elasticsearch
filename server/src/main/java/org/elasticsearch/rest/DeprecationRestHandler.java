@@ -76,12 +76,15 @@ public class DeprecationRestHandler implements RestHandler {
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (compatibleVersionWarning == false) {
+            // The default value for deprecated requests without a version warning is WARN
             if (deprecationLevel == null || deprecationLevel == Level.WARN) {
                 deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
             } else {
                 deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
             }
         } else {
+            // The default value for deprecated requests with a version warning is CRITICAL,
+            // because they have a specific version where the endpoint is removed
             if (deprecationLevel == null || deprecationLevel == DeprecationLogger.CRITICAL) {
                 deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
             } else {

@@ -12,6 +12,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
@@ -29,6 +31,11 @@ import java.util.function.Supplier;
 public class APM extends Plugin implements TracingPlugin {
 
     private final SetOnce<Tracer> tracer = new SetOnce<>();
+    private final Settings settings;
+
+    public APM(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public Collection<Object> createComponents(
@@ -44,7 +51,12 @@ public class APM extends Plugin implements TracingPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        tracer.set(new APMTracer());
+        tracer.set(new APMTracer(settings, clusterService));
         return List.of(tracer.get());
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(APMTracer.APM_ENDPOINT_SETTING, APMTracer.APM_TOKEN_SETTING);
     }
 }

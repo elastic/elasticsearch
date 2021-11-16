@@ -25,6 +25,34 @@ dependencies {
   implementation "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}-alpha"
   implementation "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
   implementation "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
+  // required to use OTLP (to get OtlpGrpcSpanExporter)
+  implementation "io.opentelemetry:opentelemetry-exporter-otlp-trace:${versions.opentelemetry}"
+  // required by OTLP (to get GrpcExporter, Marshaller etc)
+  implementation "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
+  // required by OTLP common & trace
+  implementation "io.grpc:grpc-api:1.42.1"
+  implementation "io.grpc:grpc-stub:1.42.1"
+  implementation "io.grpc:grpc-core:1.42.1"
+  implementation "io.grpc:grpc-context:1.42.1"
+  // netty HTTP client is used for gRPC calls to Elastic's APM server
+  implementation "io.grpc:grpc-netty:1.42.1"
+  // okio and okhttp are required by GrpcExporter as the default implementation, but we don't use it
+  implementation "com.squareup.okhttp3:okhttp:3.14.9"
+  implementation "com.squareup.okio:okio:1.17.2"
+  // required by io.grpc
+  implementation 'io.perfmark:perfmark-api:0.24.0'
+  implementation 'io.perfmark:perfmark-impl:0.24.0'
+  implementation 'com.google.guava:failureaccess:1.0.1'
+  // required by grpc-netty
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  runtimeOnly 'com.google.guava:guava:31.0.1-jre'
 
   compileOnly project(path: xpackModule('core'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -33,17 +61,137 @@ dependencies {
 // no unit-test for now
 tasks.named("test").configure { enabled = false }
 
+tasks.named("dependencyLicenses").configure {
+  mapping from: /opentelemetry-.*/, to: 'opentelemetry'
+  mapping from: /grpc-.*/, to: 'grpc'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /perfmark-.*/, to: 'perfmark'
+}
+
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
-    'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess'
+    'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
   )
   ignoreMissingClasses(
     'io.opentelemetry.sdk.logs.data.Body',
     'io.opentelemetry.sdk.logs.data.LogData',
-    'io.opentelemetry.sdk.logs.export.LogExporter'
+    'io.opentelemetry.sdk.logs.export.LogExporter',
+    'android.net.ssl.SSLSockets',
+    'android.os.Build$VERSION',
+    'android.util.Log',
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+    'com.github.luben.zstd.Zstd',
+    'com.google.gson.stream.JsonReader',
+    'com.google.gson.stream.JsonToken',
+    'com.google.protobuf.ExtensionRegistry',
+    'com.google.protobuf.ExtensionRegistryLite',
+    'com.google.protobuf.MessageLite',
+    'com.google.protobuf.MessageLite$Builder',
+    'com.google.protobuf.MessageLiteOrBuilder',
+    'com.google.protobuf.Parser',
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+    'com.jcraft.jzlib.Deflater',
+    'com.jcraft.jzlib.Inflater',
+    'com.jcraft.jzlib.JZlib',
+    'com.jcraft.jzlib.JZlib$WrapperType',
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+    'io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts',
+    'io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder',
+    'io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder',
+    'io.grpc.okhttp.OkHttpChannelBuilder',
+    'io.netty.handler.proxy.HttpProxyHandler',
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.opentelemetry.sdk.logs.data.Severity',
+    'lzma.sdk.lzma.Encoder',
+    'org.bouncycastle.asn1.x500.X500Name',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.jce.provider.BouncyCastleProvider',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.Conscrypt$ProviderBuilder',
+    'org.conscrypt.HandshakeListener',
+    'org.eclipse.jetty.alpn.ALPN',
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.jboss.marshalling.ByteInput',
+    'org.jboss.marshalling.ByteOutput',
+    'org.jboss.marshalling.Marshaller',
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.helpers.FormattingTuple',
+    'org.slf4j.helpers.MessageFormatter',
+    'org.slf4j.spi.LocationAwareLogger',
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 }

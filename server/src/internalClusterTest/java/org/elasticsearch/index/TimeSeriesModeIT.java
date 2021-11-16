@@ -59,7 +59,7 @@ public class TimeSeriesModeIT extends ESIntegTestCase {
             .endObject();
 
         Exception e = expectThrows(MapperParsingException.class, () -> prepareCreate("test").setSettings(s).setMapping(mappings).get());
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: [_parent] must be an object containing [type]"));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: [_data_stream_timestamp] config must be an object"));
     }
 
     public void testBadTimestamp() throws IOException {

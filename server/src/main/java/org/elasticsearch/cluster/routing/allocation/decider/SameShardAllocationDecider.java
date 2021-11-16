@@ -86,29 +86,23 @@ public class SameShardAllocationDecider extends AllocationDecider {
             return YES_AUTO_EXPAND_ALL;
         }
         if (node.node() != null) {
-            for (RoutingNode checkNode : allocation.routingNodes()) {
-                if (checkNode.node() == null) {
+            for (RoutingNode checkNode : allocation.getHosts().getHost(node.nodeId())) {
+                if (checkNode.node() == null || checkNode.nodeId().equals(node.nodeId())) {
                     continue;
                 }
-                // check if its on the same host as the one we want to allocate to
-                boolean checkNodeOnSameHostName = false;
-                boolean checkNodeOnSameHostAddress = false;
-                if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
-                    if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
-                        checkNodeOnSameHostAddress = true;
-                    }
-                } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
-                    if (checkNode.node().getHostName().equals(node.node().getHostName())) {
-                        checkNodeOnSameHostName = true;
-                    }
-                }
-                if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
-                    for (ShardRouting assignedShard : assignedShards) {
-                        if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
-                            return allocation.debugDecision()
-                                ? debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress)
-                                : Decision.NO;
+                for (ShardRouting assignedShard : assignedShards) {
+                    if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
+                        // check if its on the same host as the one we want to allocate to
+                        boolean checkNodeOnSameHostAddress = false;
+                        if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
+                            if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
+                                checkNodeOnSameHostAddress = true;
+                            }
                         }
+
+                        return allocation.debugDecision()
+                            ? debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress)
+                            : Decision.NO;
                     }
                 }
             }

@@ -26,10 +26,11 @@ Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasti
 files.
 =====================
 
-==== Docker
+=== Docker
 
 If you are running Elasticsearch using Docker, you can choose instead to
-use manage plugins via a configuration file.
+use manage plugins via a
+<<manage-plugins-using-configuration-file,configuration file>>.
 
 [[installation]]
 === Installing Plugins
@@ -287,6 +288,7 @@ The default location of the `plugins` directory depends on which package you ins
 
 
 [discrete]
+[[manage-plugins-using-configuration-file]]
 === Managing plugins using a configuration file
 
 [IMPORTANT]

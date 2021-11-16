@@ -156,23 +156,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final InetAddress ipAddress = InetAddresses.forString(ip);
             Map<String, Object> geoData;
             if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                try {
-                    geoData = retrieveCityGeoData(lazyLoader, ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
+                geoData = retrieveCityGeoData(lazyLoader, ipAddress);
             } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                try {
-                    geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
+                geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
+
             } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                try {
-                    geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
+                geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
+
             } else {
                 throw new ElasticsearchParseException(
                     "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
@@ -208,6 +198,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveCityGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         CityResponse response = lazyLoader.getCity(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
         Country country = response.getCountry();
         City city = response.getCity();
         Location location = response.getLocation();
@@ -283,6 +276,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveCountryGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         CountryResponse response = lazyLoader.getCountry(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
         Country country = response.getCountry();
         Continent continent = response.getContinent();
 
@@ -317,6 +313,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveAsnGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         AsnResponse response = lazyLoader.getAsn(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
         Integer asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
@@ -482,17 +481,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 ignoreMissing,
                 firstOnly
             );
-        }
-    }
-
-    // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
-    // inside a PrivilegedAction code block, we are forced to catch any checked exception and rethrow
-    // it with an unchecked exception.
-    // package private for testing
-    static final class AddressNotFoundRuntimeException extends RuntimeException {
-
-        AddressNotFoundRuntimeException(Throwable cause) {
-            super(cause);
         }
     }
 

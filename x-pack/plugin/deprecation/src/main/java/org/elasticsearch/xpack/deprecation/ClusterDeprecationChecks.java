@@ -255,7 +255,7 @@ public class ClusterDeprecationChecks {
                 "Multiple mapping types and custom mapping types in index templates and indices are deprecated",
                 "https://ela.st/es-deprecation-7-multiple-types",
                 "Update or remove the following index templates before upgrading to 8.0: "
-                    + templatesWithMultipleTypes
+                    + allBadTemplates
                     + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
                 false,
                 null

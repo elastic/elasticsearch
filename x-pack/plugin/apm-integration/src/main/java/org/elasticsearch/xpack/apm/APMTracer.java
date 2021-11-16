@@ -13,7 +13,10 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
@@ -36,15 +39,21 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.plugins.TracingPlugin;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class APMTracer extends AbstractLifecycleComponent implements TracingPlugin.Tracer {
 
@@ -60,10 +69,13 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     private volatile SdkTracerProvider provider;
     private volatile Tracer tracer;
+    private volatile OpenTelemetry openTelemetry;
+    private final ThreadPool threadPool;
 
-    public APMTracer(Settings settings, ClusterService clusterService) {
+    public APMTracer(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.endpoint = APM_ENDPOINT_SETTING.get(settings);
         this.token = APM_TOKEN_SETTING.get(settings);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.clusterService = Objects.requireNonNull(clusterService);
     }
 
@@ -91,12 +103,11 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
                 .build()
         );
 
-        OpenTelemetry openTelemetry = OpenTelemetrySdk.builder()
+        openTelemetry = OpenTelemetrySdk.builder()
             .setTracerProvider(provider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .build();
         tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-        tracer.spanBuilder("startup").startSpan().end();
     }
 
     @Override
@@ -113,9 +124,14 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     @Override
     public void onTraceStarted(TracingPlugin.Traceable traceable) {
         final Tracer tracer = this.tracer;
-        if (tracer != null) {
+        final OpenTelemetry openTelemetry = this.openTelemetry;
+        if (openTelemetry != null && tracer != null) {
             spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
                 final SpanBuilder spanBuilder = tracer.spanBuilder(traceable.getSpanName());
+                Context parentContext = getParentSpanContext(openTelemetry);
+                if (parentContext != null) {
+                    spanBuilder.setParent(parentContext);
+                }
                 for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
                     final Object value = entry.getValue();
                     if (value instanceof String) {
@@ -136,6 +152,40 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
                 }
                 return spanBuilder.startSpan();
             });
+        }
+    }
+
+    private Context getParentSpanContext(OpenTelemetry openTelemetry) {
+        // If we already have a non-root span context that should be the parent
+        if (Context.current() != Context.root()) {
+            return Context.current();
+        }
+
+        // If not let us check for a parent context in the thread context
+        String traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        String traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
+        if (traceParent != null) {
+            Map<String, String> traceContextMap = new HashMap<>();
+            // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
+            traceContextMap.put(Task.TRACE_PARENT, traceParent);
+            if (traceState != null) {
+                traceContextMap.put(Task.TRACE_STATE, traceState);
+            }
+            return openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), traceContextMap, new MapKeyGetter());
+        }
+        return null;
+    }
+
+    public Map<String, String> getSpanHeadersById(String id) {
+        var span = spans.get(id);
+        if (span == null) {
+            return null;
+        }
+        try (Scope scope = span.makeCurrent()) {
+            Map<String, String> spanHeaders = new HashMap<>();
+            openTelemetry.getPropagators().getTextMapPropagator().inject(Context.current(), spanHeaders, Map::put);
+            spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
+            return spanHeaders;
         }
     }
 
@@ -171,7 +221,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     public static class CapturingSpanExporter implements SpanExporter {
 
-        private List<SpanData> capturedSpans = new ArrayList<>();
+        private Queue<SpanData> capturedSpans = ConcurrentCollections.newQueue();
 
         public void clear() {
             capturedSpans.clear();
@@ -179,6 +229,22 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
         public List<SpanData> getCapturedSpans() {
             return List.copyOf(capturedSpans);
+        }
+
+        public Stream<SpanData> findSpan(Predicate<SpanData> predicate) {
+            return capturedSpans.stream().filter(predicate);
+        }
+
+        public Stream<SpanData> findSpanByName(String name) {
+            return findSpan(span -> Objects.equals(span.getName(), name));
+        }
+
+        public Stream<SpanData> findSpanBySpanId(String spanId) {
+            return findSpan(span -> Objects.equals(span.getSpanId(), spanId));
+        }
+
+        public Stream<SpanData> findSpanByParentSpanId(String parentSpanId) {
+            return findSpan(span -> Objects.equals(span.getParentSpanId(), parentSpanId));
         }
 
         @Override
@@ -196,5 +262,22 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         public CompletableResultCode shutdown() {
             return CompletableResultCode.ofSuccess();
         }
+    }
+
+    private static class MapKeyGetter implements TextMapGetter<Map<String, String>> {
+
+        @Override
+        public Iterable<String> keys(Map<String, String> carrier) {
+            return carrier.keySet().stream().filter(APMTracer::isSupportedContextKey).collect(Collectors.toSet());
+        }
+
+        @Override
+        public String get(Map<String, String> carrier, String key) {
+            return carrier.get(key);
+        }
+    }
+
+    private static boolean isSupportedContextKey(String key) {
+        return APM.TRACE_HEADERS.contains(key);
     }
 }

@@ -14,23 +14,35 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
-public class APM extends Plugin implements TracingPlugin {
+public class APM extends Plugin implements TracingPlugin, NetworkPlugin {
 
-    private final SetOnce<Tracer> tracer = new SetOnce<>();
+    public static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT, Task.TRACE_STATE);
+
+    private final SetOnce<APMTracer> tracer = new SetOnce<>();
     private final Settings settings;
 
     public APM(Settings settings) {
@@ -51,12 +63,55 @@ public class APM extends Plugin implements TracingPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        tracer.set(new APMTracer(settings, clusterService));
+        tracer.set(new APMTracer(settings, threadPool, clusterService));
         return List.of(tracer.get());
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(APMTracer.APM_ENDPOINT_SETTING, APMTracer.APM_TOKEN_SETTING);
+    }
+
+    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+        return List.of(new TransportInterceptor() {
+            @Override
+            public AsyncSender interceptSender(AsyncSender sender) {
+                return new ApmTransportInterceptor(sender, threadContext);
+            }
+        });
+    }
+
+    private class ApmTransportInterceptor implements TransportInterceptor.AsyncSender {
+
+        private final TransportInterceptor.AsyncSender sender;
+        private final ThreadContext threadContext;
+
+        ApmTransportInterceptor(TransportInterceptor.AsyncSender sender, ThreadContext threadContext) {
+            this.sender = sender;
+            this.threadContext = threadContext;
+        }
+
+        @Override
+        public <T extends TransportResponse> void sendRequest(
+            Transport.Connection connection,
+            String action,
+            TransportRequest request,
+            TransportRequestOptions options,
+            TransportResponseHandler<T> handler
+        ) {
+            if (tracer.get() == null) {
+                sender.sendRequest(connection, action, request, options, handler);
+            } else {
+                var headers = tracer.get().getSpanHeadersById(String.valueOf(request.getParentTask().getId()));
+                if (headers != null) {
+                    try (var ignore = threadContext.removeRequestHeaders(TRACE_HEADERS)) {
+                        threadContext.putHeader(headers);
+                        sender.sendRequest(connection, action, request, options, handler);
+                    }
+                } else {
+                    sender.sendRequest(connection, action, request, options, handler);
+                }
+            }
+        }
     }
 }

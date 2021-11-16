@@ -178,6 +178,28 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Removes the current context and resets a new context that is a copy of the current one except that the request
+     * headers do not contain the given headers to remove. The removed context can be restored when closing the returned
+     * {@link StoredContext}.
+     * @param headersToRemove the request headers to remove
+     */
+    public StoredContext removeRequestHeaders(Set<String> headersToRemove) {
+        final ThreadContextStruct context = threadLocal.get();
+        Map<String, String> newRequestHeaders = new HashMap<>(context.requestHeaders);
+        newRequestHeaders.keySet().removeAll(headersToRemove);
+        threadLocal.set(
+            new ThreadContextStruct(
+                newRequestHeaders,
+                context.responseHeaders,
+                context.transientHeaders,
+                context.isSystemContext,
+                context.warningHeadersSize
+            )
+        );
+        return () -> threadLocal.set(context);
+    }
+
+    /**
      * Just like {@link #stashContext()} but no default context is set.
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */

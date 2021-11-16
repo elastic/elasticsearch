@@ -300,7 +300,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.endMethod();
 
         Method reflect = null;
-        Map<String, Method> collectedArguments = new HashMap<>();
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {

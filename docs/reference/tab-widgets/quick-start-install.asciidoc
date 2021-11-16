@@ -43,6 +43,15 @@ and enrollment token.
 . Copy the generated password and enrollment token and save them in a secure 
 location. These values are shown only when you start {es} for the first time.
 You'll use these to enroll {kib} with your {es} cluster and log in.
++
+[NOTE]
+====
+If you need to reset the password for the `elastic` user or other
+built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
+To generate new enrollment tokens for {kib} or {es} nodes, run the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool.
+These tools are available in the {es} `bin` directory.
+====
 
 **Install and run {kib}**
 

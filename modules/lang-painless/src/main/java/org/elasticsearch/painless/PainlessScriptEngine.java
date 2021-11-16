@@ -88,9 +88,21 @@ public final class PainlessScriptEngine implements ScriptEngine {
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
             PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
+
+            // if emitExpression exists on the factory class we make two assumptions
+            // 1. this is runtime field that uses an emit method to generate values
+            // 2. doc is available to access fields in a document
+            boolean optimizeRTF = false;
+            try {
+                context.factoryClazz.getMethod("emitExpression");
+                optimizeRTF = true;
+            } catch (NoSuchMethodException nsme) {
+                // do nothing
+            }
+
             contextsToCompilers.put(
                 context,
-                new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
+                new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup, optimizeRTF)
             );
             contextsToLookups.put(context, lookup);
         }

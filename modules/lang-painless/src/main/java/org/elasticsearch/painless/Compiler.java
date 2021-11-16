@@ -159,13 +159,25 @@ final class Compiler {
     private final Map<String, Class<?>> additionalClasses;
 
     /**
+     * Sets whether we can use {@QueryableExpression} to generate additional
+     * filtering of the documents the script is executed against.
+     */
+    private final boolean optimizeRTF;
+
+    /**
      * Standard constructor.
      * @param scriptClass The class/interface the script will implement.
      * @param factoryClass An optional class/interface to create the {@code scriptClass} instance.
      * @param statefulFactoryClass An optional class/interface to create the {@code factoryClass} instance.
      * @param painlessLookup The whitelist the script will use.
      */
-    Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
+    Compiler(
+        Class<?> scriptClass,
+        Class<?> factoryClass,
+        Class<?> statefulFactoryClass,
+        PainlessLookup painlessLookup,
+        boolean optimizeRTF
+    ) {
         this.scriptClass = scriptClass;
         this.painlessLookup = painlessLookup;
         Map<String, Class<?>> additionalClasses = new HashMap<>();
@@ -174,6 +186,7 @@ final class Compiler {
         addFactoryMethod(additionalClasses, statefulFactoryClass, "newFactory");
         addFactoryMethod(additionalClasses, statefulFactoryClass, "newInstance");
         this.additionalClasses = Collections.unmodifiableMap(additionalClasses);
+        this.optimizeRTF = optimizeRTF;
     }
 
     private static void addFactoryMethod(Map<String, Class<?>> additionalClasses, Class<?> factoryClass, String methodName) {
@@ -219,7 +232,9 @@ final class Compiler {
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
-        new QueryableExpressionCollectionPhase().visitClass(classNode, scriptScope.getQueryableExpressionScope());
+        if (optimizeRTF) {
+            new QueryableExpressionCollectionPhase().visitClass(classNode, scriptScope.getQueryableExpressionScope());
+        }
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
         byte[] bytes = classNode.getBytes();
 

@@ -35,7 +35,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists)).compile(
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists), false).compile(
                 "<debugging>",
                 source,
                 settings,
@@ -65,7 +65,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists)).compile(
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists), false).compile(
                 "<debugging>",
                 source,
                 settings,

@@ -1,11 +1,37 @@
 [discrete]
-[[breaking_80_mappings_changes]]
+[[breaking_80_mapping_changes]]
 ==== Mapping changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+.Indices created in {es} 6.x and earlier versions are not supported.
+[%collapsible]
+====
+*Details* +
+Elasticsearch 8.0 can read indices created in version 7.0 or above. An
+Elasticsearch 8.0 node will not start in the presence of indices created in a
+version of Elasticsearch before 7.0.
+
+*Impact* +
+Reindex indices created in {es} 6.x or before with {es} 7.x if they need to be carried forward to  {es} 8.x.
+====
+
+.Closed indices created in {es} 6.x and earlier versions are not supported.
+[%collapsible]
+====
+*Details* +
+In earlier versions a node would start up even if it had data from indices
+created in a version before the previous major version, as long as those
+indices were closed. {es} now ensures that it is compatible with every index,
+open or closed, at startup time.
+
+*Impact* +
+Reindex closed indices created in {es} 6.x or before with {es} 7.x if they need
+to be carried forward to {es} 8.x.
+====
+
 .The maximum number of completion contexts per field is now 10.
 [%collapsible]
 ====
@@ -16,19 +42,6 @@ has been limited to 10.
 *Impact* +
 Use a maximum of 10 completion contexts in a completion field. Specifying more
 than 10 completion contexts will return an error.
-====
-
-.Mapping API endpoints containing mapping types have been removed.
-[%collapsible]
-====
-*Details* +
-The typed REST endpoints of the update mapping, get mapping and get field mapping
-APIs have been removed in favour of their typeless REST endpoints, since indexes
-no longer contain types, these typed endpoints are obsolete.
-
-*Impact* +
-Use the typeless REST endpoints to update and retrieve mappings. Requests
-submitted to the typed mapping API endpoints will return an error.
 ====
 
 .Multi-fields within multi-fields is no longer supported.
@@ -108,17 +121,18 @@ In 8.0, you can no longer create mappings that include these parameters.
 However, 7.x indices that use these mapping parameters will continue to work.
 ====
 
-.The `include_type_name` query parameter has been removed.
+.The `sparse_vector` field data type has been removed.
 [%collapsible]
 ====
 *Details* +
-The `include_type_name` query parameter has been removed from the index
-creation, index template, and mapping APIs. Previously, you could set
-`include_type_name` to `true` to indicate that requests and responses should
-include a mapping type name. Mapping types have been removed in 8.x.
+The `sparse_vector` field type was deprecated in 7.6 and is now removed in
+8.0. We have not seen much interest in this experimental field type, and don't
+see a clear use case as it's currently designed. If you have feedback or
+suggestions around sparse vector functionality, please let us know through
+GitHub or the 'discuss' forums.
 
 *Impact* +
-Discontinue use of the `include_type_name` query parameter. Requests that
-include the parameter will return an error.
+Discontinue use of the `sparse_vector` field data type. Requests containing
+a mapping for this field data type will return an error.
 ====
-// end::notable-breaking-changes[]
+//end::notable-breaking-changes[]

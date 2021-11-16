@@ -1,15 +1,22 @@
-[role="xpack"]
-[[slm-settings]]
-=== {slm-cap} settings in {es}
-[subs="attributes"]
-++++
-<titleabbrev>{slm-cap} settings</titleabbrev>
-++++
+[[snapshot-settings]]
+=== Snapshot and restore settings
 
-These are the settings available for configuring
-<<snapshot-lifecycle-management, {slm}>> ({slm-init}).
+The following cluster settings configure <<snapshot-restore,snapshot and
+restore>>.
 
-==== Cluster-level settings
+[[snapshot-max-concurrent-ops]]
+`snapshot.max_concurrent_operations`::
+(<<dynamic-cluster-setting,Dynamic>>, integer) Maximum number of concurrent
+snapshot operations. Defaults to `1000`.
++
+This limit applies in total to all ongoing snapshot creation, cloning, and
+deletion operations. {es} will reject any operations that would exceed this
+limit.
+
+==== {slm-init} settings
+
+The following cluster settings configure <<snapshot-lifecycle-management,{slm}
+({slm-init})>>.
 
 [[slm-history-index-enabled]]
 `slm.history_index_enabled`::

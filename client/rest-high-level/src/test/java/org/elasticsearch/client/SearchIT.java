@@ -110,6 +110,12 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchIT extends ESRestHighLevelClientTestCase {
+    int totalNumDocsIndexed = 0;
+    
+    private void addDoc(Request addDocRequest) throws IOException {
+        client().performRequest(addDocRequest);
+        totalNumDocsIndexed++;
+    }
 
     @Before
     public void indexDocuments() throws IOException {
@@ -117,34 +123,34 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
             doc1.setJsonEntity("""
                 {"type":"type1", "id":1, "num":10, "num2":50}""");
-            client().performRequest(doc1);
+            addDoc(doc1);
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/_doc/2");
             doc2.setJsonEntity("""
                 {"type":"type1", "id":2, "num":20, "num2":40}""");
-            client().performRequest(doc2);
+            addDoc(doc2);
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/_doc/3");
             doc3.setJsonEntity("""
                 {"type":"type1", "id":3, "num":50, "num2":35}""");
-            client().performRequest(doc3);
+            addDoc(doc3);
             Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/_doc/4");
             doc4.setJsonEntity("""
                 {"type":"type2", "id":4, "num":100, "num2":10}""");
-            client().performRequest(doc4);
+            addDoc(doc4);
             Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/_doc/5");
             doc5.setJsonEntity("""
                 {"type":"type2", "id":5, "num":100, "num2":10}""");
-            client().performRequest(doc5);
+            addDoc(doc5);
         }
 
         {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/1");
             doc1.setJsonEntity("""
                 {"id":1, "field":"value1", "rating": 7}""");
-            client().performRequest(doc1);
+            addDoc(doc1);
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/2");
             doc2.setJsonEntity("""
                 {"id":2, "field":"value2"}""");
-            client().performRequest(doc2);
+            addDoc(doc1);
         }
 
         {
@@ -163,22 +169,22 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/3");
             doc3.setJsonEntity("""
                 {"id":3, "field":"value1", "rating": "good"}""");
-            client().performRequest(doc3);
+            addDoc(doc3);
             Request doc4 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/4");
             doc4.setJsonEntity("""
                 {"id":4, "field":"value2"}""");
-            client().performRequest(doc4);
+            addDoc(doc4);
         }
 
         {
             Request doc5 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/5");
             doc5.setJsonEntity("""
                 {"id":5, "field":"value1"}""");
-            client().performRequest(doc5);
+            addDoc(doc5);
             Request doc6 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/6");
             doc6.setJsonEntity("""
                 {"id":6, "field":"value2"}""");
-            client().performRequest(doc6);
+            addDoc(doc6);
         }
 
         {
@@ -202,7 +208,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index4/_doc/1");
             doc1.setJsonEntity("""
                 {"id":1, "field1":"value1", "field2":"value2"}""");
-            client().performRequest(doc1);
+            addDoc(doc1);
 
             Request createFilteredAlias = new Request(HttpPost.METHOD_NAME, "/_aliases");
             createFilteredAlias.setJsonEntity("""
@@ -250,7 +256,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             for (NumberType numType : NumberFieldMapper.NumberType.values()) {
                 Request doc1 = new Request(HttpPost.METHOD_NAME, "/index_numeric/_doc");
                 doc1.setJsonEntity("{\"" + numType.typeName() + "\":1}");
-                client().performRequest(doc1);
+                addDoc(doc1);
             }
 
             Request createNumericArray = new Request(HttpPut.METHOD_NAME, "/index_numeric_array");
@@ -260,7 +266,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             for (NumberType numType : NumberFieldMapper.NumberType.values()) {
                 Request doc1 = new Request(HttpPost.METHOD_NAME, "/index_numeric_array/_doc");
                 doc1.setJsonEntity("{\"" + numType.typeName() + "\":[1,2]}");
-                client().performRequest(doc1);
+                addDoc(doc1);
             }
         }
 
@@ -1495,7 +1501,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(12, countResponse.getCount());
+        assertEquals(totalNumDocsIndexed, countResponse.getCount());
     }
 
     public void testCountOneIndexMatchQuery() throws IOException {

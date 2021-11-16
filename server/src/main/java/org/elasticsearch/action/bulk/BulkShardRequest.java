@@ -8,19 +8,33 @@
 
 package org.elasticsearch.action.bulk;
 
+import net.jpountz.lz4.LZ4FrameInputStream;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -30,22 +44,50 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
+    private final MaybeCompressedSourceBytes sourceBytes;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            sourceBytes = new MaybeCompressedSourceBytes(in);
+        } else {
+            sourceBytes = null;
+        }
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+        BytesReference[] references = new BytesReference[items.length];
+        int i = 0;
+        for (BulkItemRequest item : items) {
+            DocWriteRequest<?> request = item.request();
+            if (request instanceof IndexRequest) {
+                BytesReference source = ((IndexRequest) request).source();
+                if (source != null) {
+                    references[i] = source;
+                }
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null && doc.source() != null) {
+                    references[i] = doc.source();
+                }
+            } else if (request instanceof DeleteRequest) {
+                references[i] = BytesArray.EMPTY;
+            } else {
+                throw new AssertionError("Unexpected request type: " + request.getClass());
+            }
+            i++;
+        }
+        sourceBytes = new MaybeCompressedSourceBytes(false, ReleasableBytesReference.wrap(CompositeBytesReference.of(references)));
     }
 
     public long totalSizeInBytes() {
         long totalSizeInBytes = 0;
-        for (int i = 0; i < items.length; i++) {
-            DocWriteRequest<?> request = items[i].request();
+        for (BulkItemRequest item : items) {
+            DocWriteRequest<?> request = item.request();
             if (request instanceof IndexRequest) {
                 if (((IndexRequest) request).source() != null) {
                     totalSizeInBytes += ((IndexRequest) request).source().length();
@@ -62,6 +104,15 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     public BulkItemRequest[] items() {
         return items;
+    }
+
+    public BulkItemRequest[] inflatedItems() {
+        if (sourceBytes == null) {
+            return items();
+        } else {
+            // TODO: Implement
+            return items;
+        }
     }
 
     @Override
@@ -92,6 +143,9 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
                 o.writeBoolean(false);
             }
         }, items);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            sourceBytes.writeTo(out);
+        }
     }
 
     @Override
@@ -147,5 +201,50 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     @Override
     public long ramBytesUsed() {
         return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
+    }
+
+    private static class MaybeCompressedSourceBytes implements Writeable {
+
+        private boolean isCompressed;
+        private ReleasableBytesReference sourceBytes;
+
+        private MaybeCompressedSourceBytes(boolean isCompressed, ReleasableBytesReference sourceBytes) {
+            this.isCompressed = isCompressed;
+            this.sourceBytes = sourceBytes;
+        }
+
+        private MaybeCompressedSourceBytes(StreamInput in) throws IOException {
+            isCompressed = in.readBoolean();
+            sourceBytes = ReleasableBytesReference.wrap(in.readBytesReference());
+        }
+
+        private void inflate(PageCacheRecycler pageCacheRecycler) throws IOException {
+            assert isCompressed;
+            boolean success = false;
+            RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new BytesRefRecycler(pageCacheRecycler));
+            try (InputStream input = new LZ4FrameInputStream(sourceBytes.streamInput())) {
+                Streams.copy(input, output, false);
+                sourceBytes.close();
+                sourceBytes = new ReleasableBytesReference(output.bytes(), output);
+                success = true;
+            } finally {
+                if (success == false) {
+                    output.close();
+                    sourceBytes = null;
+                }
+                isCompressed = false;
+            }
+        }
+
+        private BytesReference uncompressed() {
+            assert isCompressed == false;
+            return sourceBytes;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(isCompressed);
+            out.writeBytesReference(sourceBytes);
+        }
     }
 }

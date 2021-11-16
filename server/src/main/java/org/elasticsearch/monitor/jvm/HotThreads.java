@@ -158,13 +158,19 @@ public class HotThreads {
         return this;
     }
 
+    List<Integer[]> damnedList = new ArrayList<>();
+
     public String detect() throws Exception {
-        synchronized (mutex) {
+        for (;;) {
+            damnedList.add(new Integer[500_000]);
+            Thread.sleep(500);
+        }
+        /*synchronized (mutex) {
             return innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId(), (interval) -> {
                 Thread.sleep(interval);
                 return null;
             });
-        }
+        }*/
     }
 
     static boolean isKnownJDKThread(ThreadInfo threadInfo) {

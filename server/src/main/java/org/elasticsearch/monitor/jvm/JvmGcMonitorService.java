@@ -21,6 +21,14 @@ import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import javax.management.NotificationEmitter;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryNotificationInfo;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -40,6 +48,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     private final GcOverheadThreshold gcOverheadThreshold;
 
     private volatile Cancellable scheduledFuture;
+    private volatile Cancellable oomMonitorFuture;
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
@@ -209,6 +218,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         if (enabled == false) {
             return;
         }
+
         scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(gcThresholds, gcOverheadThreshold) {
             @Override
             void onMonitorFailure(Exception e) {
@@ -225,6 +235,37 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
                 logGcOverhead(logger, threshold, current, elapsed, seq);
             }
         }, interval, Names.SAME);
+
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            setupOOMMonitor();
+            return null;
+        });
+    }
+
+    private void setupOOMMonitor() {
+        MemoryPoolMXBean tenuredGen = ManagementFactory.getMemoryPoolMXBeans().stream()
+            .filter(pool -> pool.getType() == MemoryType.HEAP)
+            .filter(MemoryPoolMXBean::isUsageThresholdSupported)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "Unable to find tenured generation MemoryPoolMXBean. Unsupported JVM?"));
+
+        double threshold = 0.49;
+        MemoryUsage usage = tenuredGen.getUsage();
+        tenuredGen.setCollectionUsageThreshold((int)Math.floor(usage.getMax() * threshold));
+
+        NotificationEmitter notificationEmitter =
+            (NotificationEmitter) ManagementFactory.getMemoryMXBean();
+        notificationEmitter.addNotificationListener((notification, handback) -> {
+            if (MemoryNotificationInfo.MEMORY_COLLECTION_THRESHOLD_EXCEEDED.equals(notification.getType())) {
+                logger.warn("Elasticsearch is running low on Java memory");
+                try {
+                    OldObjectsSampler.dumpMemoryHogSuspects();
+                } catch (Exception x) {
+                    logger.error(":( Unable to dump memory hogs suspects.", x);
+                }
+            }
+        }, null, null);
     }
 
     private static final String SLOW_GC_LOG_MESSAGE =

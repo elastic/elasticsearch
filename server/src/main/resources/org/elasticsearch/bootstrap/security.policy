@@ -22,6 +22,10 @@ grant codeBase "${codebase.elasticsearch-secure-sm}" {
 grant codeBase "${codebase.elasticsearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.lang.management.ManagementPermission "control";
+  permission jdk.jfr.FlightRecorderPermission "accessFlightRecorder";
+  permission java.lang.RuntimePermission "manageProcess";
+  permission java.io.FilePermission "<<ALL FILES>>", "read, write";
 };
 
 //// Very special jar permissions:

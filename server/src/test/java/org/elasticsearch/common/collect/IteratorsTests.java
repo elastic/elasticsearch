@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -119,6 +120,16 @@ public class IteratorsTests extends ESTestCase {
         while (iterator.hasNext()) {
             assertEquals(array[i++], iterator.next());
         }
+        assertEquals(array.length, i);
+    }
+
+    public void testArrayIteratorForEachRemaining() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+
+        AtomicInteger index = new AtomicInteger();
+        iterator.forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
     }
 
     public void testArrayIteratorIsUnmodifiable() {
@@ -136,6 +147,10 @@ public class IteratorsTests extends ESTestCase {
         }
 
         expectThrows(NoSuchElementException.class, iterator::next);
+    }
+
+    public void testArrayIteratorOnNull() {
+        expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
     }
 
     private static Integer[] randomIntegerArray() {

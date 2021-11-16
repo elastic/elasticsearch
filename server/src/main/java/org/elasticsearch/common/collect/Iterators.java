@@ -94,7 +94,7 @@ public class Iterators {
         private int index;
 
         private ArrayIterator(T[] array) {
-            this.array = array;
+            this.array = Objects.requireNonNull(array, "Unable to iterate over a null array");
         }
 
         @Override

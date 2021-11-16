@@ -276,7 +276,7 @@ We recommend you include retention rules in your {slm-init} policy to delete
 snapshots you no longer need.
 
 A snapshot repository can safely scale to thousands of snapshots. However, to
-manage its metadata, a larger repository requires more memory and disk space on
+manage its metadata, a large repository requires more memory and disk space on
 the master node. Retention rules ensure a repository's metadata doesn't grow to
 a size that may destabilize the master node.
 

@@ -40,8 +40,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
 
 /**
  * Create index action.
- *
- * TODO[wrb]: handle hiding system aliases
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
     private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);

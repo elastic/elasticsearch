@@ -787,9 +787,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return indices();
     }
 
-    public Set<Index> aliases(String alias) {
-        // TODO I don't love this name, maybe aliasedIndices or ...?
-        // the name makes it seem like the opposite relationship: aliases(someIndex) --> setOfAliasNames
+    public Set<Index> aliasedIndices(String alias) {
         Objects.requireNonNull(alias);
         AliasIndicesReference ref = aliases.get(alias);
         return ref == null ? Set.of() : ref.indices;

@@ -84,7 +84,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         assertThat(alias.getIndices(), contains(after.metadata().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
-        assertThat(after.metadata().aliases("test"), contains(after.metadata().index(index).getIndex()));
+        assertThat(after.metadata().aliasedIndices("test"), contains(after.metadata().index(index).getIndex()));
 
         // Remove the alias from it while adding another one
         before = after;
@@ -93,21 +93,21 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             Arrays.asList(new AliasAction.Remove(index, "test", null), new AliasAction.Add(index, "test_2", null, null, null, null, null))
         );
         assertNull(after.metadata().getIndicesLookup().get("test"));
-        assertThat(after.metadata().aliases("test"), empty());
+        assertThat(after.metadata().aliasedIndices("test"), empty());
         alias = after.metadata().getIndicesLookup().get("test_2");
         assertNotNull(alias);
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         assertThat(alias.getIndices(), contains(after.metadata().index(index).getIndex()));
         assertAliasesVersionIncreased(index, before, after);
-        assertThat(after.metadata().aliases("test_2"), contains(after.metadata().index(index).getIndex()));
+        assertThat(after.metadata().aliasedIndices("test_2"), contains(after.metadata().index(index).getIndex()));
 
         // Now just remove on its own
         before = after;
         after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
         assertNull(after.metadata().getIndicesLookup().get("test"));
-        assertThat(after.metadata().aliases("test"), empty());
+        assertThat(after.metadata().aliasedIndices("test"), empty());
         assertNull(after.metadata().getIndicesLookup().get("test_2"));
-        assertThat(after.metadata().aliases("test_2"), empty());
+        assertThat(after.metadata().aliasedIndices("test_2"), empty());
         assertAliasesVersionIncreased(index, before, after);
     }
 

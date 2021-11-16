@@ -69,6 +69,14 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("a", qe("emit(doc.get('a').getValue())", longLookup).toString());
     }
 
+    public void testFieldRef5() {
+        assertEquals("a", qe("emit(doc.a.value)", longLookup).toString());
+    }
+
+    public void testFieldRef6() {
+        assertEquals("a", qe("emit(doc.a.getValue())", longLookup).toString());
+    }
+
     public void testFieldRefPlusLong() {
         assertEquals("a + 1", qe("emit(doc['a'].value + 1l)", longLookup).toString());
     }

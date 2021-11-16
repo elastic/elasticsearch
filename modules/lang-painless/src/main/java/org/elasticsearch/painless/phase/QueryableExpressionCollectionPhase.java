@@ -55,44 +55,51 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
     @Override
     public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, QueryableExpressionScope scope) {
         if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
-            CastNode fieldNameNode = getFieldNameNode((BinaryImplNode) irBinaryImplNode.getLeftNode());
+            ConstantNode fieldNameNode = getFieldNameNode((BinaryImplNode) irBinaryImplNode.getLeftNode());
             if (fieldNameNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
-                if (fieldNameNode.getChildNode() instanceof ConstantNode) {
-                    Object value = fieldNameNode.getChildNode().getDecorationValue(IRDecorations.IRDConstant.class);
-                    if (value instanceof String) {
-                        scope.push(QueryableExpressionBuilder.field((String) value));
-                    }
+                Object value = fieldNameNode.getDecorationValue(IRDecorations.IRDConstant.class);
+                if (value instanceof String) {
+                    scope.push(QueryableExpressionBuilder.field((String) value));
                 }
             }
         }
     }
 
-    private CastNode getFieldNameNode(BinaryImplNode irBinaryImplNode) {
+    private ConstantNode getFieldNameNode(BinaryImplNode irBinaryImplNode) {
         if (irBinaryImplNode.getLeftNode() instanceof LoadVariableNode) {
-            // doc.get(...) syntax
+            // doc.get('<field>') syntax
             IRDecorations.IRDName variableName = irBinaryImplNode.getLeftNode().getDecoration(IRDecorations.IRDName.class);
             if (variableName != null
                 && variableName.getValue().equals("doc")
                 && irBinaryImplNode.getRightNode() instanceof InvokeCallNode) {
                 InvokeCallNode invokeCall = (InvokeCallNode) irBinaryImplNode.getRightNode();
                 if (invokeCall.getMethod().javaMethod.getName().equals("get") && invokeCall.getArgumentNodes().size() == 1) {
-                    IRNode firstArg = invokeCall.getArgumentNodes().get(0);
-                    if (firstArg instanceof CastNode) {
-                        return (CastNode) firstArg;
-                    }
+                    return constantNodeOrNull(invokeCall.getArgumentNodes().get(0));
                 }
             }
         } else if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
-            // doc[...] syntax
+            // doc['<field>'] and doc.<field> syntax
             BinaryImplNode left = (BinaryImplNode) irBinaryImplNode.getLeftNode();
             if (left.getLeftNode() instanceof LoadVariableNode) {
                 IRDecorations.IRDName variableName = left.getLeftNode().getDecoration(IRDecorations.IRDName.class);
-                if (variableName != null && variableName.getValue().equals("doc") && left.getRightNode() instanceof CastNode) {
-                    return (CastNode) left.getRightNode();
+                if (variableName != null && variableName.getValue().equals("doc")) {
+                    return constantNodeOrNull(left.getRightNode());
                 }
             }
         }
         return null;
+    }
+
+    private ConstantNode constantNodeOrNull(IRNode node) {
+        if (node instanceof CastNode) {
+            // sometimes the constant nodes are wrapped in a Cast, just skip it in this case
+            node = ((CastNode) node).getChildNode();
+        }
+        if (node instanceof ConstantNode) {
+            return (ConstantNode) node;
+        } else {
+            return null;
+        }
     }
 
     private boolean rightChildIsValueAccess(BinaryImplNode irBinaryImplNode) {

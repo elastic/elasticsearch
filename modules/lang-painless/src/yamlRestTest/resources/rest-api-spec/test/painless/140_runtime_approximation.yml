@@ -57,10 +57,6 @@ constant matching none:
 
 ---
 division matching none:
-  - skip:
-      version: all
-      reason:  not yet wired up
-
   - do:
       search:
         index: test
@@ -69,7 +65,7 @@ division matching none:
           runtime_mappings:
             tx.kb:
               type: long
-              script: emit(doc.tx.value / 1024)
+              script: emit(doc.tx.value / 1024l)
               approximate_first: true
           query:
             range:
@@ -78,16 +74,12 @@ division matching none:
                 lte: 200
   - match: { hits.total.value: 0 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[100 TO 200] approximated by tx:[102400 to 204800]' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[100 TO 200] approximated by tx:[102400 TO 205823]' }
   # match=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 0 }
 
 ---
 division matching one:
-  - skip:
-      version: all
-      reason:  not yet wired up
-
   - do:
       search:
         index: test
@@ -96,7 +88,7 @@ division matching one:
           runtime_mappings:
             tx.kb:
               type: long
-              script: emit(doc.tx.value / 1024)
+              script: emit(doc.tx.value / 1024l)
               approximate_first: true
           query:
             range:
@@ -104,16 +96,12 @@ division matching one:
                 gt: 6837712
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[6837713 TO 9223372036854775807] approximated by tx:[7001818112 to 9223372036854775807]' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[6837713 TO 9223372036854775807] approximated by tx:[7001818112 TO 9223372036854775807]' }
   # match=1 means we only ever had to run the script one time
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 1 }
 
 ---
 division matching two:
-  - skip:
-      version: all
-      reason:  not yet wired up
-
   - do:
       search:
         index: test
@@ -122,7 +110,7 @@ division matching two:
           runtime_mappings:
             tx.kb:
               type: long
-              script: emit(doc.tx.value / 1024)
+              script: emit(doc.tx.value / 1024l)
               approximate_first: true
           query:
             range:
@@ -130,6 +118,6 @@ division matching two:
                 lt: 1954902
   - match: { hits.total.value: 2 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[-9223372036854775808 TO 1954902] approximated by tx:[-9223372036854775808 to 2001819648]' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[-9223372036854775808 TO 1954901] approximated by tx:[-9223372036854775808 TO 2001819647]' }
   # match=1 means we only ever had to run the script twice - once for each possible match
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 2 }

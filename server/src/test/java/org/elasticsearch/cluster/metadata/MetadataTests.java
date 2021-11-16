@@ -91,7 +91,7 @@ public class MetadataTests extends ESTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[] { "index" });
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request, new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));

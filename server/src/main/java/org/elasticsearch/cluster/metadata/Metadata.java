@@ -790,6 +790,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public Set<Index> aliases(String alias) {
         // TODO I don't love this name, maybe aliasedIndices or ...?
         // the name makes it seem like the opposite relationship: aliases(someIndex) --> setOfAliasNames
+        Objects.requireNonNull(alias);
         AliasIndicesReference ref = aliases.get(alias);
         return ref == null ? Set.of() : ref.indices;
     }
@@ -1257,6 +1258,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder putAlias(String alias, Index index) {
             previousIndicesLookup = null;
 
+            Objects.requireNonNull(alias);
+            Objects.requireNonNull(index);
+
             AliasIndicesReference ref = aliases.get(alias);
             Set<Index> indices;
             if (ref == null || ref.indices.isEmpty()) {
@@ -1274,6 +1278,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder removeAlias(String alias, Index index) {
             previousIndicesLookup = null;
+
+            Objects.requireNonNull(alias);
+            Objects.requireNonNull(index);
 
             AliasIndicesReference ref = aliases.get(alias);
             if (ref == null || ref.indices.isEmpty()) {

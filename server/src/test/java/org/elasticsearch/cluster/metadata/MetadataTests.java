@@ -79,7 +79,8 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
+            GetAliasesRequest request = new GetAliasesRequest();
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
         {
@@ -91,7 +92,16 @@ public class MetadataTests extends ESTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request, new String[] { "index" });
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            assertThat(aliases.size(), equalTo(1));
+            List<AliasMetadata> aliasMetadataList = aliases.get("index");
+            assertThat(aliasMetadataList.size(), equalTo(2));
+            assertThat(aliasMetadataList.get(0).alias(), equalTo("alias1"));
+            assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
+        }
+        {
+            GetAliasesRequest request = new GetAliasesRequest("alias*");
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -100,18 +110,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
-                new GetAliasesRequest("alias*"),
-                new String[] { "index" }
-            );
-            assertThat(aliases.size(), equalTo(1));
-            List<AliasMetadata> aliasMetadataList = aliases.get("index");
-            assertThat(aliasMetadataList.size(), equalTo(2));
-            assertThat(aliasMetadataList.get(0).alias(), equalTo("alias1"));
-            assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
-        }
-        {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
-                new GetAliasesRequest("alias1"),
+                new GetAliasesRequest("alias1").aliases(),
                 new String[] { "index" }
             );
             assertThat(aliases.size(), equalTo(1));
@@ -144,8 +143,8 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
             .build();
-        List<AliasMetadata> aliases = metadata.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] { "index" })
-            .get("index");
+        GetAliasesRequest request = new GetAliasesRequest().aliases("*", "-alias1");
+        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases.size(), equalTo(1));
         assertThat(aliases.get(0).alias(), equalTo("alias2"));
     }
@@ -179,8 +178,8 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("bb").build())
             )
             .build();
-        List<AliasMetadata> aliases = metadata.findAliases(new GetAliasesRequest().aliases("a*", "-*b", "b*"), new String[] { "index" })
-            .get("index");
+        GetAliasesRequest request = new GetAliasesRequest().aliases("a*", "-*b", "b*");
+        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases.size(), equalTo(2));
         assertThat(aliases.get(0).alias(), equalTo("aa"));
         assertThat(aliases.get(1).alias(), equalTo("bb"));

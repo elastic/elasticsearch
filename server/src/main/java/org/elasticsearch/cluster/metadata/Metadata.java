@@ -18,6 +18,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -47,8 +48,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -195,7 +198,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
     private final ImmutableOpenMap<String, IndexMetadata> indices;
-    private final ImmutableOpenMap<String, List<Index>> aliases;
+    private final ImmutableOpenMap<String, AliasIndicesReference> aliases;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
     private final ImmutableOpenMap<String, Custom> customs;
 
@@ -223,7 +226,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         int totalNumberOfShards,
         int totalOpenIndexShards,
         ImmutableOpenMap<String, IndexMetadata> indices,
-        ImmutableOpenMap<String, List<Index>> aliases,
+        ImmutableOpenMap<String, AliasIndicesReference> aliases,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
         ImmutableOpenMap<String, Custom> customs,
         String[] allIndices,
@@ -956,6 +959,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Settings persistentSettings;
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
         private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
+        private final Diff<ImmutableOpenMap<String, AliasIndicesReference>> aliases;
         private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
 
@@ -968,12 +972,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             persistentSettings = after.persistentSettings;
             hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
+            aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
             templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
         private static final DiffableUtils.DiffableValueReader<String, IndexMetadata> INDEX_METADATA_DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(IndexMetadata::readFrom, IndexMetadata::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, AliasIndicesReference> ALIASES_DIFF_VALUE_READER =
+            new DiffableUtils.DiffableValueReader<>(AliasIndicesReference::new, AliasIndicesReference::readDiffFrom);
         private static final DiffableUtils.DiffableValueReader<String, IndexTemplateMetadata> TEMPLATES_DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
 
@@ -990,6 +997,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
             }
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIASES_DIFF_VALUE_READER);
+            } else {
+                aliases = null;
+            }
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
@@ -1006,6 +1018,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 hashesOfConsistentSettings.writeTo(out);
             }
             indices.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                aliases.writeTo(out);
+            }
             templates.writeTo(out);
             customs.writeTo(out);
         }
@@ -1021,6 +1036,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
             builder.indices(indices.apply(part.indices));
+            builder.aliases.putAll(aliases.apply(part.aliases));
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
             return builder.build();
@@ -1042,9 +1058,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         for (int i = 0; i < size; i++) {
             builder.put(IndexMetadata.readFrom(in), false);
         }
-        size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.aliases.put(in.readString(), in.readList(Index::new));
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                builder.aliases.put(in.readString(), new AliasIndicesReference(in));
+            }
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -1075,9 +1093,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeVInt(aliases.size());
-            for (ObjectObjectCursor<String, List<Index>> cursor : aliases) {
+            for (ObjectObjectCursor<String, AliasIndicesReference> cursor : aliases) {
                 out.writeString(cursor.key);
-                out.writeList(cursor.value);
+                cursor.value.writeTo(out);
             }
         }
         out.writeVInt(templates.size());
@@ -1107,7 +1125,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
-        private final ImmutableOpenMap.Builder<String, List<Index>> aliases;
+        private final ImmutableOpenMap.Builder<String, AliasIndicesReference> aliases;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
@@ -1853,6 +1871,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 }
                 builder.endObject();
             }
+            builder.startObject("aliases");
+            for (var cursor : metadata.aliases) {
+                builder.startObject(cursor.key);
+                cursor.value.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
 
             for (ObjectObjectCursor<String, Custom> cursor : metadata.customs()) {
                 if (cursor.value.context().contains(context)) {
@@ -1896,6 +1921,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                        }
+                    } else if ("aliases".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                                parser.nextToken();
+                            }
+                            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+                                parser.nextToken();
+                            }
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                            String aliasName = parser.currentName();
+
+                            token = parser.nextToken();
+                            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                            builder.aliases.put(aliasName, AliasIndicesReference.fromXContent(parser));
                             builder.put(IndexMetadata.Builder.fromXContent(parser), false);
                         }
                     } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
@@ -1955,5 +1996,65 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return Builder.fromXContent(parser);
         }
     };
+
+    static class AliasIndicesReference extends AbstractDiffable<AliasIndicesReference> implements ToXContentFragment {
+
+        public static final ParseField INDICES_FIELD = new ParseField("indices");
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<AliasIndicesReference, Void> PARSER = new ConstructingObjectParser<>(
+            "alias_indices_references",
+            args -> new AliasIndicesReference(new HashSet<>((List<Index>) args[0]))
+        );
+
+        static {
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
+        }
+
+        static AliasIndicesReference fromXContent(XContentParser p) {
+            return PARSER.apply(p, null);
+        }
+
+        private final Set<Index> indices;
+
+        AliasIndicesReference(StreamInput in) throws IOException {
+            indices = in.readSet(Index::new);
+        }
+
+        AliasIndicesReference(Set<Index> indices) {
+            this.indices = indices;
+        }
+
+        public Set<Index> getIndices() {
+            return indices;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(indices);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(INDICES_FIELD.getPreferredName(), indices);
+            return builder;
+        }
+
+        public static Diff<AliasIndicesReference> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(AliasIndicesReference::new, in);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AliasIndicesReference that = (AliasIndicesReference) o;
+            return indices.equals(that.indices);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indices);
+        }
+    }
 
 }

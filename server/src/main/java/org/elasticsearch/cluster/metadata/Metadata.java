@@ -2063,11 +2063,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Set<Index> indices;
 
         AliasIndicesReference(StreamInput in) throws IOException {
-            indices = in.readSet(Index::new);
+            this(in.readSet(Index::new));
         }
 
         AliasIndicesReference(Set<Index> indices) {
-            this.indices = indices;
+            this.indices = Collections.unmodifiableSet(indices);
         }
 
         public Set<Index> getIndices() {

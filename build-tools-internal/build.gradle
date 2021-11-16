@@ -221,8 +221,8 @@ dependencies {
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}"
-  api 'org.ow2.asm:asm:9.0'
-  api 'org.ow2.asm:asm-tree:9.0'
+  api 'org.ow2.asm:asm:9.2'
+  api 'org.ow2.asm:asm-tree:9.2'
   api "org.apache.httpcomponents:httpclient:${versions.getProperty('httpclient')}"
   api "org.apache.httpcomponents:httpcore:${versions.getProperty('httpcore')}"
   compileOnly "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"

@@ -141,7 +141,7 @@ public final class DiffableUtils {
     }
 
     @SuppressWarnings("unchecked")
-    private static <K, T, M> MapDiff<K, T, M> emptyDiff() {
+    public static <K, T, M> MapDiff<K, T, M> emptyDiff() {
         return (MapDiff<K, T, M>) EMPTY;
     }
 

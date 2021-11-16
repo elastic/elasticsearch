@@ -1008,7 +1008,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
                 aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIASES_DIFF_VALUE_READER);
             } else {
-                aliases = null;
+                aliases = DiffableUtils.emptyDiff();
             }
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);

@@ -1094,6 +1094,7 @@ public class SSLServiceTests extends ESTestCase {
 
         @SuppressForbidden(reason = "need to reference deprecated class to implement JDK interface")
         @Override
+        @SuppressWarnings("removal")
         public javax.security.cert.X509Certificate[] getPeerCertificateChain() throws SSLPeerUnverifiedException {
             return new javax.security.cert.X509Certificate[0];
         }

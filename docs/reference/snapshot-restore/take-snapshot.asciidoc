@@ -277,7 +277,7 @@ snapshots you no longer need.
 
 A snapshot repository can safely scale to thousands of snapshots. However, to
 manage its metadata, a large repository requires more memory on the master node.
-Retention rules ensure a repository's metadata doesn't grow to a size that may
+Retention rules ensure a repository's metadata doesn't grow to a size that could
 destabilize the master node.
 
 [discrete]

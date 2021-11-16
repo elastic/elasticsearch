@@ -18,7 +18,9 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
@@ -1278,6 +1281,22 @@ public class NumberFieldMapper extends FieldMapper {
          */
         public MetricType getMetricType() {
             return metricType;
+        }
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            // TODO delegate this to NumberType? Storage implementations may differ...
+            IndexReader reader = searcher.getTopReaderContext().reader();
+            // Check all segments have one value per doc, exiting early if not.
+            for (LeafReaderContext ctx : reader.leaves()) {
+                PointValues values = ctx.reader().getPointValues(name());
+                if (values != null) {
+                    if (values.size() != values.getDocCount()) {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
     }
 

@@ -34,6 +34,8 @@ import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -89,6 +91,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
@@ -219,6 +222,45 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                   ]
                 }""");
             client().performRequest(createFilteredAlias);
+        }
+
+        //Numeric tests with field caps - include all numeric types with values indexed as arrays and single values
+        {
+            String numericFieldDefs = "";
+            for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+                if (numericFieldDefs.length() > 0) {
+                    numericFieldDefs += ",";
+                }
+                numericFieldDefs += "\"" + numType.typeName() + "\":{" + "\"type\": \"" + numType.typeName() + "\"" + "}";
+            }
+            
+            String mapping = "{"
+                    + "  \"mappings\": {"
+                    + "    \"properties\": {"
+                    + "         " + numericFieldDefs
+                    + "      }"
+                    + "    }"
+                    + "  }"
+                    + "}";
+            Request createNumeric = new Request(HttpPut.METHOD_NAME, "/index_numeric");
+            createNumeric.setJsonEntity(mapping);
+            client().performRequest(createNumeric);
+
+            for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+                Request doc1 = new Request(HttpPost.METHOD_NAME, "/index_numeric/_doc");
+                doc1.setJsonEntity("{\"" + numType.typeName() + "\":1}");
+                client().performRequest(doc1);
+            }
+
+            Request createNumericArray = new Request(HttpPut.METHOD_NAME, "/index_numeric_array");
+            createNumericArray.setJsonEntity(mapping);
+            client().performRequest(createNumericArray);
+
+            for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+                Request doc1 = new Request(HttpPost.METHOD_NAME, "/index_numeric_array/_doc");
+                doc1.setJsonEntity("{\"" + numType.typeName() + "\":[1,2]}");
+                client().performRequest(doc1);
+            }
         }
 
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
@@ -1323,7 +1365,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             false,
             true,
             true,
-            false, // TODO - once the Long field implements single-value-detection correctly I expect this to be true.
+            true,
             new String[] { "index1" },
             null,
             null,
@@ -1349,6 +1391,67 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Collections.emptyMap()
         );
         assertEquals(expectedTextCapabilities, fieldResponse.get("text"));
+    }
+
+    public void testAllNumericFieldCapsCardinality() throws IOException {
+        String[] fieldNames = Stream.of(NumberType.values())
+            .map(n->n.typeName())
+            .toArray(String[]::new);
+        FieldCapabilitiesRequest singleValuedRequest = new FieldCapabilitiesRequest().indices("index_numeric").fields(fieldNames);
+        FieldCapabilitiesResponse singleValuedResponse = execute(
+            singleValuedRequest,
+            highLevelClient()::fieldCaps,
+            highLevelClient()::fieldCapsAsync
+        );
+        assertThat(singleValuedResponse.getIndices(), arrayContaining("index_numeric"));
+
+        for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+            Map<String, FieldCapabilities> fieldResponse = singleValuedResponse.getField(numType.typeName());
+            assertEquals(1, fieldResponse.size());
+            FieldCapabilities expectedNumericCapabilities = new FieldCapabilities(
+                numType.typeName(),
+                numType.typeName(),
+                false,
+                true,
+                true,
+                true, // expect a single-valued response
+                null,
+//                new String[] { "index_numeric" },
+                null,
+                null,
+                Collections.emptyMap()
+            );
+            assertEquals(expectedNumericCapabilities, fieldResponse.get(numType.typeName()));
+        }
+        
+        FieldCapabilitiesRequest multiValuedRequest = new FieldCapabilitiesRequest().indices("index_numeric", "index_numeric_array")
+            .fields(fieldNames);
+        FieldCapabilitiesResponse multiValuedResponse = execute(
+            multiValuedRequest,
+            highLevelClient()::fieldCaps,
+            highLevelClient()::fieldCapsAsync
+        );
+        assertThat(multiValuedResponse.getIndices(), arrayContaining("index_numeric", "index_numeric_array"));
+
+        for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+            Map<String, FieldCapabilities> fieldResponse = multiValuedResponse.getField(numType.typeName());
+            assertEquals(1, fieldResponse.size());
+            FieldCapabilities expectedNumericCapabilities = new FieldCapabilities(
+                numType.typeName(),
+                numType.typeName(),
+                false,
+                true,
+                true,
+                false, // expect a multi-valued response
+                null,
+//                new String[] { "index_numeric" },
+                null,
+                null,
+                Collections.emptyMap()
+            );
+            assertEquals(expectedNumericCapabilities, fieldResponse.get(numType.typeName()));
+        }
+        
     }
 
     public void testFieldCapsWithNonExistentFields() throws IOException {

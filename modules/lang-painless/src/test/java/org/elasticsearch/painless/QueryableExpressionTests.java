@@ -10,6 +10,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.queryableexpression.LongQueryableExpression;
 import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class QueryableExpressionTests extends ScriptTestCase {
 
@@ -29,9 +31,13 @@ public class QueryableExpressionTests extends ScriptTestCase {
     }
 
     public QueryableExpression qe(String script) {
+        return qe(script, null);
+    }
+
+    public QueryableExpression qe(String script, Function<String, QueryableExpression> lookup) {
         return scriptEngine.compile("qe_test", script, LongFieldScript.CONTEXT, Collections.emptyMap())
             .emitExpression()
-            .build(null, null);
+            .build(lookup, null);
     }
 
     public void testIntConst() {
@@ -42,9 +48,38 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("11", qe("emit(1l + 10l)").toString());
     }
 
-    @AwaitsFix(bugUrl = "plaid")
-    public void testFieldAccess() {
-        assertEquals("a", qe("emit(doc['a'].value)").toString());
+    private Function<String, QueryableExpression> longLookup = (field) -> LongQueryableExpression.field(
+        field,
+        (LongQueryableExpression.LongQueries) null
+    );
+
+    public void testFieldRef1() {
+        assertEquals("a", qe("emit(doc['a'].value)", longLookup).toString());
+    }
+
+    public void testFieldRef2() {
+        assertEquals("a", qe("emit(doc['a'].getValue())", longLookup).toString());
+    }
+
+    public void testFieldRef3() {
+        assertEquals("a", qe("emit(doc.get('a').value)", longLookup).toString());
+    }
+
+    public void testFieldRef4() {
+        assertEquals("a", qe("emit(doc.get('a').getValue())", longLookup).toString());
+    }
+
+    public void testFieldRefPlusLong() {
+        assertEquals("a + 1", qe("emit(doc['a'].value + 1l)", longLookup).toString());
+    }
+
+    public void testFieldRefOverLong() {
+        assertEquals("b / 10", qe("emit(doc['b'].value / 10l)", longLookup).toString());
+    }
+
+    @AwaitsFix(bugUrl = "Terms with multiple operations cannot be approximated yet")
+    public void testCelsiusToFahrenheitLong() {
+        assertEquals("(temp_c * 2) + 32", qe("emit((doc['temp_c'].value * 2l) + 32l)", longLookup).toString());
     }
 
     public void testComplexStatement() {

@@ -43,7 +43,7 @@ public class QueryableExpressionScope {
     }
 
     public void consume(BiFunction<QueryableExpressionBuilder, QueryableExpressionBuilder, QueryableExpressionBuilder> fn) {
-        if (inEmit && expressionStack.size() >= 2) {
+        if (expressionStack.size() >= 2) {
             push(fn.apply(expressionStack.pop(), expressionStack.pop()));
         } else {
             unqueryable();

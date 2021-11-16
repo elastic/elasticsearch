@@ -11,9 +11,14 @@ package org.elasticsearch.painless.phase;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
+import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.ir.IRNode;
+import org.elasticsearch.painless.ir.InvokeCallDefNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
+import org.elasticsearch.painless.ir.LoadDotDefNode;
+import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.symbol.IRDecorations;
 import org.elasticsearch.painless.symbol.QueryableExpressionScope;
 import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
@@ -44,17 +49,64 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
             }
         }
 
-        scope.unqueryable();
+        super.visitInvokeCallMember(irInvokeCallMemberNode, scope);
     }
 
     @Override
     public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, QueryableExpressionScope scope) {
-        IRDecorations.IRDValue rightNodeValue = irBinaryImplNode.getRightNode().getDecoration(IRDecorations.IRDValue.class);
-        if (rightNodeValue != null && rightNodeValue.getValue().equals("value")) {
-            // TODO: get accessed field from lhs
+        if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
+            CastNode fieldNameNode = getFieldNameNode((BinaryImplNode) irBinaryImplNode.getLeftNode());
+            if (fieldNameNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
+                if (fieldNameNode.getChildNode() instanceof ConstantNode) {
+                    Object value = fieldNameNode.getChildNode().getDecorationValue(IRDecorations.IRDConstant.class);
+                    if (value instanceof String) {
+                        scope.push(QueryableExpressionBuilder.field((String) value));
+                    }
+                }
+            }
         }
+    }
 
-        super.visitBinaryImpl(irBinaryImplNode, scope);
+    private CastNode getFieldNameNode(BinaryImplNode irBinaryImplNode) {
+        if (irBinaryImplNode.getLeftNode() instanceof LoadVariableNode) {
+            // doc.get(...) syntax
+            IRDecorations.IRDName variableName = irBinaryImplNode.getLeftNode().getDecoration(IRDecorations.IRDName.class);
+            if (variableName != null
+                && variableName.getValue().equals("doc")
+                && irBinaryImplNode.getRightNode() instanceof InvokeCallNode) {
+                InvokeCallNode invokeCall = (InvokeCallNode) irBinaryImplNode.getRightNode();
+                if (invokeCall.getMethod().javaMethod.getName().equals("get") && invokeCall.getArgumentNodes().size() == 1) {
+                    IRNode firstArg = invokeCall.getArgumentNodes().get(0);
+                    if (firstArg instanceof CastNode) {
+                        return (CastNode) firstArg;
+                    }
+                }
+            }
+        } else if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
+            // doc[...] syntax
+            BinaryImplNode left = (BinaryImplNode) irBinaryImplNode.getLeftNode();
+            if (left.getLeftNode() instanceof LoadVariableNode) {
+                IRDecorations.IRDName variableName = left.getLeftNode().getDecoration(IRDecorations.IRDName.class);
+                if (variableName != null && variableName.getValue().equals("doc") && left.getRightNode() instanceof CastNode) {
+                    return (CastNode) left.getRightNode();
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean rightChildIsValueAccess(BinaryImplNode irBinaryImplNode) {
+        if (irBinaryImplNode.getRightNode() instanceof LoadDotDefNode) {
+            // .value syntax
+            IRDecorations.IRDValue rightNodeValue = irBinaryImplNode.getRightNode().getDecoration(IRDecorations.IRDValue.class);
+            return rightNodeValue != null && rightNodeValue.getValue().equals("value");
+        } else if (irBinaryImplNode.getRightNode() instanceof InvokeCallDefNode) {
+            // .getValue() syntax
+            IRDecorations.IRDName rightNodeName = irBinaryImplNode.getRightNode().getDecoration(IRDecorations.IRDName.class);
+            return rightNodeName != null && rightNodeName.getValue().equals("getValue");
+        } else {
+            return false;
+        }
     }
 
     @Override

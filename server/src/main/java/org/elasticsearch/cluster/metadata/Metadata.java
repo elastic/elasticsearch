@@ -325,15 +325,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return this.coordinationMetadata;
     }
 
-    public boolean hasAlias(String alias) {
-        IndexAbstraction indexAbstraction = getIndicesLookup().get(alias);
-        if (indexAbstraction != null) {
-            return indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
-        } else {
-            return false;
-        }
-    }
-
     public boolean equalsAliases(Metadata other) {
         for (IndexMetadata otherIndex : other.indices().values()) {
             IndexMetadata thisIndex = index(otherIndex.getIndex());
@@ -785,6 +776,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public ImmutableOpenMap<String, IndexMetadata> getIndices() {
         return indices();
+    }
+
+    public boolean hasAlias(String alias) {
+        return aliases.containsKey(alias);
     }
 
     public Set<Index> aliasedIndices(String alias) {

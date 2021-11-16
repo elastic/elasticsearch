@@ -50,4 +50,16 @@ public class QueryableExpressionTests extends ScriptTestCase {
     public void testComplexStatement() {
         assertEquals(QueryableExpression.UNQUERYABLE, qe("for(int i = 0; i < 10; i++) { emit(1l) }"));
     }
+
+    public void testConstAssignment() {
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("def one = 1l; emit(one + 10l)"));
+    }
+
+    public void testIf() {
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("if (1 > 2) { emit(100) }"));
+    }
+
+    public void testTernary() {
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(1 > 2 ? 100 : 10)"));
+    }
 }

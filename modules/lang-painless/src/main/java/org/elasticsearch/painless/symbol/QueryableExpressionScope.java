@@ -17,18 +17,33 @@ import java.util.function.BiFunction;
  * Tracks information for building the QueryableExpression of a script.
  */
 public class QueryableExpressionScope {
+
     private final Stack<QueryableExpressionBuilder> expressionStack;
+
+    private boolean inEmit = false;
 
     public QueryableExpressionScope() {
         this.expressionStack = new Stack<>();
     }
 
+    public void enterEmit() {
+        this.inEmit = true;
+    }
+
+    public void exitEmit() {
+        this.inEmit = false;
+    }
+
     public void push(QueryableExpressionBuilder expression) {
-        this.expressionStack.push(expression);
+        if (inEmit) {
+            this.expressionStack.push(expression);
+        } else {
+            unqueryable();
+        }
     }
 
     public void consume(BiFunction<QueryableExpressionBuilder, QueryableExpressionBuilder, QueryableExpressionBuilder> fn) {
-        if (expressionStack.size() >= 2) {
+        if (inEmit && expressionStack.size() >= 2) {
             push(fn.apply(expressionStack.pop(), expressionStack.pop()));
         } else {
             unqueryable();

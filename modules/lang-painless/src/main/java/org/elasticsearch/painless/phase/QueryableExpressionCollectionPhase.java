@@ -26,31 +26,35 @@ import java.lang.reflect.Method;
 public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<QueryableExpressionScope> {
 
     @Override
-    public void visitInvokeCall(InvokeCallNode irInvokeCallNode, QueryableExpressionScope queryableExpressionScope) {
-        super.visitInvokeCall(irInvokeCallNode, queryableExpressionScope);
+    public void visitInvokeCall(InvokeCallNode irInvokeCallNode, QueryableExpressionScope scope) {
+        super.visitInvokeCall(irInvokeCallNode, scope);
     }
 
     @Override
-    public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, QueryableExpressionScope queryableExpressionScope) {
+    public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, QueryableExpressionScope scope) {
         IRDecorations.IRDClassBinding irdBinding = irInvokeCallMemberNode.getDecoration(IRDecorations.IRDClassBinding.class);
+
         if (irdBinding != null) {
             Method method = irdBinding.getValue().javaMethod;
             if (method.getDeclaringClass().getName().endsWith("$Emit") && method.getName().equals("emit")) {
-                // TODO: handle emit
+                scope.enterEmit();
+                super.visitInvokeCallMember(irInvokeCallMemberNode, scope);
+                scope.exitEmit();
+                return;
             }
         }
 
-        super.visitInvokeCallMember(irInvokeCallMemberNode, queryableExpressionScope);
+        scope.unqueryable();
     }
 
     @Override
-    public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, QueryableExpressionScope queryableExpressionScope) {
+    public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, QueryableExpressionScope scope) {
         IRDecorations.IRDValue rightNodeValue = irBinaryImplNode.getRightNode().getDecoration(IRDecorations.IRDValue.class);
         if (rightNodeValue != null && rightNodeValue.getValue().equals("value")) {
             // TODO: get accessed field from lhs
         }
 
-        super.visitBinaryImpl(irBinaryImplNode, queryableExpressionScope);
+        super.visitBinaryImpl(irBinaryImplNode, scope);
     }
 
     @Override

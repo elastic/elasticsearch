@@ -63,7 +63,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         );
 
         objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValuesSourceType type = ValueType.lenientParse(p.text());
+            ValuesSourceType type = ValuesSourceRegistry.getValuesSourceTypeByName(p.text());
             if (type == null) {
                 throw new IllegalArgumentException("Unknown value type [" + p.text() + "]");
             }
@@ -259,7 +259,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         out.writeBoolean(hasValueType);
         if (hasValueType) {
             // NOCOMMIT: Make ValuesSourceType writeable
-            ValueType.writeValuesSourceType(userValueTypeHint, out);
+            ValuesSourceRegistry.writeValuesSourceType(userValueTypeHint, out);
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);

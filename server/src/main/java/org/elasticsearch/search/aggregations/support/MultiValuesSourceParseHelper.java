@@ -25,7 +25,7 @@ public final class MultiValuesSourceParseHelper {
     ) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValuesSourceType valueType = ValueType.lenientParse(p.text());
+            ValuesSourceType valueType = ValuesSourceRegistry.getValuesSourceTypeByName(p.text());
             if (expectedValueType != null && expectedValueType.contains(valueType)) {
                 throw new ParsingException(
                     p.getTokenLocation(),

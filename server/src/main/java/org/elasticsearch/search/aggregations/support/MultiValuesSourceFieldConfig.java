@@ -104,7 +104,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         if (heterogeneous) {
             parser.declareField(
                 MultiValuesSourceFieldConfig.Builder::setUserValueTypeHint,
-                p -> ValueType.lenientParse(p.text()),
+                p -> ValuesSourceRegistry.getValuesSourceTypeByName(p.text()),
                 ValueType.VALUE_TYPE,
                 ObjectParser.ValueType.STRING
             );
@@ -204,7 +204,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             out.writeOptionalNamedWriteable(filter);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalWriteable(ValueType.reverseMap(userValueTypeHint));
+            out.writeOptionalWriteable(ValuesSourceRegistry.reverseMap(userValueTypeHint));
             out.writeOptionalString(format);
         }
     }

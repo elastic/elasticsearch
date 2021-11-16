@@ -13,16 +13,16 @@ import org.elasticsearch.test.ESTestCase;
 public class ValueTypeTests extends ESTestCase {
 
     public void testResolve() {
-        assertEquals(ValueType.STRING, ValueType.lenientParse("string"));
-        assertEquals(ValueType.DOUBLE, ValueType.lenientParse("float"));
-        assertEquals(ValueType.DOUBLE, ValueType.lenientParse("double"));
-        assertEquals(ValueType.LONG, ValueType.lenientParse("byte"));
-        assertEquals(ValueType.LONG, ValueType.lenientParse("short"));
-        assertEquals(ValueType.LONG, ValueType.lenientParse("integer"));
-        assertEquals(ValueType.LONG, ValueType.lenientParse("long"));
-        assertEquals(ValueType.DATE, ValueType.lenientParse("date"));
-        assertEquals(ValueType.IP, ValueType.lenientParse("ip"));
-        assertEquals(ValueType.BOOLEAN, ValueType.lenientParse("boolean"));
+        assertEquals(ValueType.STRING, ValuesSourceRegistry.getValuesSourceTypeByName("string"));
+        assertEquals(ValueType.DOUBLE, ValuesSourceRegistry.getValuesSourceTypeByName("float"));
+        assertEquals(ValueType.DOUBLE, ValuesSourceRegistry.getValuesSourceTypeByName("double"));
+        assertEquals(ValueType.LONG, ValuesSourceRegistry.getValuesSourceTypeByName("byte"));
+        assertEquals(ValueType.LONG, ValuesSourceRegistry.getValuesSourceTypeByName("short"));
+        assertEquals(ValueType.LONG, ValuesSourceRegistry.getValuesSourceTypeByName("integer"));
+        assertEquals(ValueType.LONG, ValuesSourceRegistry.getValuesSourceTypeByName("long"));
+        assertEquals(ValueType.DATE, ValuesSourceRegistry.getValuesSourceTypeByName("date"));
+        assertEquals(ValueType.IP, ValuesSourceRegistry.getValuesSourceTypeByName("ip"));
+        assertEquals(ValueType.BOOLEAN, ValuesSourceRegistry.getValuesSourceTypeByName("boolean"));
     }
 
     public void testCompatibility() {

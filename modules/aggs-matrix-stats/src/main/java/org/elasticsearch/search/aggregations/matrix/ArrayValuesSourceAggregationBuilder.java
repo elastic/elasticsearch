@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -119,7 +120,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeGenericValue(fields);
         // NOCOMMIT: Make VST writeable
-        out.writeOptionalWriteable(ValueType.reverseMap(userValueTypeHint));
+        out.writeOptionalWriteable(ValuesSourceRegistry.reverseMap(userValueTypeHint));
         out.writeOptionalString(format);
         out.writeMap(missingMap);
         innerWriteTo(out);

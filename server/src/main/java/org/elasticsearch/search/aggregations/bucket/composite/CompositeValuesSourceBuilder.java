@@ -76,7 +76,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         out.writeBoolean(hasValueType);
         if (hasValueType) {
             // NOCOMMIT: Make ValuesSourceType writeable
-            ValueType.writeValuesSourceType(userValueTypeHint, out);
+            ValuesSourceRegistry.writeValuesSourceType(userValueTypeHint, out);
         }
         out.writeBoolean(missingBucket);
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {

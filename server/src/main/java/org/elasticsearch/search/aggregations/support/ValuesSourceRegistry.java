@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,6 +27,66 @@ import java.util.Objects;
  *
  */
 public class ValuesSourceRegistry {
+
+    /**
+     * Used during parsing, this method looks up a {@link ValuesSourceType} based on human-readable string name.
+     * @param type - A string name known to represent the values source
+     * @return The matching {@link ValuesSourceType}
+     */
+    public static ValuesSourceType getValuesSourceTypeByName(String type) {
+        switch (type) {
+            case "string":
+                return ValueType.STRING.getValuesSourceType();
+            case "double":
+            case "float":
+                return ValueType.DOUBLE.getValuesSourceType();
+            case "number":
+            case "numeric":
+            case "long":
+            case "integer":
+            case "short":
+            case "byte":
+                return ValueType.LONG.getValuesSourceType();
+            case "date":
+                return ValueType.DATE.getValuesSourceType();
+            case "ip":
+                return ValueType.IP.getValuesSourceType();
+            case "boolean":
+                return ValueType.BOOLEAN.getValuesSourceType();
+            default:
+                // TODO: do not be lenient here
+                return null;
+        }
+    }
+
+    // NOCOMMIT: This is a utter kludge until I can make ValuesSourceType writeable
+    public static ValueType reverseMap(ValuesSourceType valuesSourceType) throws IOException {
+        if (valuesSourceType == CoreValuesSourceType.KEYWORD) {
+            return ValueType.STRING;
+        } else if (valuesSourceType == CoreValuesSourceType.DOUBLE) {
+            return ValueType.DOUBLE;
+        } else if (valuesSourceType == CoreValuesSourceType.LONG) {
+            return ValueType.LONG;
+        } else if (valuesSourceType == CoreValuesSourceType.DATE) {
+            return ValueType.DATE;
+        } else if (valuesSourceType == CoreValuesSourceType.IP) {
+            return ValueType.IP;
+        } else if (valuesSourceType == CoreValuesSourceType.BOOLEAN) {
+            return ValueType.BOOLEAN;
+        } else {
+            return null;
+        }
+    }
+
+    // NOCOMMIT: Replace with writeable ValuesSources
+    public static void writeValuesSourceType(ValuesSourceType valuesSourceType, StreamOutput out) throws IOException {
+        ValueType toWrite = reverseMap(valuesSourceType);
+        if (toWrite != null) {
+            toWrite.writeTo(out);
+        } else {
+            throw new IOException("Unwriteable value type hint.  How did you even get that parsed?");
+        }
+    }
 
     public static final class RegistryKey<T> {
         private final String name;

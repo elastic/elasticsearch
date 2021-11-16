@@ -111,7 +111,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SearchIT extends ESRestHighLevelClientTestCase {
     int totalNumDocsIndexed = 0;
-    
+
     private void addDoc(Request addDocRequest) throws IOException {
         client().performRequest(addDocRequest);
         totalNumDocsIndexed++;

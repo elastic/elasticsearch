@@ -139,7 +139,7 @@ public class IteratorsTests extends ESTestCase {
     }
 
     private static Integer[] randomIntegerArray() {
-        return Randomness.get().ints(randomIntBetween(1, 1000)).boxed().toArray(Integer[]::new);
+        return Randomness.get().ints(randomIntBetween(0, 1000)).boxed().toArray(Integer[]::new);
     }
 
     private <T> Iterator<T> singletonIterator(T value) {

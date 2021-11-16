@@ -43,7 +43,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
     public void testNullHandler() {
         expectThrows(
             NullPointerException.class,
-            () -> new DeprecationRestHandler(null, METHOD, PATH, deprecationMessage, deprecationLogger)
+            () -> new DeprecationRestHandler(null, METHOD, PATH, null, deprecationMessage, deprecationLogger)
         );
     }
 
@@ -52,12 +52,12 @@ public class DeprecationRestHandlerTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new DeprecationRestHandler(handler, METHOD, PATH, invalidDeprecationMessage, deprecationLogger)
+            () -> new DeprecationRestHandler(handler, METHOD, PATH, null, invalidDeprecationMessage, deprecationLogger)
         );
     }
 
     public void testNullDeprecationLogger() {
-        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage, null));
+        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, null));
     }
 
     public void testHandleRequestLogsWarningThenForwards() throws Exception {
@@ -65,7 +65,14 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         RestChannel channel = mock(RestChannel.class);
         NodeClient client = mock(NodeClient.class);
 
-        DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage, deprecationLogger);
+        DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(
+            handler,
+            METHOD,
+            PATH,
+            null,
+            deprecationMessage,
+            deprecationLogger
+        );
 
         // test it
         deprecatedHandler.handleRequest(request, channel, client);
@@ -125,12 +132,12 @@ public class DeprecationRestHandlerTests extends ESTestCase {
 
     public void testSupportsContentStreamTrue() {
         when(handler.supportsContentStream()).thenReturn(true);
-        assertTrue(new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage, deprecationLogger).supportsContentStream());
+        assertTrue(new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger).supportsContentStream());
     }
 
     public void testSupportsContentStreamFalse() {
         when(handler.supportsContentStream()).thenReturn(false);
-        assertFalse(new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage, deprecationLogger).supportsContentStream());
+        assertFalse(new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger).supportsContentStream());
     }
 
     /**

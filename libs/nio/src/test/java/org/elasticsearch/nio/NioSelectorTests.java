@@ -85,12 +85,12 @@ public class NioSelectorTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testQueueChannelForClosed() throws IOException {
-        NioChannel channel = mock(NioChannel.class);
+        NioChannel mockChannel = mock(NioChannel.class);
         ChannelContext context = mock(ChannelContext.class);
-        when(channel.getContext()).thenReturn(context);
+        when(mockChannel.getContext()).thenReturn(context);
         when(context.getSelector()).thenReturn(selector);
 
-        selector.queueChannelClose(channel);
+        selector.queueChannelClose(mockChannel);
 
         selector.singleLoop();
 
@@ -100,12 +100,12 @@ public class NioSelectorTests extends ESTestCase {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCloseException() throws IOException, InterruptedException {
         IOException ioException = new IOException();
-        NioChannel channel = mock(NioChannel.class);
+        NioChannel mockChannel = mock(NioChannel.class);
         ChannelContext context = mock(ChannelContext.class);
-        when(channel.getContext()).thenReturn(context);
+        when(mockChannel.getContext()).thenReturn(context);
         when(context.getSelector()).thenReturn(selector);
 
-        executeOnNewThread(() -> selector.queueChannelClose(channel));
+        executeOnNewThread(() -> selector.queueChannelClose(mockChannel));
 
         doThrow(ioException).when(eventHandler).handleClose(context);
 

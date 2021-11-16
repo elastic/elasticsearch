@@ -91,7 +91,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             for (String collectArgumentsTargetMethod : lookup.collectArgumentsTargetMethods()) {
                 try {
-                    context.factoryClazz.getMethod(collectArgumentsTargetMethod);
+                    Method m = context.factoryClazz.getMethod(collectArgumentsTargetMethod);
+                    if (m.getReturnType() != QueryableExpressionBuilder.class) {
+                        throw new IllegalArgumentException(
+                            "collected arguments method [" + collectArgumentsTargetMethod + "] must return QueryableExpressionBuilder"
+                        );
+                    }
                 } catch (NoSuchMethodException e) {
                     throw new IllegalArgumentException(
                         "factory class doesn't contain method to collect arguments [" + collectArgumentsTargetMethod + "]",

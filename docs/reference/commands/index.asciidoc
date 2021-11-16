@@ -7,7 +7,6 @@
 {es} provides the following tools for configuring security and performing other
 tasks from the command line:
 
-* <<certgen>>
 * <<certutil>>
 * <<create-enrollment-token>>
 * <<elasticsearch-croneval>>
@@ -22,7 +21,6 @@ tasks from the command line:
 
 --
 
-include::certgen.asciidoc[]
 include::certutil.asciidoc[]
 include::create-enrollment-token.asciidoc[]
 include::croneval.asciidoc[]

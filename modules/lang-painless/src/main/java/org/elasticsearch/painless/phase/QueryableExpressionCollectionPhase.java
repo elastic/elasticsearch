@@ -55,34 +55,46 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
     @Override
     public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, QueryableExpressionScope scope) {
         if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
-            ConstantNode fieldNameNode = getFieldNameNode((BinaryImplNode) irBinaryImplNode.getLeftNode());
-            if (fieldNameNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
-                Object value = fieldNameNode.getDecorationValue(IRDecorations.IRDConstant.class);
+            ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode());
+            if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
+                Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
                 if (value instanceof String) {
                     scope.push(QueryableExpressionBuilder.field((String) value));
+                    return;
                 }
+            }
+        }
+
+        ConstantNode paramsLookupKeyNode = lookupKeyForMapAccessOnVariable("params", irBinaryImplNode);
+        if (paramsLookupKeyNode != null) {
+            Object value = paramsLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
+            if (value instanceof String) {
+                scope.push(QueryableExpressionBuilder.param((String) value));
+                return;
             }
         }
     }
 
-    private ConstantNode getFieldNameNode(BinaryImplNode irBinaryImplNode) {
+    /**
+     * Checks whether a BinaryImplNode references a variable `variableName` on which a Map lookup is performed.
+     * Returns the lookup key if it is a constant.
+     */
+    private ConstantNode lookupKeyForMapAccessOnVariable(String variableName, BinaryImplNode irBinaryImplNode) {
         if (irBinaryImplNode.getLeftNode() instanceof LoadVariableNode) {
-            // doc.get('<field>') syntax
-            IRDecorations.IRDName variableName = irBinaryImplNode.getLeftNode().getDecoration(IRDecorations.IRDName.class);
-            if (variableName != null
-                && variableName.getValue().equals("doc")
-                && irBinaryImplNode.getRightNode() instanceof InvokeCallNode) {
+            // <variableName>.get('<field>') syntax
+            IRDecorations.IRDName name = irBinaryImplNode.getLeftNode().getDecoration(IRDecorations.IRDName.class);
+            if (name != null && name.getValue().equals(variableName) && irBinaryImplNode.getRightNode() instanceof InvokeCallNode) {
                 InvokeCallNode invokeCall = (InvokeCallNode) irBinaryImplNode.getRightNode();
                 if (invokeCall.getMethod().javaMethod.getName().equals("get") && invokeCall.getArgumentNodes().size() == 1) {
                     return constantNodeOrNull(invokeCall.getArgumentNodes().get(0));
                 }
             }
         } else if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
-            // doc['<field>'] and doc.<field> syntax
+            // <variableName>['<field>'] and <variableName>.<field> syntax
             BinaryImplNode left = (BinaryImplNode) irBinaryImplNode.getLeftNode();
             if (left.getLeftNode() instanceof LoadVariableNode) {
-                IRDecorations.IRDName variableName = left.getLeftNode().getDecoration(IRDecorations.IRDName.class);
-                if (variableName != null && variableName.getValue().equals("doc")) {
+                IRDecorations.IRDName name = left.getLeftNode().getDecoration(IRDecorations.IRDName.class);
+                if (name != null && name.getValue().equals(variableName)) {
                     return constantNodeOrNull(left.getRightNode());
                 }
             }
@@ -128,7 +140,7 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
 
         Operation operation = irBinaryMathNode.getDecorationValue(IRDecorations.IRDOperation.class);
 
-        scope.consume((lhs, rhs) -> {
+        scope.consume((rhs, lhs) -> {
             if (operation == Operation.ADD) {
                 return QueryableExpressionBuilder.add(lhs, rhs);
             } else if (operation == Operation.SUB) {

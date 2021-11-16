@@ -35,9 +35,13 @@ public class QueryableExpressionTests extends ScriptTestCase {
     }
 
     public QueryableExpression qe(String script, Function<String, QueryableExpression> lookup) {
+        return qe(script, lookup, null);
+    }
+
+    public QueryableExpression qe(String script, Function<String, QueryableExpression> lookup, Function<String, Object> params) {
         return scriptEngine.compile("qe_test", script, LongFieldScript.CONTEXT, Collections.emptyMap())
             .emitExpression()
-            .build(lookup, null);
+            .build(lookup, params);
     }
 
     public void testIntConst() {
@@ -85,9 +89,30 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("b / 10", qe("emit(doc['b'].value / 10l)", longLookup).toString());
     }
 
+    @AwaitsFix(bugUrl = "plaid")
+    public void testLongOverFieldRef() {
+        assertEquals("10 / b", qe("emit(10l / doc['b'].value)", longLookup).toString());
+    }
+
     @AwaitsFix(bugUrl = "Terms with multiple operations cannot be approximated yet")
     public void testCelsiusToFahrenheitLong() {
         assertEquals("(temp_c * 2) + 32", qe("emit((doc['temp_c'].value * 2l) + 32l)", longLookup).toString());
+    }
+
+    public void testParams() {
+        assertEquals("1000", qe("emit(params['x'] * 10l)", null, (param) -> param.equals("x") ? 100L : null).toString());
+    }
+
+    public void testParams2() {
+        assertEquals("1000", qe("emit(params.get('x') * 10l)", null, (param) -> param.equals("x") ? 100L : null).toString());
+    }
+
+    public void testParams3() {
+        assertEquals("1000", qe("emit(params.x * 10l)", null, (param) -> param.equals("x") ? 100L : null).toString());
+    }
+
+    public void testParamPlusField() {
+        assertEquals("a + 100", qe("emit(doc.a.value + params.x)", longLookup, (param) -> param.equals("x") ? 100L : null).toString());
     }
 
     public void testComplexStatement() {

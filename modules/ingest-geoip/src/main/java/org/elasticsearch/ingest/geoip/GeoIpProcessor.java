@@ -199,7 +199,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private Map<String, Object> retrieveCityGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         CityResponse response = lazyLoader.getCity(ipAddress);
         if (response == null) {
-            return Map.of();
+            return Collections.emptyMap();
         }
         Country country = response.getCountry();
         City city = response.getCity();
@@ -277,7 +277,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private Map<String, Object> retrieveCountryGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         CountryResponse response = lazyLoader.getCountry(ipAddress);
         if (response == null) {
-            return Map.of();
+            return Collections.emptyMap();
         }
         Country country = response.getCountry();
         Continent continent = response.getContinent();
@@ -314,7 +314,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private Map<String, Object> retrieveAsnGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         AsnResponse response = lazyLoader.getAsn(ipAddress);
         if (response == null) {
-            return Map.of();
+            return Collections.emptyMap();
         }
         Integer asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();

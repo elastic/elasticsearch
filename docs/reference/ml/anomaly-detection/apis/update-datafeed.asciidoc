@@ -42,14 +42,14 @@ credentials are used instead.
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-update-datafeed-query-params]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_indices`::
 (Optional, Boolean) If `true`, wildcard indices expressions that resolve into no
 concrete indices are ignored. This includes the `_all` string or when no indices
 are specified. Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 

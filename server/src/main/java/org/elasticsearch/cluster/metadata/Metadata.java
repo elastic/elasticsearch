@@ -352,11 +352,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        if (indicesLookup != null) {
-            return indicesLookup;
+        if (indicesLookup == null) {
+            DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
+            indicesLookup = Builder.buildIndicesLookup(dataStreamMetadata, indices);
         }
-        DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
-        indicesLookup = Collections.unmodifiableSortedMap(Builder.buildIndicesLookup(dataStreamMetadata, indices));
         return indicesLookup;
     }
 
@@ -1714,7 +1713,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 indicesLookup = previousIndicesLookup;
             } else {
                 if (builtIndicesLookupEagerly) {
-                    indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup(dataStreamMetadata, indices));
+                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indices);
                 } else {
                     indicesLookup = null;
                 }
@@ -1840,7 +1839,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             validateDataStreams(indicesLookup, dataStreamMetadata);
-            return indicesLookup;
+            return Collections.unmodifiableSortedMap(indicesLookup);
         }
 
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {

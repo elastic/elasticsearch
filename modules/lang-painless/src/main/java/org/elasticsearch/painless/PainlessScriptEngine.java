@@ -89,6 +89,17 @@ public final class PainlessScriptEngine implements ScriptEngine {
             ScriptContext<?> context = entry.getKey();
             PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
 
+            for (String collectArgumentsTargetMethod : lookup.collectArgumentsTargetMethods()) {
+                try {
+                    context.factoryClazz.getMethod(collectArgumentsTargetMethod);
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalArgumentException(
+                        "factory class doesn't contain method to collect arguments [" + collectArgumentsTargetMethod + "]",
+                        e
+                    );
+                }
+            }
+
             contextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)

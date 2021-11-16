@@ -82,7 +82,22 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new TimeSeriesIdFieldMapper(), c -> new Builder());
+    /**
+     * A no-op builder does not return an instance of the field mapper. Instead, it returns null
+     * This is going to be used for non-time-series indices that should have this
+     *
+     */
+    public static class NoopBuilder extends Builder {
+        @Override
+        public TimeSeriesIdFieldMapper build() {
+            return null;
+        }
+    }
+
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? new TimeSeriesIdFieldMapper() : null,
+        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? new Builder() : new NoopBuilder()
+    );
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
@@ -126,9 +141,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        if (context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-            return;
-        }
         assert fieldType().isSearchable() == false;
 
         // SortedMap is expected to be sorted by key (field name)

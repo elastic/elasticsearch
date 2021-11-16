@@ -75,17 +75,21 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testDisabledInStandardMode() throws Exception {
         DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), "standard").build(),
+            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
             mapping(b -> {})
         ).documentMapper();
-        ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
+        assertThat(docMapper.metadataMapper(TimeSeriesIdFieldMapper.class), is(nullValue()));
 
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
         assertThat(doc.rootDoc().getBinaryValue("_tsid"), is(nullValue()));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
     public void testIncludeInDocumentNotAllowed() throws Exception {
-        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
+        DocumentMapper docMapper = createDocumentMapper(
+            "a",
+            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
+        );
         Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("_tsid", "foo")));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_tsid] is a metadata field and cannot be added inside a document"));

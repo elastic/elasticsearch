@@ -176,6 +176,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 false,
                 true,
                 true,
+                true,
                 new String[] { "old_index" },
                 null,
                 null,
@@ -196,7 +197,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", false, true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("route_length_miles", "double", false, true, true, true, null, null, null, Collections.emptyMap()),
             routeLength.get("double")
         );
     }
@@ -235,7 +236,18 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(oldField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("old_field", "long", false, true, true, new String[] { "old_index" }, null, null, Collections.emptyMap()),
+            new FieldCapabilities(
+                "old_field",
+                "long",
+                false,
+                true,
+                true,
+                true,
+                new String[] { "old_index" },
+                null,
+                null,
+                Collections.emptyMap()
+            ),
             oldField.get("long")
         );
 
@@ -244,6 +256,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             new FieldCapabilities(
                 "old_field",
                 "unmapped",
+                false,
                 false,
                 false,
                 false,
@@ -260,7 +273,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", false, true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", false, true, true, true, null, null, null, Collections.emptyMap()),
             newField.get("long")
         );
     }
@@ -322,7 +335,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(idField.containsKey("_id"));
             assertEquals(
-                new FieldCapabilities("_id", "_id", true, true, false, null, null, null, Collections.emptyMap()),
+                new FieldCapabilities("_id", "_id", true, true, false, true, null, null, null, Collections.emptyMap()),
                 idField.get("_id")
             );
 
@@ -331,7 +344,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(testField.containsKey("keyword"));
             assertEquals(
-                new FieldCapabilities("_test", "keyword", true, true, true, null, null, null, Collections.emptyMap()),
+                new FieldCapabilities("_test", "keyword", true, true, true, true, null, null, null, Collections.emptyMap()),
                 testField.get("keyword")
             );
         }

@@ -19,11 +19,11 @@ import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.LoadDotDefNode;
 import org.elasticsearch.painless.ir.LoadVariableNode;
+import org.elasticsearch.painless.lookup.PainlessClassBinding;
+import org.elasticsearch.painless.spi.annotation.CollectArgumentAnnotation;
 import org.elasticsearch.painless.symbol.IRDecorations;
 import org.elasticsearch.painless.symbol.QueryableExpressionScope;
 import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
-
-import java.lang.reflect.Method;
 
 /**
  * Constructs the QueryableExpression if possible.
@@ -37,14 +37,16 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
 
     @Override
     public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, QueryableExpressionScope scope) {
-        IRDecorations.IRDClassBinding irdBinding = irInvokeCallMemberNode.getDecoration(IRDecorations.IRDClassBinding.class);
+        PainlessClassBinding irdBinding = irInvokeCallMemberNode.getDecorationValue(IRDecorations.IRDClassBinding.class);
 
         if (irdBinding != null) {
-            Method method = irdBinding.getValue().javaMethod;
-            if (method.getDeclaringClass().getName().endsWith("$Emit") && method.getName().equals("emit")) {
-                scope.enterEmit();
+            CollectArgumentAnnotation collectArgument = (CollectArgumentAnnotation) irdBinding.annotations.get(
+                CollectArgumentAnnotation.class
+            );
+            if (collectArgument != null) {
+                scope.startCollecting(collectArgument.target);
                 super.visitInvokeCallMember(irInvokeCallMemberNode, scope);
-                scope.exitEmit();
+                scope.stopCollecting(collectArgument.target);
                 return;
             }
         }

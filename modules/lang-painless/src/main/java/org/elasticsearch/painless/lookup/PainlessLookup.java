@@ -34,6 +34,7 @@ public final class PainlessLookup {
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
+    private final Set<String> collectArgumentsTargetMethods;
 
     PainlessLookup(
         Map<String, Class<?>> javaClassNamesToClasses,
@@ -42,7 +43,8 @@ public final class PainlessLookup {
         Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses,
         Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
         Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
-        Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings
+        Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings,
+        Set<String> collectArgumentsTargetMethods
     ) {
 
         Objects.requireNonNull(javaClassNamesToClasses);
@@ -62,6 +64,8 @@ public final class PainlessLookup {
         this.painlessMethodKeysToImportedPainlessMethods = Map.copyOf(painlessMethodKeysToImportedPainlessMethods);
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
+
+        this.collectArgumentsTargetMethods = Set.copyOf(collectArgumentsTargetMethods);
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {
@@ -316,6 +320,10 @@ public final class PainlessLookup {
         Function<PainlessClass, MethodHandle> objectLookup = targetPainlessClass -> targetPainlessClass.setterMethodHandles.get(setterName);
 
         return lookupPainlessObject(originalTargetClass, objectLookup);
+    }
+
+    public Set<String> collectArgumentsTargetMethods() {
+        return collectArgumentsTargetMethods;
     }
 
     private <T> T lookupPainlessObject(Class<?> originalTargetClass, Function<PainlessClass, T> objectLookup) {

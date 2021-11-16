@@ -136,4 +136,8 @@ public class QueryableExpressionTests extends ScriptTestCase {
     public void testTernary() {
         assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(1 > 2 ? 100 : 10)"));
     }
+
+    public void testEmitTwice() {
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(1); emit(2);"));
+    }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
 import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
+import org.elasticsearch.painless.spi.annotation.CollectArgumentAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
@@ -220,6 +221,7 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
+    private final Set<String> collectArgumentsTargetMethods = new HashSet<>();
 
     public PainlessLookupBuilder() {
         javaClassNamesToClasses = new HashMap<>();
@@ -495,6 +497,9 @@ public final class PainlessLookupBuilder {
 
         if (annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
             throw new IllegalArgumentException("constructors can't have @" + CompileTimeOnlyAnnotation.NAME);
+        }
+        if (annotations.containsKey(CollectArgumentAnnotation.class)) {
+            throw new IllegalArgumentException("constructors can't have @" + CollectArgumentAnnotation.NAME);
         }
 
         MethodType methodType = methodHandle.type();
@@ -835,6 +840,9 @@ public final class PainlessLookupBuilder {
 
         if (annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
             throw new IllegalArgumentException("regular methods can't have @" + CompileTimeOnlyAnnotation.NAME);
+        }
+        if (annotations.containsKey(CollectArgumentAnnotation.class)) {
+            throw new IllegalArgumentException("regular methods can't have @" + CollectArgumentAnnotation.NAME);
         }
 
         MethodType methodType = methodHandle.type();
@@ -1226,6 +1234,10 @@ public final class PainlessLookupBuilder {
             }
 
             typeParameters.add(typeParameter);
+        }
+
+        if (annotations.containsKey(CollectArgumentAnnotation.class)) {
+            throw new IllegalArgumentException("imported methods can't have @" + CollectArgumentAnnotation.NAME);
         }
 
         Class<?> returnType = canonicalTypeNameToType(returnCanonicalTypeName);
@@ -1741,6 +1753,16 @@ public final class PainlessLookupBuilder {
             annotations
         );
 
+        CollectArgumentAnnotation collectArgumentsAnnotation = (CollectArgumentAnnotation) annotations.get(CollectArgumentAnnotation.class);
+        if (collectArgumentsAnnotation != null) {
+            boolean firstTime = collectArgumentsTargetMethods.add(collectArgumentsAnnotation.target);
+            if (false == firstTime) {
+                throw new IllegalArgumentException(
+                    "cannot add class bindings collecting arguments to the same location [" + collectArgumentsAnnotation.target + "]"
+                );
+            }
+        }
+
         if (existingPainlessClassBinding == null) {
             newPainlessClassBinding = painlessClassBindingCache.computeIfAbsent(newPainlessClassBinding, key -> key);
             painlessMethodKeysToPainlessClassBindings.put(painlessMethodKey.intern(), newPainlessClassBinding);
@@ -2048,7 +2070,8 @@ public final class PainlessLookupBuilder {
             classesToDirectSubClasses,
             painlessMethodKeysToImportedPainlessMethods,
             painlessMethodKeysToPainlessClassBindings,
-            painlessMethodKeysToPainlessInstanceBindings
+            painlessMethodKeysToPainlessInstanceBindings,
+            collectArgumentsTargetMethods
         );
     }
 

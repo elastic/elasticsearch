@@ -15,6 +15,7 @@ import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.CollectArgumentAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.DeprecatedAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
@@ -571,6 +572,8 @@ public class DecorationToXContent {
             builder.value(NoImportAnnotation.NAME);
         } else if (annotation instanceof NonDeterministicAnnotation) {
             builder.value(NonDeterministicAnnotation.NAME);
+        } else if (annotation instanceof CollectArgumentAnnotation) {
+            builder.value(CollectArgumentAnnotation.NAME);
         } else {
             builder.value(annotation.toString());
         }

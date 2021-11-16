@@ -89,20 +89,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
             ScriptContext<?> context = entry.getKey();
             PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
 
-            // if emitExpression exists on the factory class we make two assumptions
-            // 1. this is runtime field that uses an emit method to generate values
-            // 2. doc is available to access fields in a document
-            boolean optimizeRTF = false;
-            try {
-                context.factoryClazz.getMethod("emitExpression");
-                optimizeRTF = true;
-            } catch (NoSuchMethodException nsme) {
-                // do nothing
-            }
-
             contextsToCompilers.put(
                 context,
-                new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup, optimizeRTF)
+                new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
             );
             contextsToLookups.put(context, lookup);
         }
@@ -311,15 +300,13 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.endMethod();
 
         Method reflect = null;
-        Method optim = null;
+        Map<String, Method> collectedArguments = new HashMap<>();
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {
                 reflect = method;
             } else if ("newFactory".equals(method.getName())) {
                 reflect = method;
-            } else if ("emitExpression".equals(method.getName())) {
-                optim = method;
             }
         }
 
@@ -331,14 +318,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
             "<init>",
             MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString()
         );
-
-        org.objectweb.asm.commons.Method optimize = null;
-        if (optim != null) {
-            optimize = new org.objectweb.asm.commons.Method(
-                optim.getName(),
-                MethodType.methodType(optim.getReturnType(), optim.getParameterTypes()).toMethodDescriptorString()
-            );
-        }
 
         GeneratorAdapter adapter = new GeneratorAdapter(
             Opcodes.ASM5,
@@ -371,32 +350,44 @@ public final class PainlessScriptEngine implements ScriptEngine {
         deterAdapter.returnValue();
         deterAdapter.endMethod();
 
-        if (optimize != null) {
+        for (String collectArgumentsTargetMethod : scriptScope.getPainlessLookup().collectArgumentsTargetMethods()) {
+            String field = "$QE_" + collectArgumentsTargetMethod;
+
             writer.visitField(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
-                "QE",
+                field,
                 Type.getType(QueryableExpressionBuilder.class).getDescriptor(),
                 null,
                 null
             ).visitEnd();
 
-            GeneratorAdapter optimAdapter = new GeneratorAdapter(
+            String targetMethodDescriptor = MethodType.methodType(QueryableExpressionBuilder.class).toMethodDescriptorString();
+            GeneratorAdapter targetMethod = new GeneratorAdapter(
                 Opcodes.ASM5,
                 instance,
-                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, optimize.getName(), optimize.getDescriptor(), null, null)
+                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, collectArgumentsTargetMethod, targetMethodDescriptor, null, null)
             );
-            optimAdapter.visitCode();
-            optimAdapter.getStatic(Type.getType("L" + className + ";"), "QE", Type.getType(QueryableExpressionBuilder.class));
-            optimAdapter.returnValue();
-            optimAdapter.endMethod();
+            targetMethod.visitCode();
+            targetMethod.getStatic(Type.getType("L" + className + ";"), field, Type.getType(QueryableExpressionBuilder.class));
+            targetMethod.returnValue();
+            targetMethod.endMethod();
         }
 
         writer.visitEnd();
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 
         try {
-            if (optimize != null) {
-                factory.getField("QE").set(null, scriptScope.getQueryableExpressionScope().result());
+            for (String collectArgumentsTargetMethod : scriptScope.getPainlessLookup().collectArgumentsTargetMethods()) {
+                String field = "$QE_" + collectArgumentsTargetMethod;
+                QueryableExpressionBuilder result = scriptScope.getQueryableExpressionScope()
+                    .collectedArguments()
+                    .get(collectArgumentsTargetMethod);
+                if (result == null) {
+                    // If we didn't collect anything we'll give up optimizing.
+                    // Though it might be better to return some kind of NEVER_CALLED. One day! One day.
+                    result = QueryableExpressionBuilder.UNQUERYABLE;
+                }
+                factory.getField(field).set(null, result);
             }
 
             return context.factoryClazz.cast(factory.getConstructor().newInstance());

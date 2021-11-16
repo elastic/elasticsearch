@@ -10,32 +10,48 @@ package org.elasticsearch.painless.symbol;
 
 import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 
-import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
  * Tracks information for building the QueryableExpression of a script.
  */
 public class QueryableExpressionScope {
+    private final Map<String, QueryableExpressionBuilder> collectedArguments = new HashMap<>();
+    private final Deque<QueryableExpressionBuilder> expressionStack;
 
-    private final Stack<QueryableExpressionBuilder> expressionStack;
-
-    private boolean inEmit = false;
+    private String currentTarget;
 
     public QueryableExpressionScope() {
-        this.expressionStack = new Stack<>();
+        this.expressionStack = new ArrayDeque<>();
     }
 
-    public void enterEmit() {
-        this.inEmit = true;
+    public void startCollecting(String target) {
+        if (currentTarget != null) {
+            throw new IllegalArgumentException("can't collect arguments for two methods at once");
+        }
+        currentTarget = target;
     }
 
-    public void exitEmit() {
-        this.inEmit = false;
+    public void stopCollecting(String target) {
+        if (false == Objects.equals(currentTarget, target)) {
+            // Paranoia
+            throw new IllegalStateException(
+                "attempted to stop collecting arguments for [" + target + "] while collecting arguments for [" + currentTarget + "]"
+            );
+        }
+        QueryableExpressionBuilder result = expressionStack.size() == 1 ? expressionStack.pop() : QueryableExpressionBuilder.UNQUERYABLE;
+        expressionStack.clear();
+        collectedArguments.compute(target, (k, v) -> v == null ? result : QueryableExpressionBuilder.UNQUERYABLE);
+        currentTarget = null;
     }
 
     public void push(QueryableExpressionBuilder expression) {
-        if (inEmit) {
+        if (currentTarget != null) {
             this.expressionStack.push(expression);
         } else {
             unqueryable();
@@ -55,11 +71,7 @@ public class QueryableExpressionScope {
         this.expressionStack.push(QueryableExpressionBuilder.UNQUERYABLE);
     }
 
-    public QueryableExpressionBuilder result() {
-        if (this.expressionStack.size() == 1) {
-            return this.expressionStack.pop();
-        } else {
-            return QueryableExpressionBuilder.UNQUERYABLE;
-        }
+    public Map<String, QueryableExpressionBuilder> collectedArguments() {
+        return collectedArguments;
     }
 }

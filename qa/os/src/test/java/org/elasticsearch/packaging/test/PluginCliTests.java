@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
@@ -22,14 +23,12 @@ import java.nio.file.Paths;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
-@PackagingTestCase.AwaitsFix(bugUrl = "Needs to be re-enabled")
 public class PluginCliTests extends PackagingTestCase {
 
-    private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";
+    private static final String EXAMPLE_PLUGIN_NAME = "analysis-icu";
     private static final Path EXAMPLE_PLUGIN_ZIP;
 
     static {
@@ -60,6 +59,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        ServerUtils.disableSecurityFeatures(installation);
         setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
@@ -75,12 +75,8 @@ public class PluginCliTests extends PackagingTestCase {
         // Packaged installation don't get autoconfigured yet
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
-                final String pluginsResponse = makeRequest("https://localhost:9200/_cat/plugins?h=component").strip();
+                final String pluginsResponse = makeRequest("http://localhost:9200/_cat/plugins?h=component").strip();
                 assertThat(pluginsResponse, equalTo(EXAMPLE_PLUGIN_NAME));
-
-                String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
-                final String settingsResponse = makeRequest("https://localhost:9200/" + settingsPath).strip();
-                assertThat(settingsResponse, equalTo("{\"defaults\":{\"custom\":{\"simple\":\"foo\"}}}"));
             });
         });
 
@@ -125,22 +121,24 @@ public class PluginCliTests extends PackagingTestCase {
      * Check that the `install` subcommand cannot be used if a plugins config file exists.
      */
     public void test30InstallFailsIfConfigFilePresent() throws IOException {
-        Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
+        Path pluginsConfig = installation.config.resolve("elasticsearch-plugins.yml");
+        Files.writeString(pluginsConfig, "");
 
         Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
         assertThat(result.isSuccess(), is(false));
-        assertThat(result.stderr, matchesPattern("^Plugins config \\[[^+]] exists.*"));
+        assertThat(result.stderr, containsString("Plugins config [" + pluginsConfig + "] exists"));
     }
 
     /**
      * Check that the `remove` subcommand cannot be used if a plugins config file exists.
      */
     public void test31RemoveFailsIfConfigFilePresent() throws IOException {
-        Files.writeString(installation.config.resolve("elasticsearch-plugins.yml"), "");
+        Path pluginsConfig = installation.config.resolve("elasticsearch-plugins.yml");
+        Files.writeString(pluginsConfig, "");
 
         Shell.Result result = installation.executables().pluginTool.run("install analysis-icu", null, true);
         assertThat(result.isSuccess(), is(false));
-        assertThat(result.stderr, matchesPattern("^Plugins config \\[[^+]] exists.*"));
+        assertThat(result.stderr, containsString("Plugins config [" + pluginsConfig + "] exists"));
     }
 
     /**
@@ -150,11 +148,11 @@ public class PluginCliTests extends PackagingTestCase {
     public void test32FailsToStartWhenPluginsConfigExists() throws Exception {
         try {
             Files.writeString(installation.config("elasticsearch-plugins.yml"), "content doesn't matter for this test");
-            Shell.Result result = runElasticsearchStartCommand(null, false, true);
-            assertThat(result.isSuccess(), equalTo(false));
-            assertThat(
-                result.stderr,
-                containsString("Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]")
+            Shell.Result result = runElasticsearchStartCommand(null, false, false);
+            assertElasticsearchFailure(
+                result,
+                "Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]",
+                null
             );
         } finally {
             FileUtils.rm(installation.config("elasticsearch-plugins.yml"));

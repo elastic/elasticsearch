@@ -190,7 +190,7 @@ public class DockerTests extends PackagingTestCase {
 
         final Matcher<Iterable<?>> matcher = isCloudImage
             ? containsInAnyOrder("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
-            : equalTo(List.of("analysis-icu"));
+            : equalTo(asList("analysis-icu"));
 
         assertThat("Expected installed plugins to be listed", listPlugins(), matcher);
     }

@@ -1,11 +1,37 @@
 [discrete]
-[[breaking_80_packaging_changes]]
-==== Packaging changes
+[[breaking_80_system_req_changes]]
+==== System requirement changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+TIP: {ess-skip-section}
+
+.Several EOL operating systems are no longer supported.
+[%collapsible]
+====
+*Details* +
+The following operating systems have reached their end of life and are no longer
+supported by {es}:
+
+* Amazon Linux
+* CentOS 6
+* Debian 8
+* openSUSE Leap 42
+* Oracle Enterprise Linux 6
+* Ubuntu 16.04
+
+We've also removed support for `SysV init`. No supported operating systems use
+the `SysV init` process.
+
+*Details* +
+Ensure your nodes use a
+https://www.elastic.co/support/matrix#matrix_os[supported operating system].
+Running {es} on an unsupported operating system can result in unexpected errors
+or failures.
+====
+
 .Java 17 is required.
 [%collapsible]
 ====
@@ -24,7 +50,7 @@ from your security organization to upgrade to {es} 8.0,
 or remain on {es} 7.x until Java 17 is certified.
 ====
 
-.JAVA_HOME is no longer supported.
+.`JAVA_HOME` is no longer supported.
 [%collapsible]
 ====
 *Details* +

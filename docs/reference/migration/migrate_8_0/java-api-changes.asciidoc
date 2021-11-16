@@ -1,11 +1,24 @@
 [discrete]
-[[breaking_80_java_changes]]
+[[breaking_80_java_api_changes]]
 ==== Java API changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[ilm-hlrc-rename]]
+.The `indexlifecycle` package has been renamed `ilm` in the Java High Level REST Client.
+[%collapsible]
+====
+*Details* +
+In the high level REST client, the `indexlifecycle` package has been
+renamed to `ilm` to match the package rename inside the {es} code.
+
+*Impact* +
+Update your workflow and applications to use the `ilm` package in place of
+`indexlifecycle`.
+====
+
 .Changes to `Fuzziness`.
 [%collapsible]
 ====
@@ -39,4 +52,4 @@ testability.
 *Impact* +
 No action needed.
 ====
-// end::notable-breaking-changes[]
+//end::notable-breaking-changes[]

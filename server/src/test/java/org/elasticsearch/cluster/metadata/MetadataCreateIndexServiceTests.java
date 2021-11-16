@@ -1031,7 +1031,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         Index index = metadata.index("test").getIndex();
         assertThat(alias.getIndices(), contains(index));
-        assertThat(metadata.aliases().get("alias1"), contains(index));
+        assertThat(metadata.aliases("alias1"), contains(index));
     }
 
     public void testClusterStateCreateIndexWithMetadataTransaction() {

@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -196,7 +197,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         );
 
         ExecuteEnrichPolicyTask task = mock(ExecuteEnrichPolicyTask.class);
-        expectThrows(ResourceNotFoundException.class, () -> testExecutor.runPolicyLocally(task, "my-policy", null));
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> testExecutor.runPolicyLocally(task, "my-policy", null));
+        assertThat(e.getMessage(), equalTo("policy [my-policy] does not exist"));
     }
 
     private Client getClient(CountDownLatch latch) {

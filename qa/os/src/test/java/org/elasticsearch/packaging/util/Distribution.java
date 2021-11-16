@@ -44,6 +44,11 @@ public class Distribution {
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.hasJdk = filename.contains("no-jdk") == false;
         String version = filename.split("-", 3)[1];
+        if (packaging == Packaging.DEB) {
+            version = version.replace(".deb", "");
+        } else if (packaging == Packaging.RPM) {
+            version = version.replace(".rpm", "");
+        }
         this.baseVersion = version;
         if (filename.contains("-SNAPSHOT")) {
             version += "-SNAPSHOT";

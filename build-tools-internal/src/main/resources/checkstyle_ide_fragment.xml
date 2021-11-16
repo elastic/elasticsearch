@@ -34,7 +34,7 @@
         <message key="javadoc.missing" value="Types should explain their purpose" />
     </module>
 
-    <!-- Public methods must have JavaDoc -->
+    <!-- Check the Javadoc for a method e.g that it has the correct parameters, return type etc -->
     <module name="JavadocMethod">
         <property name="severity" value="warning"/>
         <property name="accessModifiers" value="public"/>

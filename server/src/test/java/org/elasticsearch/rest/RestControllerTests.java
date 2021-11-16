@@ -234,7 +234,8 @@ public class RestControllerTests extends ESTestCase {
 
         // don't want to test everything -- just that it actually wraps the handler
         doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage);
+        doCallRealMethod().when(controller)
+            .registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage, null);
 
         controller.registerHandler(route, handler);
 

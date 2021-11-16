@@ -8,10 +8,6 @@
 
 package org.elasticsearch.recovery;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.procedures.IntProcedure;
-
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.ActionFuture;
@@ -260,14 +256,14 @@ public class RelocationIT extends ESIntegTestCase {
                     for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                         hitIds[hit] = hit + 1;
                     }
-                    IntHashSet set = IntHashSet.from(hitIds);
+                    Set<Integer> set = Arrays.stream(hitIds).boxed().collect(Collectors.toSet());
                     for (SearchHit hit : hits.getHits()) {
                         int id = Integer.parseInt(hit.getId());
                         if (set.remove(id) == false) {
                             logger.error("Extra id [{}]", id);
                         }
                     }
-                    set.forEach((IntProcedure) value -> { logger.error("Missing id [{}]", value); });
+                    set.forEach(value -> logger.error("Missing id [{}]", value));
                 }
                 assertThat(hits.getTotalHits().value, equalTo(indexer.totalIndexedDocs()));
                 logger.info("--> DONE search test round {}", i + 1);
@@ -741,8 +737,8 @@ public class RelocationIT extends ESIntegTestCase {
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
-            for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metadata().indices().keys()) {
-                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it.value).get().getShards())
+            for (String index : client().admin().cluster().prepareState().get().getState().metadata().indices().keySet()) {
+                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(index).get().getShards())
                     .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
                 for (List<ShardStats> shardStats : byShardId.values()) {
                     Set<String> expectedLeaseIds = shardStats.stream()

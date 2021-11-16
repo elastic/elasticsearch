@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -184,18 +182,18 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean omitEmptySettings) throws IOException {
         builder.startObject();
-        for (ObjectObjectCursor<String, Settings> cursor : getIndexToSettings()) {
+        for (Map.Entry<String, Settings> cursor : getIndexToSettings().entrySet()) {
             // no settings, jump over it to shorten the response data
-            if (omitEmptySettings && cursor.value.isEmpty()) {
+            if (omitEmptySettings && cursor.getValue().isEmpty()) {
                 continue;
             }
-            builder.startObject(cursor.key);
+            builder.startObject(cursor.getKey());
             builder.startObject("settings");
-            cursor.value.toXContent(builder, params);
+            cursor.getValue().toXContent(builder, params);
             builder.endObject();
             if (indexToDefaultSettings.isEmpty() == false) {
                 builder.startObject("defaults");
-                indexToDefaultSettings.get(cursor.key).toXContent(builder, params);
+                indexToDefaultSettings.get(cursor.getKey()).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();

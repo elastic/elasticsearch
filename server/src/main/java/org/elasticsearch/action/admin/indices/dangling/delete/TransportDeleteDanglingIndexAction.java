@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.dangling.delete;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -39,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -125,8 +124,8 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
         final Metadata metaData = currentState.getMetadata();
 
-        for (ObjectObjectCursor<String, IndexMetadata> each : metaData.indices()) {
-            if (indexToDelete.getUUID().equals(each.value.getIndexUUID())) {
+        for (Map.Entry<String, IndexMetadata> each : metaData.indices().entrySet()) {
+            if (indexToDelete.getUUID().equals(each.getValue().getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
                         + indexToDelete

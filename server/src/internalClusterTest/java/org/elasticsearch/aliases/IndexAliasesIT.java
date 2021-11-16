@@ -8,8 +8,6 @@
 
 package org.elasticsearch.aliases;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -46,6 +44,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -1018,8 +1017,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().removeAlias("foobar", "foo"));
 
         getResponse = admin().indices().prepareGetAliases("foo").addIndices("foobar").get();
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : getResponse.getAliases()) {
-            assertTrue(entry.value.isEmpty());
+        for (final Map.Entry<String, List<AliasMetadata>> entry : getResponse.getAliases().entrySet()) {
+            assertTrue(entry.getValue().isEmpty());
         }
         assertTrue(admin().indices().prepareGetAliases("foo").addIndices("foobar").get().getAliases().isEmpty());
     }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -24,6 +22,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
@@ -68,19 +67,19 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
-            builder.startObject(indexEntry.key);
+        for (final Map.Entry<String, MappingMetadata> indexEntry : getMappings().entrySet()) {
+            builder.startObject(indexEntry.getKey());
             boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.value != null) {
+            if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
                 builder.startObject(MAPPINGS.getPreferredName());
 
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
-                    builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.value.sourceAsMap());
+                if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
+                    builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue().sourceAsMap());
                 }
                 builder.endObject();
 
-            } else if (indexEntry.value != null) {
-                builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
+            } else if (indexEntry.getValue() != null) {
+                builder.field(MAPPINGS.getPreferredName(), indexEntry.getValue().sourceAsMap());
             } else {
                 builder.startObject(MAPPINGS.getPreferredName()).endObject();
             }

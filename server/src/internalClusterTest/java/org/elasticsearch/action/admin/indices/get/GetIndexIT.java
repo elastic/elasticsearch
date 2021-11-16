@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -23,6 +21,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -287,8 +286,8 @@ public class GetIndexIT extends ESIntegTestCase {
 
     private void assertEmptyAliases(GetIndexResponse response) {
         assertThat(response.aliases(), notNullValue());
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : response.getAliases()) {
-            assertTrue(entry.value.isEmpty());
+        for (final Map.Entry<String, List<AliasMetadata>> entry : response.getAliases().entrySet()) {
+            assertTrue(entry.getValue().isEmpty());
         }
     }
 }

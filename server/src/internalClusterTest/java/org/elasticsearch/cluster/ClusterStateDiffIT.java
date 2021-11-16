@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -52,6 +50,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -145,9 +144,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
                 assertThat(clusterStateFromDiffs.nodes().getLocalNodeId(), equalTo(previousClusterStateFromDiffs.nodes().getLocalNodeId()));
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
-                for (ObjectCursor<String> node : clusterStateFromDiffs.nodes().getNodes().keys()) {
-                    DiscoveryNode node1 = clusterState.nodes().get(node.value);
-                    DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.value);
+                for (Map.Entry<String, DiscoveryNode> node : clusterStateFromDiffs.nodes().getNodes().entrySet()) {
+                    DiscoveryNode node1 = clusterState.nodes().get(node.getKey());
+                    DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.getKey());
                     assertThat(node1.getVersion(), equalTo(node2.getVersion()));
                     assertThat(node1.getAddress(), equalTo(node2.getAddress()));
                     assertThat(node1.getAttributes(), equalTo(node2.getAttributes()));
@@ -320,16 +319,16 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
-        for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : original.shards().values()) {
+        for (Map.Entry<Integer, IndexShardRoutingTable> indexShardRoutingTable : original.shards().entrySet()) {
             Set<String> availableNodes = Sets.newHashSet(nodes);
-            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+            for (ShardRouting shardRouting : indexShardRoutingTable.getValue().shards()) {
                 availableNodes.remove(shardRouting.currentNodeId());
                 if (shardRouting.relocating()) {
                     availableNodes.remove(shardRouting.relocatingNodeId());
                 }
             }
 
-            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+            for (ShardRouting shardRouting : indexShardRoutingTable.getValue().shards()) {
                 final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
                 availableNodes.remove(updatedShardRouting.currentNodeId());
                 if (shardRouting.relocating()) {

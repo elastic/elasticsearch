@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -35,6 +34,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -74,8 +74,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = shards;
         List<ShardRouting> allActiveShards = new ArrayList<>();
-        for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
-            allActiveShards.addAll(cursor.value.activeShards());
+        for (Map.Entry<Integer, IndexShardRoutingTable> cursor : shards.entrySet()) {
+            allActiveShards.addAll(cursor.getValue().activeShards());
         }
         this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
     }

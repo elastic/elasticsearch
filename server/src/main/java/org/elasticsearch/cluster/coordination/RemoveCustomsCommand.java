@@ -23,7 +23,6 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
 
 public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
 

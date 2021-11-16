@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -342,7 +343,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         if (nodes == null || nodes.length == 0) {
             return StreamSupport.stream(this.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
         } else {
-            ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
+            Set<String> resolvedNodesIds = new HashSet<>(nodes.length);
             for (String nodeId : nodes) {
                 if (nodeId == null) {
                     // don't silence the underlying issue, it is a bug, so lets fail if assertions are enabled
@@ -399,9 +400,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             }
                         } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
+                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keySet());
                             } else {
-                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
+                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keySet());
                             }
                         } else {
                             for (DiscoveryNode node : this) {
@@ -428,7 +429,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     }
                 }
             }
-            return resolvedNodesIds.toArray(String.class);
+            return resolvedNodesIds.toArray(Strings.EMPTY_ARRAY);
         }
     }
 

@@ -71,7 +71,8 @@ public class JoinHelperTests extends ESTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            () -> new StatusInfo(HEALTHY, "info")
+            () -> new StatusInfo(HEALTHY, "info"),
+            new JoinReasonService(() -> 0L)
         );
         transportService.start();
 
@@ -217,7 +218,8 @@ public class JoinHelperTests extends ESTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            null
+            null,
+            new JoinReasonService(() -> 0L)
         ); // registers request handler
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -275,7 +277,8 @@ public class JoinHelperTests extends ESTestCase {
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            nodeHealthServiceStatus::get
+            nodeHealthServiceStatus::get,
+            new JoinReasonService(() -> 0L)
         );
         transportService.start();
 

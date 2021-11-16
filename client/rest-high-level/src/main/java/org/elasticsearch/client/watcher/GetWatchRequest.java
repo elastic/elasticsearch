@@ -22,11 +22,11 @@ public final class GetWatchRequest implements Validatable {
         this.id = watchId;
     }
 
-    private void validateId(String id) {
+    private void validateId(String watchId) {
         ValidationException exception = new ValidationException();
-        if (id == null) {
+        if (watchId == null) {
             exception.addValidationError("watch id is missing");
-        } else if (PutWatchRequest.isValidId(id) == false) {
+        } else if (PutWatchRequest.isValidId(watchId) == false) {
             exception.addValidationError("watch id contains whitespace");
         }
         if (exception.validationErrors().isEmpty() == false) {

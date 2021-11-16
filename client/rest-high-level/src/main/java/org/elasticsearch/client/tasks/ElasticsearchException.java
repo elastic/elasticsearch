@@ -61,8 +61,8 @@ public class ElasticsearchException {
         return suppressed;
     }
 
-    void addSuppressed(List<ElasticsearchException> suppressed) {
-        this.suppressed.addAll(suppressed);
+    void addSuppressed(List<ElasticsearchException> suppressedExceptions) {
+        this.suppressed.addAll(suppressedExceptions);
     }
 
     /**

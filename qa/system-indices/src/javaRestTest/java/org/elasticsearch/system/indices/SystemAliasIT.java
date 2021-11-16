@@ -75,7 +75,6 @@ public class SystemAliasIT extends ESRestTestCase {
         assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
     }
 
-    // TODO[wrb] test index alias api
     public void testCreatingSystemIndexWithIndexAliasEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");

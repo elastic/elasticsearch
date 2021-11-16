@@ -39,13 +39,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -129,23 +129,10 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertAcked(prepareCreate(INDEX_NAME + "-2"));
         ensureGreen(PRIMARY_INDEX_NAME);
 
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .get();
-
-        // Attempting to directly create a non-primary system index only creates the primary index
         assertTrue(indexExists(PRIMARY_INDEX_NAME));
         assertFalse(indexExists(INDEX_NAME + "-2"));
 
-        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
-        assertThat(
-            getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
-            containsInAnyOrder(".test-index", ".test-index-legacy-alias")
-        );
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
+        assertAliasesAddedByTemplate(Set.of(".test-index", ".test-index-legacy-alias"));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
@@ -176,23 +163,11 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertAcked(prepareCreate(INDEX_NAME + "-2"));
         ensureGreen(PRIMARY_INDEX_NAME);
 
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .get();
-
         // Attempting to directly create a non-primary system index only creates the primary index
         assertTrue(indexExists(PRIMARY_INDEX_NAME));
         assertFalse(indexExists(INDEX_NAME + "-2"));
 
-        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
-        assertThat(
-            getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
-            containsInAnyOrder(".test-index", ".test-index-composable-alias")
-        );
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
+        assertAliasesAddedByTemplate(Set.of(".test-index", ".test-index-composable-alias"));
 
         assertAcked(
             client().execute(
@@ -238,6 +213,23 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).isHidden(), equalTo(true));
+    }
+
+    private void assertAliasesAddedByTemplate(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .get();
+
+        // Attempting to directly create a non-primary system index only creates the primary index
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
+        assertThat(
+            getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
+            equalTo(aliasNames)
+        );
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
+        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
     }
 
     /**

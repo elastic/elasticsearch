@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -31,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -38,7 +40,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -133,18 +134,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .get();
-
-        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(2));
-        assertThat(
-            getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
-            containsInAnyOrder(".test-index", ".test-index-legacy-alias")
-        );
-        getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> assertThat(alias.isHidden(), is(true)));
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-legacy-alias"));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
@@ -176,10 +166,19 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(nonPrimaryIndex);
         assertAcked(client().execute(AutoCreateAction.INSTANCE, request).get());
 
-        internalCluster().startNodes(1);
-
         assertTrue(indexExists(nonPrimaryIndex));
 
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-composable-alias"));
+
+        assertAcked(
+            client().execute(
+                DeleteComposableIndexTemplateAction.INSTANCE,
+                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+            ).get()
+        );
+    }
+
+    private void assertAliasesHidden(String nonPrimaryIndex, Set<String> aliasNames) throws InterruptedException, ExecutionException {
         final GetAliasesResponse getAliasesResponse = client().admin()
             .indices()
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
@@ -189,11 +188,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(2));
         assertThat(
             getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
-            containsInAnyOrder(".test-index", ".test-index-composable-alias")
+            equalTo(aliasNames)
         );
         getAliasesResponse.getAliases().get(nonPrimaryIndex).forEach(alias -> assertThat(alias.isHidden(), is(true)));
-
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
 
     public static class UnmanagedSystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {

@@ -224,7 +224,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             client().performRequest(createFilteredAlias);
         }
 
-        //Numeric tests with field caps - include all numeric types with values indexed as arrays and single values
+        // Numeric tests with field caps - include all numeric types with values indexed as arrays and single values
         {
             String numericFieldDefs = "";
             for (NumberType numType : NumberFieldMapper.NumberType.values()) {
@@ -233,15 +233,16 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 }
                 numericFieldDefs += "\"" + numType.typeName() + "\":{" + "\"type\": \"" + numType.typeName() + "\"" + "}";
             }
-            
+
             String mapping = "{"
-                    + "  \"mappings\": {"
-                    + "    \"properties\": {"
-                    + "         " + numericFieldDefs
-                    + "      }"
-                    + "    }"
-                    + "  }"
-                    + "}";
+                + "  \"mappings\": {"
+                + "    \"properties\": {"
+                + "         "
+                + numericFieldDefs
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}";
             Request createNumeric = new Request(HttpPut.METHOD_NAME, "/index_numeric");
             createNumeric.setJsonEntity(mapping);
             client().performRequest(createNumeric);
@@ -1394,9 +1395,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testAllNumericFieldCapsCardinality() throws IOException {
-        String[] fieldNames = Stream.of(NumberType.values())
-            .map(n->n.typeName())
-            .toArray(String[]::new);
+        String[] fieldNames = Stream.of(NumberType.values()).map(n -> n.typeName()).toArray(String[]::new);
         FieldCapabilitiesRequest singleValuedRequest = new FieldCapabilitiesRequest().indices("index_numeric").fields(fieldNames);
         FieldCapabilitiesResponse singleValuedResponse = execute(
             singleValuedRequest,
@@ -1416,14 +1415,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 true,
                 true, // expect a single-valued response
                 null,
-//                new String[] { "index_numeric" },
                 null,
                 null,
                 Collections.emptyMap()
             );
             assertEquals(expectedNumericCapabilities, fieldResponse.get(numType.typeName()));
         }
-        
+
         FieldCapabilitiesRequest multiValuedRequest = new FieldCapabilitiesRequest().indices("index_numeric", "index_numeric_array")
             .fields(fieldNames);
         FieldCapabilitiesResponse multiValuedResponse = execute(
@@ -1444,14 +1442,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 true,
                 false, // expect a multi-valued response
                 null,
-//                new String[] { "index_numeric" },
                 null,
                 null,
                 Collections.emptyMap()
             );
             assertEquals(expectedNumericCapabilities, fieldResponse.get(numType.typeName()));
         }
-        
+
     }
 
     public void testFieldCapsWithNonExistentFields() throws IOException {

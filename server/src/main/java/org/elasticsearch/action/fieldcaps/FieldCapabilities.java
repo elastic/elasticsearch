@@ -174,6 +174,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         );
 
     }
+
     /**
      * Constructor for non-timeseries field caps. Useful for testing
      * Constructor for a set of indices.
@@ -228,7 +229,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
      * @param isDimension Whether this field can be used as dimension
-     * @param isSingleValueField True if all documents have only a single value for the field 
+     * @param isSingleValueField True if all documents have only a single value for the field
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.

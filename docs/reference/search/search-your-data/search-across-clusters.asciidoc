@@ -1,11 +1,9 @@
 [[modules-cross-cluster-search]]
 == Search across clusters
 
-*{ccs-cap}* lets you run a single search request against one or more remote
-clusters. For example, you can use a {ccs} to filter and analyze log data stored
-on clusters in different data centers.
-
-IMPORTANT: {ccs-cap} requires <<remote-clusters,remote clusters>>.
+{ccs-cap} ({ccs-init}) lets you run a single search request against one or more
+remote clusters. For example, you can use {ccs-init} to filter and analyze log
+data stored on clusters in different data centers.
 
 [discrete]
 [[ccs-supported-apis]]
@@ -21,6 +19,68 @@ The following APIs support {ccs}:
 * <<search-field-caps,Field capabilities>>
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
+
+[discrete]
+[[ccs-cluster-compatability]]
+=== Cluster compatability
+
+{ccs-init} requires <<remote-clusters,remote clusters>>. In a {ccs-init}, you
+submit a search request to a local cluster. A coordinating node on the local
+cluster parses the request and passes any relevant searches to a
+<<gateway-nodes-selection,gateway node>> in any remote cluster specified in the
+request.
+
+To run the search, the local coordinating node and the remote gateway node must
+use compatible versions of {es}. Elastic only supports searches to a remote
+cluster running:
+
+* The previous minor version
+* Any minor release in the local cluster's major version
+* Any minor release in the next major version
+
+IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
+clusters must use the same {es} version.
+
+For example, an 8.0 cluster can search a remote cluster running:
+
+* 7.16 (the previous minor version)
+* Any 8.x version
+* Any 9.x version
+
+However, a search from a local 8.0 cluster to a remote 7.15 or 6.8 cluster is
+not supported.
+
+A search on a remote cluster running an unsupported version may still work.
+However, such searches aren't tested by Elastic and their behavior isn't
+guaranteed.
+
+[discrete]
+[[ccs-ensure-cluster-compatibility]]
+==== Ensure cluster compatibility
+
+The simplest way to ensure cluster compatibility for {ccs-init} is to keep each
+cluster on the same version of {es}. If you need to maintain clusters with
+separate versions, you can:
+
+* Maintain a local cluster for {ccs-init}. Keep this cluster on the earliest
+release needed to search the other clusters.
++
+For example, if you maintain 7.16 and 8.0 clusters, you can maintain a 7.15
+cluster to search them.
+
+* Keep each cluster no more than one minor version apart. For example, if one
+cluster runs {es} 8.0, other clusters must run 8.0 or 7.16.
+
+[discrete]
+[[ccs-during-upgrade]]
+==== {ccs-cap} during an upgrade
+
+You can search remote clusters while performing a <<rolling-upgrades,rolling
+upgrade>> on the local cluster. However, the "upgrade from" and "upgrade to"
+versions must be compatible with the gateway node.
+
+WARNING: Running multiple versions of {es} in the same cluster beyond the
+duration of an upgrade is not supported.
 
 [discrete]
 [[ccs-example]]
@@ -410,30 +470,3 @@ image:images/ccs/ccs-dont-min-roundtrip-shard-results.svg[]
 final results in the {ccs} response.
 +
 image:images/ccs/ccs-min-roundtrip-client-response.svg[]
-
-[discrete]
-[[ccs-supported-configurations]]
-=== Supported configurations
-
-Generally, <<gateway-nodes-selection,cross-cluster search>> can search remote
-clusters that are one major version ahead or behind the coordinating node's
-version.
-
-IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
-clusters must use the same {es} version.
-
-Cross-cluster search can also search remote clusters that are being
-<<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
-"upgrade to" version are compatible with the gateway node.
-
-For example, a coordinating node running {es} 5.6 can search a remote cluster
-running {es} 6.8, but that cluster can not be upgraded to 7.1. In this case
-you should first upgrade the coordinating node to 7.1 and then upgrade remote
-cluster.
-
-WARNING: Running multiple versions of {es} in the same cluster beyond the
-duration of an upgrade is not supported.
-
-Only features that exist across all searched clusters are supported. Using
-a recent feature with a remote cluster where the feature is not supported
-will result in undefined behavior.

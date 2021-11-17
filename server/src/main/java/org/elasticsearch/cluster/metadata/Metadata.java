@@ -1621,15 +1621,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 );
             }
 
-            ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
-
             SortedMap<String, IndexAbstraction> indicesLookup;
             if (previousIndicesLookup != null) {
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indices));
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indicesMap));
                 indicesLookup = previousIndicesLookup;
             } else {
                 if (builtIndicesLookupEagerly) {
-                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indices);
+                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indicesMap);
                 } else {
                     indicesLookup = null;
                 }
@@ -1648,7 +1646,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
-            for (IndexMetadata indexMetadata : indices.values()) {
+            for (IndexMetadata indexMetadata : indicesMap.values()) {
                 totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
                 if (IndexMetadata.State.OPEN.equals(indexMetadata.getState())) {
                     totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
@@ -1666,7 +1664,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 hashesOfConsistentSettings,
                 totalNumberOfShards,
                 totalOpenIndexShards,
-                indices,
+                indicesMap,
                 templates.build(),
                 customs.build(),
                 allIndicesArray,

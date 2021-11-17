@@ -30,8 +30,8 @@ Elastic now only supports searches to a remote cluster running:
 * Any minor release in the local cluster's major version
 * Any minor release in the next major version
 
-IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
-clusters must use the same {es} version.
+IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
+remote clusters must use the same {es} version.
 
 For example, an 8.0 cluster can search a remote cluster running:
 
@@ -52,7 +52,7 @@ as the local cluster, no changes are needed.
 
 If you previously used {ccs-init} to search clusters running an earlier version,
 see
-{ref}/modules-cross-cluster-search.html#ccs-ensure-cluster-version-compatibility[{ccs-init}
+{ref}/modules-cross-cluster-search.html#ccs-ensure-cluster-compatibility[{ccs-init}
 version compatibility] for recommended workarounds.
 
 A search on a remote cluster running an unsupported version may still work.

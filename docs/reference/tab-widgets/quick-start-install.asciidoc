@@ -21,7 +21,7 @@ Desktop].
 ----
 docker network create elastic
 docker pull {docker-repo}:{version}
-docker run --name es-node01 -p 9200:9200 -p 9300:9300 -it {docker-image}
+docker run --name es-node01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
 ----
 endif::[]
 +

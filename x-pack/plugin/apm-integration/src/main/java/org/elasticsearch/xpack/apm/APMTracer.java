@@ -223,11 +223,11 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
         private final Queue<SpanData> capturedSpans = ConcurrentCollections.newQueue();
 
-        public synchronized void clear() {
+        public void clear() {
             capturedSpans.clear();
         }
 
-        public synchronized List<SpanData> getCapturedSpans() {
+        public List<SpanData> getCapturedSpans() {
             return List.copyOf(capturedSpans);
         }
 
@@ -248,7 +248,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         }
 
         @Override
-        public synchronized CompletableResultCode export(Collection<SpanData> spans) {
+        public CompletableResultCode export(Collection<SpanData> spans) {
             capturedSpans.addAll(spans);
             return CompletableResultCode.ofSuccess();
         }

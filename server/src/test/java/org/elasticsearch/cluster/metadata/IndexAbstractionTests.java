@@ -13,9 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.List;
-import java.util.Objects;
-
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -25,34 +22,32 @@ public class IndexAbstractionTests extends ESTestCase {
 
     public void testHiddenAliasValidation() {
         final String hiddenAliasName = "hidden_alias";
-        AliasMetadata hiddenAliasMetadata = new AliasMetadata.Builder(hiddenAliasName).isHidden(true).build();
 
         IndexMetadata hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true, Version.CURRENT, false);
         IndexMetadata hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true, Version.CURRENT, false);
         IndexMetadata hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true, Version.CURRENT, false);
 
-        IndexMetadata indexWithNonHiddenAlias = buildIndexWithAlias("nonhidden1", hiddenAliasName, false, Version.CURRENT, false);
-        IndexMetadata indexWithUnspecifiedAlias = buildIndexWithAlias("nonhidden2", hiddenAliasName, null, Version.CURRENT, false);
+        IndexMetadata nonHidden = buildIndexWithAlias("nonhidden1", hiddenAliasName, false, Version.CURRENT, false);
+        IndexMetadata unspecified = buildIndexWithAlias("nonhidden2", hiddenAliasName, null, Version.CURRENT, false);
 
         {
             // Should be ok:
-            IndexAbstraction.Alias allHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(hidden1, hidden2, hidden3));
+            metadataWithIndices(hidden1, hidden2, hidden3);
         }
 
         {
             // Should be ok:
-            IndexAbstraction.Alias allVisible;
             if (randomBoolean()) {
-                allVisible = new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(indexWithNonHiddenAlias, indexWithUnspecifiedAlias));
+                metadataWithIndices(nonHidden, unspecified);
             } else {
-                allVisible = new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(indexWithUnspecifiedAlias, indexWithNonHiddenAlias));
+                metadataWithIndices(unspecified, nonHidden);
             }
         }
 
         {
             IllegalStateException exception = expectThrows(
                 IllegalStateException.class,
-                () -> new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(hidden1, hidden2, hidden3, indexWithNonHiddenAlias))
+                () -> metadataWithIndices(hidden1, hidden2, hidden3, nonHidden)
             );
             assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on indices ["));
             assertThat(
@@ -67,7 +62,7 @@ public class IndexAbstractionTests extends ESTestCase {
                 exception.getMessage(),
                 containsString(
                     "but does not have is_hidden set to true on indices ["
-                        + indexWithNonHiddenAlias.getIndex().getName()
+                        + nonHidden.getIndex().getName()
                         + "]; alias must have the same is_hidden setting on all indices"
                 )
             );
@@ -76,7 +71,7 @@ public class IndexAbstractionTests extends ESTestCase {
         {
             IllegalStateException exception = expectThrows(
                 IllegalStateException.class,
-                () -> new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(hidden1, hidden2, hidden3, indexWithUnspecifiedAlias))
+                () -> metadataWithIndices(hidden1, hidden2, hidden3, unspecified)
             );
             assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on indices ["));
             assertThat(
@@ -91,7 +86,7 @@ public class IndexAbstractionTests extends ESTestCase {
                 exception.getMessage(),
                 containsString(
                     "but does not have is_hidden set to true on indices ["
-                        + indexWithUnspecifiedAlias.getIndex().getName()
+                        + unspecified.getIndex().getName()
                         + "]; alias must have the same is_hidden setting on all indices"
                 )
             );
@@ -101,15 +96,9 @@ public class IndexAbstractionTests extends ESTestCase {
             final IndexMetadata hiddenIndex = randomFrom(hidden1, hidden2, hidden3);
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
-                    new IndexAbstraction.Alias(
-                        hiddenAliasMetadata,
-                        List.of(indexWithNonHiddenAlias, indexWithUnspecifiedAlias, hiddenIndex)
-                    );
+                    metadataWithIndices(nonHidden, unspecified, hiddenIndex);
                 } else {
-                    new IndexAbstraction.Alias(
-                        hiddenAliasMetadata,
-                        List.of(indexWithUnspecifiedAlias, indexWithNonHiddenAlias, hiddenIndex)
-                    );
+                    metadataWithIndices(unspecified, nonHidden, hiddenIndex);
                 }
             });
             assertThat(
@@ -125,10 +114,7 @@ public class IndexAbstractionTests extends ESTestCase {
             );
             assertThat(
                 exception.getMessage(),
-                allOf(
-                    containsString(indexWithUnspecifiedAlias.getIndex().getName()),
-                    containsString(indexWithNonHiddenAlias.getIndex().getName())
-                )
+                allOf(containsString(unspecified.getIndex().getName()), containsString(nonHidden.getIndex().getName()))
             );
             assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices ["));
         }
@@ -140,14 +126,13 @@ public class IndexAbstractionTests extends ESTestCase {
             Version.V_7_0_0,
             VersionUtils.getPreviousVersion(Version.V_8_0_0)
         );
-        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
         final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> new IndexAbstraction.Alias(aliasMetadata, List.of(currentVersionSystem, oldVersionSystem, regularIndex))
+            () -> metadataWithIndices(currentVersionSystem, oldVersionSystem, regularIndex)
         );
         assertThat(
             exception.getMessage(),
@@ -164,13 +149,12 @@ public class IndexAbstractionTests extends ESTestCase {
     }
 
     public void testSystemAliasValidationNewSystemAndRegularFails() {
-        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
         final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> new IndexAbstraction.Alias(aliasMetadata, List.of(currentVersionSystem, regularIndex))
+            () -> metadataWithIndices(currentVersionSystem, regularIndex)
         );
         assertThat(
             exception.getMessage(),
@@ -192,12 +176,11 @@ public class IndexAbstractionTests extends ESTestCase {
             Version.V_7_0_0,
             VersionUtils.getPreviousVersion(Version.V_8_0_0)
         );
-        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
         final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
 
         // Should be ok:
-        new IndexAbstraction.Alias(aliasMetadata, List.of(oldVersionSystem, regularIndex));
+        metadataWithIndices(oldVersionSystem, regularIndex);
     }
 
     public void testSystemIndexValidationAllRegular() {
@@ -206,13 +189,12 @@ public class IndexAbstractionTests extends ESTestCase {
             Version.V_7_0_0,
             VersionUtils.getPreviousVersion(Version.V_8_0_0)
         );
-        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
         final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
 
         // Should be ok
-        new IndexAbstraction.Alias(aliasMetadata, List.of(currentVersionSystem, currentVersionSystem2, oldVersionSystem));
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
     public void testSystemAliasValidationAllSystemSomeOld() {
@@ -221,22 +203,28 @@ public class IndexAbstractionTests extends ESTestCase {
             Version.V_7_0_0,
             VersionUtils.getPreviousVersion(Version.V_8_0_0)
         );
-        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
         final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
 
         // Should be ok:
-        new IndexAbstraction.Alias(aliasMetadata, List.of(currentVersionSystem, currentVersionSystem2, oldVersionSystem));
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
     }
 
     public void testSystemAliasValidationAll8x() {
-        final AliasMetadata aliasMetadata = new AliasMetadata.Builder(SYSTEM_ALIAS_NAME).build();
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
         final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
 
         // Should be ok
-        new IndexAbstraction.Alias(aliasMetadata, List.of(currentVersionSystem, currentVersionSystem2));
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2);
+    }
+
+    private void metadataWithIndices(IndexMetadata... indices) {
+        Metadata.Builder builder = Metadata.builder();
+        for (var cursor : indices) {
+            builder.put(cursor, false);
+        }
+        builder.build(true);
     }
 
     private IndexMetadata buildIndexWithAlias(
@@ -247,7 +235,7 @@ public class IndexAbstractionTests extends ESTestCase {
         boolean isSystem
     ) {
         final AliasMetadata.Builder aliasMetadata = new AliasMetadata.Builder(aliasName);
-        if (Objects.nonNull(aliasIsHidden) || randomBoolean()) {
+        if (aliasIsHidden != null || randomBoolean()) {
             aliasMetadata.isHidden(aliasIsHidden);
         }
         return new IndexMetadata.Builder(indexName).settings(settings(indexCreationVersion))

@@ -232,7 +232,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         }
 
         public Stream<SpanData> findSpan(Predicate<SpanData> predicate) {
-            return capturedSpans.stream().filter(predicate);
+            return getCapturedSpans().stream().filter(predicate);
         }
 
         public Stream<SpanData> findSpanByName(String name) {

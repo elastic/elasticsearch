@@ -23,6 +23,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
@@ -106,6 +107,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         private final int maxDoc;
         private final int numDocs;
         private final Map<String, PointValues> pointValuesMap;
+        private final Map<String, Terms> cachedTerms;
         private final FieldInfos fieldInfos;
 
         private RewriteCachingLeafReader(LeafReader original) throws IOException {
@@ -113,6 +115,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
             this.numDocs = original.numDocs();
             fieldInfos = original.getFieldInfos();
             Map<String, PointValues> valuesMap = new HashMap<>();
+            Map<String, Terms> termsMap = new HashMap<>();
             for (FieldInfo info : fieldInfos) {
                 if (info.getPointIndexDimensionCount() != 0) {
                     PointValues pointValues = original.getPointValues(info.name);
@@ -171,9 +174,64 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                             }
                         });
                     }
+                    // Cache Terms stats for fields in this segment
+                    Terms terms = original.terms(info.name);
+                    if (terms != null) { // might not be in this reader
+                        // Just cache the bare minimum of info needed (currently for field caps support)
+                        long size = terms.size();
+                        int docCount = terms.getDocCount();
+                        termsMap.put(info.name, new Terms() {
+
+                            @Override
+                            public TermsEnum iterator() throws IOException {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public long size() throws IOException {
+                                return size;
+                            }
+
+                            @Override
+                            public long getSumTotalTermFreq() throws IOException {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public long getSumDocFreq() throws IOException {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public int getDocCount() throws IOException {
+                                return docCount;
+                            }
+
+                            @Override
+                            public boolean hasFreqs() {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public boolean hasOffsets() {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public boolean hasPositions() {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public boolean hasPayloads() {
+                                throw new UnsupportedOperationException();
+                            }
+                        });
+                    }
                 }
             }
             pointValuesMap = valuesMap;
+            cachedTerms = termsMap;
         }
 
         @Override
@@ -183,7 +241,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
         @Override
         public Terms terms(String field) {
-            throw new UnsupportedOperationException();
+            return cachedTerms.get(field);
         }
 
         @Override

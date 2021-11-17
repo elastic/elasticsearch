@@ -12,4 +12,6 @@ grant {
     permission java.lang.RuntimePermission "accessDeclaredMembers";
     // required by io.grpc.internal.DnsNameResolver in grpc-core
     permission java.net.NetPermission "getProxySelector";
+    permission java.lang.RuntimePermission "getClassLoader";
+    permission java.net.SocketPermission "*", "connect,resolve";
 };

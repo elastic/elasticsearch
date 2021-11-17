@@ -119,7 +119,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             AtomicReference<BwcVersions> cache = new AtomicReference<>();
             params.setBwcVersions(providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir) : val)));
-            params.setPrNumber(providers.environmentVariable("ghprbPullId").getOrNull());
         });
 
         // Enforce the minimum compiler version

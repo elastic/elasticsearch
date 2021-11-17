@@ -355,8 +355,10 @@ private List<String> generateTags(Architecture arch, DockerBase base) {
     getRepositoryTag(base)
   ]
 
-  if (base == DockerBase.DEFAULT || base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS) {
-    tags.add(getCiRepositoryTag(arch, base))
+  if (BuildParams.isCi) {
+    if (base == DockerBase.DEFAULT || base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS) {
+      tags.add(getCiRepositoryTag(arch, base))
+    }
   }
 
   return tags

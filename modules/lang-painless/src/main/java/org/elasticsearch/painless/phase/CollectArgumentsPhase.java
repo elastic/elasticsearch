@@ -19,16 +19,29 @@ import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.LoadDotDefNode;
 import org.elasticsearch.painless.ir.LoadVariableNode;
+import org.elasticsearch.painless.ir.StoreVariableNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.spi.annotation.CollectArgumentAnnotation;
-import org.elasticsearch.painless.symbol.IRDecorations;
 import org.elasticsearch.painless.symbol.CollectArgumentsScope;
+import org.elasticsearch.painless.symbol.IRDecorations;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
 import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 
 /**
  * Collects arguments for methods annotated with {@link CollectArgumentAnnotation}.
  */
 public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsScope> {
+
+    @Override
+    public void visitStoreVariable(StoreVariableNode irStoreVariableNode, CollectArgumentsScope scope) {
+        String name = irStoreVariableNode.getDecorationString(IRDName.class);
+
+        if ("doc".equals(name) || "params".equals(name)) {
+            scope.setVariableAssigned(name);
+        }
+
+        super.visitStoreVariable(irStoreVariableNode, scope);
+    }
 
     @Override
     public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, CollectArgumentsScope scope) {
@@ -54,7 +67,7 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
     @Override
     public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, CollectArgumentsScope scope) {
         if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
-            ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode());
+            ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode(), scope);
             if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
                 Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
                 if (value instanceof String) {
@@ -65,7 +78,7 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
             }
         }
 
-        ConstantNode paramsLookupKeyNode = lookupKeyForMapAccessOnVariable("params", irBinaryImplNode);
+        ConstantNode paramsLookupKeyNode = lookupKeyForMapAccessOnVariable("params", irBinaryImplNode, scope);
         if (paramsLookupKeyNode != null) {
             Object value = paramsLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
             if (value instanceof String) {
@@ -84,11 +97,18 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
      * Checks whether a BinaryImplNode references a variable `variableName` on which a Map lookup is performed.
      * Returns the lookup key if it is a constant.
      */
-    private ConstantNode lookupKeyForMapAccessOnVariable(String variableName, BinaryImplNode irBinaryImplNode) {
+    private ConstantNode lookupKeyForMapAccessOnVariable(
+        String variableName,
+        BinaryImplNode irBinaryImplNode,
+        CollectArgumentsScope scope
+    ) {
         if (irBinaryImplNode.getLeftNode() instanceof LoadVariableNode) {
             // <variableName>.get('<field>') syntax
             IRDecorations.IRDName name = irBinaryImplNode.getLeftNode().getDecoration(IRDecorations.IRDName.class);
-            if (name != null && name.getValue().equals(variableName) && irBinaryImplNode.getRightNode() instanceof InvokeCallNode) {
+            if (name != null
+                && name.getValue().equals(variableName)
+                && scope.isVariableAssigned(variableName) == false
+                && irBinaryImplNode.getRightNode() instanceof InvokeCallNode) {
                 InvokeCallNode invokeCall = (InvokeCallNode) irBinaryImplNode.getRightNode();
                 if (invokeCall.getMethod().javaMethod.getName().equals("get") && invokeCall.getArgumentNodes().size() == 1) {
                     return constantNodeOrNull(invokeCall.getArgumentNodes().get(0));
@@ -99,7 +119,7 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
             BinaryImplNode left = (BinaryImplNode) irBinaryImplNode.getLeftNode();
             if (left.getLeftNode() instanceof LoadVariableNode) {
                 IRDecorations.IRDName name = left.getLeftNode().getDecoration(IRDecorations.IRDName.class);
-                if (name != null && name.getValue().equals(variableName)) {
+                if (name != null && name.getValue().equals(variableName) && scope.isVariableAssigned(variableName) == false) {
                     return constantNodeOrNull(left.getRightNode());
                 }
             }

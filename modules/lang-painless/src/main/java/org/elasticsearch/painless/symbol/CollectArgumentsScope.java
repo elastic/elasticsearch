@@ -14,21 +14,27 @@ import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 /**
  * Collection of arguments for methods annotated with {@link CollectArgumentAnnotation}.
  */
 public class CollectArgumentsScope {
+
     private final Map<String, QueryableExpressionBuilder> collectedArguments = new HashMap<>();
     private final Deque<QueryableExpressionBuilder> expressionStack;
 
     private String currentTarget;
 
+    private final Set<String> assignedVariables;
+
     public CollectArgumentsScope() {
         this.expressionStack = new ArrayDeque<>();
+        this.assignedVariables = new HashSet<>();
     }
 
     public void startCollecting(String target) {
@@ -86,5 +92,13 @@ public class CollectArgumentsScope {
 
     public Map<String, QueryableExpressionBuilder> collectedArguments() {
         return collectedArguments;
+    }
+
+    public void setVariableAssigned(String name) {
+        assignedVariables.add(name);
+    }
+
+    public boolean isVariableAssigned(String name) {
+        return assignedVariables.contains(name);
     }
 }

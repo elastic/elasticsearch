@@ -178,4 +178,15 @@ public class CollectArgumentTests extends ScriptTestCase {
     public void testEmitTwice() {
         assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(1); emit(2);"));
     }
+
+    public void testAssignment() {
+        assertEquals(
+            QueryableExpression.UNQUERYABLE,
+            qe("doc = new HashMap(); emit(doc.a.value + params.x)", longLookup, (param) -> param.equals("x") ? 100L : null)
+        );
+        assertEquals(
+            QueryableExpression.UNQUERYABLE,
+            qe("params = new HashMap(); emit(doc.a.value + params.x)", longLookup, (param) -> param.equals("x") ? 100L : null)
+        );
+    }
 }

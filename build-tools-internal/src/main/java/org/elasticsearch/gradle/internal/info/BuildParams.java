@@ -38,6 +38,7 @@ public class BuildParams {
     private static Integer defaultParallel;
     private static Boolean isSnapshotBuild;
     private static Provider<BwcVersions> bwcVersions;
+    private static Integer prNumber;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -117,6 +118,10 @@ public class BuildParams {
 
     public static boolean isSnapshotBuild() {
         return value(BuildParams.isSnapshotBuild);
+    }
+
+    public static Integer getPrNumber() {
+        return value(prNumber);
     }
 
     private static <T> T value(T object) {
@@ -226,6 +231,10 @@ public class BuildParams {
 
         public void setBwcVersions(Provider<BwcVersions> bwcVersions) {
             BuildParams.bwcVersions = requireNonNull(bwcVersions);
+        }
+
+        public void setPrNumber(String prNumber) {
+            BuildParams.prNumber = prNumber == null ? -1 : Integer.parseInt(prNumber);
         }
     }
 }

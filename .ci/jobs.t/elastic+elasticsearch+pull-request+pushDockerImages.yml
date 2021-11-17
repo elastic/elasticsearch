@@ -1,0 +1,5 @@
+---
+jjbb-template: pull-request-gradle-unix.yml
+vars:
+  - pr-job: "pushDockerImages"
+  - gradle-args: "-Dignore.tests.seed pushDockerImages"

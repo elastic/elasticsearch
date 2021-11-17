@@ -114,14 +114,14 @@ class SquashNewlinesFilter extends FilterReader {
   }
 }
 
-private static String toCamel(String input) {
+private String toCamel(String input) {
   return input.split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")
 }
 
-private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
+private String taskName(String prefix, Architecture architecture, DockerBase base, String suffix, boolean omitDefault = true) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
-    (base == DockerBase.DEFAULT ? "" : toCamel(base.name())) +
+    (base == (omitDefault == true && DockerBase.DEFAULT) ? "" : toCamel(base.name())) +
     suffix
 }
 
@@ -322,8 +322,17 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   }
 }
 
+private String getCiRepositoryTag(Architecture arch, DockerBase base) {
+  if (BuildParams.prNumber == -1) {
+    throw new GradleException("BuildParams.prNumber (env var [ghprbPullId]) should be set in CI!");
+  }
+  // {version}-pr{number}-{arch}
+  final String label = "${VersionProperties.elasticsearchVersion}-pr${BuildParams.prNumber}-${arch.classifier}"
 
-private static List<String> generateTags(DockerBase base) {
+  return "docker.elastic.co/elasticsearch-ci/elasticsearch${base.suffix}:${label}"
+}
+
+private String getRepositoryTag(DockerBase base) {
   final String version = VersionProperties.elasticsearch
 
   String image = "elasticsearch${base.suffix}"
@@ -333,11 +342,24 @@ private static List<String> generateTags(DockerBase base) {
     namespace += '-ci'
   }
 
-  return [
+  return "docker.elastic.co/${namespace}/${image}:${version}"
+}
+
+private List<String> generateTags(Architecture arch, DockerBase base) {
+  final String version = VersionProperties.elasticsearch
+  final String image = "elasticsearch${base.suffix}"
+
+  List<String> tags = [
     "${image}:test",
     "${image}:${version}",
-    "docker.elastic.co/${namespace}/${image}:${version}"
+    getRepositoryTag(base)
   ]
+
+  if (base == DockerBase.DEFAULT || base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS) {
+    tags.add(getCiRepositoryTag(arch, base))
+  }
+
+  return tags
 }
 
 void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
@@ -350,7 +372,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       noCache = BuildParams.isCi
-      tags = generateTags(base)
+      tags = generateTags(architecture, base)
 
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
@@ -367,8 +389,6 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else if (base == DockerBase.DEFAULT || base == DockerBase.CLOUD) {
-        baseImages = ['alpine:3.13', base.image]
       } else {
         baseImages = [base.image]
       }
@@ -380,6 +400,26 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
     tasks.named("assemble").configure {
       dependsOn(buildDockerImageTask)
     }
+  }
+}
+
+void addPushDockerImageTask(Architecture architecture, DockerBase base) {
+  String pushTaskName = taskName("push", architecture, base, "DockerImage", false)
+  String buildTaskName = taskName("build", architecture, base, "DockerImage")
+
+  final TaskProvider<LoggedExec> pushDockerImageTask =
+    tasks.register(pushTaskName, LoggedExec) {
+      inputs.file("${project.buildDir}/markers/${buildTaskName}.marker")
+      executable 'docker'
+      args 'push', getCiRepositoryTag(architecture, base)
+
+      dependsOn(tasks.named(buildTaskName))
+
+      onlyIf { Architecture.current() == architecture && BuildParams.isCi() }
+    }
+
+  tasks.named('pushDockerImages').configure {
+    dependsOn(pushDockerImageTask)
   }
 }
 
@@ -417,7 +457,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       noCache = BuildParams.isCi
       baseImages = []
-      tags = generateTags(base)
+      tags = generateTags(architecture, base)
 
       onlyIf { Architecture.current() == architecture }
     }
@@ -427,17 +467,23 @@ void addBuildEssDockerImageTask(Architecture architecture) {
   }
 }
 
+tasks.register('pushDockerImages')
+
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
     if (base == DockerBase.CLOUD_ESS) {
-      continue
+      addBuildEssDockerImageTask(architecture)
+    } else {
+      addBuildDockerContextTask(architecture, base)
+      addTransformDockerContextTask(architecture, base)
+      addBuildDockerImageTask(architecture, base)
     }
-    addBuildDockerContextTask(architecture, base)
-    addTransformDockerContextTask(architecture, base)
-    addBuildDockerImageTask(architecture, base)
+
+    if (base == DockerBase.DEFAULT || base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS) {
+      addPushDockerImageTask(architecture, base)
+    }
   }
 
-  addBuildEssDockerImageTask(architecture)
 }
 
 /*

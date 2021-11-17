@@ -1278,24 +1278,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        private void validateAlias(String aliasName, Set<Index> indices) {
-            List<IndexMetadata> indexMetadatas = indices.stream().map(key -> this.indices.get(key.getName())).collect(Collectors.toList());
-
-            List<String> writeIndices = indexMetadatas.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .map(im -> im.getIndex().getName())
-                .collect(Collectors.toList());
-            if (writeIndices.size() > 1) {
-                throw new IllegalStateException(
-                    "alias ["
-                        + aliasName
-                        + "] has more than one write index ["
-                        + Strings.collectionToCommaDelimitedString(writeIndices)
-                        + "]"
-                );
-            }
-        }
-
         public Builder put(IndexTemplateMetadata.Builder template) {
             return put(template.build());
         }
@@ -1672,7 +1654,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             for (var cursor : aliasedIndices) {
-                validateAlias(cursor.key, cursor.value.indices);
+                List<IndexMetadata> aliasIndices = cursor.value.indices.stream()
+                    .map(idx -> indices.get(idx.getName()))
+                    .collect(Collectors.toList());
+                validateAlias(cursor.key, aliasIndices);
             }
 
             final Set<String> allDataStreams = new HashSet<>();
@@ -1862,6 +1847,82 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             validateDataStreams(indicesLookup, dataStreamMetadata);
             return Collections.unmodifiableSortedMap(indicesLookup);
+        }
+
+        private static boolean isNonEmpty(List<IndexMetadata> idxMetas) {
+            return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
+        }
+
+        private static void validateAlias(String aliasName, List<IndexMetadata> indexMetadatas) {
+            // Validate write indices
+            List<String> writeIndices = indexMetadatas.stream()
+                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                .map(im -> im.getIndex().getName())
+                .collect(Collectors.toList());
+            if (writeIndices.size() > 1) {
+                throw new IllegalStateException(
+                    "alias ["
+                        + aliasName
+                        + "] has more than one write index ["
+                        + Strings.collectionToCommaDelimitedString(writeIndices)
+                        + "]"
+                );
+            }
+
+            // Validate hidden status
+            final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
+                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
+            if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
+                List<String> hiddenOn = groupedByHiddenStatus.get(true)
+                    .stream()
+                    .map(idx -> idx.getIndex().getName())
+                    .collect(Collectors.toList());
+                List<String> nonHiddenOn = groupedByHiddenStatus.get(false)
+                    .stream()
+                    .map(idx -> idx.getIndex().getName())
+                    .collect(Collectors.toList());
+                throw new IllegalStateException(
+                    "alias ["
+                        + aliasName
+                        + "] has is_hidden set to true on indices ["
+                        + Strings.collectionToCommaDelimitedString(hiddenOn)
+                        + "] but does not have is_hidden set to true on indices ["
+                        + Strings.collectionToCommaDelimitedString(nonHiddenOn)
+                        + "]; alias must have the same is_hidden setting "
+                        + "on all indices"
+                );
+            }
+
+            // Validate system status
+            final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = indexMetadatas.stream()
+                .collect(Collectors.groupingBy(IndexMetadata::isSystem));
+            // If the alias has either all system or all non-system, then no more validation is required
+            if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
+                final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true)
+                    .stream()
+                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
+                    .map(i -> i.getIndex().getName())
+                    .sorted() // reliable error message for testing
+                    .collect(Collectors.toList());
+
+                if (newVersionSystemIndices.isEmpty() == false) {
+                    final List<String> nonSystemIndices = groupedBySystemStatus.get(false)
+                        .stream()
+                        .map(i -> i.getIndex().getName())
+                        .sorted() // reliable error message for testing
+                        .collect(Collectors.toList());
+                    throw new IllegalStateException(
+                        "alias ["
+                            + aliasName
+                            + "] refers to both system indices "
+                            + newVersionSystemIndices
+                            + " and non-system indices: "
+                            + nonSystemIndices
+                            + ", but aliases must refer to either system or"
+                            + " non-system indices, not both"
+                    );
+                }
+            }
         }
 
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {

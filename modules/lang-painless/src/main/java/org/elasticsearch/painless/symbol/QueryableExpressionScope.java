@@ -31,7 +31,7 @@ public class QueryableExpressionScope {
     }
 
     public void startCollecting(String target) {
-        if (currentTarget != null) {
+        if (isCollecting()) {
             throw new IllegalArgumentException("can't collect arguments for two methods at once");
         }
         currentTarget = target;
@@ -50,25 +50,37 @@ public class QueryableExpressionScope {
         currentTarget = null;
     }
 
-    public void push(QueryableExpressionBuilder expression) {
-        if (currentTarget != null) {
+    private boolean isCollecting() {
+        return currentTarget != null;
+    }
+
+    public boolean push(QueryableExpressionBuilder expression) {
+        if (isCollecting()) {
             this.expressionStack.push(expression);
+            return true;
         } else {
-            unqueryable();
+            return false;
         }
     }
 
     public void consume(BiFunction<QueryableExpressionBuilder, QueryableExpressionBuilder, QueryableExpressionBuilder> fn) {
-        if (expressionStack.size() >= 2) {
-            push(fn.apply(expressionStack.pop(), expressionStack.pop()));
-        } else {
-            unqueryable();
+        if (isCollecting()) {
+            if (expressionStack.size() >= 2) {
+                push(fn.apply(expressionStack.pop(), expressionStack.pop()));
+            } else {
+                unqueryable();
+            }
         }
     }
 
-    public void unqueryable() {
-        this.expressionStack.clear();
-        this.expressionStack.push(QueryableExpressionBuilder.UNQUERYABLE);
+    public boolean unqueryable() {
+        if (isCollecting()) {
+            this.expressionStack.clear();
+            this.expressionStack.push(QueryableExpressionBuilder.UNQUERYABLE);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public Map<String, QueryableExpressionBuilder> collectedArguments() {

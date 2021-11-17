@@ -52,7 +52,7 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("11", qe("emit(1l + 10l)").toString());
     }
 
-    private Function<String, QueryableExpression> longLookup = (field) -> LongQueryableExpression.field(
+    private final Function<String, QueryableExpression> longLookup = (field) -> LongQueryableExpression.field(
         field,
         (LongQueryableExpression.LongQueries) null
     );
@@ -99,38 +99,38 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("(temp_c * 2) + 32", qe("emit((doc['temp_c'].value * 2l) + 32l)", longLookup).toString());
     }
 
+    private final Function<String, Object> xIs100 = Map.of("x", 100L)::get;
+
     public void testParams() {
-        assertEquals("1000", qe("emit(params['x'] * 10l)", null, (param) -> param.equals("x") ? 100L : null).toString());
+        assertEquals("1000", qe("emit(params['x'] * 10l)", null, xIs100).toString());
     }
 
     public void testParams2() {
-        assertEquals("1000", qe("emit(params.get('x') * 10l)", null, (param) -> param.equals("x") ? 100L : null).toString());
+        assertEquals("1000", qe("emit(params.get('x') * 10l)", null, xIs100).toString());
     }
 
     public void testParams3() {
-        assertEquals("1000", qe("emit(params.x * 10l)", null, (param) -> param.equals("x") ? 100L : null).toString());
+        assertEquals("1000", qe("emit(params.x * 10l)", null, xIs100).toString());
     }
 
     public void testParamsMissing() {
-        assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(params.y * 10l)", null, (param) -> param.equals("x") ? 100L : null));
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(params.y * 10l)", null, xIs100));
     }
 
     public void testParamPlusField() {
-        assertEquals("a + 100", qe("emit(doc.a.value + params.x)", longLookup, (param) -> param.equals("x") ? 100L : null).toString());
+        assertEquals("a + 100", qe("emit(doc.a.value + params.x)", longLookup, xIs100).toString());
     }
 
-    @AwaitsFix(bugUrl = "plaid") // We can approximate this as the constant because there's just one emit.
-    public void testComplexStatement() {
-        assertEquals(QueryableExpression.UNQUERYABLE, qe("for(int i = 0; i < 10; i++) { emit(1l) }"));
+    public void testFor() {
+        assertEquals("1", qe("for(int i = 0; i < doc.a.value; i++) { emit(1l) }", longLookup).toString());
     }
 
     public void testConstAssignment() {
         assertEquals(QueryableExpression.UNQUERYABLE, qe("def one = 1l; emit(one + 10l)"));
     }
 
-    @AwaitsFix(bugUrl = "plaid") // We can approximate this as the constant because there's just one emit.
     public void testIf() {
-        assertEquals(100, qe("if (1 > 2) { emit(100) }").toString());
+        assertEquals("a", qe("if (doc.b.value > 2) { emit(doc.a.value) }", longLookup).toString());
     }
 
     public void testTernary() {

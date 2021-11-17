@@ -31,11 +31,6 @@ import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<QueryableExpressionScope> {
 
     @Override
-    public void visitInvokeCall(InvokeCallNode irInvokeCallNode, QueryableExpressionScope scope) {
-        super.visitInvokeCall(irInvokeCallNode, scope);
-    }
-
-    @Override
     public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, QueryableExpressionScope scope) {
         PainlessClassBinding irdBinding = irInvokeCallMemberNode.getDecorationValue(IRDecorations.IRDClassBinding.class);
 
@@ -51,7 +46,9 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
             }
         }
 
-        super.visitInvokeCallMember(irInvokeCallMemberNode, scope);
+        if (false == scope.unqueryable()) {
+            super.visitInvokeCallMember(irInvokeCallMemberNode, scope);
+        }
     }
 
     @Override
@@ -61,8 +58,9 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
             if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
                 Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
                 if (value instanceof String) {
-                    scope.push(QueryableExpressionBuilder.field((String) value));
-                    return;
+                    if (scope.push(QueryableExpressionBuilder.field((String) value))) {
+                        return;
+                    }
                 }
             }
         }
@@ -71,9 +69,14 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
         if (paramsLookupKeyNode != null) {
             Object value = paramsLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
             if (value instanceof String) {
-                scope.push(QueryableExpressionBuilder.param((String) value));
-                return;
+                if (scope.push(QueryableExpressionBuilder.param((String) value))) {
+                    return;
+                }
             }
+        }
+
+        if(false == scope.unqueryable()) {
+            super.visitBinaryImpl(irBinaryImplNode, scope);
         }
     }
 
@@ -133,7 +136,11 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
     @Override
     public void visitConstant(ConstantNode irConstantNode, QueryableExpressionScope scope) {
         Object value = irConstantNode.getDecorationValue(IRDecorations.IRDConstant.class);
-        scope.push(QueryableExpressionBuilder.constant(value));
+        if (scope.push(QueryableExpressionBuilder.constant(value))) {
+            return;
+        } else {
+            super.visitConstant(irConstantNode, scope);
+        }
     }
 
     @Override

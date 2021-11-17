@@ -49,9 +49,21 @@ one of the active allocation ids in the cluster state.
 `cluster.routing.allocation.same_shard.host`::
       (<<dynamic-cluster-setting,Dynamic>>)
       Allows to perform a check to prevent allocation of multiple instances of
-      the same shard on a single host, based on host name and host address.
-      Defaults to `false`, meaning that no check is performed by default. This
-      setting only applies if multiple nodes are started on the same machine.
+      the same shard on a single host, based on host name and host address. If
+      the host address is not empty, the addresses of the two nodes are used
+      to determine whether they are on the same host. Otherwise, use the host
+      name to distinguish. Defaults to `false`, meaning that no check is performed
+      by default. This setting only applies if multiple nodes are started on
+      the same machine.
+
+[[cluster-routing-allocation-same-shard-host-name]]
+`cluster.routing.allocation.same_shard.host_name`::
+      (<<dynamic-cluster-setting,Dynamic>>)
+      Only works when `cluster.routing.allocation.same_shard.host` is `true`.
+      Allows to distinguish hosts by name even if address is not empty. For example,
+      for two hosts with the same host name but different addresses, when this
+      setting is `false`, they are regarded as two different hosts, when this setting
+      is `true`, they are regarded as the same. Defaults to `false`.
 
 [[shards-rebalancing-settings]]
 ==== Shard rebalancing settings

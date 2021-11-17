@@ -100,11 +100,11 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         }
     }
 
-    public void testSameHostNameDifferentHostAddressWithAlwaysCheckHostNameOff() {
+    public void testSameHostNameDifferentHostAddressWithHostNameOff() {
         AllocationService strategy = createAllocationService(
             Settings.builder()
                 .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
-                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME.getKey(), false)
+                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_NAME.getKey(), false)
                 .build()
         );
 
@@ -135,11 +135,11 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(4));
     }
 
-    public void testSameHostNameDifferentHostAddressWithAlwaysCheckHostNameOn() {
+    public void testSameHostNameDifferentHostAddressWithHostNameOn() {
         AllocationService strategy = createAllocationService(
             Settings.builder()
                 .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
-                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME.getKey(), true)
+                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_NAME.getKey(), true)
                 .build()
         );
 

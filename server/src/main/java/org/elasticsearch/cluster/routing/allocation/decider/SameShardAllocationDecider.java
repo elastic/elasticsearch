@@ -46,8 +46,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
     );
 
     // For historical reason, default value is false, skip check host name check if host address exist
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME = Setting.boolSetting(
-        "cluster.routing.allocation.same_shard.host.always_check_host_name",
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SAME_HOST_NAME = Setting.boolSetting(
+        "cluster.routing.allocation.same_shard.host_name",
         false,
         Property.Dynamic,
         Property.NodeScope
@@ -55,13 +55,13 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     private volatile boolean sameHost;
 
-    private volatile boolean alwaysCheckHostName;
+    private volatile boolean sameHostName;
 
     public SameShardAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.sameHost = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
-        this.alwaysCheckHostName = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_ALWAYS_CHECK_HOSTNAME, this::setAlwaysCheckHostName);
+        this.sameHostName = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_NAME.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_NAME, this::setSameHostName);
     }
 
     /**
@@ -73,8 +73,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
         this.sameHost = sameHost;
     }
 
-    private void setAlwaysCheckHostName(boolean alwaysCheckHostName) {
-        this.alwaysCheckHostName = alwaysCheckHostName;
+    private void setSameHostName(boolean sameHostName) {
+        this.sameHostName = sameHostName;
     }
 
     private static final Decision YES_NONE_HOLD_COPY = Decision.single(
@@ -116,7 +116,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         checkNodeOnSameHostAddress = true;
                     }
                 }
-                if (addressExist == false || alwaysCheckHostName) {
+                if (addressExist == false || sameHostName) {
                     if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
                         if (checkNode.node().getHostName().equals(node.node().getHostName())) {
                             checkNodeOnSameHostName = true;

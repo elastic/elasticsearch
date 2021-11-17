@@ -98,7 +98,6 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
         request.setNodes(randomRunningNode[nodeIndex]);
         super.doExecute(task, request, listener);
-
     }
 
     @Override

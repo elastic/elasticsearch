@@ -130,7 +130,8 @@ public class ApmIT extends ESIntegTestCase {
 
         assertFalse(bulkRequestBuilder.execute().actionGet(10, TimeUnit.SECONDS).hasFailures());
 
-        APMTracer.CAPTURING_SPAN_EXPORTER.clear();
+        final APMTracer.CapturingSpanExporter spanExporter = APMTracer.CAPTURING_SPAN_EXPORTER;
+        spanExporter.clear();
 
         client().prepareSearch()
             .setQuery(new RangeQueryBuilder("@timestamp").gt("2021-11-01"))
@@ -139,21 +140,7 @@ public class ApmIT extends ESIntegTestCase {
             .execute()
             .actionGet(10, TimeUnit.SECONDS);
 
-        final List<SpanData> capturedSpans = APMTracer.CAPTURING_SPAN_EXPORTER.getCapturedSpans();
-        boolean gotSearchSpan = false;
-        boolean gotCanMatchSpan = false;
-        for (SpanData capturedSpan : capturedSpans) {
-            logger.info("--> captured span [{}]", capturedSpan);
-            final String spanName = capturedSpan.getName();
-            if (spanName.equals(SearchAction.NAME)) {
-                gotSearchSpan = true;
-            }
-            if (spanName.equals(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME)) {
-                gotCanMatchSpan = true;
-            }
-        }
-
-        assertTrue(gotSearchSpan);
-        assertTrue(gotCanMatchSpan);
+        assertTrue(spanExporter.findSpanByName(SearchAction.NAME).findAny().isPresent());
+        assertTrue(spanExporter.findSpanByName(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME).findAny().isPresent());
     }
 }

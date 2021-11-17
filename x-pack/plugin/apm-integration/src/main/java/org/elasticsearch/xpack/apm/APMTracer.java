@@ -44,7 +44,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 public class APMTracer extends AbstractLifecycleComponent implements TracingPlugin.Tracer {
 
@@ -171,7 +174,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     public static class CapturingSpanExporter implements SpanExporter {
 
-        private final List<SpanData> capturedSpans = new ArrayList<>();
+        private final Queue<SpanData> capturedSpans = ConcurrentCollections.newQueue();
 
         public synchronized void clear() {
             capturedSpans.clear();
@@ -179,6 +182,22 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
         public synchronized List<SpanData> getCapturedSpans() {
             return List.copyOf(capturedSpans);
+        }
+
+        public Stream<SpanData> findSpan(Predicate<SpanData> predicate) {
+            return getCapturedSpans().stream().filter(predicate);
+        }
+
+        public Stream<SpanData> findSpanByName(String name) {
+            return findSpan(span -> Objects.equals(span.getName(), name));
+        }
+
+        public Stream<SpanData> findSpanBySpanId(String spanId) {
+            return findSpan(span -> Objects.equals(span.getSpanId(), spanId));
+        }
+
+        public Stream<SpanData> findSpanByParentSpanId(String parentSpanId) {
+            return findSpan(span -> Objects.equals(span.getParentSpanId(), parentSpanId));
         }
 
         @Override

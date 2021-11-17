@@ -139,24 +139,21 @@ public class ApmIT extends ESIntegTestCase {
             .execute()
             .actionGet(10, TimeUnit.SECONDS);
 
-        assertBusy(() -> {
-
-            final List<SpanData> capturedSpans = APMTracer.CAPTURING_SPAN_EXPORTER.getCapturedSpans();
-            boolean gotSearchSpan = false;
-            boolean gotCanMatchSpan = false;
-            for (SpanData capturedSpan : capturedSpans) {
-                logger.info("--> captured span [{}]", capturedSpan);
-                final String spanName = capturedSpan.getName();
-                if (spanName.equals(SearchAction.NAME)) {
-                    gotSearchSpan = true;
-                }
-                if (spanName.equals(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME)) {
-                    gotCanMatchSpan = true;
-                }
+        final List<SpanData> capturedSpans = APMTracer.CAPTURING_SPAN_EXPORTER.getCapturedSpans();
+        boolean gotSearchSpan = false;
+        boolean gotCanMatchSpan = false;
+        for (SpanData capturedSpan : capturedSpans) {
+            logger.info("--> captured span [{}]", capturedSpan);
+            final String spanName = capturedSpan.getName();
+            if (spanName.equals(SearchAction.NAME)) {
+                gotSearchSpan = true;
             }
+            if (spanName.equals(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME)) {
+                gotCanMatchSpan = true;
+            }
+        }
 
-            assertTrue(gotSearchSpan);
-            assertTrue(gotCanMatchSpan);
-        });
+        assertTrue(gotSearchSpan);
+        assertTrue(gotCanMatchSpan);
     }
 }

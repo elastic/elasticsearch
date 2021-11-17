@@ -68,7 +68,3 @@ ifeval::["{source_branch}"=="7.x"]
 :apm-server-ref-v:     {apm-server-ref-m}
 :apm-overview-ref-v:   {apm-overview-ref-m}
 endif::[]
-
-// Max recommended snapshots in a snapshot repo.
-// Used in the snapshot/restore docs.
-:max-snapshot-count: 200

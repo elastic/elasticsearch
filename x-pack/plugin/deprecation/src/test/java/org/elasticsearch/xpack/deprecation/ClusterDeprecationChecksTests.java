@@ -347,7 +347,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .build();
         IndexTemplateMetadata singleType = IndexTemplateMetadata.builder("single-type")
             .patterns(Collections.singletonList("foo"))
-            .putMapping("type1", "{\"type1\":{}}")
+            .putMapping("_doc", "{\"type1\":{}}")
             .build();
         ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
             .fPut("multiple-types", multipleTypes)
@@ -373,6 +373,37 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .build();
         ClusterState goodState = ClusterState.builder(new ClusterName("test")).metadata(goodMetadata).build();
         assertThat(DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState)), hasSize(0));
+    }
+
+    public void testIndexTemplatesWithCustomTypes() throws IOException {
+        IndexTemplateMetadata template1 = IndexTemplateMetadata.builder("template1")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("type1", "{\"type1\":{}}")
+            .build();
+        IndexTemplateMetadata template2 = IndexTemplateMetadata.builder("template2")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("type2", "{\"type2\":{}}")
+            .build();
+        IndexTemplateMetadata template3 = IndexTemplateMetadata.builder("template3")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("_doc", "{\"_doc\":{}}")
+            .build();
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
+            .fPut("template1", template1)
+            .fPut("template2", template2)
+            .fPut("template3", template3)
+            .build();
+        Metadata badMetadata = Metadata.builder().templates(templates).build();
+        ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
+        assertThat(issues, hasSize(1));
+        assertThat(
+            issues.get(0).getDetails(),
+            equalTo(
+                "Update or remove the following index templates before upgrading to 8.0: [template1, template2]. See "
+                    + "https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types."
+            )
+        );
     }
 
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {

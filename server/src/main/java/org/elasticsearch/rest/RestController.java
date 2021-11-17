@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -117,8 +118,31 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param deprecationMessage The message to log and send as a header in the response
      */
     protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
+        registerAsDeprecatedHandler(method, path, handler, deprecationMessage, null);
+    }
+
+    /**
+     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
+     *
+     * @param method GET, POST, etc.
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param handler The handler to actually execute
+     * @param deprecationMessage The message to log and send as a header in the response
+     * @param deprecationLevel The deprecation level to use for the message
+     */
+    protected void registerAsDeprecatedHandler(
+        RestRequest.Method method,
+        String path,
+        RestHandler handler,
+        String deprecationMessage,
+        @Nullable Level deprecationLevel
+    ) {
         assert (handler instanceof DeprecationRestHandler) == false;
-        registerHandler(method, path, new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger));
+        registerHandler(
+            method,
+            path,
+            new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger)
+        );
     }
 
     /**
@@ -194,7 +218,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             Route replaced = route.getReplacedRoute();
             registerAsReplacedHandler(route.getMethod(), route.getPath(), handler, replaced.getMethod(), replaced.getPath());
         } else if (route.isDeprecated()) {
-            registerAsDeprecatedHandler(route.getMethod(), route.getPath(), handler, route.getDeprecationMessage());
+            registerAsDeprecatedHandler(
+                route.getMethod(),
+                route.getPath(),
+                handler,
+                route.getDeprecationMessage(),
+                route.getDeprecationLevel()
+            );
         } else {
             // it's just a normal route
             registerHandler(route.getMethod(), route.getPath(), handler);

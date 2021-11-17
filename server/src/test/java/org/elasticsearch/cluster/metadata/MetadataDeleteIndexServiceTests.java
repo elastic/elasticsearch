@@ -133,7 +133,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(idxMetadata, false).putAlias(alias, idxMetadata.getIndex()))
+            .metadata(Metadata.builder().put(idxMetadata, false))
             .routingTable(RoutingTable.builder().addAsNew(idxMetadata).build())
             .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
             .build();

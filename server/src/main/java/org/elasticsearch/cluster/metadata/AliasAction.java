@@ -149,7 +149,6 @@ public abstract class AliasAction {
             }
 
             metadata.put(IndexMetadata.builder(index).putAlias(newAliasMd));
-            metadata.putAlias(alias, index.getIndex());
             return true;
         }
     }
@@ -195,7 +194,6 @@ public abstract class AliasAction {
                 return false;
             }
             metadata.put(IndexMetadata.builder(index).removeAlias(alias));
-            metadata.removeAlias(alias, index.getIndex());
             return true;
         }
     }

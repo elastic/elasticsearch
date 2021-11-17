@@ -1104,10 +1104,6 @@ public class MetadataCreateIndexService {
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
-        // TODO maybe non-trivial interplay between this for and the next if/accept in some circumstances
-        for (AliasMetadata alias : indexMetadata.getAliases().values()) {
-            builder.putAlias(alias.alias(), indexMetadata.getIndex());
-        }
         if (metadataTransformer != null) {
             metadataTransformer.accept(builder, indexMetadata);
         }

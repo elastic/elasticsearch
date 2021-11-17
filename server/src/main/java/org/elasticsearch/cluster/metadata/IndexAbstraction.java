@@ -231,14 +231,7 @@ public interface IndexAbstraction {
             } else if (writeIndices.size() == 1) {
                 this.writeIndex = writeIndices.get(0).getIndex();
             } else {
-                List<String> writeIndicesStrings = writeIndices.stream().map(i -> i.getIndex().getName()).collect(Collectors.toList());
-                throw new IllegalStateException(
-                    "alias ["
-                        + aliasName
-                        + "] has more than one write index ["
-                        + Strings.collectionToCommaDelimitedString(writeIndicesStrings)
-                        + "]"
-                );
+                throw new IllegalStateException("write indices size can only be 0 or 1, but is [" + writeIndices.size() + "]");
             }
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();

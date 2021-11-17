@@ -433,11 +433,7 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
 
         @Override
         public QueryableExpression divide(LongQueryableExpression rhs) {
-            QueryableExpression asConstant = rhs.mapConstant(c -> new Constant(n / c));
-            if (asConstant != UnqueryableExpression.UNQUERYABLE) {
-                return asConstant;
-            }
-            return rhs.divide(this);
+            return rhs.mapConstant(c -> new Constant(n / c));
         }
 
         @Override

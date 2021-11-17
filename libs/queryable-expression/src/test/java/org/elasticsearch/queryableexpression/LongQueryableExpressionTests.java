@@ -96,6 +96,18 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
+    public void testLongConstantDividedByLongField() throws IOException {
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.divide(
+            QueryableExpressionBuilder.param("divisor"),
+            QueryableExpressionBuilder.field("foo")
+        );
+        withIndexedLong((indexed, searcher, foo) -> {
+            long divisor = randomValueOtherThan(0L, LongQueryableExpressionTests::randomInterestingLong);
+            QueryableExpression expression = builder.build(f -> foo, k -> divisor);
+            assertThat(expression, equalTo(UnqueryableExpression.UNQUERYABLE));
+        });
+    }
+
     public void testLongFieldPlusIntConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.add(
             QueryableExpressionBuilder.field("foo"),

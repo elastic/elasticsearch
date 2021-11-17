@@ -105,9 +105,8 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("b / 10", qe("emit(doc['b'].value / 10L)", longLookup).toString());
     }
 
-    @AwaitsFix(bugUrl = "plaid")
     public void testLongOverFieldRef() {
-        assertEquals("10 / b", qe("emit(10l / doc['b'].value)", longLookup).toString());
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(10l / doc['b'].value)", longLookup));
     }
 
     @AwaitsFix(bugUrl = "Terms with multiple operations cannot be approximated yet")

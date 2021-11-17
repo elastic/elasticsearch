@@ -19,11 +19,11 @@ setup:
         index: test
         body:
           - '{"index": {}}'
-          - '{"node": "a", "tx": 2001818691}'
+          - '{"node": "a", "tx": 2001818691, "neighbours": 5}'
           - '{"index": {}}'
-          - '{"node": "b", "tx": 2001818691}'
+          - '{"node": "b", "tx": 2001818691, "neighbours": 3}'
           - '{"index": {}}'
-          - '{"node": "c", "tx": 3001818691}'
+          - '{"node": "c", "tx": 3001818691, "neighbours": 6}'
           - '{"index": {}}'
           - '{"node": "d", "tx": 4001818691}'
           - '{"index": {}}'
@@ -74,7 +74,7 @@ division matching none:
                 lte: 200
   - match: { hits.total.value: 0 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[100 TO 200] approximated by tx:[102400 TO 205823]' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[100 TO 200] approximated by tx:[102400 TO 205823] (-ConstantScore(DocValuesFieldExistsQuery [field=tx]) #*:*)' }
   # match=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 0 }
 
@@ -96,7 +96,7 @@ division matching one:
                 gt: 6837712
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[6837713 TO 9223372036854775807] approximated by tx:[7001818112 TO 9223372036854775807]' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[6837713 TO 9223372036854775807] approximated by tx:[7001818112 TO 9223372036854775807] (-ConstantScore(DocValuesFieldExistsQuery [field=tx]) #*:*)' }
   # match=1 means we only ever had to run the script one time
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 1 }
 
@@ -118,6 +118,46 @@ division matching two:
                 lt: 1954902
   - match: { hits.total.value: 2 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[-9223372036854775808 TO 1954901] approximated by tx:[-9223372036854775808 TO 2001819647]' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[-9223372036854775808 TO 1954901] approximated by tx:[-9223372036854775808 TO 2001819647] (-ConstantScore(DocValuesFieldExistsQuery [field=tx]) #*:*)' }
   # match=1 means we only ever had to run the script twice - once for each possible match
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 2 }
+
+---
+addition with missing value:
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            known_nodes:
+              type: long
+              script: emit(doc.neighbours.value + 1l)
+              approximate_first: true
+          query:
+            range:
+              known_nodes:
+                gt: 3
+  - match: { error.root_cause.0.type: "script_exception" }
+  - match: { error.root_cause.0.reason: "runtime error" }
+
+---
+guarded addition with missing value:
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            known_nodes:
+              type: long
+              script: if(doc.neighbours.size() > 0) { emit(doc.neighbours.value + 1l) }
+              approximate_first: true
+          query:
+            term:
+              known_nodes: 6
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
+  - match: { profile.shards.0.searches.0.query.0.description: 'known_nodes:6 approximated by neighbours:[5 TO 5] (-ConstantScore(DocValuesFieldExistsQuery [field=neighbours]) #*:*)' }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 5 }

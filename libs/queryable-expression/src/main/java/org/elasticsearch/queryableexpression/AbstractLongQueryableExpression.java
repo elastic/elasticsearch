@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.util.List;
 import java.util.function.LongFunction;
 
 /**
@@ -116,6 +117,11 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         @Override
         public String toString() {
             return name;
+        }
+
+        @Override
+        public List<String> requiredFields() {
+            return List.of(name);
         }
     }
 
@@ -465,6 +471,11 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         public int hashCode() {
             return Long.hashCode(n);
         }
+
+        @Override
+        public List<String> requiredFields() {
+            return List.of();
+        }
     }
 
     abstract static class Chain extends AbstractLongQueryableExpression {
@@ -492,6 +503,11 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         @Override
         public QueryableExpression mapConstant(LongFunction<QueryableExpression> map) {
             return UnqueryableExpression.UNQUERYABLE;
+        }
+
+        @Override
+        public List<String> requiredFields() {
+            return next.requiredFields();
         }
     }
 }

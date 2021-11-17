@@ -11,6 +11,7 @@ package org.elasticsearch.queryableexpression;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 
+import java.util.List;
 import java.util.function.LongFunction;
 
 /**
@@ -59,5 +60,10 @@ class UnqueryableExpression implements QueryableExpression, LongQueryableExpress
     @Override
     public String toString() {
         return getClass().getSimpleName();
+    }
+
+    @Override
+    public List<String> requiredFields() {
+        return List.of();
     }
 }

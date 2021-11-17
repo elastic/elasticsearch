@@ -10,6 +10,7 @@ package org.elasticsearch.queryableexpression;
 
 import org.apache.lucene.search.Query;
 
+import java.util.List;
 import java.util.function.LongFunction;
 
 /**
@@ -51,4 +52,6 @@ public interface LongQueryableExpression extends QueryableExpression {
      * if there isn't a way to query.
      */
     QueryableExpression mapConstant(LongFunction<QueryableExpression> map);
+
+    List<String> requiredFields();
 }

@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -20,7 +22,11 @@ import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.LongQueryableExpression;
 import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -34,6 +40,7 @@ import org.elasticsearch.search.runtime.LongScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -158,7 +165,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
                 return new MatchNoDocsQuery(l + " > " + u);
             }
             Query approximation = approximateFirst
-                ? queryableExpression(context).castToLong().approximateRangeQuery(l, u)
+                ? approximateOrMatchDocsWithMissingFields(e -> e.approximateRangeQuery(l, u), context)
                 : new MatchAllDocsQuery();
             return new LongScriptFieldRangeQuery(script, name(), approximation, leafFactory(context)::newInstance, l, u);
         });
@@ -172,9 +179,36 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         applyScriptContext(context);
         long v = NumberType.objectToLong(value, true);
         Query approximation = approximateFirst
-            ? queryableExpression(context).castToLong().approximateTermQuery(v)
+            ? approximateOrMatchDocsWithMissingFields(e -> e.approximateTermQuery(v), context)
             : new MatchAllDocsQuery();
         return new LongScriptFieldTermQuery(script, name(), approximation, leafFactory(context)::newInstance, v);
+    }
+
+    private Query approximateOrMatchDocsWithMissingFields(
+        Function<LongQueryableExpression, Query> approximate,
+        SearchExecutionContext context
+    ) {
+        LongQueryableExpression expression = queryableExpression(context).castToLong();
+        Query query = approximate.apply(expression);
+        List<String> fields = expression.requiredFields();
+
+        if (fields.size() > 0) {
+            BoolQueryBuilder fieldsQueryBuilder = QueryBuilders.boolQuery();
+
+            for (String field : fields) {
+                fieldsQueryBuilder.mustNot(new ExistsQueryBuilder(field));
+            }
+
+            try {
+                return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
+                    .add(fieldsQueryBuilder.toQuery(context), BooleanClause.Occur.SHOULD)
+                    .build();
+            } catch (IOException e) {
+                return query;
+            }
+        } else {
+            return query;
+        }
     }
 
     @Override

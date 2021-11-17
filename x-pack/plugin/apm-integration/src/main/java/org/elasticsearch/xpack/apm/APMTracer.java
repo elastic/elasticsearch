@@ -39,7 +39,6 @@ import org.elasticsearch.plugins.TracingPlugin;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;

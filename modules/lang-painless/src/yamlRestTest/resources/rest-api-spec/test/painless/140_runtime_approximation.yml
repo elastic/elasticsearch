@@ -65,7 +65,7 @@ division matching none:
           runtime_mappings:
             tx.kb:
               type: long
-              script: emit(doc.tx.value / 1024l)
+              script: emit(doc.tx.value / 1024)
               approximate_first: true
           query:
             range:
@@ -88,7 +88,7 @@ division matching one:
           runtime_mappings:
             tx.kb:
               type: long
-              script: emit(doc.tx.value / 1024l)
+              script: emit(doc.tx.value / 1024)
               approximate_first: true
           query:
             range:
@@ -110,7 +110,7 @@ division matching two:
           runtime_mappings:
             tx.kb:
               type: long
-              script: emit(doc.tx.value / 1024l)
+              script: emit(doc.tx.value / 1024)
               approximate_first: true
           query:
             range:

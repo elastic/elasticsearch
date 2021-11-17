@@ -96,6 +96,77 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
+    public void testLongFieldPlusIntConstant() throws IOException {
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.add(
+            QueryableExpressionBuilder.field("foo"),
+            QueryableExpressionBuilder.param("added")
+        );
+        withIndexedLong((indexed, searcher, foo) -> {
+            int added = randomInterestingInt();
+            long result = indexed + added;
+            logger.info("{} + {} = {}", indexed, added, result);
+
+            LongQueryableExpression expression = builder.build(f -> foo, k -> added).castToLong();
+            assertThat(expression.toString(), equalTo(added == 0 ? "foo" : "foo + " + added));
+            checkApproximations(searcher, expression, result);
+            checkPerfectApproximation(searcher, expression, result);
+        });
+    }
+
+    public void testLongFieldTimesIntConstant() throws IOException {
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.multiply(
+            QueryableExpressionBuilder.field("foo"),
+            QueryableExpressionBuilder.param("multiplied")
+        );
+        withIndexedLong((indexed, searcher, foo) -> {
+            int multiplied = randomInterestingInt();
+            long result = indexed * multiplied;
+            logger.info("{} * {} = {}", indexed, multiplied, result);
+
+            LongQueryableExpression expression = builder.build(f -> foo, k -> multiplied).castToLong();
+            checkApproximations(searcher, expression, result);
+            if (multiplied == 0) {
+                checkPerfectApproximation(searcher, expression, result);
+                assertThat(expression.toString(), equalTo("0"));
+            } else if (multiplied == 1) {
+                assertThat(expression.toString(), equalTo("foo"));
+                checkPerfectApproximation(searcher, expression, result);
+            } else if (multiplied == -1) {
+                assertThat(expression.toString(), equalTo("-(foo)"));
+                checkPerfectApproximation(searcher, expression, result);
+            } else {
+                assertThat(expression.toString(), equalTo("foo * " + multiplied));
+            }
+        });
+    }
+
+    public void testLongFieldDividedByIntConstant() throws IOException {
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.divide(
+            QueryableExpressionBuilder.field("foo"),
+            QueryableExpressionBuilder.param("divisor")
+        );
+        withIndexedLong((indexed, searcher, foo) -> {
+            int divisor = randomValueOtherThan(0, IntQueryableExpressionTests::randomInterestingInt);
+            long result = indexed / divisor;
+            logger.info("{} / {} = {}", indexed, divisor, result);
+
+            LongQueryableExpression expression = builder.build(f -> foo, k -> divisor).castToLong();
+            checkApproximations(searcher, expression, result);
+            if (divisor == 0) {
+                checkPerfectApproximation(searcher, expression, result);
+                assertThat(expression.toString(), equalTo("0"));
+            } else if (divisor == 1) {
+                assertThat(expression.toString(), equalTo("foo"));
+                checkPerfectApproximation(searcher, expression, result);
+            } else if (divisor == -1) {
+                assertThat(expression.toString(), equalTo("-(foo)"));
+                checkPerfectApproximation(searcher, expression, result);
+            } else {
+                assertThat(expression.toString(), equalTo("foo / " + divisor));
+            }
+        });
+    }
+
     public void testIntFieldPlusLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.add(
             QueryableExpressionBuilder.field("foo"),

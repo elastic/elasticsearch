@@ -596,9 +596,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         }
                         break;
                     case 2:
-                        builder.settings(
-                            Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        );
+                        builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");

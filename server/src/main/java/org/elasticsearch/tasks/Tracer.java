@@ -6,23 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.tasks;
 
-import java.util.Map;
+public interface Tracer {
+    void onTraceStarted(Traceable traceable);
 
-public interface TracingPlugin {
-
-    interface Traceable {
-        String getSpanId();
-
-        String getSpanName();
-
-        Map<String, Object> getAttributes();
-    }
-
-    interface Tracer {
-        void onTraceStarted(Traceable traceable);
-
-        void onTraceStopped(Traceable traceable);
-    }
+    void onTraceStopped(Traceable traceable);
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.apm;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
@@ -114,26 +115,26 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         final Tracer tracer = this.tracer;
         if (tracer != null) {
             spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
-                final Span span = tracer.spanBuilder(traceable.getSpanName()).startSpan();
+                final SpanBuilder spanBuilder = tracer.spanBuilder(traceable.getSpanName());
                 for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
                     final Object value = entry.getValue();
                     if (value instanceof String) {
-                        span.setAttribute(entry.getKey(), (String) value);
+                        spanBuilder.setAttribute(entry.getKey(), (String) value);
                     } else if (value instanceof Long) {
-                        span.setAttribute(entry.getKey(), (Long) value);
+                        spanBuilder.setAttribute(entry.getKey(), (Long) value);
                     } else if (value instanceof Integer) {
-                        span.setAttribute(entry.getKey(), (Integer) value);
+                        spanBuilder.setAttribute(entry.getKey(), (Integer) value);
                     } else if (value instanceof Double) {
-                        span.setAttribute(entry.getKey(), (Double) value);
+                        spanBuilder.setAttribute(entry.getKey(), (Double) value);
                     } else if (value instanceof Boolean) {
-                        span.setAttribute(entry.getKey(), (Boolean) value);
+                        spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
                     } else {
                         throw new IllegalArgumentException(
                             "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
                         );
                     }
                 }
-                return span;
+                return spanBuilder.startSpan();
             });
         }
     }

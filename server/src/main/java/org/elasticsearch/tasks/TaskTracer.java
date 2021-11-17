@@ -31,7 +31,7 @@ public class TaskTracer {
     public void onTaskRegistered(Task task) {
         for (TracingPlugin.Tracer tracer : tracers) {
             try {
-                tracer.onTaskRegistered(task);
+                tracer.onRegistered(task);
             } catch (Exception e) {
                 assert false : e;
                 logger.warn(
@@ -50,7 +50,7 @@ public class TaskTracer {
     public void onTaskUnregistered(Task task) {
         for (TracingPlugin.Tracer tracer : tracers) {
             try {
-                tracer.onTaskUnregistered(task);
+                tracer.onUnregistered(task);
             } catch (Exception e) {
                 assert false : e;
                 logger.warn(

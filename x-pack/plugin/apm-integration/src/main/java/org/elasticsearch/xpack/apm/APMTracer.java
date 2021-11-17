@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.plugins.TracingPlugin;
-import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,7 +33,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 
-    private final Map<Long, Span> taskSpans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
 
     private volatile Tracer tracer;
 
@@ -60,20 +59,37 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     protected void doClose() {}
 
     @Override
-    public void onTaskRegistered(Task task) {
+    public void onRegistered(TracingPlugin.Traceable traceable) {
         final Tracer tracer = this.tracer;
         if (tracer != null) {
-            taskSpans.computeIfAbsent(task.getId(), taskId -> {
-                final Span span = tracer.spanBuilder(task.getAction()).startSpan();
-                span.setAttribute("es.task.id", task.getId());
+            spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
+                final Span span = tracer.spanBuilder(traceable.getSpanName()).startSpan();
+                for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
+                    final Object value = entry.getValue();
+                    if (value instanceof String) {
+                        span.setAttribute(entry.getKey(), (String) value);
+                    } else if (value instanceof Long) {
+                        span.setAttribute(entry.getKey(), (Long) value);
+                    } else if (value instanceof Integer) {
+                        span.setAttribute(entry.getKey(), (Integer) value);
+                    } else if (value instanceof Double) {
+                        span.setAttribute(entry.getKey(), (Double) value);
+                    } else if (value instanceof Boolean) {
+                        span.setAttribute(entry.getKey(), (Boolean) value);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
+                        );
+                    }
+                }
                 return span;
             });
         }
     }
 
     @Override
-    public void onTaskUnregistered(Task task) {
-        final Span span = taskSpans.remove(task.getId());
+    public void onUnregistered(TracingPlugin.Traceable traceable) {
+        final Span span = spans.remove(traceable.getSpanId());
         if (span != null) {
             span.end();
         }

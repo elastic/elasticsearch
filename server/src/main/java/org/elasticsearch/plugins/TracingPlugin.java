@@ -8,13 +8,21 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.tasks.Task;
+import java.util.Map;
 
 public interface TracingPlugin {
 
-    interface Tracer {
-        void onTaskRegistered(Task task);
+    interface Traceable {
+        String getSpanId();
 
-        void onTaskUnregistered(Task task);
+        String getSpanName();
+
+        Map<String, Object> getAttributes();
+    }
+
+    interface Tracer {
+        void onRegistered(Traceable traceable);
+
+        void onUnregistered(Traceable traceable);
     }
 }

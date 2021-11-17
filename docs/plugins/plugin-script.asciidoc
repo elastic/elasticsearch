@@ -1,7 +1,7 @@
 [[plugin-management]]
 == Plugin Management
 
-The `elasticsearch-plugin` tool is used to install, list, and remove plugins. It is
+Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is
 located in the `$ES_HOME/bin` directory by default but it may be in a
 different location depending on which Elasticsearch package you installed:
 
@@ -26,10 +26,11 @@ Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasti
 files.
 =====================
 
+[discrete]
+[[plugin-management-docker]]
 === Docker
 
-If you are running Elasticsearch using Docker, you can choose instead to
-use manage plugins via a
+If you run {es} using Docker, you can manage plugins using a
 <<manage-plugins-using-configuration-file,configuration file>>.
 
 [[installation]]
@@ -287,19 +288,18 @@ The default location of the `plugins` directory depends on which package you ins
 * {ref}/rpm.html#rpm-layout[Directory layout of RPM]
 
 
-[discrete]
 [[manage-plugins-using-configuration-file]]
-=== Managing plugins using a configuration file
+=== Manage plugins using a configuration file
 
 [IMPORTANT]
-. Docker only
+.Docker only
 =====================
-At present, this feature is only available when running {es} using our
-Docker images. Other distributions of {es} will not start if they find a
+This feature is only available for https://www.docker.elastic.co/[official {es}
+Docker images]. Other {es} distributions will not start with a
 plugin configuration file.
 =====================
 
-You can choose to manage plugins using a declarative configuration file.
+If you run {es} using Docker, you can manage plugins using a declarative configuration file.
 When {es} starts up, it will compare the plugins in the file with those
 that are currently installed, and add or remove plugins as required. {es}
 will also upgrade offical plugins when you upgrade {es} itself.
@@ -309,17 +309,17 @@ Elasticsearch configuration directory, alongside `elasticsearch.yml`. Here
 is an example:
 
 [source,yaml]
------------------------------------
+----
 plugins:
   - id: analysis-icu
   - id: repository-azure
   - id: custom-mapper
     location: https://example.com/archive/custom-mapper-1.0.0.zip
------------------------------------
+----
 
-This example installs the official plugins `analysis-icu` and
-`repository-azure`, and one unofficial plugin. Every plugin must provide
-an `id`, and unofficial plugins must also provide a `location`. This is
+This example installs the official `analysis-icu` and
+`repository-azure` plugins, and one unofficial plugin. Every plugin must provide
+an `id`. Unofficial plugins must also provide a `location`. This is
 typically a URL, but Maven coordinates are also supported. The downloaded
 plugin's name must match the ID in the configuration file.
 
@@ -329,9 +329,9 @@ Java proxy system properties] when downloading plugins, you can also configure a
 HTTP proxy to use explicitly in the configuration file. For example:
 
 [source,yaml]
------------------------------------
+----
 plugins:
   - id: custom-mapper
     location: https://example.com/archive/custom-mapper-1.0.0.zip
 proxy: proxy.example.com:8443
------------------------------------
+----

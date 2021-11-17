@@ -192,8 +192,6 @@
       "type": "string",
       "enum": [
         "Cluster and node setting",
-        "Cluster and node setting",
-        "Command line tool",
         "Command line tool",
         "Index setting",
         "JVM option",

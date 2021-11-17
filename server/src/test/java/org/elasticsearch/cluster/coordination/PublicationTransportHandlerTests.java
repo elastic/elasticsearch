@@ -21,15 +21,15 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -39,6 +39,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -138,7 +139,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final boolean simulateFailures = randomBoolean();
             final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
-            final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+            final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             final MockTransport mockTransport = new MockTransport() {
 
                 @Nullable
@@ -178,8 +179,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 }
 
                 @Override
-                public BytesStream newNetworkBytesStream() {
-                    return new ReleasableBytesStreamOutput(bigArrays);
+                public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                    return new RecyclerBytesStreamOutput(recycler);
                 }
             };
 

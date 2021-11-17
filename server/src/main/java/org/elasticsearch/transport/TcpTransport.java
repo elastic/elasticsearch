@@ -892,7 +892,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public BytesStream newNetworkBytesStream() {
+    public RecyclerBytesStreamOutput newNetworkBytesStream() {
         return new RecyclerBytesStreamOutput(recycler);
     }
 

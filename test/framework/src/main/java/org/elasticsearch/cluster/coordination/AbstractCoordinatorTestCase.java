@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -39,20 +38,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
@@ -74,6 +73,7 @@ import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -264,6 +264,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
+        private final Recycler<BytesRef> recycler;
         private final BigArrays bigArrays;
         private final NodeHealthService nodeHealthService;
 
@@ -282,9 +283,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            bigArrays = usually()
-                ? BigArrays.NON_RECYCLING_INSTANCE
-                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            if (usually()) {
+                recycler = BytesRefRecycler.NON_RECYCLING_INSTANCE;
+                bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+            } else {
+                final PageCacheRecycler pageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
+                recycler = new BytesRefRecycler(pageCacheRecycler);
+                bigArrays = new MockBigArrays(pageCacheRecycler, new NoneCircuitBreakerService());
+            }
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
@@ -1055,7 +1061,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private DisruptableMockTransport mockTransport;
             private final NodeHealthService nodeHealthService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
-            private DelegatingBigArrays delegatingBigArrays;
+            private ClearableRecycler clearableRecycler;
 
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
@@ -1093,7 +1099,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             private void setUp() {
                 final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
-                delegatingBigArrays = new DelegatingBigArrays(bigArrays);
+                clearableRecycler = new ClearableRecycler(recycler);
                 mockTransport = new DisruptableMockTransport(localNode, logger, deterministicTaskQueue) {
                     @Override
                     protected void execute(Runnable runnable) {
@@ -1145,8 +1151,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public BytesStream newNetworkBytesStream() {
-                        return new ReleasableBytesStreamOutput(delegatingBigArrays);
+                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                        return new RecyclerBytesStreamOutput(clearableRecycler);
                     }
                 };
                 final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey())
@@ -1278,7 +1284,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeHealthService
                     );
                 } finally {
-                    delegatingBigArrays.releaseAll();
+                    clearableRecycler.clear();
                 }
             }
 
@@ -1819,107 +1825,50 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     /**
-     * A wrapper around a {@link BigArrays} which tracks the arrays it allocates so that they can be released if the node reboots. Only
-     * works for {@link ByteArray} allocations since that's all the {@link Coordinator} needs.
+     * A wrapper around a {@link Recycler<BytesRef>} which tracks the refs it allocates so they can be released if the node reboots.
      */
-    static class DelegatingBigArrays extends BigArrays {
+    static class ClearableRecycler implements Recycler<BytesRef> {
 
-        private final BigArrays delegate;
+        private final Recycler<BytesRef> delegate;
+        private final Set<V<BytesRef>> trackedRefs = new HashSet<>();
 
-        private final Set<DelegatingByteArray> trackedArrays = new HashSet<>();
-
-        DelegatingBigArrays(BigArrays delegate) {
-            super(null, null, null);
+        ClearableRecycler(Recycler<BytesRef> delegate) {
             this.delegate = delegate;
         }
 
         @Override
-        public ByteArray newByteArray(long size, boolean clearOnResize) {
-            return track(delegate.newByteArray(size, clearOnResize));
+        public V<BytesRef> obtain() {
+            V<BytesRef> innerRef = delegate.obtain();
+            final V<BytesRef> trackedRef = new V<>() {
+                @Override
+                public BytesRef v() {
+                    return innerRef.v();
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return innerRef.isRecycled();
+                }
+
+                @Override
+                public void close() {
+                    innerRef.close();
+                    trackedRefs.remove(this);
+                }
+            };
+            trackedRefs.add(trackedRef);
+            return trackedRef;
         }
 
-        @Override
-        public ByteArray resize(ByteArray array, long size) {
-            assert array instanceof DelegatingByteArray;
-            trackedArrays.remove(array);
-            return track(delegate.resize(((DelegatingByteArray) array).getDelegate(), size));
+        /**
+         * Release all tracked refs as if the node rebooted.
+         */
+        void clear() {
+            for (V<BytesRef> trackedRef : List.copyOf(trackedRefs)) {
+                trackedRef.close();
+            }
+            assert trackedRefs.isEmpty() : trackedRefs;
         }
 
-        private ByteArray track(ByteArray byteArray) {
-            final DelegatingByteArray wrapped = new DelegatingByteArray(byteArray);
-            trackedArrays.add(wrapped);
-            return wrapped;
-        }
-
-        void releaseAll() {
-            for (DelegatingByteArray trackedArray : List.copyOf(trackedArrays)) {
-                trackedArray.close();
-            }
-            assert trackedArrays.isEmpty() : trackedArrays;
-        }
-
-        private class DelegatingByteArray implements ByteArray {
-
-            private final ByteArray delegate;
-
-            DelegatingByteArray(ByteArray delegate) {
-                this.delegate = delegate;
-            }
-
-            ByteArray getDelegate() {
-                return delegate;
-            }
-
-            @Override
-            public void close() {
-                delegate.close();
-                trackedArrays.remove(this);
-            }
-
-            @Override
-            public long size() {
-                return delegate.size();
-            }
-
-            @Override
-            public byte get(long index) {
-                return delegate.get(index);
-            }
-
-            @Override
-            public byte set(long index, byte value) {
-                return delegate.set(index, value);
-            }
-
-            @Override
-            public boolean get(long index, int len, BytesRef ref) {
-                return delegate.get(index, len, ref);
-            }
-
-            @Override
-            public void set(long index, byte[] buf, int offset, int len) {
-                delegate.set(index, buf, offset, len);
-            }
-
-            @Override
-            public void fill(long fromIndex, long toIndex, byte value) {
-                delegate.fill(fromIndex, toIndex, value);
-            }
-
-            @Override
-            public boolean hasArray() {
-                return delegate.hasArray();
-            }
-
-            @Override
-            public byte[] array() {
-                return delegate.array();
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return delegate.ramBytesUsed();
-            }
-        }
     }
 }

@@ -26,7 +26,7 @@ final class CoordIJK {
 
     /** CoordIJK unit vectors corresponding to the 7 H3 digits.
      */
-    private static final int UNIT_VECS[][] = {
+    private static final int[][] UNIT_VECS = {
         { 0, 0, 0 },  // direction 0
         { 0, 0, 1 },  // direction 1
         { 0, 1, 0 },  // direction 2

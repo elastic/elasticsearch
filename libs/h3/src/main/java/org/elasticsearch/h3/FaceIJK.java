@@ -49,7 +49,7 @@ final class FaceIJK {
     /**
      * overage distance table
      */
-    private static int maxDimByCIIres[] = {
+    private static final int[] maxDimByCIIres = {
         2,        // res 0
         -1,       // res 1
         14,       // res 2
@@ -72,7 +72,7 @@ final class FaceIJK {
     /**
      * unit scale distance table
      */
-    private static int unitScaleByCIIres[] = {
+    private static final int[] unitScaleByCIIres = {
         1,       // res 0
         -1,      // res 1
         7,       // res 2
@@ -96,7 +96,7 @@ final class FaceIJK {
      * direction from the origin face to the destination face, relative to
      * the origin face's coordinate system, or -1 if not adjacent.
      */
-    private static int[][] adjacentFaceDir = new int[][] {
+    private static final int[][] adjacentFaceDir = new int[][] {
         { 0, KI, -1, -1, IJ, JK, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },  // face 0
         { IJ, 0, KI, -1, -1, -1, JK, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },  // face 1
         { -1, IJ, 0, KI, -1, -1, -1, JK, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },  // face 2
@@ -145,7 +145,7 @@ final class FaceIJK {
     /**
      *  Definition of which faces neighbor each other.
      */
-    private static FaceOrientIJK[][] faceNeighbors = new FaceOrientIJK[][] {
+    private static final FaceOrientIJK[][] faceNeighbors = new FaceOrientIJK[][] {
         {
             // face 0
             new FaceOrientIJK(0, 0, 0, 0, 0),  // central face

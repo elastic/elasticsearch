@@ -81,7 +81,6 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     @Override
     protected void doStart() {
-        final String nodeName = clusterService.getNodeName();
         final String endpoint = this.endpoint.toString();
         final String token = this.token.toString();
 
@@ -91,7 +90,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
                     Resource.create(
                         Attributes.of(
                             ResourceAttributes.SERVICE_NAME,
-                            nodeName,
+                            clusterService.getClusterName().toString(),
                             ResourceAttributes.SERVICE_VERSION,
                             Version.CURRENT.toString(),
                             ResourceAttributes.DEPLOYMENT_ENVIRONMENT,
@@ -114,6 +113,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     protected void doStop() {
         final SdkTracerProvider provider = this.provider;
         if (provider != null) {
+            provider.forceFlush().join(10L, TimeUnit.SECONDS);
             provider.shutdown().join(30L, TimeUnit.SECONDS);
         }
     }
@@ -221,7 +221,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     public static class CapturingSpanExporter implements SpanExporter {
 
-        private Queue<SpanData> capturedSpans = ConcurrentCollections.newQueue();
+        private final Queue<SpanData> capturedSpans = ConcurrentCollections.newQueue();
 
         public void clear() {
             capturedSpans.clear();

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 
 import org.apache.lucene.util.CollectionUtil;
@@ -379,7 +378,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         /**
          * Initializes a new empty index, to be restored from a snapshot
          */
-        public Builder initializeAsNewRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
+        public Builder initializeAsNewRestore(
+            IndexMetadata indexMetadata,
+            SnapshotRecoverySource recoverySource,
+            Set<Integer> ignoreShards
+        ) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
                 UnassignedInfo.Reason.NEW_INDEX_RESTORED,
                 "restore_source["
@@ -412,7 +415,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         private Builder initializeAsRestore(
             IndexMetadata indexMetadata,
             SnapshotRecoverySource recoverySource,
-            IntSet ignoreShards,
+            Set<Integer> ignoreShards,
             boolean asNew,
             UnassignedInfo unassignedInfo
         ) {

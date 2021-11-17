@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -379,7 +377,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                             Version.CURRENT,
                             new IndexId(indexMetadata.getIndex().getName(), UUIDs.randomBase64UUID(random()))
                         ),
-                        new IntHashSet()
+                        new HashSet<>()
                     );
                     break;
                 case 4:

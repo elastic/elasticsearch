@@ -8,8 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -271,12 +269,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     private void cleanUpSnapshotShardSizes(Set<SnapshotShard> requiredSnapshotShards) {
         assert Thread.holdsLock(mutex);
         ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes = null;
-        for (ObjectCursor<SnapshotShard> shard : knownSnapshotShards.keys()) {
-            if (requiredSnapshotShards.contains(shard.value) == false) {
+        for (SnapshotShard shard : knownSnapshotShards.keySet()) {
+            if (requiredSnapshotShards.contains(shard) == false) {
                 if (newSnapshotShardSizes == null) {
                     newSnapshotShardSizes = ImmutableOpenMap.builder(knownSnapshotShards);
                 }
-                newSnapshotShardSizes.remove(shard.value);
+                newSnapshotShardSizes.remove(shard);
             }
         }
         if (newSnapshotShardSizes != null) {
@@ -289,9 +287,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         assert Thread.holdsLock(mutex);
         assert activeFetches >= 0 : "active fetches should be greater than or equal to zero but got: " + activeFetches;
         assert activeFetches <= maxConcurrentFetches : activeFetches + " <= " + maxConcurrentFetches;
-        for (ObjectCursor<SnapshotShard> cursor : knownSnapshotShards.keys()) {
-            assert unknownSnapshotShards.contains(cursor.value) == false : "cannot be known and unknown at same time: " + cursor.value;
-            assert failedSnapshotShards.contains(cursor.value) == false : "cannot be known and failed at same time: " + cursor.value;
+        for (SnapshotShard shard : knownSnapshotShards.keySet()) {
+            assert unknownSnapshotShards.contains(shard) == false : "cannot be known and unknown at same time: " + shard;
+            assert failedSnapshotShards.contains(shard) == false : "cannot be known and failed at same time: " + shard;
         }
         for (SnapshotShard shard : unknownSnapshotShards) {
             assert knownSnapshotShards.keys().contains(shard) == false : "cannot be unknown and known at same time: " + shard;

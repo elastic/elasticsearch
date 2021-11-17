@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.allocation;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -71,7 +69,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         } else if (randomBoolean()) {
             routingTable.addAsRecovery(metadata.index(index));
         } else if (randomBoolean()) {
-            routingTable.addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new IntHashSet());
+            routingTable.addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
         } else {
             routingTable.addAsRestore(metadata.index(index), newSnapshotRecoverySource());
         }
@@ -150,7 +148,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(dataOnlyNode).add(dataAndRemoteNode).build();
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         RoutingTable.Builder routingTable = RoutingTable.builder()
-            .addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new IntHashSet());
+            .addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(discoveryNodes)
             .metadata(metadata)

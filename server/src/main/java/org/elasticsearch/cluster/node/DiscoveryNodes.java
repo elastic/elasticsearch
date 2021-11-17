@@ -8,9 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -28,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -625,18 +623,18 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     public static class Builder {
 
-        private final ImmutableOpenMap.Builder<String, DiscoveryNode> nodes;
+        private final Map<String, DiscoveryNode> nodes;
         private String masterNodeId;
         private String localNodeId;
 
         public Builder() {
-            nodes = ImmutableOpenMap.builder();
+            nodes = new HashMap<>();
         }
 
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.getLocalNodeId();
-            this.nodes = ImmutableOpenMap.builder(nodes.getNodes());
+            this.nodes = new HashMap<>(nodes.getNodes().toMap());
         }
 
         /**
@@ -698,8 +696,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
          * exception
          */
         private String validateAdd(DiscoveryNode node) {
-            for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
-                final DiscoveryNode existingNode = cursor.value;
+            for (DiscoveryNode existingNode : nodes.values()) {
                 if (node.getAddress().equals(existingNode.getAddress()) && node.getId().equals(existingNode.getId()) == false) {
                     return "can't add node " + node + ", found existing node " + existingNode + " with same address";
                 }
@@ -722,15 +719,17 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
-            for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
-                if (nodeEntry.value.canContainData()) {
-                    dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+            for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
+                String nodeId = nodeEntry.getKey();
+                DiscoveryNode discoNode = nodeEntry.getValue();
+                if (discoNode.canContainData()) {
+                    dataNodesBuilder.put(nodeId, discoNode);
                 }
-                if (nodeEntry.value.isMasterNode()) {
-                    masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+                if (discoNode.isMasterNode()) {
+                    masterNodesBuilder.put(nodeId, discoNode);
                 }
-                final Version version = nodeEntry.value.getVersion();
-                if (nodeEntry.value.canContainData() || nodeEntry.value.isMasterNode()) {
+                final Version version = discoNode.getVersion();
+                if (discoNode.canContainData() || discoNode.isMasterNode()) {
                     if (minNonClientNodeVersion == null) {
                         minNonClientNodeVersion = version;
                         maxNonClientNodeVersion = version;
@@ -739,15 +738,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                         maxNonClientNodeVersion = Version.max(maxNonClientNodeVersion, version);
                     }
                 }
-                if (nodeEntry.value.isIngestNode()) {
-                    ingestNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+                if (discoNode.isIngestNode()) {
+                    ingestNodesBuilder.put(nodeId, discoNode);
                 }
                 minNodeVersion = minNodeVersion == null ? version : Version.min(minNodeVersion, version);
                 maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);
             }
 
             return new DiscoveryNodes(
-                nodes.build(),
+                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAll(nodes).build(),
                 dataNodesBuilder.build(),
                 masterNodesBuilder.build(),
                 ingestNodesBuilder.build(),

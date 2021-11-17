@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -127,8 +126,8 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
             IndexRoutingTable indexRoutingTable = routingTable.index("test");
             IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-            for (final ObjectCursor<IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().values()) {
-                final IndexShardRoutingTable shardRoutingTable = shardEntry.value;
+            for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
+                final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
                 for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
                     if (shardRouting.primary()) {
                         newIndexRoutingTable.addShard(primary);

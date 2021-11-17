@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -335,6 +336,13 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     @Override
     public String toString() {
         return map.toString();
+    }
+
+    /**
+     * Convert this ImmutableOpenMap to an immutable Java collection Map
+     */
+    public Map<KType, VType> toMap() {
+        return entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override

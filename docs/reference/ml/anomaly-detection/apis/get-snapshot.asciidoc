@@ -33,10 +33,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 +
 --
-You can multiple snapshots for a single job in a single API request
-by using a comma-separated list of `<snapshot_id>` or a wildcard expression.
-You can get all snapshots for all calendars by using `_all`,
-by specifying `*` as the `<snapshot_id>`, or by omitting the `<snapshot_id>`.
+You can get information for multiple snapshots by using a comma-separated list
+or a wildcard expression. You can get all snapshots by using `_all`, by
+specifying `*` as the snapshot ID, or by omitting the snapshot ID.
 --
 
 [[ml-get-snapshot-query-parms]]
@@ -162,7 +161,7 @@ server-time.
 Contains one of the following values.
 +
 --
-* `hard_limit`: The internal models require more space that the configured
+* `hard_limit`: The internal models require more space than the configured
 memory limit. Some incoming data could not be processed.
 * `ok`: The internal models stayed below the configured value.
 * `soft_limit`: The internal models require more than 60% of the configured

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.apm;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.plugins.TracingPlugin;
-import org.elasticsearch.tasks.Task;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -53,7 +53,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     static final Setting<SecureString> APM_ENDPOINT_SETTING = SecureSetting.secureString("xpack.apm.endpoint", null);
     static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString("xpack.apm.token", null);
 
-    private final Map<Long, Span> taskSpans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
     private final ClusterService clusterService;
     private final SecureString endpoint;
     private final SecureString token;
@@ -111,20 +111,37 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     protected void doClose() {}
 
     @Override
-    public void onTaskRegistered(Task task) {
+    public void onTraceStarted(TracingPlugin.Traceable traceable) {
         final Tracer tracer = this.tracer;
         if (tracer != null) {
-            taskSpans.computeIfAbsent(task.getId(), taskId -> {
-                final Span span = tracer.spanBuilder(task.getAction()).startSpan();
-                span.setAttribute("es.task.id", task.getId());
-                return span;
+            spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
+                final SpanBuilder spanBuilder = tracer.spanBuilder(traceable.getSpanName());
+                for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
+                    final Object value = entry.getValue();
+                    if (value instanceof String) {
+                        spanBuilder.setAttribute(entry.getKey(), (String) value);
+                    } else if (value instanceof Long) {
+                        spanBuilder.setAttribute(entry.getKey(), (Long) value);
+                    } else if (value instanceof Integer) {
+                        spanBuilder.setAttribute(entry.getKey(), (Integer) value);
+                    } else if (value instanceof Double) {
+                        spanBuilder.setAttribute(entry.getKey(), (Double) value);
+                    } else if (value instanceof Boolean) {
+                        spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
+                        );
+                    }
+                }
+                return spanBuilder.startSpan();
             });
         }
     }
 
     @Override
-    public void onTaskUnregistered(Task task) {
-        final Span span = taskSpans.remove(task.getId());
+    public void onTraceStopped(TracingPlugin.Traceable traceable) {
+        final Span span = spans.remove(traceable.getSpanId());
         if (span != null) {
             span.end();
         }

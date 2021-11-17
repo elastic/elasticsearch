@@ -21,8 +21,8 @@ public interface TracingPlugin {
     }
 
     interface Tracer {
-        void onRegistered(Traceable traceable);
+        void onTraceStarted(Traceable traceable);
 
-        void onUnregistered(Traceable traceable);
+        void onTraceStopped(Traceable traceable);
     }
 }

@@ -110,7 +110,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     protected void doClose() {}
 
     @Override
-    public void onRegistered(TracingPlugin.Traceable traceable) {
+    public void onTraceStarted(TracingPlugin.Traceable traceable) {
         final Tracer tracer = this.tracer;
         if (tracer != null) {
             spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
@@ -139,7 +139,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     }
 
     @Override
-    public void onUnregistered(TracingPlugin.Traceable traceable) {
+    public void onTraceStopped(TracingPlugin.Traceable traceable) {
         final Span span = spans.remove(traceable.getSpanId());
         if (span != null) {
             span.end();

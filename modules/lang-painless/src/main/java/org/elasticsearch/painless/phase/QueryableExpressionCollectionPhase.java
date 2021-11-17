@@ -75,7 +75,7 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
             }
         }
 
-        if(false == scope.unqueryable()) {
+        if (false == scope.unqueryable()) {
             super.visitBinaryImpl(irBinaryImplNode, scope);
         }
     }

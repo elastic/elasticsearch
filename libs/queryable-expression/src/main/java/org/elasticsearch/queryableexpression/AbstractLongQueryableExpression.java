@@ -28,6 +28,11 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
     }
 
     @Override
+    public QueryableExpression mapNumber(MapNumber map) {
+        return map.withLong(this);
+    }
+
+    @Override
     public final QueryableExpression add(QueryableExpression rhs) {
         return add(rhs.castToLong());
     }
@@ -51,6 +56,9 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
     @Override
     public abstract String toString();
 
+    /**
+     * A queryable field who's values are exposed to the script as {@code long}s.
+     */
     static class Field extends AbstractLongQueryableExpression {
         private final String name;
         private final LongQueries queries;
@@ -119,6 +127,9 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         }
     }
 
+    /**
+     * Adapts {@link IntQueries} into {@link LongQueries}.
+     */
     static class IntQueriesToLongQueries implements LongQueries {
         private final IntQueries queries;
 
@@ -392,6 +403,9 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         }
     }
 
+    /**
+     * A constant {@link LongQueryableExpression}.
+     */
     static class Constant extends AbstractLongQueryableExpression {
         private final long n;
 

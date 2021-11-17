@@ -47,8 +47,8 @@ public interface LongQueryableExpression extends QueryableExpression {
     Query approximateRangeQuery(long lower, long upper);
 
     /**
-     * Transform this expression, returning an {@link UnqueryableExpression}
-     * if there isn't a way to query.
+     * Transform this expression if it is a constant or return
+     * {@link UnqueryableExpression} if it is not.
      */
     QueryableExpression mapConstant(LongFunction<QueryableExpression> map);
 }

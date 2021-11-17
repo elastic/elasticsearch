@@ -57,6 +57,9 @@ public interface QueryableExpressionBuilder {
         if (c instanceof Long) {
             return new AbstractLongQueryableExpression.Constant((Long) c);
         }
+        if (c instanceof Integer) {
+            return new IntConstant((Integer) c);
+        }
         return QueryableExpression.UNQUERYABLE;
     }
 

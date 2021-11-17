@@ -28,4 +28,12 @@ public interface QueryableExpression {
     QueryableExpression divide(QueryableExpression rhs);
 
     LongQueryableExpression castToLong();
+
+    interface MapNumber {
+        QueryableExpression withLong(LongQueryableExpression lqe);
+
+        QueryableExpression withInt(IntQueryableExpression iqe);
+    }
+
+    QueryableExpression mapNumber(MapNumber map);
 }

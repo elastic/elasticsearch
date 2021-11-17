@@ -21,10 +21,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.queryableexpression.IntQueryableExpressionTests.randomInterestingInt;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongQueryableExpressionTests extends ESTestCase {
-    public void testLongFieldPlusLong() throws IOException {
+    public void testLongFieldPlusLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.add(
             QueryableExpressionBuilder.field("foo"),
             QueryableExpressionBuilder.param("added")
@@ -41,7 +42,7 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
-    public void testLongFieldTimesLong() throws IOException {
+    public void testLongFieldTimesLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.multiply(
             QueryableExpressionBuilder.field("foo"),
             QueryableExpressionBuilder.param("multiplied")
@@ -68,7 +69,7 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
-    public void testLongFieldDividedByLong() throws IOException {
+    public void testLongFieldDividedByLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.divide(
             QueryableExpressionBuilder.field("foo"),
             QueryableExpressionBuilder.param("divisor")
@@ -95,7 +96,7 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
-    public void testIntFieldPlusLong() throws IOException {
+    public void testIntFieldPlusLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.add(
             QueryableExpressionBuilder.field("foo"),
             QueryableExpressionBuilder.param("added")
@@ -112,7 +113,7 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
-    public void testIntFieldTimesLong() throws IOException {
+    public void testIntFieldTimesLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.multiply(
             QueryableExpressionBuilder.field("foo"),
             QueryableExpressionBuilder.param("multiplied")
@@ -139,13 +140,13 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
-    public void testIntFieldDividedByLong() throws IOException {
+    public void testIntFieldDividedByLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.divide(
             QueryableExpressionBuilder.field("foo"),
             QueryableExpressionBuilder.param("divisor")
         );
         withIndexedInt((indexed, searcher, foo) -> {
-            long divisor = randomValueOtherThan(0, LongQueryableExpressionTests::randomInterestingInt);
+            long divisor = randomValueOtherThan(0, IntQueryableExpressionTests::randomInterestingInt);
             long result = indexed / divisor;
             logger.info("{} / {} = {}", indexed, divisor, result);
 
@@ -164,6 +165,51 @@ public class LongQueryableExpressionTests extends ESTestCase {
                 assertThat(expression.toString(), equalTo("foo / " + divisor));
             }
         });
+    }
+
+    public void testLongConstantPlusLongConstant() throws IOException {
+        long lhs = randomInterestingLong();
+        long rhs = randomInterestingLong();
+        long result = lhs + rhs;
+        logger.info("{} + {} = {}", lhs, rhs, result);
+
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.add(
+            QueryableExpressionBuilder.constant(lhs),
+            QueryableExpressionBuilder.constant(rhs)
+        );
+        QueryableExpression expression = builder.build(null, null);
+        assertThat(expression, equalTo(QueryableExpressionBuilder.constant(result).build(null, null)));
+        assertThat(expression.toString(), equalTo(Long.toString(result)));
+    }
+
+    public void testLongConstantTimesLongConstant() throws IOException {
+        long lhs = randomInterestingLong();
+        long rhs = randomInterestingLong();
+        long result = lhs * rhs;
+        logger.info("{} * {} = {}", lhs, rhs, result);
+
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.multiply(
+            QueryableExpressionBuilder.constant(lhs),
+            QueryableExpressionBuilder.constant(rhs)
+        );
+        QueryableExpression expression = builder.build(null, null);
+        assertThat(expression, equalTo(QueryableExpressionBuilder.constant(result).build(null, null)));
+        assertThat(expression.toString(), equalTo(Long.toString(result)));
+    }
+
+    public void testLongConstantDividedByLongConstant() throws IOException {
+        long lhs = randomInterestingLong();
+        long rhs = randomValueOtherThan(0L, LongQueryableExpressionTests::randomInterestingLong);
+        long result = lhs / rhs;
+        logger.info("{} */ {} = {}", lhs, rhs, result);
+
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.divide(
+            QueryableExpressionBuilder.constant(lhs),
+            QueryableExpressionBuilder.constant(rhs)
+        );
+        QueryableExpression expression = builder.build(null, null);
+        assertThat(expression, equalTo(QueryableExpressionBuilder.constant(result).build(null, null)));
+        assertThat(expression.toString(), equalTo(Long.toString(result)));
     }
 
     @FunctionalInterface
@@ -220,24 +266,7 @@ public class LongQueryableExpressionTests extends ESTestCase {
         }
     }
 
-    static int randomInterestingInt() {
-        switch (between(0, 4)) {
-            case 0:
-                return 0;
-            case 1:
-                return randomBoolean() ? 1 : -1;
-            case 2:
-                return randomShort(); // Even multiplication won't overflow
-            case 3:
-                return randomInt();
-            case 4:
-                return randomBoolean() ? Integer.MIN_VALUE : Integer.MAX_VALUE;
-            default:
-                throw new IllegalArgumentException("Unsupported case");
-        }
-    }
-
-    private static long randomInterestingLong() {
+    static long randomInterestingLong() {
         switch (between(0, 4)) {
             case 0:
                 return 0;

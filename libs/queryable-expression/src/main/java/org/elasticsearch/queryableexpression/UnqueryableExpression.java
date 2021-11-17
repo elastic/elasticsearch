@@ -42,6 +42,11 @@ class UnqueryableExpression implements QueryableExpression, LongQueryableExpress
     }
 
     @Override
+    public QueryableExpression mapNumber(MapNumber map) {
+        return this;
+    }
+
+    @Override
     public Query approximateTermQuery(long term) {
         return new MatchAllDocsQuery();
     }

@@ -48,8 +48,16 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("100", qe("emit(100)").toString());
     }
 
+    public void testLongConst() {
+        assertEquals("100", qe("emit(100L)").toString());
+    }
+
+    public void testIntMathExpression() {
+        assertEquals("11", qe("emit(1 + 10)").toString());
+    }
+
     public void testLongMathExpression() {
-        assertEquals("11", qe("emit(1l + 10l)").toString());
+        assertEquals("11", qe("emit(1L + 10L)").toString());
     }
 
     private final Function<String, QueryableExpression> longLookup = (field) -> LongQueryableExpression.field(
@@ -81,12 +89,20 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("a", qe("emit(doc.a.getValue())", longLookup).toString());
     }
 
+    public void testFieldRefPlusInt() {
+        assertEquals("a + 1", qe("emit(doc['a'].value + 1)", longLookup).toString());
+    }
+
     public void testFieldRefPlusLong() {
-        assertEquals("a + 1", qe("emit(doc['a'].value + 1l)", longLookup).toString());
+        assertEquals("a + 1", qe("emit(doc['a'].value + 1L)", longLookup).toString());
+    }
+
+    public void testFieldRefOverInt() {
+        assertEquals("b / 10", qe("emit(doc['b'].value / 10)", longLookup).toString());
     }
 
     public void testFieldRefOverLong() {
-        assertEquals("b / 10", qe("emit(doc['b'].value / 10l)", longLookup).toString());
+        assertEquals("b / 10", qe("emit(doc['b'].value / 10L)", longLookup).toString());
     }
 
     @AwaitsFix(bugUrl = "plaid")
@@ -99,34 +115,57 @@ public class QueryableExpressionTests extends ScriptTestCase {
         assertEquals("(temp_c * 2) + 32", qe("emit((doc['temp_c'].value * 2l) + 32l)", longLookup).toString());
     }
 
-    private final Function<String, Object> xIs100 = Map.of("x", 100L)::get;
+    private static final Function<String, Object> X_IS_100L = Map.of("x", 100L)::get;
 
-    public void testParams() {
-        assertEquals("1000", qe("emit(params['x'] * 10l)", null, xIs100).toString());
+    public void testParamsMapStyle() {
+        assertEquals("1000", qe("emit(params['x'] * 10L)", null, X_IS_100L).toString());
     }
 
-    public void testParams2() {
-        assertEquals("1000", qe("emit(params.get('x') * 10l)", null, xIs100).toString());
+    public void testParamsMethodStyle() {
+        assertEquals("1000", qe("emit(params.get('x') * 10L)", null, X_IS_100L).toString());
     }
 
-    public void testParams3() {
-        assertEquals("1000", qe("emit(params.x * 10l)", null, xIs100).toString());
+    public void testParamsVarStyle() {
+        assertEquals("1000", qe("emit(params.x * 10L)", null, X_IS_100L).toString());
+    }
+
+    public void testParamsLongPlusLongOverflowing() {
+        // TODO support Long.MAX_VALUE in the script
+        assertEquals(Long.toString(100L + Long.MAX_VALUE), qe("emit(params.x + " + Long.MAX_VALUE + "L)", null, X_IS_100L).toString());
+    }
+
+    private static final Function<String, Object> X_IS_100 = Map.of("x", 100)::get;
+
+    public void testParamsIntTimesInt() {
+        assertEquals("1000", qe("emit(params.x * 10)", null, X_IS_100).toString());
+    }
+
+    public void testParamsIntPlusIntOverflowing() {
+        // TODO support Integer.MAX_VALUE in the script
+        assertEquals(
+            Integer.toString(100 + Integer.MAX_VALUE),
+            qe("emit(params.x + " + Integer.MAX_VALUE + ")", null, X_IS_100).toString()
+        );
+    }
+
+    public void testParamsIntTimesLong() {
+        assertEquals("1000", qe("emit(params.x * 10L)", null, X_IS_100).toString());
     }
 
     public void testParamsMissing() {
-        assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(params.y * 10l)", null, xIs100));
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(params.y * 10L)", null, X_IS_100L));
     }
 
     public void testParamPlusField() {
-        assertEquals("a + 100", qe("emit(doc.a.value + params.x)", longLookup, xIs100).toString());
+        assertEquals("a + 100", qe("emit(doc.a.value + params.x)", longLookup, X_IS_100L).toString());
     }
 
     public void testFor() {
-        assertEquals("1", qe("for(int i = 0; i < doc.a.value; i++) { emit(1l) }", longLookup).toString());
+        assertEquals("1", qe("for(int i = 0; i < doc.a.value; i++) { emit(1L) }", longLookup).toString());
     }
 
     public void testConstAssignment() {
-        assertEquals(QueryableExpression.UNQUERYABLE, qe("def one = 1l; emit(one + 10l)"));
+        assertEquals(QueryableExpression.UNQUERYABLE, qe("def one = 1L; emit(one + 10L)"));
     }
 
     public void testIf() {

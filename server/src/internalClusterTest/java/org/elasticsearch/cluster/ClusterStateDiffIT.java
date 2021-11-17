@@ -597,7 +597,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 2:
                         builder.settings(
-                            Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                            Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         );
                         break;
                     default:

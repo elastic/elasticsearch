@@ -10,7 +10,13 @@ setup:
             properties:
               node:
                 type: keyword
+                fields:
+                  lower:
+                    type: keyword
+                    normalizer: lowercase
               tx:
+                type: long
+              nx:
                 type: long
 
   - do:
@@ -19,19 +25,19 @@ setup:
         index: test
         body:
           - '{"index": {}}'
-          - '{"node": "a", "tx": 2001818691, "nx": 1}'
+          - '{"node": "ALICE", "tx": 2001818691, "nx": 1}'
           - '{"index": {}}'
-          - '{"node": "b", "tx": 2001818691, "nx": 2}'
+          - '{"node": "BOB", "tx": 2001818691, "nx": 2}'
           - '{"index": {}}'
-          - '{"node": "c", "tx": 3001818691, "nx": 3}'
+          - '{"node": "CHAD", "tx": 3001818691, "nx": 3}'
           - '{"index": {}}'
-          - '{"node": "d", "tx": 4001818691, "nx": 4}'
+          - '{"node": "DAN", "tx": 4001818691, "nx": 4}'
           - '{"index": {}}'
-          - '{"node": "e", "tx": 5001818691}'
+          - '{"node": "EVE", "tx": 5001818691}'
           - '{"index": {}}'
-          - '{"node": "f", "tx": 6001818691}'
+          - '{"node": "FRANK", "tx": 6001818691}'
           - '{"index": {}}'
-          - '{"node": "g", "tx": 7001818691}'
+          - '{"node": "GRACE", "tx": 7001818691}'
 
 ---
 constant matching none:
@@ -52,7 +58,7 @@ constant matching none:
   - match: { hits.total.value: 0 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
   - match: { profile.shards.0.searches.0.query.0.description: 'constant:[2 TO 9223372036854775807] approximated by MatchNoDocsQuery("value [0] is not between [2] and [9223372036854775807]")' }
-  # match=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
+  # match_count=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 0 }
 
 ---
@@ -75,7 +81,7 @@ division matching none:
   - match: { hits.total.value: 0 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
   - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[100 TO 200] approximated by tx:[102400 TO 205823]' }
-  # match=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
+  # match_count=0 means we never ran the script because the approximation claimed it couldn't possibly match any documents
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 0 }
 
 ---
@@ -97,7 +103,7 @@ division matching one:
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
   - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[6837713 TO 9223372036854775807] approximated by tx:[7001818112 TO 9223372036854775807]' }
-  # match=1 means we only ever had to run the script one time
+  # match_count=1 means we only ever had to run the script one time
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 1 }
 
 ---
@@ -119,8 +125,50 @@ division matching two:
   - match: { hits.total.value: 2 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
   - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[-9223372036854775808 TO 1954901] approximated by tx:[-9223372036854775808 TO 2001819647]' }
-  # match=1 means we only ever had to run the script twice - once for each possible match
+  # match_count=2 means we only ever had to run the script twice - once for each possible match
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 2 }
+
+---
+substring:
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            node.second_char:
+              type: keyword
+              script: emit(doc.node.value.substring(1, 2))
+              approximate_first: true
+          query:
+            term:
+              node.second_char: A
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.searches.0.query.0.type: StringScriptFieldTermQuery }
+  - match: { profile.shards.0.searches.0.query.0.description: 'node.second_char:A approximated by node:*A*' }
+  # match_count=5 because there are 5 documents with 'a' in node
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 5 }
+
+---
+normalized substring:
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            node.second_char:
+              type: keyword
+              script: emit(doc['node.lower'].value.substring(1, 2))
+              approximate_first: true
+          query:
+            term:
+              node.second_char: a
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.searches.0.query.0.type: StringScriptFieldTermQuery }
+  - match: { profile.shards.0.searches.0.query.0.description: 'node.second_char:a approximated by node.lower:*a*' }
+  # match_count=5 because there are 5 documents with 'a' in node
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 5 }
 
 ---
 any op:
@@ -139,7 +187,7 @@ any op:
               nx.even: 0
   - match: { hits.total.value: 2 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by +ConstantScore(DocValuesFieldExistsQuery [field=nx]) +*:*' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by +DocValuesFieldExistsQuery [field=nx] +*:*' }
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 4 }
 
 ---
@@ -159,7 +207,7 @@ any op two fields:
               nx.even: 0
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by +ConstantScore(DocValuesFieldExistsQuery [field=tx]) +ConstantScore(DocValuesFieldExistsQuery [field=nx])' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by +DocValuesFieldExistsQuery [field=tx] +DocValuesFieldExistsQuery [field=nx]' }
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 4 }
 
 ---

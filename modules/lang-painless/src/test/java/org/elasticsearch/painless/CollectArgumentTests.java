@@ -12,8 +12,10 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.queryableexpression.LongQueryableExpression;
 import org.elasticsearch.queryableexpression.QueryableExpression;
+import org.elasticsearch.queryableexpression.StringQueryableExpression;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.StringFieldScript;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,9 +27,16 @@ public class CollectArgumentTests extends ScriptTestCase {
 
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        return Map.ofEntries(
+            Map.entry(LongFieldScript.CONTEXT, whitelists("long")),
+            Map.entry(StringFieldScript.CONTEXT, whitelists("keyword"))
+        );
+    }
+
+    private List<Whitelist> whitelists(String fieldType) {
         List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.long_field.txt"));
-        return Collections.singletonMap(LongFieldScript.CONTEXT, whitelists);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script." + fieldType + "_field.txt"));
+        return whitelists;
     }
 
     public QueryableExpression qe(String script) {
@@ -172,6 +181,22 @@ public class CollectArgumentTests extends ScriptTestCase {
 
     public void testParamPlusField() {
         assertEquals("a + 100", qe("emit(doc.a.value + params.x)", longLookup, X_IS_100L).toString());
+    }
+
+    private static final Function<String, QueryableExpression> STRING_LOOKUP = field -> StringQueryableExpression.field(field, null);
+
+    public void testString() {
+        assertEquals("a", qe("emit(doc.a.value)", STRING_LOOKUP).toString());
+    }
+
+    public void testSubstring() {
+        assertEquals(
+            "a.substring()",
+            scriptEngine.compile("qe_test", "emit(doc.a.value.substring(0, 5))", StringFieldScript.CONTEXT, Collections.emptyMap())
+                .emitExpression()
+                .build(STRING_LOOKUP, null)
+                .toString()
+        );
     }
 
     public void testFor() {

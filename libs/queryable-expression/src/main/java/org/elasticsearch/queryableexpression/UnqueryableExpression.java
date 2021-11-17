@@ -16,7 +16,7 @@ import java.util.function.LongFunction;
 /**
  * An expression that approximates itself as {@link MatchAllDocsQuery}.
  */
-class UnqueryableExpression implements QueryableExpression, LongQueryableExpression {
+class UnqueryableExpression implements QueryableExpression, LongQueryableExpression, StringQueryableExpression {
     static final UnqueryableExpression UNQUERYABLE = new UnqueryableExpression();
 
     UnqueryableExpression() {}
@@ -52,6 +52,11 @@ class UnqueryableExpression implements QueryableExpression, LongQueryableExpress
     }
 
     @Override
+    public StringQueryableExpression castToString() {
+        return this;
+    }
+
+    @Override
     public QueryableExpression mapNumber(MapNumber map) {
         return this;
     }
@@ -74,6 +79,21 @@ class UnqueryableExpression implements QueryableExpression, LongQueryableExpress
     @Override
     public QueryableExpression mapConstant(LongFunction<QueryableExpression> map) {
         return this;
+    }
+
+    @Override
+    public StringQueryableExpression substring() {
+        return this;
+    }
+
+    @Override
+    public Query approximateTermQuery(String term) {
+        return new MatchAllDocsQuery();
+    }
+
+    @Override
+    public Query approximateSubstringQuery(String term) {
+        return new MatchAllDocsQuery();
     }
 
     @Override

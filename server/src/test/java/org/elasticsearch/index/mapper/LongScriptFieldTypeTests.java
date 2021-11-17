@@ -20,6 +20,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -246,6 +247,19 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         }
     }
 
+    public void testTermWithApproximationDisabled() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1), new LongPoint("foo", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 2), new LongPoint("foo", 2)));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                SearchExecutionContext context = mockContext(true, new NumberFieldMapper.NumberFieldType("foo", NumberType.LONG));
+                MappedFieldType ft = build("foo_plus_five", Map.of(), false);
+                assertCountAndApproximation(searcher, ft.termQuery(6, context), equalTo(1), new MatchAllDocsQuery());
+            }
+        }
+    }
+
     private Query expectedTermApproximationFooLongTimesTen(Query precise) {
         return should(
             precise,
@@ -323,6 +337,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 ft = build("foo_divided_by_ten", Map.of(), true);
                 assertCountAndApproximation(searcher, ft.termQuery(0, context), equalTo(2), longRangeQuery("foo", -9, 9));
                 assertCountAndApproximation(searcher, ft.termQuery(1, context), equalTo(0), longRangeQuery("foo", 10, 19));
+
+                ft = build("ten_over_foo", Map.of(), true);
+                assertCountAndApproximation(searcher, ft.termQuery(10, context), equalTo(1), new DocValuesFieldExistsQuery("foo"));
+                assertCountAndApproximation(searcher, ft.termQuery(5, context), equalTo(1), new DocValuesFieldExistsQuery("foo"));
+                assertCountAndApproximation(searcher, ft.termQuery(0, context), equalTo(0), new DocValuesFieldExistsQuery("foo"));
             }
         }
     }
@@ -469,6 +488,26 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     ft.rangeQuery(0, 1, false, true, ShapeRelation.CONTAINS, null, null, context),
                     equalTo(0),
                     longRangeQuery("foo", 10, 19)
+                );
+
+                ft = build("ten_over_foo", Map.of(), true);
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 10, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(2),
+                    new DocValuesFieldExistsQuery("foo")
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 5, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(1),
+                    new DocValuesFieldExistsQuery("foo")
+                );
+                assertCountAndApproximation(
+                    searcher,
+                    ft.rangeQuery(0, 1, false, true, ShapeRelation.CONTAINS, null, null, context),
+                    equalTo(0),
+                    new DocValuesFieldExistsQuery("foo")
                 );
             }
         }
@@ -691,11 +730,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         assertThat(query, equalTo(expectedQuery));
     }
 
-    private void assertCountAndApproximation(IndexSearcher searcher, Query query, Matcher<Integer> count, Query expectedApproximation)
+    public static void assertCountAndApproximation(IndexSearcher searcher, Query query, Matcher<Integer> count, Query expectedApproximation)
         throws IOException {
         assertThat(searcher.count(query), count);
         assertThat(query, instanceOf(AbstractScriptFieldQuery.class));
 
+        expectedApproximation = searcher.rewrite(expectedApproximation);
         assertThat(((AbstractScriptFieldQuery<?>) searcher.rewrite(query)).approximation(), equalTo(expectedApproximation));
     }
 
@@ -845,6 +885,25 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                             QueryableExpressionBuilder.field("foo"),
                             QueryableExpressionBuilder.constant(10L)
                         );
+                    }
+                };
+            case "ten_over_foo":
+                return new LongFieldScript.Factory() {
+                    @Override
+                    public LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup lookup) {
+                        return (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                            @Override
+                            public void execute() {
+                                for (long foo : (ScriptDocValues.Longs) getDoc().get("foo")) {
+                                    emit(10 / foo);
+                                }
+                            }
+                        };
+                    }
+
+                    @Override
+                    public QueryableExpressionBuilder emitExpression() {
+                        return QueryableExpressionBuilder.unknownOp(QueryableExpressionBuilder.field("foo"));
                     }
                 };
             case "add_param":

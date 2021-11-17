@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
@@ -68,6 +69,10 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+
+        default QueryableExpressionBuilder emitExpression() {
+            return QueryableExpressionBuilder.UNQUERYABLE;
+        }
     }
 
     public interface LeafFactory {

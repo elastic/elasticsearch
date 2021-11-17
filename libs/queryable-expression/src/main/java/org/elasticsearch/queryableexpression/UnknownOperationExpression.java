@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 /**
  * Approximates a script performing an unknown operation on a field with an `exists` query.
  */
-public class UnknownOperationExpression implements QueryableExpression, LongQueryableExpression {
+public class UnknownOperationExpression implements QueryableExpression, LongQueryableExpression, StringQueryableExpression {
 
     private final List<QueryableExpression> args;
 
@@ -58,6 +58,11 @@ public class UnknownOperationExpression implements QueryableExpression, LongQuer
     }
 
     @Override
+    public StringQueryableExpression castToString() {
+        return this;
+    }
+
+    @Override
     public QueryableExpression mapNumber(MapNumber map) {
         return this;
     }
@@ -65,9 +70,7 @@ public class UnknownOperationExpression implements QueryableExpression, LongQuer
     @Override
     public Query approximateExists() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        args.stream()
-            .map(QueryableExpression::approximateExists)
-            .forEach(query -> builder.add(query, BooleanClause.Occur.MUST));
+        args.stream().map(QueryableExpression::approximateExists).forEach(query -> builder.add(query, BooleanClause.Occur.MUST));
         return builder.build();
     }
 
@@ -83,6 +86,21 @@ public class UnknownOperationExpression implements QueryableExpression, LongQuer
 
     @Override
     public QueryableExpression mapConstant(LongFunction<QueryableExpression> map) {
+        return this;
+    }
+
+    @Override
+    public Query approximateTermQuery(String term) {
+        return approximateExists();
+    }
+
+    @Override
+    public Query approximateSubstringQuery(String term) {
+        return approximateExists();
+    }
+
+    @Override
+    public StringQueryableExpression substring() {
         return this;
     }
 

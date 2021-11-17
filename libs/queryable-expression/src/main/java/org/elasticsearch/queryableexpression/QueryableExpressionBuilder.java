@@ -61,6 +61,10 @@ public interface QueryableExpressionBuilder {
         return (lookup, params) -> lhs.build(lookup, params).divide(rhs.build(lookup, params));
     }
 
+    static QueryableExpressionBuilder substring(QueryableExpressionBuilder target) {
+        return (lookup, params) -> target.build(lookup, params).castToString().substring();
+    }
+
     private static QueryableExpression buildConstant(Object c) {
         if (c instanceof Long) {
             return new AbstractLongQueryableExpression.Constant((Long) c);
@@ -70,5 +74,4 @@ public interface QueryableExpressionBuilder {
         }
         return QueryableExpression.UNQUERYABLE;
     }
-
 }

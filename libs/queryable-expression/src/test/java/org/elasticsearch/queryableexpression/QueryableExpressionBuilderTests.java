@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
-public class DelayedQueryableExpressionTests extends ESTestCase {
+public class QueryableExpressionBuilderTests extends ESTestCase {
     public void testConstantLong() {
         long n = randomLong();
         QueryableExpression e = QueryableExpressionBuilder.constant(n).build(null, null);

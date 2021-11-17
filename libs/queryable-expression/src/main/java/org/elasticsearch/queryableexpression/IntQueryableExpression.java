@@ -11,7 +11,7 @@ package org.elasticsearch.queryableexpression;
 import java.util.function.IntFunction;
 
 /**
- * {@code long} flavored expression.
+ * {@code int} flavored expression.
  */
 public interface IntQueryableExpression extends QueryableExpression {
     /**

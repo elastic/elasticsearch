@@ -34,6 +34,8 @@ public interface QueryableExpression {
 
     LongQueryableExpression castToLong();
 
+    StringQueryableExpression castToString();
+
     interface MapNumber {
         QueryableExpression withLong(LongQueryableExpression lqe);
 

@@ -25,7 +25,6 @@ import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,9 +37,6 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestCase {
 
@@ -178,34 +174,12 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     protected abstract Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx);
 
-    protected static SearchExecutionContext mockContext() {
-        return mockContext(true);
-    }
-
-    protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
-        return mockContext(allowExpensiveQueries, null);
-    }
-
     protected boolean supportsTermQueries() {
         return true;
     }
 
     protected boolean supportsRangeQueries() {
         return true;
-    }
-
-    protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        SearchExecutionContext context = mock(SearchExecutionContext.class);
-        if (mappedFieldType != null) {
-            when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
-        }
-        when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        SearchLookup lookup = new SearchLookup(
-            context::getFieldType,
-            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
-        );
-        when(context.lookup()).thenReturn(lookup);
-        return context;
     }
 
     public void testExistsQueryIsExpensive() {

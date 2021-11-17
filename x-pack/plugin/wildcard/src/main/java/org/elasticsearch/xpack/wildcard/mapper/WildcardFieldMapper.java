@@ -35,6 +35,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
@@ -64,6 +65,8 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.QueryableExpression;
+import org.elasticsearch.queryableexpression.StringQueryableExpression;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
@@ -853,6 +856,69 @@ public class WildcardFieldMapper extends FieldMapper {
             };
         }
 
+        @Override
+        public QueryableExpression asQueryableExpression(SearchExecutionContext context) {
+            if (false == isSearchable()) {
+                throw new IllegalStateException("Wildcard fields are always searchable.");
+            }
+            return StringQueryableExpression.field(name(), new StringQueryableExpression.Queries() {
+                @Override
+                public Query approximateExists() {
+                    return existsQuery(context);
+                }
+
+                @Override
+                public Query approximateTermQuery(String term) {
+                    // A term query without any rechecking. The script will recheck.
+                    Set<String> ngrams = new HashSet<>();
+                    getNgramTokens(ngrams, addLineEndChars(term));
+
+                    BooleanQuery.Builder approximation = new BooleanQuery.Builder();
+                    int clauseCount = 0;
+                    for (String string : ngrams) {
+                        if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                            break;
+                        }
+                        addClause(string, approximation, Occur.MUST);
+                        clauseCount++;
+                    }
+                    if (clauseCount == 0) {
+                        return new MatchAllDocsQuery();
+                    }
+
+                    return approximation.build();
+                }
+
+                @Override
+                public Query approximateSubstringQuery(String term) {
+                    if (false == UnicodeUtil.validUTF16String(term)) {
+                        return new MatchAllDocsQuery();
+                    }
+                    Set<String> ngrams = new HashSet<>();
+                    getNgramTokens(ngrams, term);
+
+                    BooleanQuery.Builder approximation = new BooleanQuery.Builder();
+                    int clauseCount = 0;
+                    for (String string : ngrams) {
+                        if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                            break;
+                        }
+                        if (string.length() < NGRAM_SIZE) {
+                            continue;
+                        }
+                        // We're not using addClause here because the
+                        TermQuery tq = new TermQuery(new Term(name(), string));
+                        approximation.add(new BooleanClause(tq, Occur.MUST));
+                        clauseCount++;
+                    }
+                    if (clauseCount == 0) {
+                        return new MatchAllDocsQuery();
+                    }
+
+                    return approximation.build();
+                }
+            });
+        }
     }
 
     private final int ignoreAbove;

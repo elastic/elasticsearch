@@ -18,11 +18,15 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -37,6 +41,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.queryableexpression.QueryableExpression;
+import org.elasticsearch.queryableexpression.StringQueryableExpression;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.StringFieldScript;
@@ -501,6 +507,32 @@ public final class KeywordFieldMapper extends FieldMapper {
                 );
             }
         }
+
+        @Override
+        public QueryableExpression asQueryableExpression(SearchExecutionContext context) {
+            if (false == isSearchable()) {
+                return QueryableExpression.UNQUERYABLE;
+            }
+            return StringQueryableExpression.field(name(), new StringQueryableExpression.Queries() {
+                @Override
+                public Query approximateExists() {
+                    return existsQuery(context);
+                }
+
+                @Override
+                public Query approximateTermQuery(String term) {
+                    return termQuery(term, context);
+                }
+
+                @Override
+                public Query approximateSubstringQuery(String term) {
+                    if (false == UnicodeUtil.validUTF16String(term)) {
+                        return new MatchAllDocsQuery();
+                    }
+                    return new SubstringQuery(new Term(name(), indexedValueForSearch(term)));
+                }
+            });
+        }
     }
 
     /** The maximum keyword length allowed for a dimension field */
@@ -673,5 +705,22 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
+    }
+
+    static class SubstringQuery extends AutomatonQuery {
+        SubstringQuery(Term term) {
+            super(
+                term,
+                Operations.concatenate(List.of(Automata.makeAnyString(), Automata.makeBinary(term.bytes()), Automata.makeAnyString()))
+            );
+        }
+
+        @Override
+        public String toString(String field) {
+            if (term.field().equals(field)) {
+                return term.text();
+            }
+            return term.field() + ":*" + term.text() + "*";
+        }
     }
 }

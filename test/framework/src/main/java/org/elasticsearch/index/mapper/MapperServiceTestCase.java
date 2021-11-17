@@ -79,7 +79,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Test case that lets you easilly build {@link MapperService} based on some
@@ -561,5 +563,27 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
         return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+    }
+
+    public static SearchExecutionContext mockContext() {
+        return mockContext(true);
+    }
+
+    public static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
+        return mockContext(allowExpensiveQueries, null);
+    }
+
+    public static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        if (mappedFieldType != null) {
+            when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
+        }
+        when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        SearchLookup lookup = new SearchLookup(
+            context::getFieldType,
+            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+        );
+        when(context.lookup()).thenReturn(lookup);
+        return context;
     }
 }

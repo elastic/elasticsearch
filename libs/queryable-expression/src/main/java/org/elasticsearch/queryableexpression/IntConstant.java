@@ -89,6 +89,11 @@ class IntConstant implements QueryableExpression, IntQueryableExpression {
     }
 
     @Override
+    public StringQueryableExpression castToString() {
+        return UnqueryableExpression.UNQUERYABLE;
+    }
+
+    @Override
     public QueryableExpression mapConstant(IntFunction<QueryableExpression> map) {
         return map.apply(n);
     }

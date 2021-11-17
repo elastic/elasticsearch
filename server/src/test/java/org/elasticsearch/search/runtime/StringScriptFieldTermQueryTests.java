@@ -25,21 +25,36 @@ import static org.hamcrest.Matchers.equalTo;
 public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldTermQuery> {
     @Override
     protected StringScriptFieldTermQuery createTestInstance() {
-        return new StringScriptFieldTermQuery(randomScript(), leafFactory, randomAlphaOfLength(5), randomAlphaOfLength(6), randomBoolean());
+        return new StringScriptFieldTermQuery(
+            randomScript(),
+            randomAlphaOfLength(5),
+            randomApproximation(),
+            leafFactory::newInstance,
+            randomAlphaOfLength(6),
+            randomBoolean()
+        );
     }
 
     @Override
     protected StringScriptFieldTermQuery copy(StringScriptFieldTermQuery orig) {
-        return new StringScriptFieldTermQuery(orig.script(), leafFactory, orig.fieldName(), orig.term(), orig.caseInsensitive());
+        return new StringScriptFieldTermQuery(
+            orig.script(),
+            orig.fieldName(),
+            orig.approximation(),
+            leafFactory::newInstance,
+            orig.term(),
+            orig.caseInsensitive()
+        );
     }
 
     @Override
     protected StringScriptFieldTermQuery mutate(StringScriptFieldTermQuery orig) {
         Script script = orig.script();
         String fieldName = orig.fieldName();
+        Query approximation = orig.approximation();
         String term = orig.term();
         boolean caseInsensitive = orig.caseInsensitive();
-        switch (randomInt(3)) {
+        switch (randomInt(4)) {
             case 0:
                 script = randomValueOtherThan(script, this::randomScript);
                 break;
@@ -47,26 +62,43 @@ public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQu
                 fieldName += "modified";
                 break;
             case 2:
-                term += "modified";
+                approximation = randomValueOtherThan(approximation, this::randomApproximation);
                 break;
             case 3:
+                term += "modified";
+                break;
+            case 4:
                 caseInsensitive = caseInsensitive == false;
                 break;
             default:
                 fail();
         }
-        return new StringScriptFieldTermQuery(script, leafFactory, fieldName, term, caseInsensitive);
+        return new StringScriptFieldTermQuery(script, fieldName, approximation, leafFactory::newInstance, term, caseInsensitive);
     }
 
     @Override
     public void testMatches() {
-        StringScriptFieldTermQuery query = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo", false);
+        StringScriptFieldTermQuery query = new StringScriptFieldTermQuery(
+            randomScript(),
+            "test",
+            randomApproximation(),
+            leafFactory::newInstance,
+            "foo",
+            false
+        );
         assertTrue(query.matches(List.of("foo")));
         assertFalse(query.matches(List.of("foO")));
         assertFalse(query.matches(List.of("bar")));
         assertTrue(query.matches(List.of("foo", "bar")));
 
-        StringScriptFieldTermQuery ciQuery = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo", true);
+        StringScriptFieldTermQuery ciQuery = new StringScriptFieldTermQuery(
+            randomScript(),
+            "test",
+            randomApproximation(),
+            leafFactory::newInstance,
+            "foo",
+            true
+        );
         assertTrue(ciQuery.matches(List.of("Foo")));
         assertTrue(ciQuery.matches(List.of("fOo", "bar")));
 
@@ -74,7 +106,7 @@ public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQu
 
     @Override
     protected void assertToString(StringScriptFieldTermQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo(query.term()));
+        assertThat(query.toString(query.fieldName()), equalTo(query.term() + " approximated by " + query.approximation()));
     }
 
     @Override

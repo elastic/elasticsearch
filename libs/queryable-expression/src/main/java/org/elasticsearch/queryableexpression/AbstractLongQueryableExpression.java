@@ -23,11 +23,6 @@ import java.util.function.LongFunction;
  */
 abstract class AbstractLongQueryableExpression implements LongQueryableExpression {
     @Override
-    public LongQueryableExpression castToLong() {
-        return this;
-    }
-
-    @Override
     public QueryableExpression mapNumber(MapNumber map) {
         return map.withLong(this);
     }
@@ -52,6 +47,16 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
     }
 
     protected abstract QueryableExpression divide(LongQueryableExpression rhs);
+
+    @Override
+    public LongQueryableExpression castToLong() {
+        return this;
+    }
+
+    @Override
+    public StringQueryableExpression castToString() {
+        return UnqueryableExpression.UNQUERYABLE;
+    }
 
     @Override
     public abstract String toString();

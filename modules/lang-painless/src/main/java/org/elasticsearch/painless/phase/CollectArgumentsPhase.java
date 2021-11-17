@@ -86,6 +86,21 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
             }
         }
 
+        if (irBinaryImplNode.getRightNode() instanceof InvokeCallDefNode) {
+            InvokeCallDefNode call = (InvokeCallDefNode) irBinaryImplNode.getRightNode();
+            String name = call.getDecorationValue(IRDName.class);
+            if (name.equals("substring")) {
+                /*
+                 * The left node push the thing we're substringing
+                 * the stack. Ignore the right node because that's the
+                 * arguments and we're not using those.
+                 */
+                irBinaryImplNode.getLeftNode().visit(this, scope);
+                scope.consume(target -> QueryableExpressionBuilder.substring(target));
+                return;
+            }
+        }
+
         super.visitBinaryImpl(irBinaryImplNode, scope);
         scope.consume(e -> QueryableExpressionBuilder.unknownOp(e));
     }

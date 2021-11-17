@@ -16,5 +16,5 @@ class org.elasticsearch.script.StringFieldScript$Factory @no_import {
 
 static_import {
     # The `emit` callback to collect values for the field
-    void emit(org.elasticsearch.script.StringFieldScript, String) bound_to org.elasticsearch.script.StringFieldScript$Emit
+    void emit(org.elasticsearch.script.StringFieldScript, String) bound_to org.elasticsearch.script.StringFieldScript$Emit @collect_argument[target="emitExpression"]
 }

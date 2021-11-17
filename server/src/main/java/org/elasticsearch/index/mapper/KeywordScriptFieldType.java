@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -15,10 +16,13 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.StringFieldScript.LeafFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
@@ -30,7 +34,9 @@ import org.elasticsearch.search.runtime.StringScriptFieldTermsQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -44,6 +50,13 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
     private static class Builder extends AbstractScriptFieldType.Builder<StringFieldScript.Factory> {
+        private final Parameter<Boolean> approximateFirst = Parameter.boolParam(
+            "approximate_first",
+            false,
+            RuntimeField.initializerNotSupported(),
+            false
+        );
+
         Builder(String name) {
             super(name, StringFieldScript.CONTEXT);
         }
@@ -55,7 +68,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             Script script,
             Map<String, String> meta
         ) {
-            return new KeywordScriptFieldType(name, factory, script, meta);
+            return new KeywordScriptFieldType(name, factory, script, approximateFirst.get(), meta);
         }
 
         @Override
@@ -67,20 +80,40 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         StringFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
             return StringFieldScript.leafAdapter(parentScriptFactory);
         }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            List<Parameter<?>> parameters = new ArrayList<>(super.getParameters());
+            parameters.add(approximateFirst);
+            return parameters;
+        }
     }
 
     public static RuntimeField sourceOnly(String name) {
         return new Builder(name).createRuntimeField(StringFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
-        super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
-            script,
-            scriptFactory.isResultDeterministic(),
-            meta
-        );
+    private final boolean approximateFirst;
+
+    public KeywordScriptFieldType(
+        String name,
+        StringFieldScript.Factory scriptFactory,
+        Script script,
+        boolean approximateFirst,
+        Map<String, String> meta
+    ) {
+        super(name, new Factory<StringFieldScript.LeafFactory>() {
+            @Override
+            public LeafFactory leafFactory(SearchLookup lookup) {
+                return scriptFactory.newFactory(name, script.getParams(), lookup);
+            }
+
+            @Override
+            public QueryableExpression queryableExpression(Function<String, QueryableExpression> lookup) {
+                return scriptFactory.emitExpression().build(lookup, script.getParams()::get);
+            }
+        }, script, scriptFactory.isResultDeterministic(), meta);
+        this.approximateFirst = approximateFirst;
     }
 
     @Override
@@ -187,8 +220,9 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         applyScriptContext(context);
         return new StringScriptFieldTermQuery(
             script,
-            leafFactory(context),
             name(),
+            new MatchAllDocsQuery(),
+            leafFactory(context)::newInstance,
             BytesRefs.toString(Objects.requireNonNull(value)),
             true
         );
@@ -197,13 +231,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
         applyScriptContext(context);
-        return new StringScriptFieldTermQuery(
-            script,
-            leafFactory(context),
-            name(),
-            BytesRefs.toString(Objects.requireNonNull(value)),
-            false
-        );
+        String term = BytesRefs.toString(Objects.requireNonNull(value));
+        Query approximation = approximateFirst
+            ? queryableExpression(context).castToString().approximateTermQuery(term)
+            : new MatchAllDocsQuery();
+        return new StringScriptFieldTermQuery(script, name(), approximation, leafFactory(context)::newInstance, term, false);
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.spi.annotation.CollectArgumentAnnotation;
 import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 
 import java.util.ArrayDeque;
@@ -18,15 +19,15 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
- * Tracks information for building the QueryableExpression of a script.
+ * Collection of arguments for methods annotated with {@link CollectArgumentAnnotation}.
  */
-public class QueryableExpressionScope {
+public class CollectArgumentsScope {
     private final Map<String, QueryableExpressionBuilder> collectedArguments = new HashMap<>();
     private final Deque<QueryableExpressionBuilder> expressionStack;
 
     private String currentTarget;
 
-    public QueryableExpressionScope() {
+    public CollectArgumentsScope() {
         this.expressionStack = new ArrayDeque<>();
     }
 

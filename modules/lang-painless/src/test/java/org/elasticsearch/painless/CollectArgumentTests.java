@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public class QueryableExpressionTests extends ScriptTestCase {
+public class CollectArgumentTests extends ScriptTestCase {
 
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {

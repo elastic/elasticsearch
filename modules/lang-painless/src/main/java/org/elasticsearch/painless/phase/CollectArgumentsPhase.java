@@ -22,16 +22,16 @@ import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.spi.annotation.CollectArgumentAnnotation;
 import org.elasticsearch.painless.symbol.IRDecorations;
-import org.elasticsearch.painless.symbol.QueryableExpressionScope;
+import org.elasticsearch.painless.symbol.CollectArgumentsScope;
 import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
 
 /**
- * Constructs the QueryableExpression if possible.
+ * Collects arguments for methods annotated with {@link CollectArgumentAnnotation}.
  */
-public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<QueryableExpressionScope> {
+public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsScope> {
 
     @Override
-    public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, QueryableExpressionScope scope) {
+    public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, CollectArgumentsScope scope) {
         PainlessClassBinding irdBinding = irInvokeCallMemberNode.getDecorationValue(IRDecorations.IRDClassBinding.class);
 
         if (irdBinding != null) {
@@ -52,7 +52,7 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
     }
 
     @Override
-    public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, QueryableExpressionScope scope) {
+    public void visitBinaryImpl(BinaryImplNode irBinaryImplNode, CollectArgumentsScope scope) {
         if (irBinaryImplNode.getLeftNode() instanceof BinaryImplNode) {
             ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode());
             if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
@@ -134,7 +134,7 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
     }
 
     @Override
-    public void visitConstant(ConstantNode irConstantNode, QueryableExpressionScope scope) {
+    public void visitConstant(ConstantNode irConstantNode, CollectArgumentsScope scope) {
         Object value = irConstantNode.getDecorationValue(IRDecorations.IRDConstant.class);
         if (scope.push(QueryableExpressionBuilder.constant(value))) {
             return;
@@ -144,7 +144,7 @@ public class QueryableExpressionCollectionPhase extends IRTreeBaseVisitor<Querya
     }
 
     @Override
-    public void visitBinaryMath(BinaryMathNode irBinaryMathNode, QueryableExpressionScope scope) {
+    public void visitBinaryMath(BinaryMathNode irBinaryMathNode, CollectArgumentsScope scope) {
         super.visitBinaryMath(irBinaryMathNode, scope);
 
         Operation operation = irBinaryMathNode.getDecorationValue(IRDecorations.IRDOperation.class);

@@ -36,7 +36,7 @@ public class ScriptScope extends Decorator {
     protected boolean deterministic = true;
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
-    protected QueryableExpressionScope queryableExpressionScope = new QueryableExpressionScope();
+    protected CollectArgumentsScope queryableExpressionScope = new CollectArgumentsScope();
 
     public ScriptScope(
         PainlessLookup painlessLookup,
@@ -117,7 +117,7 @@ public class ScriptScope extends Decorator {
         return Collections.unmodifiableMap(staticConstants);
     }
 
-    public QueryableExpressionScope getQueryableExpressionScope() {
+    public CollectArgumentsScope getQueryableExpressionScope() {
         return queryableExpressionScope;
     }
 

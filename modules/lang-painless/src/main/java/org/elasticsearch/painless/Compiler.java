@@ -21,7 +21,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.PainlessUserTreeToIRTreePhase;
-import org.elasticsearch.painless.phase.QueryableExpressionCollectionPhase;
+import org.elasticsearch.painless.phase.CollectArgumentsPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
@@ -220,7 +220,7 @@ final class Compiler {
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         if (painlessLookup.collectArgumentsTargetMethods().isEmpty() == false) {
-            new QueryableExpressionCollectionPhase().visitClass(classNode, scriptScope.getQueryableExpressionScope());
+            new CollectArgumentsPhase().visitClass(classNode, scriptScope.getQueryableExpressionScope());
         }
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
         byte[] bytes = classNode.getBytes();

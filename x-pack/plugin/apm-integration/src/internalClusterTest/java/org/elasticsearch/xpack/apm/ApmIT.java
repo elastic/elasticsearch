@@ -30,13 +30,16 @@ import org.elasticsearch.tasks.TaskTracer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -53,6 +56,11 @@ public class ApmIT extends ESIntegTestCase {
         secureSettings.setString(APMTracer.APM_ENDPOINT_SETTING.getKey(), System.getProperty("tests.apm.endpoint", ""));
         secureSettings.setString(APMTracer.APM_TOKEN_SETTING.getKey(), System.getProperty("tests.apm.token", ""));
         return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).setSecureSettings(secureSettings).build();
+    }
+
+    @After
+    public void clearRecordedSpans() {
+        APMTracer.CAPTURING_SPAN_EXPORTER.clear();
     }
 
     public void testModule() {
@@ -80,6 +88,25 @@ public class ApmIT extends ESIntegTestCase {
             }
         }
         assertTrue(found);
+    }
+
+    public void testRecordsNestedSpans() {
+
+        APMTracer.CAPTURING_SPAN_EXPORTER.clear();// removing start related events
+
+        client().admin().cluster().prepareListTasks().get();
+
+        var parentTasks = APMTracer.CAPTURING_SPAN_EXPORTER.findSpanByName("cluster:monitor/tasks/lists").collect(toList());
+        assertThat(parentTasks, hasSize(1));
+        var parentTask = parentTasks.get(0);
+        assertThat(parentTask.getParentSpanId(), equalTo("0000000000000000"));
+
+        var childrenTasks = APMTracer.CAPTURING_SPAN_EXPORTER.findSpanByName("cluster:monitor/tasks/lists[n]").collect(toList());
+        assertThat(childrenTasks, hasSize(internalCluster().size()));
+        for (SpanData childrenTask : childrenTasks) {
+            assertThat(childrenTask.getParentSpanId(), equalTo(parentTask.getSpanId()));
+            assertThat(childrenTask.getTraceId(), equalTo(parentTask.getTraceId()));
+        }
     }
 
     public void testSearch() throws Exception {

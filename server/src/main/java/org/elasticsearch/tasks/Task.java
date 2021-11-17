@@ -32,8 +32,14 @@ public class Task implements TracingPlugin.Traceable {
      * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
      * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
      * has to be declared as a header copied over from http request.
+     * May also be used internally when apm plugin is enabled.
      */
     public static final String TRACE_PARENT = "traceparent";
+
+    /**
+     * Is used internally to pass the apm trace context between the nodes
+     */
+    public static final String TRACE_STATE = "tracestate";
 
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.

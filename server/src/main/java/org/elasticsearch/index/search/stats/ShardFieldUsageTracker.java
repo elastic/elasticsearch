@@ -48,10 +48,22 @@ public class ShardFieldUsageTracker {
         for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
             InternalFieldStats ifs = entry.getValue();
             if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {
-                PerFieldUsageStats pf = new PerFieldUsageStats(ifs.any.longValue(), ifs.proximity.longValue(), ifs.terms.longValue(),
-                    ifs.postings.longValue(), ifs.termFrequencies.longValue(), ifs.positions.longValue(), ifs.offsets.longValue(),
-                    ifs.docValues.longValue(), ifs.storedFields.longValue(), ifs.norms.longValue(), ifs.payloads.longValue(),
-                    ifs.termVectors.longValue(), ifs.points.longValue());
+                PerFieldUsageStats pf = new PerFieldUsageStats(
+                    ifs.any.longValue(),
+                    ifs.proximity.longValue(),
+                    ifs.terms.longValue(),
+                    ifs.postings.longValue(),
+                    ifs.termFrequencies.longValue(),
+                    ifs.positions.longValue(),
+                    ifs.offsets.longValue(),
+                    ifs.docValues.longValue(),
+                    ifs.storedFields.longValue(),
+                    ifs.norms.longValue(),
+                    ifs.payloads.longValue(),
+                    ifs.termVectors.longValue(),
+                    ifs.points.longValue(),
+                    ifs.knnVectors.longValue()
+                );
                 stats.put(entry.getKey(), pf);
             }
         }
@@ -72,6 +84,7 @@ public class ShardFieldUsageTracker {
         final LongAdder payloads = new LongAdder();
         final LongAdder termVectors = new LongAdder();
         final LongAdder points = new LongAdder();
+        final LongAdder knnVectors = new LongAdder();
     }
 
     static class PerField {
@@ -87,6 +100,7 @@ public class ShardFieldUsageTracker {
         volatile boolean payloads;
         volatile boolean termVectors;
         volatile boolean points;
+        volatile boolean knnVectors;
     }
 
     public class FieldUsageStatsTrackingSession implements FieldUsageNotifier, Releasable {
@@ -147,6 +161,10 @@ public class ShardFieldUsageTracker {
                 if (pf.termVectors) {
                     any = true;
                     fieldStats.termVectors.increment();
+                }
+                if (pf.knnVectors) {
+                    any = true;
+                    fieldStats.knnVectors.increment();
                 }
                 if (any) {
                     fieldStats.any.increment();
@@ -215,6 +233,11 @@ public class ShardFieldUsageTracker {
         @Override
         public void onTermVectorsUsed(String field) {
             getOrAdd(field).termVectors = true;
+        }
+
+        @Override
+        public void onKnnVectorsUsed(String field) {
+            getOrAdd(field).knnVectors = true;
         }
     }
 }

@@ -14,7 +14,7 @@ import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.isQualified;
 import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.qualifyAndJoinIndices;
 import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
 
-public class RemoteClusterUtilsTests  extends ESTestCase {
+public class RemoteClusterUtilsTests extends ESTestCase {
     public void testSplitQualifiedIndex() {
         String cluster = randomAlphaOfLength(20);
         String index = randomAlphaOfLength(30);
@@ -22,7 +22,7 @@ public class RemoteClusterUtilsTests  extends ESTestCase {
     }
 
     public void testQualifyAndJoinIndices() {
-        String[] indices = {"foo", "bar", "bar*", "*foo"};
+        String[] indices = { "foo", "bar", "bar*", "*foo" };
         assertEquals("cluster:foo,cluster:bar,cluster:bar*,cluster:*foo", qualifyAndJoinIndices("cluster", indices));
     }
 

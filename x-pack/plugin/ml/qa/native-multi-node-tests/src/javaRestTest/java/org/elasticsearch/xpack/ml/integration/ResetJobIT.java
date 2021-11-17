@@ -41,8 +41,11 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = createJob("test-reset", bucketSpan);
 
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount + 1, bucketIndex -> randomIntBetween(100, 200))
-            .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, bucketCount + 1, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
         closeJob(job.getId());
 
         List<Bucket> buckets = getBuckets(job.getId());

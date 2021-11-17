@@ -216,7 +216,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<Boolean> CACHE_REPOSITORY_DATA = Setting.boolSetting(
         "cache_repository_data",
         true,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -275,6 +275,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
+        (repoName, parser) -> IndexMetadata.Builder.legacyFromXContent(parser),
         (repoName, parser) -> IndexMetadata.fromXContent(parser)
     );
 
@@ -2979,7 +2980,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final boolean added = ongoingRestores.add(shardId);
             assert added : "add restore for [" + shardId + "] that already has an existing restore";
         }
-        executor.execute(ActionRunnable.wrap(ActionListener.runAfter(restoreListener, () -> {
+        executor.execute(ActionRunnable.wrap(ActionListener.runBefore(restoreListener, () -> {
             final List<ActionListener<Void>> onEmptyListeners;
             synchronized (ongoingRestores) {
                 if (ongoingRestores.remove(shardId) && ongoingRestores.isEmpty() && emptyListeners != null) {

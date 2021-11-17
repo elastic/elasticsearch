@@ -46,10 +46,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch conversion = new Batch("Mapping",
-                new JoinMapper(),
-                new SimpleExecMapper()
-                );
+        Batch conversion = new Batch("Mapping", new JoinMapper(), new SimpleExecMapper());
 
         return Arrays.asList(conversion);
     }
@@ -127,11 +124,10 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         }
 
         private PhysicalPlan join(Join join) {
-            //TODO: pick up on nested/parent-child docs
+            // TODO: pick up on nested/parent-child docs
             // 2. Hash?
             // 3. Cartesian
             // 3. Fallback to nested loop
-
 
             throw new UnsupportedOperationException("Don't know how to handle join " + join.nodeString());
         }

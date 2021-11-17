@@ -30,12 +30,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.internal.util.collections.Sets;
 
 import java.io.IOException;
@@ -57,15 +57,13 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         PutRepositoryRequest request = new PutRepositoryRequest(repository);
         request.settings(settings, XContentType.JSON);
         request.type(type);
-        return execute(request, highLevelClient().snapshot()::createRepository,
-                highLevelClient().snapshot()::createRepositoryAsync);
+        return execute(request, highLevelClient().snapshot()::createRepository, highLevelClient().snapshot()::createRepositoryAsync);
     }
 
     private CreateSnapshotResponse createTestSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         // assumes the repository already exists
 
-        return execute(createSnapshotRequest, highLevelClient().snapshot()::create,
-                highLevelClient().snapshot()::createAsync);
+        return execute(createSnapshotRequest, highLevelClient().snapshot()::create, highLevelClient().snapshot()::createAsync);
     }
 
     public void testCreateRepository() throws IOException {
@@ -79,9 +77,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
-        request.repositories(new String[]{testRepository});
-        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
-                highLevelClient().snapshot()::getRepositoryAsync);
+        request.repositories(new String[] { testRepository });
+        GetRepositoriesResponse response = execute(
+            request,
+            highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync
+        );
         assertThat(1, equalTo(response.repositories().size()));
     }
 
@@ -89,20 +90,27 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
         assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
-        GetRepositoriesResponse response = execute(new GetRepositoriesRequest(), highLevelClient().snapshot()::getRepository,
-                highLevelClient().snapshot()::getRepositoryAsync);
+        GetRepositoriesResponse response = execute(
+            new GetRepositoriesRequest(),
+            highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync
+        );
         assertThat(2, equalTo(response.repositories().size()));
     }
 
     public void testSnapshotGetRepositoriesNonExistent() {
         String repository = "doesnotexist";
-        GetRepositoriesRequest request = new GetRepositoriesRequest(new String[]{repository});
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(request,
-                highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync));
+        GetRepositoriesRequest request = new GetRepositoriesRequest(new String[] { repository });
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> execute(request, highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync)
+        );
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(exception.getMessage(), equalTo(
-                "Elasticsearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo("Elasticsearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]")
+        );
     }
 
     public void testSnapshotDeleteRepository() throws IOException {
@@ -110,13 +118,19 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
-        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
-                highLevelClient().snapshot()::getRepositoryAsync);
+        GetRepositoriesResponse response = execute(
+            request,
+            highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync
+        );
         assertThat(1, equalTo(response.repositories().size()));
 
         DeleteRepositoryRequest deleteRequest = new DeleteRepositoryRequest(repository);
-        AcknowledgedResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
-                highLevelClient().snapshot()::deleteRepositoryAsync);
+        AcknowledgedResponse deleteResponse = execute(
+            deleteRequest,
+            highLevelClient().snapshot()::deleteRepository,
+            highLevelClient().snapshot()::deleteRepositoryAsync
+        );
 
         assertTrue(deleteResponse.isAcknowledged());
     }
@@ -126,8 +140,11 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
-        VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
-                highLevelClient().snapshot()::verifyRepositoryAsync);
+        VerifyRepositoryResponse response = execute(
+            request,
+            highLevelClient().snapshot()::verifyRepository,
+            highLevelClient().snapshot()::verifyRepositoryAsync
+        );
         assertThat(response.getNodes().size(), equalTo(1));
     }
 
@@ -136,8 +153,11 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         CleanupRepositoryRequest request = new CleanupRepositoryRequest("test");
-        CleanupRepositoryResponse response = execute(request, highLevelClient().snapshot()::cleanupRepository,
-            highLevelClient().snapshot()::cleanupRepositoryAsync);
+        CleanupRepositoryResponse response = execute(
+            request,
+            highLevelClient().snapshot()::cleanupRepository,
+            highLevelClient().snapshot()::cleanupRepositoryAsync
+        );
         assertThat(response.result().bytes(), equalTo(0L));
         assertThat(response.result().blobs(), equalTo(0L));
     }
@@ -169,8 +189,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         if (waitForCompletion == false) {
             // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
             AcknowledgedResponse deleteResponse = execute(
-                    new DeleteSnapshotRequest(repository, snapshot),
-                    highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+                new DeleteSnapshotRequest(repository, snapshot),
+                highLevelClient().snapshot()::delete,
+                highLevelClient().snapshot()::deleteAsync
             );
             assertTrue(deleteResponse.isAcknowledged());
         }
@@ -182,12 +203,10 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String snapshot1 = "test_snapshot1";
         String snapshot2 = "test_snapshot2";
 
-        AcknowledgedResponse putRepositoryResponse =
-                createTestRepository(repository1, FsRepository.TYPE, "{\"location\": \"loc1\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository1, FsRepository.TYPE, "{\"location\": \"loc1\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
-        AcknowledgedResponse putRepositoryResponse2 =
-                createTestRepository(repository2, FsRepository.TYPE, "{\"location\": \"loc2\"}");
+        AcknowledgedResponse putRepositoryResponse2 = createTestRepository(repository2, FsRepository.TYPE, "{\"location\": \"loc2\"}");
         assertTrue(putRepositoryResponse2.isAcknowledged());
 
         CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository1, snapshot1);
@@ -203,8 +222,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertEquals(RestStatus.OK, putSnapshotResponse2.status());
 
         GetSnapshotsRequest request = new GetSnapshotsRequest(
-                randomFrom(new String[]{"_all"}, new String[]{"*"}, new String[]{repository1, repository2}),
-                randomFrom(new String[]{"_all"}, new String[]{"*"}, new String[]{snapshot1, snapshot2})
+            randomFrom(new String[] { "_all" }, new String[] { "*" }, new String[] { repository1, repository2 }),
+            randomFrom(new String[] { "_all" }, new String[] { "*" }, new String[] { snapshot1, snapshot2 })
         );
         request.ignoreUnavailable(true);
 
@@ -223,7 +242,6 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getSnapshots().get(1).userMetadata(), equalTo(originalMetadata));
         assertThat(response.getSnapshots().get(1).repository(), equalTo(repository2));
     }
-
 
     public void testSnapshotsStatus() throws IOException {
         String testRepository = "test";
@@ -244,9 +262,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         SnapshotsStatusRequest request = new SnapshotsStatusRequest();
         request.repository(testRepository);
-        request.snapshots(new String[]{testSnapshot});
-        SnapshotsStatusResponse response = execute(request, highLevelClient().snapshot()::status,
-                highLevelClient().snapshot()::statusAsync);
+        request.snapshots(new String[] { testSnapshot });
+        SnapshotsStatusResponse response = execute(
+            request,
+            highLevelClient().snapshot()::status,
+            highLevelClient().snapshot()::statusAsync
+        );
         assertThat(response.getSnapshots().size(), equalTo(1));
         assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo(testRepository));
         assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo(testSnapshot));
@@ -287,8 +308,11 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
             request.featureStates(Collections.singletonList(NO_FEATURE_STATES_VALUE));
         }
 
-        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
-                highLevelClient().snapshot()::restoreAsync);
+        RestoreSnapshotResponse response = execute(
+            request,
+            highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync
+        );
 
         RestoreInfo restoreInfo = response.getRestoreInfo();
         assertThat(restoreInfo.name(), equalTo(testSnapshot));
@@ -305,11 +329,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
-        createIndex(testIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1,3))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            .build());
+        createIndex(
+            testIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .build()
+        );
         assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
@@ -329,8 +356,11 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.indices(randomFrom(testIndex, "test_*"));
         request.renamePattern(testIndex);
 
-        RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
-            highLevelClient().snapshot()::restoreAsync);
+        RestoreSnapshotResponse response = execute(
+            request,
+            highLevelClient().snapshot()::restore,
+            highLevelClient().snapshot()::restoreAsync
+        );
 
         RestoreInfo restoreInfo = response.getRestoreInfo();
         assertThat(restoreInfo.name(), equalTo(testSnapshot));
@@ -365,7 +395,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String repository = "test_repository";
         String snapshot = "source_snapshot";
         String targetSnapshot = "target_snapshot";
-        final String testIndex =  "test_idx";
+        final String testIndex = "test_idx";
 
         createIndex(testIndex, Settings.EMPTY);
         assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
@@ -379,7 +409,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
-        CloneSnapshotRequest request = new CloneSnapshotRequest(repository, snapshot, targetSnapshot, new String[]{testIndex});
+        CloneSnapshotRequest request = new CloneSnapshotRequest(repository, snapshot, targetSnapshot, new String[] { testIndex });
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::clone, highLevelClient().snapshot()::cloneAsync);
 
         assertTrue(response.isAcknowledged());

@@ -50,8 +50,7 @@ public class NestedDocuments {
         } else {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
             for (NestedObjectMapper mapper : mappingLookup.getNestedParentMappers()) {
-                parentObjectFilters.put(mapper.name(),
-                    filterProducer.apply(mapper.nestedTypeFilter()));
+                parentObjectFilters.put(mapper.name(), filterProducer.apply(mapper.nestedTypeFilter()));
             }
             for (NestedObjectMapper mapper : mappingLookup.getNestedMappers()) {
                 childObjectFilters.put(mapper.name(), null);
@@ -77,8 +76,10 @@ public class NestedDocuments {
         if (childObjectFilters.get(path) == null) {
             IndexSearcher searcher = new IndexSearcher(ReaderUtil.getTopLevelContext(ctx));
             NestedObjectMapper childMapper = childObjectMappers.get(path);
-            childObjectFilters.put(path,
-                searcher.createWeight(searcher.rewrite(childMapper.nestedTypeFilter()), ScoreMode.COMPLETE_NO_SCORES, 1));
+            childObjectFilters.put(
+                path,
+                searcher.createWeight(searcher.rewrite(childMapper.nestedTypeFilter()), ScoreMode.COMPLETE_NO_SCORES, 1)
+            );
         }
         return childObjectFilters.get(path);
     }

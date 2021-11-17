@@ -26,5 +26,5 @@ public abstract class ActionFactory {
      * Parses the given xcontent and creates a concrete action
      */
     public abstract ExecutableAction<? extends Action> parseExecutable(String watchId, String actionId, XContentParser parser)
-            throws IOException;
+        throws IOException;
 }

@@ -11,10 +11,10 @@ package org.elasticsearch.search.profile.aggregation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.profile.ProfileResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,7 +93,7 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
         List<ProfileResult> aggProfileResults = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             aggProfileResults.add(ProfileResult.fromXContent(parser));
         }
         return new AggregationProfileShardResult(aggProfileResults);

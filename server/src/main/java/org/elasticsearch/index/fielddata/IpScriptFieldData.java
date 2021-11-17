@@ -17,6 +17,8 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -50,8 +52,8 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
         IpFieldScript script = leafFactory.newInstance(context);
         return new BinaryScriptLeafFieldData() {
             @Override
-            public ScriptDocValues<String> getScriptValues() {
-                return new IpScriptDocValues(getBytesValues());
+            public DocValuesField<?> getScriptField(String name) {
+                return new DelegateDocValuesField(new IpScriptDocValues(getBytesValues()), name);
             }
 
             @Override

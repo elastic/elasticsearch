@@ -8,13 +8,14 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
@@ -31,13 +32,20 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
     private final NioTcpChannel channel;
     private final InboundPipeline pipeline;
 
-    public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
+    public TcpReadWriteHandler(NioTcpChannel channel, Recycler<BytesRef> recycler, TcpTransport transport) {
         this.channel = channel;
         final ThreadPool threadPool = transport.getThreadPool();
         final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
         final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
-        this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            breaker, requestHandlers::getHandler, transport::inboundMessage);
+        this.pipeline = new InboundPipeline(
+            transport.getVersion(),
+            transport.getStatsTracker(),
+            recycler,
+            threadPool::relativeTimeInMillis,
+            breaker,
+            requestHandlers::getHandler,
+            transport::inboundMessage
+        );
     }
 
     @Override

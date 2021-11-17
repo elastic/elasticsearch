@@ -168,45 +168,65 @@ routing required:
             mappings:
               _routing:
                 required: true
-
 ---
-bad routing_path:
+set start_time and end_time:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              time_series:
+                start_time: 1632625782000
+                end_time: 1632625792000
 
   - do:
-      catch: /All fields that match routing_path must be keyword time_series_dimensions but \[@timestamp\] was \[date\]/
+      indices.put_settings:
+        index: test_index
+        body:
+          index:
+            time_series:
+              end_time: 1632625793000
+
+  - do:
+      catch: /index.time_series.end_time must be larger than current value \[1632625793000\]/
+      indices.put_settings:
+        index: test_index
+        body:
+          index:
+            time_series:
+              end_time: 1632625792000
+
+  - do:
+      indices.delete:
+        index: test_index
+
+---
+set start_time and end_time without timeseries mode:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+  - do:
+      catch: /\[index.time_series.start_time\] requires \[index.mode=time_series\]/
       indices.create:
-          index: test_index
-          body:
-            settings:
-              index:
-                mode: time_series
-                routing_path: [metricset, k8s.pod.uid, "@timestamp"]
-                number_of_replicas: 0
-                number_of_shards: 2
-            mappings:
-              properties:
-                "@timestamp":
-                  type: date
-                metricset:
-                  type: keyword
-                  time_series_dimension: true
-                k8s:
-                  properties:
-                    pod:
-                      properties:
-                        uid:
-                          type: keyword
-                          time_series_dimension: true
-                        name:
-                          type: keyword
-                        ip:
-                          type: ip
-                        network:
-                          properties:
-                            tx:
-                              type: long
-                            rx:
-                              type: long
+        index: test_index
+        body:
+          settings:
+            index:
+              time_series:
+                start_time: 1632625782000
+
+  - do:
+      catch: /\[index.time_series.end_time\] requires \[index.mode=time_series\]/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              time_series:
+                end_time: 1632625782000

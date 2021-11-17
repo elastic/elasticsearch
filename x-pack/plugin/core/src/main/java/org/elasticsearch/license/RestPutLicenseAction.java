@@ -27,10 +27,8 @@ public class RestPutLicenseAction extends BaseRestHandler {
     public List<Route> routes() {
         // TODO: remove POST endpoint?
         return List.of(
-            Route.builder(POST, "/_license")
-                .replaces(POST, "/_xpack/license", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_license")
-                .replaces(PUT, "/_xpack/license", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_license").replaces(POST, "/_xpack/license", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_license").replaces(PUT, "/_xpack/license", RestApiVersion.V_7).build()
         );
     }
 
@@ -51,8 +49,10 @@ public class RestPutLicenseAction extends BaseRestHandler {
         putLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLicenseRequest.masterNodeTimeout()));
 
         if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {
-            throw new IllegalArgumentException("Installing basic licenses is no longer allowed. Use the POST " +
-                "/_license/start_basic API to install a basic license that does not expire.");
+            throw new IllegalArgumentException(
+                "Installing basic licenses is no longer allowed. Use the POST "
+                    + "/_license/start_basic API to install a basic license that does not expire."
+            );
         }
 
         return channel -> client.execute(PutLicenseAction.INSTANCE, putLicenseRequest, new RestToXContentListener<>(channel));

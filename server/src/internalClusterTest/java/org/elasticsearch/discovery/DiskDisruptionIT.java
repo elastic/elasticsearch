@@ -8,12 +8,13 @@
 package org.elasticsearch.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -91,12 +92,14 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         startCluster(rarely() ? 5 : 3);
 
         final int numberOfShards = 1 + randomInt(2);
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-            ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+            )
+        );
         ensureGreen();
 
         AtomicBoolean stopGlobalCheckpointFetcher = new AtomicBoolean();
@@ -122,8 +125,16 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
 
         globalCheckpointSampler.start();
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "_doc", client(), -1, RandomizedTest.scaledRandomIntBetween(2, 5),
-            false, random())) {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                "test",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
             indexer.setRequestTimeout(TimeValue.ZERO);
             indexer.setIgnoreIndexingFailures(true);
             indexer.setFailureAssertion(e -> {});

@@ -1,13 +1,6 @@
 ---
 "Test put and reset transient settings":
-  - skip:
-      version: " - 7.15.99"
-      reason:  "transient settings deprecation"
-      features: "warnings"
-
   - do:
-      warnings:
-        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
       cluster.put_settings:
         body:
           transient:
@@ -23,8 +16,6 @@
   - match: {transient: {cluster.routing.allocation.enable: "none"}}
 
   - do:
-      warnings:
-        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
       cluster.put_settings:
         body:
           transient:

@@ -12,8 +12,8 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -45,8 +45,12 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
     }
 
@@ -71,20 +75,32 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
         }
 
         @Override
-        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                            IndexFieldData.XFieldComparatorSource.Nested nested, SortOrder sortOrder, DocValueFormat format,
-                                            int bucketSize, BucketedSort.ExtraData extra) {
+        public BucketedSort newBucketedSort(
+            BigArrays bigArrays,
+            Object missingValue,
+            MultiValueMode sortMode,
+            IndexFieldData.XFieldComparatorSource.Nested nested,
+            SortOrder sortOrder,
+            DocValueFormat format,
+            int bucketSize,
+            BucketedSort.ExtraData extra
+        ) {
             throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
         }
 
         /** helper: checks a fieldinfo and throws exception if its definitely not a LatLonDocValuesField */
         static void checkCompatible(FieldInfo fieldInfo) {
             // dv properties could be "unset", if you e.g. used only StoredField with this same name in the segment.
-            if (fieldInfo.getDocValuesType() != DocValuesType.NONE
-                && fieldInfo.getDocValuesType() != DocValuesType.BINARY) {
-                throw new IllegalArgumentException("field=\"" + fieldInfo.name + "\" was indexed with docValuesType="
-                    + fieldInfo.getDocValuesType() + " but this type has docValuesType="
-                    + DocValuesType.BINARY + ", is the field really a geo-shape field?");
+            if (fieldInfo.getDocValuesType() != DocValuesType.NONE && fieldInfo.getDocValuesType() != DocValuesType.BINARY) {
+                throw new IllegalArgumentException(
+                    "field=\""
+                        + fieldInfo.name
+                        + "\" was indexed with docValuesType="
+                        + fieldInfo.getDocValuesType()
+                        + " but this type has docValuesType="
+                        + DocValuesType.BINARY
+                        + ", is the field really a geo-shape field?"
+                );
             }
         }
     }

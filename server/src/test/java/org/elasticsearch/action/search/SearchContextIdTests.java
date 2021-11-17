@@ -41,11 +41,13 @@ public class SearchContextIdTests extends ESTestCase {
     }
 
     public void testEncode() {
-        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
-        ));
+        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
+            )
+        );
         final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
         final Version version = Version.CURRENT;
         final Map<String, AliasFilter> aliasFilters = new HashMap<>();

@@ -25,12 +25,12 @@ import static org.hamcrest.CoreMatchers.not;
 public class HttpCompressionIT extends ESRestTestCase {
 
     private static final String GZIP_ENCODING = "gzip";
-    private static final String SAMPLE_DOCUMENT = "{\n" +
-        "   \"name\": {\n" +
-        "      \"first name\": \"Steve\",\n" +
-        "      \"last name\": \"Jobs\"\n" +
-        "   }\n" +
-        "}";
+    private static final String SAMPLE_DOCUMENT = "{\n"
+        + "   \"name\": {\n"
+        + "      \"first name\": \"Steve\",\n"
+        + "      \"last name\": \"Jobs\"\n"
+        + "   }\n"
+        + "}";
 
     public void testCompressesResponseIfRequested() throws IOException {
         Request request = new Request("POST", "/company/_doc/2");
@@ -41,9 +41,7 @@ public class HttpCompressionIT extends ESRestTestCase {
         assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
 
         request = new Request("GET", "/company/_doc/2");
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
-            .build();
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING).build();
 
         request.setOptions(requestOptions);
         response = client().performRequest(request);

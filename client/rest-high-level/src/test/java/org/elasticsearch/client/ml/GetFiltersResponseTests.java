@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.MlFilterTests;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,7 +22,7 @@ public class GetFiltersResponseTests extends AbstractXContentTestCase<GetFilters
     protected GetFiltersResponse createTestInstance() {
         int count = randomIntBetween(1, 5);
         List<MlFilter.Builder> results = new ArrayList<>(count);
-        for(int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             results.add(MlFilterTests.createRandomBuilder(randomAlphaOfLength(10)));
         }
 

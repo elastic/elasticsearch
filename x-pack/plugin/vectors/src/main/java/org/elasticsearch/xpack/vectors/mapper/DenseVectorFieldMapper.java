@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -15,14 +14,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.MappingParser;
-import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -31,6 +26,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -38,7 +36,11 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
+import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
@@ -57,7 +59,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVectorsFormatFieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
     private static final byte INT_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -65,23 +67,44 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<Integer> dims
-            = new Parameter<>("dims", false, () -> null, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), m -> toType(m).dims)
-            .addValidator(dims -> {
-                if (dims == null) {
-                    throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
-                }
-                if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
-                    throw new MapperParsingException("The number of dimensions for field [" + name +
-                        "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims + "]");
-                }
-            });
+        private final Parameter<Integer> dims = new Parameter<>(
+            "dims",
+            false,
+            () -> null,
+            (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
+            m -> toType(m).dims
+        ).addValidator(dims -> {
+            if (dims == null) {
+                throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
+            }
+            if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
+                throw new MapperParsingException(
+                    "The number of dimensions for field ["
+                        + name
+                        + "] should be in the range [1, "
+                        + MAX_DIMS_COUNT
+                        + "] but was ["
+                        + dims
+                        + "]"
+                );
+            }
+        });
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
         private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
-                "similarity", false, m -> toType(m).similarity, null, VectorSimilarity.class);
-        private final Parameter<IndexOptions> indexOptions = new Parameter<>("index_options", false, () -> null,
-            (n, c, o) ->  o == null ? null : parseIndexOptions(n, o), m -> toType(m).indexOptions);
+            "similarity",
+            false,
+            m -> toType(m).similarity,
+            null,
+            VectorSimilarity.class
+        );
+        private final Parameter<IndexOptions> indexOptions = new Parameter<>(
+            "index_options",
+            false,
+            () -> null,
+            (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
+            m -> toType(m).indexOptions
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final Version indexVersionCreated;
@@ -106,23 +129,32 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(context.buildFullName(name), indexVersionCreated,
-                    dims.getValue(), indexed.getValue(), meta.getValue()),
+                new DenseVectorFieldType(
+                    context.buildFullName(name),
+                    indexVersionCreated,
+                    dims.getValue(),
+                    indexed.getValue(),
+                    similarity.getValue(),
+                    meta.getValue()
+                ),
                 dims.getValue(),
                 indexed.getValue(),
                 similarity.getValue(),
                 indexOptions.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build());
+                copyTo.build()
+            );
         }
     }
 
     enum VectorSimilarity {
         l2_norm(VectorSimilarityFunction.EUCLIDEAN),
+        cosine(VectorSimilarityFunction.COSINE),
         dot_product(VectorSimilarityFunction.DOT_PRODUCT);
 
         public final VectorSimilarityFunction function;
+
         VectorSimilarity(VectorSimilarityFunction function) {
             this.function = function;
         }
@@ -130,6 +162,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     private abstract static class IndexOptions implements ToXContent {
         final String type;
+
         IndexOptions(String type) {
             this.type = type;
         }
@@ -189,23 +222,30 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
     }
 
-    public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()), notInMultiFields(CONTENT_TYPE));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated()),
+        notInMultiFields(CONTENT_TYPE)
+    );
 
     public static final class DenseVectorFieldType extends SimpleMappedFieldType {
         private final int dims;
         private final boolean indexed;
+        private final VectorSimilarity similarity;
         private final Version indexVersionCreated;
 
-        public DenseVectorFieldType(String name, Version indexVersionCreated, int dims, boolean indexed, Map<String, String> meta) {
+        public DenseVectorFieldType(
+            String name,
+            Version indexVersionCreated,
+            int dims,
+            boolean indexed,
+            VectorSimilarity similarity,
+            Map<String, String> meta
+        ) {
             super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
             this.dims = dims;
             this.indexed = indexed;
+            this.similarity = similarity;
             this.indexVersionCreated = indexVersionCreated;
-        }
-
-        public int dims() {
-            return dims;
         }
 
         @Override
@@ -229,7 +269,8 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
+                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations"
+            );
         }
 
         @Override
@@ -254,8 +295,55 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+        }
+
+        public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
+            if (isSearchable() == false) {
+                throw new IllegalArgumentException(
+                    "[" + KnnVectorQueryBuilder.NAME + "] " + "queries are not supported if [index] is disabled"
+                );
+            }
+
+            if (queryVector.length != dims) {
+                throw new IllegalArgumentException(
+                    "the query vector has a different dimension [" + queryVector.length + "] " + "than the index vectors [" + dims + "]"
+                );
+            }
+
+            if (similarity == VectorSimilarity.dot_product) {
+                double squaredMagnitude = 0.0;
+                for (float e : queryVector) {
+                    squaredMagnitude += e * e;
+                }
+                checkVectorMagnitude(queryVector, squaredMagnitude);
+            }
+            return new KnnVectorQuery(name(), queryVector, numCands);
+        }
+
+        private void checkVectorMagnitude(float[] vector, double squaredMagnitude) {
+            if (Math.abs(squaredMagnitude - 1.0f) > 1e-4) {
+                // Include the first five elements of the invalid vector in the error message
+                StringBuilder sb = new StringBuilder(
+                    "The ["
+                        + VectorSimilarity.dot_product.name()
+                        + "] similarity can "
+                        + "only be used with unit-length vectors. Preview of invalid vector: "
+                );
+                sb.append("[");
+                for (int i = 0; i < Math.min(5, vector.length); i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(vector[i]);
+                }
+                if (vector.length >= 5) {
+                    sb.append(", ...");
+                }
+                sb.append("]");
+
+                throw new IllegalArgumentException(sb.toString());
+            }
         }
     }
 
@@ -265,9 +353,17 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     private final IndexOptions indexOptions;
     private final Version indexCreatedVersion;
 
-    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims, boolean indexed,
-                                   VectorSimilarity similarity, IndexOptions indexOptions,
-                                   Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
+    private DenseVectorFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        int dims,
+        boolean indexed,
+        VectorSimilarity similarity,
+        IndexOptions indexOptions,
+        Version indexCreatedVersion,
+        MultiFields multiFields,
+        CopyTo copyTo
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.dims = dims;
         this.indexed = indexed;
@@ -289,25 +385,35 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     @Override
     public void parse(DocumentParserContext context) throws IOException {
         if (context.doc().getByKey(fieldType().name()) != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                "] doesn't not support indexing multiple values for the same field in the same document");
+            throw new IllegalArgumentException(
+                "Field ["
+                    + name()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't not support indexing multiple values for the same field in the same document"
+            );
         }
 
-        Field field = fieldType().indexed
-            ? parseKnnVector(context)
-            : parseBinaryDocValuesVector(context);
+        Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);
         context.doc().addWithKey(fieldType().name(), field);
     }
 
     private Field parseKnnVector(DocumentParserContext context) throws IOException {
         float[] vector = new float[dims];
+        double squaredMagnitude = 0.0;
         int index = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             checkDimensionExceeded(index, context);
             ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
-            vector[index++] = context.parser().floatValue(true);
+
+            float value = context.parser().floatValue(true);
+            vector[index++] = value;
+            squaredMagnitude += value * value;
         }
         checkDimensionMatches(index, context);
+        if (similarity == VectorSimilarity.dot_product) {
+            fieldType().checkVectorMagnitude(vector, squaredMagnitude);
+        }
         return new KnnVectorField(fieldType().name(), vector, similarity.function);
     }
 
@@ -340,17 +446,37 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {
         if (index >= dims) {
-            throw new IllegalArgumentException("The [" + typeName() + "] field [" + name() +
-                "] in doc [" + context.sourceToParse().id() + "] has more dimensions " +
-                "than defined in the mapping [" + dims + "]");
+            throw new IllegalArgumentException(
+                "The ["
+                    + typeName()
+                    + "] field ["
+                    + name()
+                    + "] in doc ["
+                    + context.sourceToParse().id()
+                    + "] has more dimensions "
+                    + "than defined in the mapping ["
+                    + dims
+                    + "]"
+            );
         }
     }
 
     private void checkDimensionMatches(int index, DocumentParserContext context) {
         if (index != dims) {
-            throw new IllegalArgumentException("The [" + typeName() + "] field [" + name() +
-                "] in doc [" + context.sourceToParse().id() + "] has a different number of dimensions " +
-                "[" + index + "] than defined in the mapping [" + dims + "]");
+            throw new IllegalArgumentException(
+                "The ["
+                    + typeName()
+                    + "] field ["
+                    + name()
+                    + "] in doc ["
+                    + context.sourceToParse().id()
+                    + "] has a different number of dimensions "
+                    + "["
+                    + index
+                    + "] than defined in the mapping ["
+                    + dims
+                    + "]"
+            );
         }
     }
 
@@ -367,6 +493,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup mappers) {
+        if (indexed && mappers.getNestedParent(name()) != null) {
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
+        }
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {

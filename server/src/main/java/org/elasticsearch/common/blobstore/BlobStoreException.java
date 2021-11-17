@@ -23,7 +23,7 @@ public class BlobStoreException extends ElasticsearchException {
         super(msg, cause);
     }
 
-    public BlobStoreException(StreamInput in) throws IOException{
+    public BlobStoreException(StreamInput in) throws IOException {
         super(in);
     }
 }

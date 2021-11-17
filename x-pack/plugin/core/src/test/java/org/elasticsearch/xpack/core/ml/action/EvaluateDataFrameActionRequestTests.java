@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Request;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.ClassificationTests;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetectionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
@@ -62,12 +62,12 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
                 throw new UncheckedIOException(e);
             }
         }
-        Evaluation evaluation =
-            randomFrom(OutlierDetectionTests.createRandom(), ClassificationTests.createRandom(), RegressionTests.createRandom());
-        return new Request()
-            .setIndices(indices)
-            .setQueryProvider(queryProvider)
-            .setEvaluation(evaluation);
+        Evaluation evaluation = randomFrom(
+            OutlierDetectionTests.createRandom(),
+            ClassificationTests.createRandom(),
+            RegressionTests.createRandom()
+        );
+        return new Request().setIndices(indices).setQueryProvider(queryProvider).setEvaluation(evaluation);
     }
 
     @Override

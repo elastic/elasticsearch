@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
@@ -19,6 +18,8 @@ import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.LeafReaderContextSupplier;
 import org.elasticsearch.script.NumberSortScript;
+
+import java.io.IOException;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
@@ -40,7 +41,7 @@ class ExpressionNumberSortScript implements NumberSortScript.LeafFactory {
 
     @Override
     public NumberSortScript newInstance(final DocReader reader) throws IOException {
-        // Use DocReader to get the leaf context while transitioning to DocReader for Painless.  DocReader for expressions should follow.
+        // Use DocReader to get the leaf context while transitioning to DocReader for Painless. DocReader for expressions should follow.
         if (reader instanceof LeafReaderContextSupplier == false) {
             throw new IllegalStateException(
                 "Expected LeafReaderContextSupplier when creating expression NumberSortScript instead of [" + reader + "]"

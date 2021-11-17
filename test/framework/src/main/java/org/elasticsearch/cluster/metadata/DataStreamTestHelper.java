@@ -48,13 +48,16 @@ public final class DataStreamTestHelper {
         String dataStreamName,
         long generation,
         long epochMillis,
-        Version minNodeVersion) {
+        Version minNodeVersion
+    ) {
         if (minNodeVersion.onOrAfter(DATE_IN_BACKING_INDEX_VERSION)) {
-            return String.format(Locale.ROOT,
+            return String.format(
+                Locale.ROOT,
                 BACKING_INDEX_PREFIX + "%s-%s-%06d",
                 dataStreamName,
                 DATE_FORMATTER.formatMillis(epochMillis),
-                generation);
+                generation
+            );
         } else {
             return getLegacyDefaultBackingIndexName(dataStreamName, generation);
         }
@@ -95,28 +98,34 @@ public final class DataStreamTestHelper {
     }
 
     public static String generateMapping(String timestampFieldName) {
-        return "{" +
-            "     \"_doc\":{\n" +
-            "        \"properties\": {\n" +
-            "          \"" + timestampFieldName + "\": {\n" +
-            "            \"type\": \"date\"\n" +
-            "          }\n" +
-            "      }\n" +
-            "    }" +
-            "}";
+        return "{"
+            + "     \"_doc\":{\n"
+            + "        \"properties\": {\n"
+            + "          \""
+            + timestampFieldName
+            + "\": {\n"
+            + "            \"type\": \"date\"\n"
+            + "          }\n"
+            + "      }\n"
+            + "    }"
+            + "}";
     }
 
     public static String generateMapping(String timestampFieldName, String type) {
-        return "{\n" +
-            "      \"_data_stream_timestamp\": {\n" +
-            "        \"enabled\": true\n" +
-            "      }," +
-            "      \"properties\": {\n" +
-            "        \"" + timestampFieldName + "\": {\n" +
-            "          \"type\": \"" + type + "\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
+        return "{\n"
+            + "      \"_data_stream_timestamp\": {\n"
+            + "        \"enabled\": true\n"
+            + "      },"
+            + "      \"properties\": {\n"
+            + "        \""
+            + timestampFieldName
+            + "\": {\n"
+            + "          \"type\": \""
+            + type
+            + "\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }";
     }
 
     public static List<Index> randomIndexInstances() {
@@ -149,8 +158,18 @@ public final class DataStreamTestHelper {
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
-        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata,
-            randomBoolean(), randomBoolean(), false, timeProvider, false);
+        return new DataStream(
+            dataStreamName,
+            createTimestampField("@timestamp"),
+            indices,
+            generation,
+            metadata,
+            randomBoolean(),
+            randomBoolean(),
+            false,
+            timeProvider,
+            false
+        );
     }
 
     public static DataStreamAlias randomAliasInstance() {
@@ -159,7 +178,8 @@ public final class DataStreamTestHelper {
             randomAlphaOfLength(5),
             dataStreams,
             randomBoolean() ? randomFrom(dataStreams) : null,
-            randomBoolean() ? randomMap(1, 4, () -> new Tuple<>("term", Map.of("year", "2022"))) : null);
+            randomBoolean() ? randomMap(1, 4, () -> new Tuple<>("term", Map.of("year", "2022"))) : null
+        );
     }
 
     /**
@@ -179,8 +199,11 @@ public final class DataStreamTestHelper {
      * @param indexNames  The names of indices to create that do not back any data streams
      * @param replicas number of replicas
      */
-    public static ClusterState getClusterStateWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames,
-                                                              int replicas) {
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        int replicas
+    ) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -219,7 +242,7 @@ public final class DataStreamTestHelper {
     }
 
     public static String backingIndexPattern(String dataStreamName, long generation) {
-        return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}\\.\\d{2}\\.\\d{2}-)?%06d",dataStreamName, generation);
+        return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}\\.\\d{2}\\.\\d{2}-)?%06d", dataStreamName, generation);
     }
 
     public static Matcher<String> backingIndexEqualTo(String dataStreamName, int generation) {
@@ -242,14 +265,18 @@ public final class DataStreamTestHelper {
                 int indexOfLastDash = backingIndexName.lastIndexOf('-');
                 String dataStreamName = parseDataStreamName(backingIndexName, indexOfLastDash);
                 int generation = parseGeneration(backingIndexName, indexOfLastDash);
-                mismatchDescription.appendText(" was data stream name ").appendValue(dataStreamName)
-                    .appendText(" and generation ").appendValue(generation);
+                mismatchDescription.appendText(" was data stream name ")
+                    .appendValue(dataStreamName)
+                    .appendText(" and generation ")
+                    .appendValue(generation);
             }
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("expected data stream name ").appendValue(dataStreamName)
-                    .appendText(" and expected generation ").appendValue(generation);
+                description.appendText("expected data stream name ")
+                    .appendValue(dataStreamName)
+                    .appendText(" and expected generation ")
+                    .appendValue(generation);
             }
 
             private String parseDataStreamName(String backingIndexName, int indexOfLastDash) {

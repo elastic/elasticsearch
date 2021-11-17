@@ -12,8 +12,7 @@ import org.elasticsearch.client.TimedRequest;
 
 public class StopILMRequest extends TimedRequest {
 
-    public StopILMRequest() {
-    }
+    public StopILMRequest() {}
 
     @Override
     public int hashCode() {

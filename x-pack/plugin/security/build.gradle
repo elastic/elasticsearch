@@ -20,6 +20,7 @@ dependencies {
 
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('vectors'))
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
@@ -30,7 +31,7 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
-  api 'com.unboundid:unboundid-ldapsdk:4.0.8'
+  api 'com.unboundid:unboundid-ldapsdk:6.0.2'
 
   // the following are all SAML dependencies - might as well download the whole internet
   api "org.opensaml:opensaml-core:${versions.opensaml}"
@@ -77,7 +78,6 @@ dependencies {
   api "net.minidev:accessors-smart:2.4.2"
   api "org.ow2.asm:asm:8.0.1"
 
-  testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
   // Test dependencies for Kerberos (MiniKdc)

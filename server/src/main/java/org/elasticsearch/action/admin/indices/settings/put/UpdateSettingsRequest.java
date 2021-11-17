@@ -37,7 +37,9 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  * Request for an update index settings action
  */
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
-        implements IndicesRequest.Replaceable, ToXContentObject {
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
 
@@ -58,8 +60,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         }
     }
 
-    public UpdateSettingsRequest() {
-    }
+    public UpdateSettingsRequest() {}
 
     /**
      * Constructs a new request to update settings for one or more indices
@@ -239,11 +240,11 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         }
         UpdateSettingsRequest that = (UpdateSettingsRequest) o;
         return masterNodeTimeout.equals(that.masterNodeTimeout)
-                && timeout.equals(that.timeout)
-                && Objects.equals(settings, that.settings)
-                && Objects.equals(indicesOptions, that.indicesOptions)
-                && Objects.equals(preserveExisting, that.preserveExisting)
-                && Arrays.equals(indices, that.indices);
+            && timeout.equals(that.timeout)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(preserveExisting, that.preserveExisting)
+            && Arrays.equals(indices, that.indices);
     }
 
     @Override

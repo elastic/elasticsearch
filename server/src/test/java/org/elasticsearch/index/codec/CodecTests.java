@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -73,16 +74,26 @@ public class CodecTests extends ESTestCase {
     }
 
     private CodecService createCodecService() throws IOException {
-        Settings nodeSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
         IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
-        MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            MapperPlugin.NOOP_FIELD_FILTER);
-        MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
-                () -> null, () -> false, ScriptCompiler.NONE);
+        MapperRegistry mapperRegistry = new MapperRegistry(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            MapperPlugin.NOOP_FIELD_FILTER
+        );
+        MapperService service = new MapperService(
+            settings,
+            indexAnalyzers,
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> null,
+            IdFieldMapper.NO_FIELD_DATA,
+            ScriptCompiler.NONE
+        );
         return new CodecService(service);
     }
 

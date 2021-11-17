@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -22,12 +22,17 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public enum DatafeedState implements PersistentTaskState {
 
-    STARTED, STOPPED, STARTING, STOPPING;
+    STARTED,
+    STOPPED,
+    STARTING,
+    STOPPING;
 
     public static final String NAME = MlTasks.DATAFEED_TASK_NAME;
 
-    private static final ConstructingObjectParser<DatafeedState, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, args -> fromString((String) args[0]));
+    private static final ConstructingObjectParser<DatafeedState, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> fromString((String) args[0])
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("state"));

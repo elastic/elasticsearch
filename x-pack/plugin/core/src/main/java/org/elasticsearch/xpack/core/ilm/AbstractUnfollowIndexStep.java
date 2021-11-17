@@ -23,8 +23,12 @@ abstract class AbstractUnfollowIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public final void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                                    ClusterStateObserver observer, ActionListener<Void> listener) {
+    public final void performAction(
+        IndexMetadata indexMetadata,
+        ClusterState currentClusterState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
         String followerIndex = indexMetadata.getIndex().getName();
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {

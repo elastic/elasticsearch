@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ public class GetDatafeedResponseTests extends AbstractXContentTestCase<GetDatafe
     protected GetDatafeedResponse createTestInstance() {
         int count = randomIntBetween(1, 5);
         List<DatafeedConfig.Builder> results = new ArrayList<>(count);
-        for(int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             DatafeedConfigTests.createRandomBuilder();
             results.add(DatafeedConfigTests.createRandomBuilder());
         }

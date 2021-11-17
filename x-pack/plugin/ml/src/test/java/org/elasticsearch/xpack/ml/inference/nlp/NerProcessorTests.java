@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -202,10 +203,7 @@ public class NerProcessorTests extends ESTestCase {
         tokens.add(new NerProcessor.NerResultProcessor.TaggedToken("Bob", NerProcessor.IobTag.B_PER, 1.0));
         tokens.add(new NerProcessor.NerResultProcessor.TaggedToken("too", NerProcessor.IobTag.O, 1.0));
 
-        List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(
-            tokens,
-            "Rita, Sue, and Bob too"
-        );
+        List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(tokens, "Rita, Sue, and Bob too");
         assertThat(entityGroups, hasSize(3));
         assertThat(entityGroups.get(0).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Rita"));
@@ -238,34 +236,14 @@ public class NerProcessorTests extends ESTestCase {
     public void testAnnotatedTextBuilder() {
         String input = "Alexander, my name is Benjamin Trent, I work at Acme Inc.";
         List<NerResults.EntityGroup> entities = List.of(
-            new NerResults.EntityGroup(
-                "alexander",
-                "PER",
-                0.9963429980065166,
-                0,
-                9
-            ),
-            new NerResults.EntityGroup(
-                "benjamin trent",
-                "PER",
-                0.9972042749283819,
-                22,
-               36
-            ),
-            new NerResults.EntityGroup(
-                "acme inc",
-                "ORG",
-                0.9982026600781208,
-                48,
-               56
-            )
+            new NerResults.EntityGroup("alexander", "PER", 0.9963429980065166, 0, 9),
+            new NerResults.EntityGroup("benjamin trent", "PER", 0.9972042749283819, 22, 36),
+            new NerResults.EntityGroup("acme inc", "ORG", 0.9982026600781208, 48, 56)
         );
         assertThat(
             NerProcessor.buildAnnotatedText(input, entities),
             equalTo(
-                "[Alexander](PER&Alexander), "
-                    + "my name is [Benjamin Trent](PER&Benjamin+Trent), "
-                    + "I work at [Acme Inc](ORG&Acme+Inc)."
+                "[Alexander](PER&Alexander), " + "my name is [Benjamin Trent](PER&Benjamin+Trent), " + "I work at [Acme Inc](ORG&Acme+Inc)."
             )
         );
     }
@@ -277,10 +255,10 @@ public class NerProcessorTests extends ESTestCase {
     }
 
     private static TokenizationResult tokenize(List<String> vocab, String input) {
-        BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, false, null))
+        BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, false, null, Tokenization.Truncate.NONE))
             .setDoLowerCase(true)
             .setWithSpecialTokens(false)
             .build();
-        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input)));
+        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input, Tokenization.Truncate.NONE)));
     }
 }

@@ -55,10 +55,14 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+
 public class APMTracer extends AbstractLifecycleComponent implements TracingPlugin.Tracer {
 
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 
+    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.enabled", false, Dynamic, NodeScope);
     static final Setting<SecureString> APM_ENDPOINT_SETTING = SecureSetting.secureString("xpack.apm.endpoint", null);
     static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString("xpack.apm.token", null);
 
@@ -67,6 +71,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     private final SecureString endpoint;
     private final SecureString token;
 
+    private volatile boolean enabled;
     private volatile SdkTracerProvider provider;
     private volatile Tracer tracer;
     private volatile OpenTelemetry openTelemetry;
@@ -75,8 +80,18 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     public APMTracer(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.endpoint = APM_ENDPOINT_SETTING.get(settings);
         this.token = APM_TOKEN_SETTING.get(settings);
+        this.enabled = APM_ENABLED_SETTING.get(settings);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.clusterService = Objects.requireNonNull(clusterService);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    private void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     @Override
@@ -123,6 +138,10 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     @Override
     public void onTraceStarted(TracingPlugin.Traceable traceable) {
+        if (enabled == false) {
+            return;
+        }
+
         final Tracer tracer = this.tracer;
         final OpenTelemetry openTelemetry = this.openTelemetry;
         if (openTelemetry != null && tracer != null) {
@@ -181,7 +200,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         if (span == null) {
             return null;
         }
-        try (Scope scope = span.makeCurrent()) {
+        try (Scope ignore = span.makeCurrent()) {
             Map<String, String> spanHeaders = new HashMap<>();
             openTelemetry.getPropagators().getTextMapPropagator().inject(Context.current(), spanHeaders, Map::put);
             spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);

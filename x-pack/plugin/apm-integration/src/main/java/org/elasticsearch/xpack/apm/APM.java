@@ -69,7 +69,7 @@ public class APM extends Plugin implements TracingPlugin, NetworkPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(APMTracer.APM_ENDPOINT_SETTING, APMTracer.APM_TOKEN_SETTING);
+        return List.of(APMTracer.APM_ENABLED_SETTING, APMTracer.APM_ENDPOINT_SETTING, APMTracer.APM_TOKEN_SETTING);
     }
 
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
@@ -99,18 +99,19 @@ public class APM extends Plugin implements TracingPlugin, NetworkPlugin {
             TransportRequestOptions options,
             TransportResponseHandler<T> handler
         ) {
-            if (tracer.get() == null) {
+            var aTracer = tracer.get();
+            if (aTracer == null || aTracer.isEnabled() == false) {
                 sender.sendRequest(connection, action, request, options, handler);
-            } else {
-                var headers = tracer.get().getSpanHeadersById(String.valueOf(request.getParentTask().getId()));
-                if (headers != null) {
-                    try (var ignore = threadContext.removeRequestHeaders(TRACE_HEADERS)) {
-                        threadContext.putHeader(headers);
-                        sender.sendRequest(connection, action, request, options, handler);
-                    }
-                } else {
-                    sender.sendRequest(connection, action, request, options, handler);
-                }
+                return;
+            }
+            var headers = aTracer.getSpanHeadersById(String.valueOf(request.getParentTask().getId()));
+            if (headers == null) {
+                sender.sendRequest(connection, action, request, options, handler);
+                return;
+            }
+            try (var ignore = threadContext.removeRequestHeaders(TRACE_HEADERS)) {
+                threadContext.putHeader(headers);
+                sender.sendRequest(connection, action, request, options, handler);
             }
         }
     }

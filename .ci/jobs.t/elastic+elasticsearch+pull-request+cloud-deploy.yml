@@ -4,6 +4,7 @@
     display-name: "elastic / elasticsearch - pull request cloud-deploy"
     description: "Testing of Elasticsearch pull requests - cloud-deploy"
     workspace: "/dev/shm/elastic+elasticsearch+pull-request+cloud-deploy"
+    node: "general-purpose && docker"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"

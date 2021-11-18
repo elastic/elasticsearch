@@ -649,7 +649,6 @@ class NodeDeprecationChecks {
         if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.get(settings) == false
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
-            String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 String.format(Locale.ROOT, "Setting [%s=false] is deprecated", key),
@@ -657,11 +656,9 @@ class NodeDeprecationChecks {
                 String.format(
                     Locale.ROOT,
                     "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, and [%s] may not be set to "
-                        + "[false] in these versions. Set [%s] to [true] to adopt the future behavior before upgrading. "
-                        + "If desired you may also set [%s] to [false] to completely disable disk-based allocation.",
+                        + "[false] in these versions. Set [%s] to [true] to adopt the future behavior before upgrading.",
                     key,
-                    key,
-                    disableDiskDecider
+                    key
                 ),
                 false,
                 null
@@ -672,7 +669,6 @@ class NodeDeprecationChecks {
             && clusterState.getNodes().getDataNodes().size() == 1
             && clusterState.getNodes().getLocalNode().isMasterNode()) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
-            String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
                 "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later.",
@@ -680,10 +676,8 @@ class NodeDeprecationChecks {
                 String.format(
                     Locale.ROOT,
                     "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, which will affect the "
-                        + "behavior of this cluster. Set [%s] to [true] to adopt the future behavior before upgrading. "
-                        + "If desired you may also set [%s] to [false] to completely disable disk-based allocation.",
-                    key,
-                    disableDiskDecider
+                        + "behavior of this cluster. Set [%s] to [true] to adopt the future behavior before upgrading.",
+                    key
                 ),
                 false,
                 null

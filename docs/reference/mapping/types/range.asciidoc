@@ -214,6 +214,11 @@ PUT range_index/_doc/2
 The following parameters are accepted by range types:
 
 [horizontal]
+<<allow-multiple-values,`allow_multiple_values`>>::
+
+    Should the field permit arrays of values?  Accepts `true`
+    (default) or `false`. When `false`, documents presenting arrays
+    of values for this field will be rejected with an error.
 
 <<coerce,`coerce`>>::
 

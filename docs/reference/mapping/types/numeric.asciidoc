@@ -111,6 +111,12 @@ the data as both a `keyword` _and_ a numeric data type.
 
 The following parameters are accepted by numeric types:
 
+<<allow-multiple-values,`allow_multiple_values`>>::
+
+    Should the field permit arrays of values?  Accepts `true`
+    (default) or `false`. When `false`, documents presenting arrays
+    of values for this field will be rejected with an error.
+
 <<coerce,`coerce`>>::
 
     Try to convert strings to numbers and truncate fractions for integers.

@@ -93,6 +93,12 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // Disable the default of parsing `allow_multiple_values` setting.
+            return false;
+        }
+
+        @Override
         protected List<Parameter<?>> getParameters() {
             return List.of(ignoreMalformed, meta, metric);
         }

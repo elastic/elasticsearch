@@ -73,6 +73,12 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // Disable the default of parsing `allow_multiple_values` setting.
+            return false;
+        }
+
+        @Override
         public TokenCountFieldMapper build(MapperBuilderContext context) {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");

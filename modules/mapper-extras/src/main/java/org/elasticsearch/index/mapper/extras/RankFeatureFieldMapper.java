@@ -75,6 +75,12 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // We don't allow users to redefine if multiple values are allowed - they are never allowed.
+            return false;
+        }
+
+        @Override
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
             return new RankFeatureFieldMapper(
                 name,

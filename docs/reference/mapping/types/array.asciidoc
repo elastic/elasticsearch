@@ -81,3 +81,14 @@ GET my-index-000001/_search
 <3> The second document contains no arrays, but can be indexed into the same fields.
 <4> The query looks for `elasticsearch` in the `tags` field, and matches both documents.
 
+.Rejecting documents with arrays
+[NOTE]
+====================================================
+
+It is possible to reject documents with array values for a field
+by using the `allow_multiple_values` setting in the field's index mapping.
+The default value for fields is `true`, meaning arrays are accepted.
+When this property is set to `false` documents that present arrays instead of single
+values are rejected with an error.
+
+====================================================

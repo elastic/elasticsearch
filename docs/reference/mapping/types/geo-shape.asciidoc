@@ -60,6 +60,10 @@ and reject the whole document.
 |`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
 | `false`
 
+|`allow_multiple_values` |If `false` will reject with an error documents presenting arrays of shapes
+| `true`
+
+
 |=======================================================================
 
 

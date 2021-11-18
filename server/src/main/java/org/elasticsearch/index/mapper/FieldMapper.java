@@ -1312,6 +1312,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     continue;
                 }
                 if (Objects.equals("allow_multiple_values", propName)) {
+                    if (supportsAllowMultipleValuesChoice() == false) {
+                        throw new MapperParsingException("Parameter [allow_multiple_values] not supported on mapper [" + name + "]");
+                    }
                     allowMultipleValues = Booleans.parseBoolean(propNode.toString());
                     iterator.remove();
                     continue;
@@ -1390,6 +1393,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 iterator.remove();
             }
             validate();
+        }
+        
+        protected boolean supportsAllowMultipleValuesChoice() {
+            return true;
         }
 
         protected static ContentPath parentPath(String name) {

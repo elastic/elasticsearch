@@ -53,6 +53,12 @@ include::numeric.asciidoc[tag=map-ids-as-keyword]
 
 The following parameters are accepted by `keyword` fields:
 
+<<allow-multiple-values,`allow_multiple_values`>>::
+
+    Should the field permit arrays of values?  Accepts `true`
+    (default) or `false`. When `false`, documents presenting arrays
+    of values for this field will be rejected with an error.
+
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

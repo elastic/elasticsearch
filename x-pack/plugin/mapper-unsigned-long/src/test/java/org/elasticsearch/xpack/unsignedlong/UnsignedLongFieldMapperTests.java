@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -234,6 +235,17 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", outOfRangeValue)));
             expectThrows(MapperParsingException.class, runnable);
         }
+    }
+
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArrays = source(b -> b.array("field", 1L, 2L));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "unsigned_long").field("allow_multiple_values", false))
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long")));
+        okmapper.parse(sourceWithArrays);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

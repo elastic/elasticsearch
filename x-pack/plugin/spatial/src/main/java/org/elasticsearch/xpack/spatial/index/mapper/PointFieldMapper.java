@@ -91,6 +91,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // Disable the default of parsing `allow_multiple_values` setting.
+            return false;
+        }
+
+        @Override
         public FieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.warn(
@@ -136,7 +142,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             builder.ignoreZValue.get(),
             builder.nullValue.get(),
             copyTo,
-            builder.getAllowMultipleValues(),
             parser
         );
         this.builder = builder;

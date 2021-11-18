@@ -120,6 +120,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // Disable the default of parsing `allow_multiple_values` setting.
+            return false;
+        }
+
+        @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
             checkObjectOrNested(context, name);
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
@@ -208,6 +214,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         boolean eagerGlobalOrdinals,
         List<Relations> relations
     ) {
+        // TODO pass allowMultipleValues = false here? DocumentParser would then reject any arrays
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;

@@ -141,6 +141,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // We don't allow users to redefine if multiple values are allowed - they are always allowed.
+            return false;
+        }
+
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.analyzers = new TextParams.Analyzers(
@@ -646,7 +652,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         ShingleFieldMapper[] shingleFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, builder.getAllowMultipleValues(), false, null);
+        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, true, false, null);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();

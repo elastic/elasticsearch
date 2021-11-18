@@ -114,6 +114,11 @@ GET my-index-000001/_search
 The following parameters are accepted by `wildcard` fields:
 
 [horizontal]
+<<allow-multiple-values,`allow_multiple_values`>>::
+
+    Should the field permit arrays of values?  Accepts `true`
+    (default) or `false`. When `false`, documents presenting arrays
+    of values for this field will be rejected with an error.
 
 <<null-value,`null_value`>>::
 

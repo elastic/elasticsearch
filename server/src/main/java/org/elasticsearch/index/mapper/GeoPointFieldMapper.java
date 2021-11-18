@@ -103,6 +103,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             return this;
         }
 
+        @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // Disable the default of parsing `allow_multiple_values` setting.
+            return false;
+        }
+
         private static GeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
             if (nullValue == null) {
                 return null;
@@ -180,7 +186,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             builder.ignoreZValue.get(),
             builder.nullValue.get(),
             copyTo,
-            builder.allowMultipleValues,
             parser
         );
         this.builder = builder;
@@ -193,7 +198,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             mappedFieldType,
             MultiFields.empty(),
             CopyTo.empty(),
-            builder.allowMultipleValues,
             parser,
             builder.onScriptError.get()
         );

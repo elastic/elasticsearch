@@ -89,6 +89,12 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             }
         });
 
+        @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            // Disable the default of parsing `allow_multiple_values` setting.
+            return false;
+        }
+
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
         private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
             "similarity",

@@ -11,10 +11,23 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 === Known issues
 
 * If you're using {ml}, it's not safe to perform a rolling upgrade from `7.16.x`
-  to `8.0.0-beta1`. Doing so might lead to cluster state propagation issues in the mixed 
-  version cluster. We recommend waiting for `8.0.0-rc1` before testing a 
-  rolling upgrade from `7.16.x`. Do not attempt to upgrade any 
+  to `8.0.0-beta1`. Doing so might lead to cluster state propagation issues in the mixed
+  version cluster. We recommend waiting for `8.0.0-rc1` before testing a
+  rolling upgrade from `7.16.x`. Do not attempt to upgrade any
   production cluster to pre-release software.
+
+* System indices are included in wildcard queries when using the `*` pattern. Do
+  not rely on this behavior, because system indices will be hidden in the 8.0
+  release. If you need to access system indices, specify the index name, use a
+  more specific wildcard, or use the `expand_wildcards` parameter in your query.
+
+* By default, system indices are included in snapshots of all indices, and are
+  restored when no indices are specified. This behavior results from including
+  system indices in the implicit default wildcard (`*`) for snapshot and restore
+  operations, which was intended for backwards compatibility in 7.x versions.
+  In 8.0, all system indices should be accessed through the `feature_states`
+  parameter of the snapshot or restore request.
+
 
 [[breaking-8.0.0-beta1]]
 [float]

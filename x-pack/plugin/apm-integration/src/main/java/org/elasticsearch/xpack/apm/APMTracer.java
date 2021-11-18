@@ -169,6 +169,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             .build();
         var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
 
+        assert this.services == null;
         this.services = new APMServices(provider, tracer, openTelemetry);
     }
 

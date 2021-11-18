@@ -25,7 +25,6 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -38,8 +37,10 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -134,12 +135,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
         ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
 
-        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(
-            after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)),
-            IsNull.nullValue()
-        );
+        assertThat(after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), nullValue());
     }
 
     public void testDeleteMultipleBackingIndexForDataStream() {
@@ -163,10 +161,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState after = service.deleteIndices(before, indicesToDelete);
 
         DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
-        assertThat(dataStream, IsNull.notNullValue());
+        assertThat(dataStream, notNullValue());
         assertThat(dataStream.getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
-            assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
+            assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
             assertFalse(dataStream.getIndices().contains(i));
         }
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));

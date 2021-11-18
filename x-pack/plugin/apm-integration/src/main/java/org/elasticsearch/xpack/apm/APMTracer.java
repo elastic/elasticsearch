@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -62,10 +63,11 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 
-    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.enabled", false, Dynamic, NodeScope);
+    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
     static final Setting<SecureString> APM_ENDPOINT_SETTING = SecureSetting.secureString("xpack.apm.endpoint", null);
     static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString("xpack.apm.token", null);
 
+    private final Semaphore shutdownPermits = new Semaphore(Integer.MAX_VALUE);
     private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -106,7 +108,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         if (enabled) {
             doStart();
         } else {
-            doStop();
+            doStop(false);
         }
     }
 
@@ -149,16 +151,30 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
 
     @Override
     protected void doStop() {
-        var services = this.services;
-        this.services = null;
-        if (services != null) {
-            services.provider.shutdown().join(30L, TimeUnit.SECONDS);
-        }
+        doStop(true);
     }
 
     @Override
     protected void doClose() {
 
+    }
+
+    private void doStop(boolean wait) {
+        var services = this.services;
+        this.services = null;
+        if (services == null) {
+            return;
+        }
+        this.spans.clear();// discard in-flight spans
+        shutdownPermits.tryAcquire();
+        services.provider.shutdown().whenComplete(shutdownPermits::release);
+        if (wait) {
+            try {
+                shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @Override

@@ -24,7 +24,8 @@ API endpoints will return an error.
 [%collapsible]
 ====
 *Details* +
-Elastic now only supports searches to a remote cluster running:
+Elastic now only supports cross-cluster searches from a local cluster to a
+remote cluster running:
 
 * The previous minor version
 * Any minor release in the local cluster's major version
@@ -33,7 +34,7 @@ Elastic now only supports searches to a remote cluster running:
 IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
 remote clusters must use the same {es} version.
 
-For example, an 8.0 cluster can search a remote cluster running:
+For example, a local 8.0 cluster can search a remote cluster running:
 
 * 7.16 (the previous minor version)
 * Any 8.x version
@@ -47,17 +48,15 @@ from the previous major version. However, if the search uses a recent feature
 that's unsupported in the remote cluster, it could result in undefined behavior.
 
 *Impact* +
-If you only run {ccs-init} on remote clusters using the same or a later version
-as the local cluster, no changes are needed.
+If you only run cross-cluster searches on remote clusters using the same or a
+later version as the local cluster, no changes are needed.
 
-If you previously used {ccs-init} to search clusters running an earlier version,
-see
+If you previously searched remote clusters running an earlier version, see
 {ref}/modules-cross-cluster-search.html#ccs-ensure-cluster-compatibility[{ccs-init}
 version compatibility] for recommended workarounds.
 
-A search on a remote cluster running an unsupported version may still work.
-However, such searches aren't tested by Elastic and their behavior isn't
-guaranteed.
+A search on an unsupported remote cluster may still work. However, such searches
+aren't tested by Elastic, and their behavior isn't guaranteed.
 ====
 
 [[remove-term-order-key]]

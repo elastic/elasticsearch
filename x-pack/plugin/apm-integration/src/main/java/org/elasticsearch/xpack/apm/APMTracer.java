@@ -39,8 +39,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.Traceable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -55,7 +55,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tasks.Tracer {
+public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 

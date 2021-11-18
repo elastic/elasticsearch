@@ -6,10 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tasks;
+package org.elasticsearch.tracing;
 
+/**
+ * Represents a distributed tracing system that keeps track of the start and end of various activities in the cluster.
+ */
 public interface Tracer {
+
+    /**
+     * Called when the {@link Traceable} activity starts.
+     */
     void onTraceStarted(Traceable traceable);
 
+    /**
+     * Called when the {@link Traceable} activity ends.
+     */
     void onTraceStopped(Traceable traceable);
 }

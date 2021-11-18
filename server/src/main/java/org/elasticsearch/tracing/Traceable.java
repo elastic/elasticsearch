@@ -6,14 +6,27 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tasks;
+package org.elasticsearch.tracing;
 
 import java.util.Map;
 
+/**
+ * Something which maps onto a <i>span</i> in a distributed trace.
+ */
 public interface Traceable {
+
+    /**
+     * @return a key which uniquely identifies the span.
+     */
     String getSpanId();
 
+    /**
+     * @return the name of the span as seen by the external tracing system (e.g. the action name for a task)
+     */
     String getSpanName();
 
+    /**
+     * @return extra metadata about the span.
+     */
     Map<String, Object> getAttributes();
 }

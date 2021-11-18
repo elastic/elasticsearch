@@ -11,6 +11,7 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;

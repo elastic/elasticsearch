@@ -16,11 +16,9 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -57,7 +55,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String INITIALIZING_SHARDS = "initializing_shards";
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String INDICES = "indices";
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
 
     private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER = new ConstructingObjectParser<>(
         "cluster_health_response",
@@ -122,12 +119,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         XContentParser parser,
         Void context,
         String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    private static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "es.cluster_health.request_timeout_200";
-    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "The HTTP status code for a cluster health timeout "
-        + "will be changed from 408 to 200 in a future version. Set the ["
-        + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY
-        + "] "
-        + "system property to [true] to suppress this message and opt in to the future behaviour now.";
 
     static {
         // ClusterStateHealth fields
@@ -160,14 +151,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
-    private boolean esClusterHealthRequestTimeout200 = readEsClusterHealthRequestTimeout200FromProperty();
 
     public ClusterHealthResponse() {}
-
-    /** For the testing of opting in for the 200 status code without setting a system property */
-    ClusterHealthResponse(boolean esClusterHealthRequestTimeout200) {
-        this.esClusterHealthRequestTimeout200 = esClusterHealthRequestTimeout200;
-    }
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
@@ -349,15 +334,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status() {
-        if (isTimedOut() == false) {
-            return RestStatus.OK;
-        }
-        if (esClusterHealthRequestTimeout200) {
-            return RestStatus.OK;
-        } else {
-            deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
-            return RestStatus.REQUEST_TIMEOUT;
-        }
+        return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }
 
     @Override
@@ -424,19 +401,5 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             clusterStateHealth,
             clusterHealthStatus
         );
-    }
-
-    private static boolean readEsClusterHealthRequestTimeout200FromProperty() {
-        String property = System.getProperty(ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY);
-        if (property == null) {
-            return false;
-        }
-        if (Boolean.parseBoolean(property)) {
-            return true;
-        } else {
-            throw new IllegalArgumentException(
-                ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + " can only be unset or [true] but was [" + property + "]"
-            );
-        }
     }
 }

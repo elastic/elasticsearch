@@ -177,7 +177,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     public void testJoinValidator() {
         BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
         DiscoveryModule module = newModule(
-            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN2_DISCOVERY_TYPE).build(),
+            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE).build(),
             Collections.singletonList(new DiscoveryPlugin() {
                 @Override
                 public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
@@ -189,5 +189,18 @@ public class DiscoveryModuleTests extends ESTestCase {
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = coordinator.getOnJoinValidators();
         assertEquals(2, onJoinValidators.size());
         assertTrue(onJoinValidators.contains(consumer));
+    }
+
+    public void testLegacyDiscoveryType() {
+        newModule(
+            Settings.builder()
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.LEGACY_MULTI_NODE_DISCOVERY_TYPE)
+                .build(),
+            Collections.emptyList()
+        );
+        assertCriticalWarnings(
+            "Support for setting [discovery.type] to [zen] is deprecated and will be removed in a future version. Set this setting to "
+                + "[multi-node] instead."
+        );
     }
 }

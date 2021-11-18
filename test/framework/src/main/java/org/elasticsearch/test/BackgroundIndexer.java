@@ -68,12 +68,11 @@ public class BackgroundIndexer implements AutoCloseable {
      * been indexed.
      *
      * @param index     index name to index into
-     * @param type      document type
      * @param client    client to use
      * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
      */
-    public BackgroundIndexer(String index, String type, Client client, int numOfDocs) {
-        this(index, type, client, numOfDocs, RandomizedTest.scaledRandomIntBetween(2, 5));
+    public BackgroundIndexer(String index, Client client, int numOfDocs) {
+        this(index, client, numOfDocs, RandomizedTest.scaledRandomIntBetween(2, 5));
     }
 
     /**
@@ -81,13 +80,12 @@ public class BackgroundIndexer implements AutoCloseable {
      * been indexed.
      *
      * @param index       index name to index into
-     * @param type        document type
      * @param client      client to use
      * @param numOfDocs   number of document to index before pausing. Set to -1 to have no limit.
      * @param writerCount number of indexing threads to use
      */
-    public BackgroundIndexer(String index, String type, Client client, int numOfDocs, final int writerCount) {
-        this(index, type, client, numOfDocs, writerCount, true, null);
+    public BackgroundIndexer(String index, Client client, int numOfDocs, final int writerCount) {
+        this(index, client, numOfDocs, writerCount, true, null);
     }
 
     /**
@@ -95,7 +93,6 @@ public class BackgroundIndexer implements AutoCloseable {
      * been indexed.
      *
      * @param index       index name to index into
-     * @param type        document type
      * @param client      client to use
      * @param numOfDocs   number of document to index before pausing. Set to -1 to have no limit.
      * @param writerCount number of indexing threads to use
@@ -104,7 +101,6 @@ public class BackgroundIndexer implements AutoCloseable {
      */
     public BackgroundIndexer(
         final String index,
-        final String type,
         final Client client,
         final int numOfDocs,
         final int writerCount,
@@ -352,7 +348,7 @@ public class BackgroundIndexer implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        stop();
+        stopAndAwaitStopped();
     }
 
     public Client getClient() {

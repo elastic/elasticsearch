@@ -66,7 +66,7 @@ public class TransportStopILMActionTests extends ESTestCase {
         transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
 
         verify(clusterService).submitStateUpdateTask(
-            eq("ilm_operation_mode_update"),
+            eq("ilm_operation_mode_update[stopping]"),
             argThat(new ArgumentMatcher<AckedClusterStateUpdateTask>() {
 
                 Priority actualPriority = null;

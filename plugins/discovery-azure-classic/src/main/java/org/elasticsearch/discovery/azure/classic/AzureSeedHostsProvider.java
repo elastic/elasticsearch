@@ -220,15 +220,15 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
         return dynamicHosts;
     }
 
-    protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {
-        if (hostType == HostType.PRIVATE_IP) {
+    protected String resolveInstanceAddress(final HostType type, final RoleInstance instance) {
+        if (type == HostType.PRIVATE_IP) {
             final InetAddress privateIp = instance.getIPAddress();
             if (privateIp != null) {
                 return InetAddresses.toUriString(privateIp);
             } else {
                 logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
             }
-        } else if (hostType == HostType.PUBLIC_IP) {
+        } else if (type == HostType.PUBLIC_IP) {
             for (InstanceEndpoint endpoint : instance.getInstanceEndpoints()) {
                 if (publicEndpointName.equals(endpoint.getName())) {
                     return NetworkAddress.format(new InetSocketAddress(endpoint.getVirtualIPAddress(), endpoint.getPort()));

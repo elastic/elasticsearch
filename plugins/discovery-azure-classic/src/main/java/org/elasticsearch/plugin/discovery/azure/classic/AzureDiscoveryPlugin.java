@@ -56,6 +56,7 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     }
 
     // Used for testing
+    @SuppressWarnings("HiddenField")
     protected AzureSeedHostsProvider createSeedHostsProvider(
         final Settings settings,
         final AzureComputeService azureComputeService,

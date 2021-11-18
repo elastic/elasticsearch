@@ -154,15 +154,15 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
         ) {
             return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService) {
                 @Override
-                protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {
-                    if (hostType == HostType.PRIVATE_IP) {
+                protected String resolveInstanceAddress(final HostType type, final RoleInstance instance) {
+                    if (type == HostType.PRIVATE_IP) {
                         DiscoveryNode discoveryNode = nodes.get(instance.getInstanceName());
                         if (discoveryNode != null) {
                             // Format the InetSocketAddress to a format that contains the port number
                             return NetworkAddress.format(discoveryNode.getAddress().address());
                         }
                     }
-                    return super.resolveInstanceAddress(hostType, instance);
+                    return super.resolveInstanceAddress(type, instance);
                 }
             };
         }

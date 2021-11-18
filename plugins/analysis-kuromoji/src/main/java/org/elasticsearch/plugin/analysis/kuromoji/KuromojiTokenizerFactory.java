@@ -105,11 +105,11 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     @Override
     public Tokenizer create() {
         JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discardPunctuation, discardCompoundToken, mode);
-        int nBestCost = this.nBestCost;
+        int nBestCostValue = this.nBestCost;
         if (nBestExamples != null) {
-            nBestCost = Math.max(nBestCost, t.calcNBestCost(nBestExamples));
+            nBestCostValue = Math.max(nBestCostValue, t.calcNBestCost(nBestExamples));
         }
-        t.setNBestCost(nBestCost);
+        t.setNBestCost(nBestCostValue);
         return t;
     }
 

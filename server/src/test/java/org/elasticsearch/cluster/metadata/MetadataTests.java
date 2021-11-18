@@ -1108,7 +1108,7 @@ public class MetadataTests extends ESTestCase {
             .put(idx, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        AssertionError e = expectThrows(AssertionError.class, b::build);
         assertThat(e.getMessage(), containsString("aliases [" + conflictingName + "] cannot refer to backing indices of data streams"));
     }
 

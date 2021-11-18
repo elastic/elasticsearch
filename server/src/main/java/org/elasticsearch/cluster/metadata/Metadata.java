@@ -1704,7 +1704,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 );
             }
             ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices = this.aliasedIndices.build();
-            validateDataStreams(aliasedIndices, dataStreamMetadata);
+            assert validateDataStreams(aliasedIndices, dataStreamMetadata);
 
             ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
 
@@ -1912,7 +1912,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        static void validateDataStreams(
+        static boolean validateDataStreams(
             ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices,
             @Nullable DataStreamMetadata dsMetadata
         ) {
@@ -1934,9 +1934,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     }
                 }
                 if (conflictingAliases != null) {
-                    throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
+                    throw new AssertionError("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
                 }
             }
+            return true;
         }
 
         public static void toXContent(Metadata metadata, XContentBuilder builder, ToXContent.Params params) throws IOException {

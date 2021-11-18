@@ -64,8 +64,8 @@ separate versions, you can:
 * Maintain a local cluster for {ccs-init}. Keep this cluster on the earliest
 release needed to search the other clusters.
 +
-For example, if you maintain 7.16 and 8.0 clusters, you can maintain a 7.15
-cluster to search them.
+For example, if you have 7.14 and 8.0 clusters, you can maintain a 7.13
+cluster to run cross-cluster searches on them.
 
 * Keep each cluster no more than one minor version apart. For example, if one
 cluster runs {es} 8.0, other clusters must run 8.0 or 7.16.

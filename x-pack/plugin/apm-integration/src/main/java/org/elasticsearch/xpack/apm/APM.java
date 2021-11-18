@@ -19,7 +19,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -38,7 +37,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-public class APM extends Plugin implements TracingPlugin, NetworkPlugin {
+public class APM extends Plugin implements NetworkPlugin {
 
     public static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT, Task.TRACE_STATE);
 

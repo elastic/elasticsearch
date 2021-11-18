@@ -38,9 +38,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -59,7 +59,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 
-public class APMTracer extends AbstractLifecycleComponent implements TracingPlugin.Tracer {
+public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 
@@ -177,7 +177,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     }
 
     @Override
-    public void onTraceStarted(TracingPlugin.Traceable traceable) {
+    public void onTraceStarted(Traceable traceable) {
         var services = this.services;
         if (services == null) {
             return;
@@ -248,7 +248,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     }
 
     @Override
-    public void onTraceStopped(TracingPlugin.Traceable traceable) {
+    public void onTraceStopped(Traceable traceable) {
         final Span span = spans.remove(traceable.getSpanId());
         if (span != null) {
             span.end();

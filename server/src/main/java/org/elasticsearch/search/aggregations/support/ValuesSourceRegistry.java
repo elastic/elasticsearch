@@ -181,4 +181,9 @@ public class ValuesSourceRegistry {
     public AggregationUsageService getUsageService() {
         return usageService;
     }
+
+    public ValueType resolveTypeHint(String typeHint) {
+        // NOCOMMIT: do the actual lookup thing here
+        return typeHint != null ? ValueType.lenientParse(typeHint) : null;
+    }
 }

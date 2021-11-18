@@ -33,6 +33,7 @@ public class SpatialPluginTests extends ESTestCase {
         for (License.OperationMode operationMode : License.OperationMode.values()) {
             SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
             ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
+            registryBuilder.registerValuesSourceType(GeoShapeValuesSourceType.GEOSHAPE);
             List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
             registrar.forEach(c -> c.accept(registryBuilder));
             ValuesSourceRegistry registry = registryBuilder.build();
@@ -62,6 +63,7 @@ public class SpatialPluginTests extends ESTestCase {
             for (License.OperationMode operationMode : License.OperationMode.values()) {
                 SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
                 ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
+                registryBuilder.registerValuesSourceType(GeoShapeValuesSourceType.GEOSHAPE);
                 List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
                 registrar.forEach(c -> c.accept(registryBuilder));
                 ValuesSourceRegistry registry = registryBuilder.build();

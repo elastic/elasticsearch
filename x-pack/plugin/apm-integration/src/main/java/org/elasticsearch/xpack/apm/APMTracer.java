@@ -50,41 +50,102 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 
+    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
     static final Setting<SecureString> APM_ENDPOINT_SETTING = SecureSetting.secureString("xpack.apm.endpoint", null);
     static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString("xpack.apm.token", null);
 
+    private final Semaphore shutdownPermits = new Semaphore(Integer.MAX_VALUE);
     private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final SecureString endpoint;
     private final SecureString token;
 
-    private volatile SdkTracerProvider provider;
-    private volatile Tracer tracer;
-    private volatile OpenTelemetry openTelemetry;
-    private final ThreadPool threadPool;
+    private volatile boolean enabled;
+    private volatile APMServices services;
+
+    /** This class is required to make all open telemetry services visible at once */
+    private static class APMServices {
+        private final SdkTracerProvider provider;
+        private final Tracer tracer;
+        private final OpenTelemetry openTelemetry;
+
+        private APMServices(SdkTracerProvider provider, Tracer tracer, OpenTelemetry openTelemetry) {
+            this.provider = provider;
+            this.tracer = tracer;
+            this.openTelemetry = openTelemetry;
+        }
+    }
 
     public APMTracer(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
-        this.endpoint = APM_ENDPOINT_SETTING.get(settings);
-        this.token = APM_TOKEN_SETTING.get(settings);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.endpoint = APM_ENDPOINT_SETTING.get(settings);
+        this.token = APM_TOKEN_SETTING.get(settings);
+        this.enabled = APM_ENABLED_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    private void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (enabled) {
+            createApmServices();
+        } else {
+            destroyApmServices();
+        }
     }
 
     @Override
     protected void doStart() {
+        if (enabled) {
+            createApmServices();
+        }
+    }
+
+    @Override
+    protected void doStop() {
+        destroyApmServices();
+        try {
+            shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    @Override
+    protected void doClose() {
+
+    }
+
+    private void createApmServices() {
+        assert enabled;
+
+        var acquired = shutdownPermits.tryAcquire();
+        if (acquired == false) {
+            return;// doStop() is already executed
+        }
+
         final String endpoint = this.endpoint.toString();
         final String token = this.token.toString();
 
-        this.provider = AccessController.doPrivileged(
+        var provider = AccessController.doPrivileged(
             (PrivilegedAction<SdkTracerProvider>) () -> SdkTracerProvider.builder()
                 .setResource(
                     Resource.create(
@@ -102,57 +163,59 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 .build()
         );
 
-        openTelemetry = OpenTelemetrySdk.builder()
+        var openTelemetry = OpenTelemetrySdk.builder()
             .setTracerProvider(provider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .build();
-        tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
+        var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
+
+        assert this.services == null;
+        this.services = new APMServices(provider, tracer, openTelemetry);
     }
 
-    @Override
-    protected void doStop() {
-        final SdkTracerProvider provider = this.provider;
-        if (provider != null) {
-            provider.forceFlush().join(10L, TimeUnit.SECONDS);
-            provider.shutdown().join(30L, TimeUnit.SECONDS);
+    private void destroyApmServices() {
+        var services = this.services;
+        this.services = null;
+        if (services == null) {
+            return;
         }
+        spans.clear();// discard in-flight spans
+        services.provider.shutdown().whenComplete(shutdownPermits::release);
     }
-
-    @Override
-    protected void doClose() {}
 
     @Override
     public void onTraceStarted(Traceable traceable) {
-        final Tracer tracer = this.tracer;
-        final OpenTelemetry openTelemetry = this.openTelemetry;
-        if (openTelemetry != null && tracer != null) {
-            spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
-                final SpanBuilder spanBuilder = tracer.spanBuilder(traceable.getSpanName());
-                Context parentContext = getParentSpanContext(openTelemetry);
-                if (parentContext != null) {
-                    spanBuilder.setParent(parentContext);
-                }
-                for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
-                    final Object value = entry.getValue();
-                    if (value instanceof String) {
-                        spanBuilder.setAttribute(entry.getKey(), (String) value);
-                    } else if (value instanceof Long) {
-                        spanBuilder.setAttribute(entry.getKey(), (Long) value);
-                    } else if (value instanceof Integer) {
-                        spanBuilder.setAttribute(entry.getKey(), (Integer) value);
-                    } else if (value instanceof Double) {
-                        spanBuilder.setAttribute(entry.getKey(), (Double) value);
-                    } else if (value instanceof Boolean) {
-                        spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
-                    } else {
-                        throw new IllegalArgumentException(
-                            "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
-                        );
-                    }
-                }
-                return spanBuilder.startSpan();
-            });
+        var services = this.services;
+        if (services == null) {
+            return;
         }
+        spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
+            // services might be in shutdown sate by this point, but this is handled by the open telemetry internally
+            final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
+            Context parentContext = getParentSpanContext(services.openTelemetry);
+            if (parentContext != null) {
+                spanBuilder.setParent(parentContext);
+            }
+            for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
+                final Object value = entry.getValue();
+                if (value instanceof String) {
+                    spanBuilder.setAttribute(entry.getKey(), (String) value);
+                } else if (value instanceof Long) {
+                    spanBuilder.setAttribute(entry.getKey(), (Long) value);
+                } else if (value instanceof Integer) {
+                    spanBuilder.setAttribute(entry.getKey(), (Integer) value);
+                } else if (value instanceof Double) {
+                    spanBuilder.setAttribute(entry.getKey(), (Double) value);
+                } else if (value instanceof Boolean) {
+                    spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
+                } else {
+                    throw new IllegalArgumentException(
+                        "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
+                    );
+                }
+            }
+            return spanBuilder.startSpan();
+        });
     }
 
     private Context getParentSpanContext(OpenTelemetry openTelemetry) {
@@ -177,13 +240,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     public Map<String, String> getSpanHeadersById(String id) {
+        var services = this.services;
         var span = spans.get(id);
-        if (span == null) {
+        if (span == null || services == null) {
             return null;
         }
-        try (Scope scope = span.makeCurrent()) {
+        try (Scope ignore = span.makeCurrent()) {
             Map<String, String> spanHeaders = new HashMap<>();
-            openTelemetry.getPropagators().getTextMapPropagator().inject(Context.current(), spanHeaders, Map::put);
+            services.openTelemetry.getPropagators().getTextMapPropagator().inject(Context.current(), spanHeaders, Map::put);
             spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
             return spanHeaders;
         }

@@ -201,7 +201,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         for (String field : fields) {
             ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
                 context,
-                userValueTypeHint.getValuesSourceType(),
+                userValueTypeHint == null ? null : userValueTypeHint.getValuesSourceType(),
                 field,
                 null,
                 missingMap.get(field),

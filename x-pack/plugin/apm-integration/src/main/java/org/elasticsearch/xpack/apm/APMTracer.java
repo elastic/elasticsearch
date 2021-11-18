@@ -185,6 +185,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         }
 
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
+            // services might be in shutdown sate by this point, but this is handled by the open telemetry internally
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
             Context parentContext = getParentSpanContext(services.openTelemetry);
             if (parentContext != null) {

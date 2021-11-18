@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -125,12 +124,18 @@ public class ValuesSourceRegistry {
             usageServiceBuilder.registerAggregationUsage(aggregationName);
         }
 
-        public void registerValuesSourceType(ValuesSourceType valuesSourceType, Collection<String> alternateNames) {
+        public void registerValuesSourceType(ValuesSourceType valuesSourceType) {
             if (duplicateRegistrationCheck.contains(valuesSourceType)) {
                 throw new IllegalStateException("Duplicate registration of ValuesSourceType [" + valuesSourceType.typeName() + "]");
             }
+            if (valueTypeLookup.containsKey(valuesSourceType.typeName())) {
+                throw new IllegalStateException("Duplicate type name detected: [" + valuesSourceType.typeName() + "]");
+            }
             valueTypeLookup.put(valuesSourceType.typeName(), valuesSourceType);
-            for (String name : alternateNames) {
+            for (String name : valuesSourceType.alternateNames()) {
+                if (valueTypeLookup.containsKey(name)) {
+                    throw new IllegalStateException("Duplicate type name detected: [" + name + "]");
+                }
                 valueTypeLookup.put(name, valuesSourceType);
             }
             duplicateRegistrationCheck.add(valuesSourceType);
@@ -202,6 +207,6 @@ public class ValuesSourceRegistry {
     }
 
     public ValuesSourceType resolveTypeHint(String typeHint) {
-        return typeHint != null ? ValueType.lenientParse(typeHint).getValuesSourceType() : null;
+        return typeHint != null ? valueTypeLookup.get(typeHint) : null;
     }
 }

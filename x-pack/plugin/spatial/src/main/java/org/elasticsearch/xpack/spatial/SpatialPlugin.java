@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -119,6 +120,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     @Override
     public List<QuerySpec<?>> getQueries() {
         return singletonList(new QuerySpec<>(ShapeQueryBuilder.NAME, ShapeQueryBuilder::new, ShapeQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<ValuesSourceType> getValuesSourceTypes() {
+        return List.of(GeoShapeValuesSourceType.instance());
     }
 
     @Override

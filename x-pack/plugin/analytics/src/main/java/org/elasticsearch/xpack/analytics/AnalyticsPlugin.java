@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
@@ -96,6 +98,11 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             )
         );
         return pipelineAggs;
+    }
+
+    @Override
+    public List<ValuesSourceType> getValuesSourceTypes() {
+        return Arrays.asList(AnalyticsValuesSourceType.values());
     }
 
     @Override

@@ -207,7 +207,9 @@ import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineA
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
@@ -342,6 +344,10 @@ public class SearchModule {
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
         ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
+
+        for (ValuesSourceType coreVST : CoreValuesSourceType.values()) {
+
+        }
 
         registerAggregation(
             new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder.PARSER).addResultReader(
@@ -644,6 +650,9 @@ public class SearchModule {
                 )
             );
         }
+
+        // Before registering plugin aggregations, register plugin values sources
+        registerFromPlugin(plugins, SearchPlugin::getValuesSourceTypes, builder::registerValuesSourceType);
 
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));
 

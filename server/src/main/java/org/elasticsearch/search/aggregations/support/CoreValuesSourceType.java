@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -103,6 +104,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             }
 
         }
+
+        @Override
+        public Collection<String> alternateNames() {
+            return List.of("float", "numeric", "number");
+        }
     },
     LONG() {
         @Override
@@ -163,6 +169,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             }
 
         }
+
+        @Override
+        public Collection<String> alternateNames() {
+            return List.of("byte", "short", "integer");
+        }
     },
     KEYWORD() {
         @Override
@@ -205,6 +216,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                 return MissingValues.replaceMissing((ValuesSource.Bytes) valuesSource, missing);
             }
         }
+
+        @Override
+        public Collection<String> alternateNames() {
+            return List.of("string");
+        }
     },
     GEOPOINT() {
         @Override
@@ -243,6 +259,11 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return DocValueFormat.GEOHASH;
+        }
+
+        @Override
+        public Collection<String> alternateNames() {
+            return List.of("geo_point");
         }
     },
     RANGE() {

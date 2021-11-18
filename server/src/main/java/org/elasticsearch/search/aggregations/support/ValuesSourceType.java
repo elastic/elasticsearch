@@ -12,6 +12,8 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
@@ -87,8 +89,21 @@ public interface ValuesSourceType {
     }
 
     /**
-     * Returns the name of the Values Source Type for stats purposes
+     * Returns the name of the Values Source Type for stats purposes.  This name can also be used for a type hint via the
+     * {@link ValueType#VALUE_TYPE} field when specifying an aggregation.  This can help resolve issues with unmapped fields and similar.
+     *
+     * The returned value should be unique.
+     *
      * @return the name of the Values Source Type
      */
     String typeName();
+
+    /**
+     * Optionally, specify a list of alternative names that can be used in the {@link ValueType#VALUE_TYPE} field to specify this type.
+     * Generally, new types shouldn't need to define this, but we have some legacy mappings that need to be supported still.
+     * @return a collection of unique strings that can be used to identify this type
+     */
+    default Collection<String> alternateNames() {
+        return List.of();
+    }
 }

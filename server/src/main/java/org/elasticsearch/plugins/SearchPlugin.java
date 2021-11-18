@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -112,6 +113,13 @@ public interface SearchPlugin {
      * The new {@link Aggregation}s added by this plugin.
      */
     default List<AggregationSpec> getAggregations() {
+        return emptyList();
+    }
+
+    /**
+     * The new {@link ValuesSourceType}s added by this plugin
+     */
+    default List<ValuesSourceType> getValuesSourceTypes() {
         return emptyList();
     }
 

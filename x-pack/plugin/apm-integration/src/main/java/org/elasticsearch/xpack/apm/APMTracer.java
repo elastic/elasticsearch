@@ -164,8 +164,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 spanBuilder.setAttribute("messaging.system", "elasticsearch");
                 spanBuilder.setAttribute("messaging.destination", clusterService.getNodeName());
 
-                spanBuilder.setAttribute(TracingPlugin.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-                spanBuilder.setAttribute(TracingPlugin.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
+                // this will duplicate the "resource attributes" that are defined globally
+                // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in 7.16.
+                spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
+                spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
 
                 return spanBuilder.startSpan();
             });

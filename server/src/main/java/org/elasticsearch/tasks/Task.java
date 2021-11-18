@@ -244,9 +244,9 @@ public class Task implements Traceable {
 
         TaskId parentTask = getParentTaskId();
         Map<String,Object> attributes = new HashMap<>();
-        attributes.put(TracingPlugin.AttributeKeys.TASK_ID, id);
+        attributes.put(Traceable.AttributeKeys.TASK_ID, id);
         if (parentTask.isSet()) {
-            attributes.put(TracingPlugin.AttributeKeys.PARENT_TASK_ID, parentTask.toString());
+            attributes.put(Traceable.AttributeKeys.PARENT_TASK_ID, parentTask.toString());
         }
         return attributes;
     }

@@ -29,4 +29,11 @@ public interface Traceable {
      * @return extra metadata about the span.
      */
     Map<String, Object> getAttributes();
+
+    interface AttributeKeys {
+        String TASK_ID = "es.task.id";
+        String PARENT_TASK_ID = "es.task.parent.id";
+        String CLUSTER_NAME = "es.cluster.name";
+        String NODE_NAME = "es.node.name";
+    }
 }

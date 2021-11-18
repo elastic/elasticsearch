@@ -190,12 +190,12 @@ final class UserAgentParser {
     }
 
     private VersionedName findMatch(List<UserAgentSubpattern> possiblePatterns, String agentString) {
-        VersionedName name;
+        VersionedName versionedName;
         for (UserAgentSubpattern pattern : possiblePatterns) {
-            name = pattern.match(agentString);
+            versionedName = pattern.match(agentString);
 
-            if (name != null) {
-                return name;
+            if (versionedName != null) {
+                return versionedName;
             }
         }
 

@@ -1,8 +1,0 @@
-[discrete]
-[[breaking_80_mappings_changes]]
-==== Mapping changes
-
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-//tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]

@@ -15,7 +15,9 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +37,9 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
     public void testParent() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         ValuesSourceRegistry.Builder registry = new ValuesSourceRegistry.Builder();
+        for (ValuesSourceType vst : CoreValuesSourceType.values()) {
+            registry.registerValuesSourceType(vst);
+        }
         MaxAggregationBuilder.registerAggregators(registry);
         withAggregationContext(registry.build(), mapperService, List.of(), null, context -> {
             AggregatorFactories.Builder sub = AggregatorFactories.builder();

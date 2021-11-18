@@ -114,7 +114,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     protected void doStart() {
-        if (this.enabled) {
+        if (enabled) {
             createApmServices();
         }
     }
@@ -138,7 +138,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         assert enabled;
 
         var acquired = shutdownPermits.tryAcquire();
-        assert acquired : "doStop() is already executed";
+        if (acquired == false) {
+            return;// doStop() is already executed
+        }
 
         final String endpoint = this.endpoint.toString();
         final String token = this.token.toString();

@@ -37,20 +37,19 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -75,13 +74,11 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsRequest setRequest = new ClusterUpdateSettingsRequest();
         setRequest.transientSettings(transientSettings);
         setRequest.persistentSettings(map);
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
 
         ClusterUpdateSettingsResponse setResponse = execute(
             setRequest,
             highLevelClient().cluster()::putSettings,
-            highLevelClient().cluster()::putSettingsAsync,
-            options
+            highLevelClient().cluster()::putSettingsAsync
         );
 
         assertAcked(setResponse);
@@ -108,8 +105,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsResponse resetResponse = execute(
             resetRequest,
             highLevelClient().cluster()::putSettings,
-            highLevelClient().cluster()::putSettingsAsync,
-            options
+            highLevelClient().cluster()::putSettingsAsync
         );
 
         assertThat(resetResponse.getTransientSettings().get(transientSettingKey), equalTo(null));
@@ -124,22 +120,11 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(persistentResetValue, equalTo(null));
     }
 
-    public void testClusterUpdateTransientSettingNonExistent() {
-        testClusterUpdateSettingNonExistent((settings, request) -> request.transientSettings(settings), "transient");
-    }
-
-    public void testClusterUpdatePersistentSettingNonExistent() {
-        testClusterUpdateSettingNonExistent((settings, request) -> request.persistentSettings(settings), "persistent");
-    }
-
-    private void testClusterUpdateSettingNonExistent(
-        final BiConsumer<Settings.Builder, ClusterUpdateSettingsRequest> consumer,
-        String label
-    ) {
+    public void testClusterUpdateSettingNonExistent() {
         String setting = "no_idea_what_you_are_talking_about";
         int value = 10;
         ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
-        consumer.accept(Settings.builder().put(setting, value), clusterUpdateSettingsRequest);
+        clusterUpdateSettingsRequest.transientSettings(Settings.builder().put(setting, value).build());
 
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
@@ -152,9 +137,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            equalTo(
-                "Elasticsearch exception [type=illegal_argument_exception, reason=" + label + " setting [" + setting + "], not recognized]"
-            )
+            equalTo("Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]")
         );
     }
 
@@ -338,11 +321,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertNoIndices(response);
-        assertWarnings(
-            "The HTTP status code for a cluster health timeout will be changed from 408 to 200 in a "
-                + "future version. Set the [es.cluster_health.request_timeout_200] system property to [true] to suppress this message and "
-                + "opt in to the future behaviour now."
-        );
     }
 
     public void testRemoteInfo() throws Exception {
@@ -354,13 +332,13 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterGetSettingsResponse settingsResponse = highLevelClient().cluster().getSettings(settingsRequest, RequestOptions.DEFAULT);
 
         List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias)
-            .get(settingsResponse.getPersistentSettings());
-        int connectionsPerCluster = SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.get(settingsResponse.getPersistentSettings());
+            .get(settingsResponse.getTransientSettings());
+        int connectionsPerCluster = SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.get(settingsResponse.getTransientSettings());
         TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(
-            settingsResponse.getPersistentSettings()
+            settingsResponse.getTransientSettings()
         );
         boolean skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
-            .get(settingsResponse.getPersistentSettings());
+            .get(settingsResponse.getTransientSettings());
 
         RemoteInfoRequest request = new RemoteInfoRequest();
         RemoteInfoResponse response = execute(

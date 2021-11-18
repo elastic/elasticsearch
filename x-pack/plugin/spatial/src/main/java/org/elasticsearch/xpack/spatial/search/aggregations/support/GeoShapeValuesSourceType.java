@@ -18,7 +18,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -40,7 +39,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
-    public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+    public ValuesSource getScript(AggregationScript.LeafFactory script) {
         // TODO (support scripts)
         throw new UnsupportedOperationException("geo_shape");
     }

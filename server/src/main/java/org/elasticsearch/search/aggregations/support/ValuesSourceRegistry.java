@@ -13,10 +13,13 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to functions for building aggregation components.  DO NOT
@@ -59,6 +62,8 @@ public class ValuesSourceRegistry {
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
         private Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
+        private Map<String, ValuesSourceType> valueTypeLookup = new HashMap<>();
+        private Set<ValuesSourceType> duplicateRegistrationCheck = new HashSet<>();
 
         public Builder() {
             this.usageServiceBuilder = new AggregationUsageService.Builder();
@@ -120,8 +125,19 @@ public class ValuesSourceRegistry {
             usageServiceBuilder.registerAggregationUsage(aggregationName);
         }
 
+        public void registerValuesSourceType(ValuesSourceType valuesSourceType, Collection<String> alternateNames) {
+            if (duplicateRegistrationCheck.contains(valuesSourceType)) {
+                throw new IllegalStateException("Duplicate registration of ValuesSourceType [" + valuesSourceType.typeName() + "]");
+            }
+            valueTypeLookup.put(valuesSourceType.typeName(), valuesSourceType);
+            for (String name : alternateNames) {
+                valueTypeLookup.put(name, valuesSourceType);
+            }
+            duplicateRegistrationCheck.add(valuesSourceType);
+        }
+
         public ValuesSourceRegistry build() {
-            return new ValuesSourceRegistry(aggregatorRegistry, usageServiceBuilder.build());
+            return new ValuesSourceRegistry(aggregatorRegistry, usageServiceBuilder.build(), valueTypeLookup);
         }
     }
 
@@ -151,13 +167,16 @@ public class ValuesSourceRegistry {
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
     private Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
+    private Map<String, ValuesSourceType> valueTypeLookup;
 
     public ValuesSourceRegistry(
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry,
-        AggregationUsageService usageService
-    ) {
+        AggregationUsageService usageService,
+        Map<String, ValuesSourceType> valueTypeLookup) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.usageService = usageService;
+        // TODO: Make an immutable copy blah blah blah
+        this.valueTypeLookup = valueTypeLookup;
     }
 
     public boolean isRegistered(RegistryKey<?> registryKey) {
@@ -182,8 +201,7 @@ public class ValuesSourceRegistry {
         return usageService;
     }
 
-    public ValueType resolveTypeHint(String typeHint) {
-        // NOCOMMIT: do the actual lookup thing here
-        return typeHint != null ? ValueType.lenientParse(typeHint) : null;
+    public ValuesSourceType resolveTypeHint(String typeHint) {
+        return typeHint != null ? ValueType.lenientParse(typeHint).getValuesSourceType() : null;
     }
 }

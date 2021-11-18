@@ -31,7 +31,7 @@ public class CompositeValuesSourceParserHelper {
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
         objectParser.declareString(VB::missingOrder, new ParseField("missing_order"));
 
-        objectParser.declareField(VB::userValuetypeHint,XContentParser::text, new ParseField("value_type"), ObjectParser.ValueType.STRING);
+        objectParser.declareField(VB::userValuetypeHint, XContentParser::text, new ParseField("value_type"), ObjectParser.ValueType.STRING);
 
         objectParser.declareField(
             VB::script,

@@ -173,7 +173,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     ) throws IOException {
         Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
         Map<String, QueryBuilder> filters = new HashMap<>(fields.size());
-        final ValueType resolvedTypeHint = context.getValuesSourceRegistry().resolveTypeHint(userValueTypeHint);
+        final ValuesSourceType resolvedTypeHint = context.getValuesSourceRegistry().resolveTypeHint(userValueTypeHint);
         fields.forEach((key, value) -> {
             ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
                 context,
@@ -195,14 +195,14 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
     public static DocValueFormat resolveFormat(
         @Nullable String format,
-        @Nullable ValueType valueType,
+        @Nullable ValuesSourceType valueType,
         ValuesSourceType defaultValuesSourceType
     ) {
         if (valueType == null) {
             // If the user didn't send a hint, all we can do is fall back to the default
             return defaultValuesSourceType.getFormatter(format, null);
         }
-        DocValueFormat valueFormat = valueType.defaultFormat;
+        DocValueFormat valueFormat = valueType.getFormatter(format, null);
         if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
             valueFormat = new DocValueFormat.Decimal(format);
         }

@@ -47,7 +47,7 @@ public class ValuesSourceConfig {
      */
     public static ValuesSourceConfig resolve(
         AggregationContext context,
-        ValueType userValueTypeHint,
+        ValuesSourceType userValueTypeHint,
         String field,
         Script script,
         Object missing,
@@ -87,7 +87,7 @@ public class ValuesSourceConfig {
      */
     public static ValuesSourceConfig resolveUnregistered(
         AggregationContext context,
-        ValueType userValueTypeHint,
+        ValuesSourceType userValueTypeHint,
         String field,
         Script script,
         Object missing,
@@ -110,7 +110,7 @@ public class ValuesSourceConfig {
 
     private static ValuesSourceConfig internalResolve(
         AggregationContext context,
-        ValueType userValueTypeHint,
+        ValuesSourceType userValueTypeHint,
         String field,
         Script script,
         Object missing,
@@ -121,13 +121,12 @@ public class ValuesSourceConfig {
     ) {
         ValuesSourceConfig config;
         ValuesSourceType valuesSourceType = null;
-        ValueType scriptValueType = userValueTypeHint;
         FieldContext fieldContext = null;
         AggregationScript.LeafFactory aggregationScript = createScript(script, context); // returns null if script is null
         boolean unmapped = false;
         if (userValueTypeHint != null) {
             // If the user gave us a type hint, respect that.
-            valuesSourceType = userValueTypeHint.getValuesSourceType();
+            valuesSourceType = userValueTypeHint;
         }
         if (field == null) {
             if (script == null) {
@@ -160,7 +159,6 @@ public class ValuesSourceConfig {
             fieldContext,
             unmapped,
             aggregationScript,
-            scriptValueType,
             missing,
             timeZone,
             docValueFormat,
@@ -173,7 +171,7 @@ public class ValuesSourceConfig {
     private interface FieldResolver {
         ValuesSourceType getValuesSourceType(
             FieldContext fieldContext,
-            ValueType userValueTypeHint,
+            ValuesSourceType userValueTypeHint,
             ValuesSourceType defaultValuesSourceType
         );
 
@@ -181,16 +179,15 @@ public class ValuesSourceConfig {
 
     private static ValuesSourceType getMappingFromRegistry(
         FieldContext fieldContext,
-        ValueType userValueTypeHint,
+        ValuesSourceType userValueTypeHint,
         ValuesSourceType defaultValuesSourceType
     ) {
         return fieldContext.indexFieldData().getValuesSourceType();
     }
 
-    // NOCOMMIT: This whole method should probably get removed
     private static ValuesSourceType getLegacyMapping(
         FieldContext fieldContext,
-        ValueType userValueTypeHint,
+        ValuesSourceType userValueTypeHint,
         ValuesSourceType defaultValuesSourceType
     ) {
         IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
@@ -204,7 +201,7 @@ public class ValuesSourceConfig {
             if (userValueTypeHint == null) {
                 return defaultValuesSourceType;
             } else {
-                return userValueTypeHint.getValuesSourceType();
+                return userValueTypeHint;
             }
         }
     }
@@ -239,20 +236,19 @@ public class ValuesSourceConfig {
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
         ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
-        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
+        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, context);
     }
 
     /**
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, AggregationContext context) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, context);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, context);
     }
 
     private final ValuesSourceType valuesSourceType;
     private final FieldContext fieldContext;
     private final AggregationScript.LeafFactory script;
-    private final ValueType scriptValueType;
     private final boolean unmapped;
     private final DocValueFormat format;
     private final Object missing;
@@ -268,7 +264,6 @@ public class ValuesSourceConfig {
         FieldContext fieldContext,
         boolean unmapped,
         AggregationScript.LeafFactory script,
-        ValueType scriptValueType,
         Object missing,
         ZoneId timeZone,
         DocValueFormat format,
@@ -281,7 +276,6 @@ public class ValuesSourceConfig {
         this.fieldContext = fieldContext;
         this.unmapped = unmapped;
         this.script = script;
-        this.scriptValueType = scriptValueType;
         this.missing = missing;
         this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
@@ -302,7 +296,7 @@ public class ValuesSourceConfig {
         } else {
             if (fieldContext() == null) {
                 // Script case
-                vs = valueSourceType().getScript(script(), scriptValueType());
+                vs = valueSourceType().getScript(script());
             } else {
                 // Field or Value Script case
                 vs = valueSourceType().getField(fieldContext(), script(), context);
@@ -357,10 +351,6 @@ public class ValuesSourceConfig {
 
     public boolean valid() {
         return fieldContext != null || script != null || unmapped;
-    }
-
-    public ValueType scriptValueType() {
-        return this.scriptValueType;
     }
 
     public Object missing() {
@@ -424,7 +414,7 @@ public class ValuesSourceConfig {
      */
     public String getDescription() {
         if (script != null) {
-            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]";
+            return "Script";
         }
 
         MappedFieldType fieldType = fieldType();

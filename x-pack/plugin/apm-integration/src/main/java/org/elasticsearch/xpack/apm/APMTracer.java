@@ -106,17 +106,39 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
-            doStart();
+            createApmServices();
         } else {
-            doStop(false);
+            destroyApmServices();
         }
     }
 
     @Override
     protected void doStart() {
-        if (this.enabled == false) {
-            return;
+        if (this.enabled) {
+            createApmServices();
         }
+    }
+
+    @Override
+    protected void doStop() {
+        destroyApmServices();
+        try {
+            shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    @Override
+    protected void doClose() {
+
+    }
+
+    private void createApmServices() {
+        assert enabled;
+
+        var acquired = shutdownPermits.tryAcquire();
+        assert acquired : "doStop() is already executed";
 
         final String endpoint = this.endpoint.toString();
         final String token = this.token.toString();
@@ -148,32 +170,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.services = new APMServices(provider, tracer, openTelemetry);
     }
 
-    @Override
-    protected void doStop() {
-        doStop(true);
-    }
-
-    @Override
-    protected void doClose() {
-
-    }
-
-    private void doStop(boolean wait) {
+    private void destroyApmServices() {
         var services = this.services;
         this.services = null;
         if (services == null) {
             return;
         }
-        this.spans.clear();// discard in-flight spans
-        shutdownPermits.tryAcquire();
+        spans.clear();// discard in-flight spans
         services.provider.shutdown().whenComplete(shutdownPermits::release);
-        if (wait) {
-            try {
-                shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
     }
 
     @Override
@@ -182,7 +186,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (services == null) {
             return;
         }
-
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
             // services might be in shutdown sate by this point, but this is handled by the open telemetry internally
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());

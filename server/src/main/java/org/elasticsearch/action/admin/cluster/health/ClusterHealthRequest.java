@@ -35,8 +35,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
-    private boolean return200ForClusterHealthTimeout;
-
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
@@ -68,9 +66,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         } else {
             indicesOptions = IndicesOptions.lenientExpandOpen();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            return200ForClusterHealthTimeout = in.readBoolean();
-        }
     }
 
     @Override
@@ -100,11 +95,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         out.writeBoolean(waitForNoInitializingShards);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             indicesOptions.writeIndicesOptions(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(return200ForClusterHealthTimeout);
-        } else if (return200ForClusterHealthTimeout) {
-            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());
         }
     }
 
@@ -247,18 +237,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     public Priority waitForEvents() {
         return this.waitForEvents;
-    }
-
-    public boolean doesReturn200ForClusterHealthTimeout() {
-        return return200ForClusterHealthTimeout;
-    }
-
-    /**
-     * Sets whether to return HTTP 200 status code instead of HTTP 408 in case of a
-     * cluster health timeout from the server side.
-     */
-    public void return200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
-        this.return200ForClusterHealthTimeout = return200ForClusterHealthTimeout;
     }
 
     /**

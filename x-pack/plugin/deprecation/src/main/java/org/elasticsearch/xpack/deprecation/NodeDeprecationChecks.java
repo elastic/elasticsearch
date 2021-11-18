@@ -680,7 +680,7 @@ class NodeDeprecationChecks {
                 String.format(
                     Locale.ROOT,
                     "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, which will affect the "
-                        + "behavior of this cluster. Set [%s] to [true] to adopt the future behaviour before upgrading. "
+                        + "behavior of this cluster. Set [%s] to [true] to adopt the future behavior before upgrading. "
                         + "If desired you may also set [%s] to [false] to completely disable disk-based allocation.",
                     key,
                     disableDiskDecider

@@ -816,7 +816,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             expectedUrl,
             "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, which will affect the behavior of "
                 + "this cluster. Set [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] to [true] to adopt the future "
-                + "behaviour before upgrading. If desired you may also set [cluster.routing.allocation.disk.threshold_enabled] to [false] "
+                + "behavior before upgrading. If desired you may also set [cluster.routing.allocation.disk.threshold_enabled] to [false] "
                 + "to completely disable disk-based allocation.",
             false,
             null

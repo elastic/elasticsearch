@@ -1608,7 +1608,10 @@ public class Security extends Plugin
 
     @Override
     public void onTracers(List<TracingPlugin.Tracer> tracers) {
-        assert authorizationTracerReference.get() != null : "authorizationTracer should have been initialised";
+        if (authorizationTracerReference.get() == null) {
+            // security is disabled
+            return;
+        }
         tracers.forEach(t -> authorizationTracerReference.get().addTracer(t));
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -118,9 +119,14 @@ public class TransformRobustnessIT extends TransformRestTestCase {
 
     private void beEvilAndDeleteTheTransformIndex() throws IOException {
         final Request deleteRequest = new Request("DELETE", TransformInternalIndexConstants.LATEST_INDEX_NAME);
-        deleteRequest.setOptions(expectWarnings("this request accesses system indices: [" +
-            TransformInternalIndexConstants.LATEST_INDEX_NAME + "], but in a future major version, direct access to system indices will " +
-            "be prevented by default"));
+        deleteRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: ["
+                    + TransformInternalIndexConstants.LATEST_INDEX_NAME
+                    + "], but in a future major version, direct access to system indices will "
+                    + "be prevented by default"
+            )
+        );
         adminClient().performRequest(deleteRequest);
     }
 }

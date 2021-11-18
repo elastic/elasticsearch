@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -25,10 +26,10 @@ public class InternalInferModelActionResponseTests extends AbstractWireSerializi
     protected Response createTestInstance() {
         String resultType = randomFrom(ClassificationInferenceResults.NAME, RegressionInferenceResults.NAME);
         return new Response(
-            Stream.generate(() -> randomInferenceResult(resultType))
-            .limit(randomIntBetween(0, 10))
-            .collect(Collectors.toList()),
-            randomBoolean());
+            Stream.generate(() -> randomInferenceResult(resultType)).limit(randomIntBetween(0, 10)).collect(Collectors.toList()),
+            randomAlphaOfLength(10),
+            randomBoolean()
+        );
     }
 
     private static InferenceResults randomInferenceResult(String resultType) {

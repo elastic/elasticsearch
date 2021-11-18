@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -37,11 +26,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -104,7 +93,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         threadPool = null;
     }
 
-
     static class NodeResponse extends BaseNodeResponse {
 
         protected NodeResponse(StreamInput in) throws IOException {
@@ -141,14 +129,27 @@ public abstract class TaskManagerTestCase extends ESTestCase {
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends TransportRequest>
-            extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
+        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(String actionName, ThreadPool threadPool,
-                                ClusterService clusterService, TransportService transportService, Writeable.Reader<NodesRequest> request,
-                                Writeable.Reader<NodeRequest> nodeRequest) {
-            super(actionName, threadPool, clusterService, transportService,
-                    new ActionFilters(new HashSet<>()),
-                request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
+        AbstractTestNodesAction(
+            String actionName,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            Writeable.Reader<NodesRequest> request,
+            Writeable.Reader<NodeRequest> nodeRequest
+        ) {
+            super(
+                actionName,
+                threadPool,
+                clusterService,
+                transportService,
+                new ActionFilters(new HashSet<>()),
+                request,
+                nodeRequest,
+                ThreadPool.Names.GENERIC,
+                NodeResponse.class
+            );
         }
 
         @Override
@@ -157,28 +158,37 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new NodeResponse(in);
         }
 
         @Override
         protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
-
     }
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
-            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction =
-                address -> {
-                 discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
-                 return discoveryNode.get();
-                };
-            transportService = new TransportService(settings,
-                new MockNioTransport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
-                    PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService()),
-                threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null,
-                Collections.emptySet()) {
+            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
+                discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                return discoveryNode.get();
+            };
+            transportService = new TransportService(
+                settings,
+                new MockNioTransport(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    new NetworkService(Collections.emptyList()),
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                    new NoneCircuitBreakerService()
+                ),
+                threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                boundTransportAddressDiscoveryNodeFunction,
+                null,
+                Collections.emptySet()
+            ) {
                 @Override
                 protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -214,7 +224,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             return discoveryNode().getId();
         }
 
-        public DiscoveryNode discoveryNode() { return  discoveryNode.get(); }
+        public DiscoveryNode discoveryNode() {
+            return discoveryNode.get();
+        }
     }
 
     public static void connectNodes(TestNode... nodes) {

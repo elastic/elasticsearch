@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -24,33 +25,31 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 public class InternalInferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return randomBoolean() ?
-            new Request(
+        return randomBoolean()
+            ? new Request(
                 randomAlphaOfLength(10),
                 Stream.generate(InternalInferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfigUpdate(),
-                randomBoolean()) :
-            new Request(
-                randomAlphaOfLength(10),
-                randomMap(),
-                randomInferenceConfigUpdate(),
-                randomBoolean());
+                randomBoolean()
+            )
+            : new Request(randomAlphaOfLength(10), randomMap(), randomInferenceConfigUpdate(), randomBoolean());
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
-        return randomFrom(RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
+        return randomFrom(
+            RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
             ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),
             ResultsFieldUpdateTests.randomUpdate(),
-            EmptyConfigUpdateTests.testInstance());
+            EmptyConfigUpdateTests.testInstance()
+        );
     }
 
     private static Map<String, Object> randomMap() {
-        return Stream.generate(()-> randomAlphaOfLength(10))
+        return Stream.generate(() -> randomAlphaOfLength(10))
             .limit(randomInt(10))
             .collect(Collectors.toMap(Function.identity(), (v) -> randomAlphaOfLength(10)));
     }

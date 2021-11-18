@@ -7,7 +7,7 @@
   - match:
       $body: |
         /  #ip                          heap.percent        ram.percent     cpu         load_1m                load_5m                load_15m               node.role                   master          name
-        ^  ((\d{1,3}\.){3}\d{1,3}  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?\s+  ((-)?\d*(\.\d+)?)? \s+ (-|[cdhilmrstvw]{1,11}) \s+ [-*x]     \s+   (\S+\s?)+     \n)+  $/
+        ^  ((\d{1,3}\.){3}\d{1,3}  \s+  \d+            \s+  \d*         \s+ (-)?\d* \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)?\s+  ((-)?\d*(\.\d+)?)? \s+ (-|[cdfhilmrstvw]{1,11}) \s+ [-*x]     \s+   .*     \n)+  $/
 
   - do:
       cat.nodes:
@@ -16,7 +16,7 @@
   - match:
       $body: |
         /^  ip                     \s+  heap\.percent   \s+  ram\.percent \s+ cpu      \s+ load_1m            \s+ load_5m            \s+ load_15m           \s+ node\.role              \s+  master   \s+   name  \n
-           ((\d{1,3}\.){3}\d{1,3}  \s+  \d+             \s+  \d*          \s+ (-)?\d* \s+  ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ (-|[cdhilmrstvw]{1,11}) \s+  [-*x]    \s+   (\S+\s?)+     \n)+  $/
+           ((\d{1,3}\.){3}\d{1,3}  \s+  \d+             \s+  \d*          \s+ (-)?\d* \s+  ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ ((-)?\d*(\.\d+)?)? \s+ (-|[cdfhilmrstvw]{1,11}) \s+  [-*x]    \s+   .*     \n)+  $/
 
   - do:
       cat.nodes:

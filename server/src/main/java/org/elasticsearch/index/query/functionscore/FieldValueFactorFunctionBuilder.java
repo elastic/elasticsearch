@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query.functionscore;
@@ -25,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -130,10 +119,10 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
 
     @Override
     protected boolean doEquals(FieldValueFactorFunctionBuilder functionBuilder) {
-        return Objects.equals(this.field, functionBuilder.field) &&
-                Objects.equals(this.factor, functionBuilder.factor) &&
-                Objects.equals(this.missing, functionBuilder.missing) &&
-                Objects.equals(this.modifier, functionBuilder.modifier);
+        return Objects.equals(this.field, functionBuilder.field)
+            && Objects.equals(this.factor, functionBuilder.factor)
+            && Objects.equals(this.missing, functionBuilder.missing)
+            && Objects.equals(this.modifier, functionBuilder.modifier);
     }
 
     @Override
@@ -142,7 +131,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) {
         IndexNumericFieldData fieldData = null;
         if (context.isFieldMapped(field)) {
             fieldData = context.getForField(context.getFieldType(field));
@@ -154,8 +143,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         return new FieldValueFactorFunction(field, factor, modifier, missing, fieldData);
     }
 
-    public static FieldValueFactorFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static FieldValueFactorFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         String currentFieldName = null;
         String field = null;
         float boostFactor = FieldValueFactorFunctionBuilder.DEFAULT_FACTOR;
@@ -178,10 +166,12 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }
             } else if ("factor".equals(currentFieldName)
-                    && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[" + NAME + "] field 'factor' does not support lists or objects");
-            }
+                && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] field 'factor' does not support lists or objects"
+                    );
+                }
         }
 
         if (field == null) {
@@ -189,7 +179,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         }
 
         FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = new FieldValueFactorFunctionBuilder(field).factor(boostFactor)
-                .modifier(modifier);
+            .modifier(modifier);
         if (missing != null) {
             fieldValueFactorFunctionBuilder.missing(missing);
         }

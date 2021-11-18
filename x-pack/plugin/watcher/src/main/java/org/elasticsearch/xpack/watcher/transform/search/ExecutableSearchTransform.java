@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -34,8 +35,13 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
     private final WatcherSearchTemplateService searchTemplateService;
     private final TimeValue timeout;
 
-    public ExecutableSearchTransform(SearchTransform transform, Logger logger, Client client,
-                                     WatcherSearchTemplateService searchTemplateService, TimeValue defaultTimeout) {
+    public ExecutableSearchTransform(
+        SearchTransform transform,
+        Logger logger,
+        Client client,
+        WatcherSearchTemplateService searchTemplateService,
+        TimeValue defaultTimeout
+    ) {
         super(transform, logger);
         this.client = client;
         this.searchTemplateService = searchTemplateService;
@@ -51,8 +57,12 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
             // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
             request = new WatcherSearchTemplateRequest(transform.getRequest(), new BytesArray(renderedTemplate));
             SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
-            SearchResponse resp = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
-                    () -> client.search(searchRequest).actionGet(timeout));
+            SearchResponse resp = ClientHelper.executeWithHeaders(
+                ctx.watch().status().getHeaders(),
+                ClientHelper.WATCHER_ORIGIN,
+                client,
+                () -> client.search(searchRequest).actionGet(timeout)
+            );
             final Params params;
             if (request.isRestTotalHitsAsint()) {
                 params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));

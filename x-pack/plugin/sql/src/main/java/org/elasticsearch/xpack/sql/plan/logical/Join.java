@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
@@ -46,9 +47,6 @@ public class Join extends BinaryPlan {
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return new Join(source(), newChildren.get(0), newChildren.get(1), type, condition);
     }
 
@@ -79,9 +77,7 @@ public class Join extends BinaryPlan {
     }
 
     private static List<Attribute> makeNullable(List<Attribute> output) {
-        return output.stream()
-                .map(a -> a.withNullability(Nullability.TRUE))
-                .collect(toList());
+        return output.stream().map(a -> a.withNullability(Nullability.TRUE)).collect(toList());
     }
 
     @Override
@@ -99,10 +95,10 @@ public class Join extends BinaryPlan {
         // - the children are resolved
         // - there are no conflicts in output
         // - the condition (if present) is resolved to a boolean
-        return childrenResolved() &&
-                duplicatesResolved() &&
-                expressionsResolved() &&
-                (condition == null || DataTypes.BOOLEAN == condition.dataType());
+        return childrenResolved()
+            && duplicatesResolved()
+            && expressionsResolved()
+            && (condition == null || DataTypes.BOOLEAN == condition.dataType());
     }
 
     @Override
@@ -122,8 +118,8 @@ public class Join extends BinaryPlan {
         Join other = (Join) obj;
 
         return Objects.equals(type, other.type)
-                && Objects.equals(condition, other.condition)
-                && Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+            && Objects.equals(condition, other.condition)
+            && Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right());
     }
 }

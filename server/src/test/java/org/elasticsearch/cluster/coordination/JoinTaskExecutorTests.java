@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -38,10 +27,11 @@ import java.util.List;
 
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -53,14 +43,16 @@ public class JoinTaskExecutorTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
 
-        expectThrows(IllegalStateException.class, () ->
-        JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT),
-            metadata));
+        expectThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT), metadata)
+        );
     }
 
     public void testPreventJoinClusterWithUnsupportedIndices() {
@@ -69,12 +61,11 @@ public class JoinTaskExecutorTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.fromString("6.8.0"))) // latest V6 released version
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        expectThrows(IllegalStateException.class, () ->
-            JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
-                metadata));
+        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata));
     }
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
@@ -96,13 +87,15 @@ public class JoinTaskExecutorTests extends ESTestCase {
             }
         });
 
-        Version oldMajor = minNodeVersion.minimumCompatibilityVersion();
-        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
+        final Version oldVersion = randomValueOtherThanMany(
+            v -> v.onOrAfter(minNodeVersion),
+            () -> rarely() ? Version.fromId(minNodeVersion.id - 1) : randomVersion(random())
+        );
+        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureVersionBarrier(oldVersion, minNodeVersion));
 
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
-            // we have to stick with the same major
-            minNodeVersion :
-            maxNodeVersion.minimumCompatibilityVersion();
+        // we have to stick with the same major
+            minNodeVersion : maxNodeVersion.minimumCompatibilityVersion();
         final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
 
         if (randomBoolean()) {
@@ -116,20 +109,23 @@ public class JoinTaskExecutorTests extends ESTestCase {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(VersionUtils.randomVersionBetween(random(),
-                Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)))
+            .settings(
+                settings(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+            )
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
-            .settings(settings(VersionUtils.randomVersionBetween(random(),
-                Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)))
+            .settings(
+                settings(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+            )
             .numberOfShards(1)
-            .numberOfReplicas(1).build();
+            .numberOfReplicas(1)
+            .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-            JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
-                metadata);
+        JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
     }
 
     public void testUpdatesNodeWithNewRoles() throws Exception {
@@ -146,18 +142,25 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
         final DiscoveryNode actualNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode bwcNode = new DiscoveryNode(actualNode.getName(), actualNode.getId(), actualNode.getEphemeralId(),
-                actualNode.getHostName(), actualNode.getHostAddress(), actualNode.getAddress(), actualNode.getAttributes(),
-                new HashSet<>(randomSubsetOf(actualNode.getRoles())), actualNode.getVersion());
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder()
-                .add(masterNode)
-                .localNodeId(masterNode.getId())
-                .masterNodeId(masterNode.getId())
-                .add(bwcNode)
-        ).build();
+        final DiscoveryNode bwcNode = new DiscoveryNode(
+            actualNode.getName(),
+            actualNode.getId(),
+            actualNode.getEphemeralId(),
+            actualNode.getHostName(),
+            actualNode.getHostAddress(),
+            actualNode.getAddress(),
+            actualNode.getAttributes(),
+            new HashSet<>(randomSubsetOf(actualNode.getRoles())),
+            actualNode.getVersion()
+        );
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
+            .build();
 
-        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result
-                = joinTaskExecutor.execute(clusterState, List.of(new JoinTaskExecutor.Task(actualNode, "test")));
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(actualNode, "test"))
+        );
         assertThat(result.executionResults.entrySet(), hasSize(1));
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());

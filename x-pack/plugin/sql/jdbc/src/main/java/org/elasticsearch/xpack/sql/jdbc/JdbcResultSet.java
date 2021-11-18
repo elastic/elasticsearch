@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -32,14 +33,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
-import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asZonedDateTime;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
@@ -126,7 +126,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
             if (statement != null) {
                 statement.resultSetWasClosed();
@@ -274,7 +274,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
-                return asDateTimeField(val, JdbcDateUtils::dateTimeAsMillisSinceEpoch, Function.identity());
+                if (val instanceof String) {
+                    return asZonedDateTime((String) val).toInstant().toEpochMilli();
+                } else {
+                    return ((Number) val).longValue();
+                }
             }
             if (DATE == type) {
                 return dateTimeAsMillisSinceEpoch(val.toString());
@@ -285,7 +289,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(
-                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()),
+                cce
+            );
         }
     }
 
@@ -304,8 +310,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         try {
             return JdbcDateUtils.asDate(val.toString());
         } catch (Exception e) {
-            throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
+            throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
         }
     }
 
@@ -327,8 +332,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             }
             return JdbcDateUtils.asTime(val.toString());
         } catch (Exception e) {
-            throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
+            throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
         }
     }
 
@@ -350,7 +354,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return asTimestamp(val.toString());
         } catch (Exception e) {
             throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), e);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()),
+                e
+            );
         }
     }
 
@@ -384,7 +390,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertTimestamp(dateTimeAsMillis(columnIndex), safeCalendar(cal));
+        Timestamp ts = getTimestamp(columnIndex);
+        if (ts == null) {
+            return null;
+        }
+        return TypeConverter.convertTimestamp(ts.getTime(), ts.getNanos(), safeCalendar(cal));
     }
 
     @Override
@@ -551,7 +561,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     @Deprecated
-    @SuppressForbidden(reason="implementing deprecated method")
+    @SuppressForbidden(reason = "implementing deprecated method")
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
         return getBigDecimal(column(columnLabel), scale);
     }
@@ -1237,7 +1247,13 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "%s:row %d:cursor size %d:%s", getClass().getSimpleName(), rowNumber, cursor.batchSize(),
-                cursor.columns());
+        return format(
+            Locale.ROOT,
+            "%s:row %d:cursor size %d:%s",
+            getClass().getSimpleName(),
+            rowNumber,
+            cursor.batchSize(),
+            cursor.columns()
+        );
     }
 }

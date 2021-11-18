@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -24,9 +13,6 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -35,6 +21,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,9 +44,11 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
+
     static final String TYPE = "terms";
     static final ValuesSourceRegistry.RegistryKey<TermsCompositeSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         TYPE,
@@ -97,7 +88,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
                     // defaults to the raw format on date fields (preserve timestamp as longs).
@@ -112,6 +103,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     docValueFormat,
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -128,6 +120,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 vs::doubleValues,
                                 compositeValuesSourceConfig.format(),
                                 compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
                                 size,
                                 compositeValuesSourceConfig.reverseMul()
                             );
@@ -142,6 +135,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 rounding,
                                 compositeValuesSourceConfig.format(),
                                 compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
                                 size,
                                 compositeValuesSourceConfig.reverseMul()
                             );
@@ -150,18 +144,20 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     }
                 );
             },
-            false);
+            false
+        );
 
         builder.register(
             REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
+            (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.getValuesSource(),
                 valuesSourceConfig.format(),
                 order,
                 missingBucket,
+                missingOrder,
                 hasScript,
                 (
                     BigArrays bigArrays,
@@ -170,15 +166,15 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     LongConsumer addRequestCircuitBreakerBytes,
                     CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
 
-                    if (valuesSourceConfig.hasGlobalOrdinals() && reader instanceof DirectoryReader) {
-                        ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
-                            .valuesSource();
+                    if (valuesSourceConfig.hasOrdinals() && reader instanceof DirectoryReader) {
+                        ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
                         return new GlobalOrdinalValuesSource(
                             bigArrays,
                             compositeValuesSourceConfig.fieldType(),
                             vs::globalOrdinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -191,22 +187,25 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                             vs::bytesValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
                     }
                 }
             ),
-            false);
+            false
+        );
     }
 
     @Override
     protected ValuesSourceType getDefaultValuesSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
-        return registry.getAggregator(REGISTRY_KEY, config).apply(config, name, script() != null, format(), missingBucket(), order());
+        return registry.getAggregator(REGISTRY_KEY, config)
+            .apply(config, name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

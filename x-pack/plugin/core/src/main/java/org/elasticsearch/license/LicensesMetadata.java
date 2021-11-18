@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -10,20 +11,23 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.MergableCustomMetadata;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Objects;
 
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom,
+public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
+    implements
+        Metadata.Custom,
         MergableCustomMetadata<LicensesMetadata> {
 
     public static final String TYPE = "licenses";
@@ -39,14 +43,14 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
      * ever existed in the cluster state
      */
     public static final License LICENSE_TOMBSTONE = License.builder()
-            .type(License.LicenseType.TRIAL)
-            .issuer("elasticsearch")
-            .uid("TOMBSTONE")
-            .issuedTo("")
-            .maxNodes(0)
-            .issueDate(0)
-            .expiryDate(0)
-            .build();
+        .type(License.LicenseType.TRIAL)
+        .issuer("elasticsearch")
+        .uid("TOMBSTONE")
+        .issuedTo("")
+        .maxNodes(0)
+        .issueDate(0)
+        .expiryDate(0)
+        .build();
 
     private License license;
 
@@ -56,7 +60,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     @Nullable
     private Version trialVersion;
 
-    LicensesMetadata(License license, Version trialVersion) {
+    public LicensesMetadata(License license, Version trialVersion) {
         this.license = license;
         this.trialVersion = trialVersion;
     }
@@ -78,10 +82,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
     @Override
     public String toString() {
-        return "LicensesMetadata{" +
-                "license=" + license +
-                ", trialVersion=" + trialVersion +
-                '}';
+        return "LicensesMetadata{" + "license=" + license + ", trialVersion=" + trialVersion + '}';
     }
 
     @Override
@@ -91,8 +92,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
         LicensesMetadata that = (LicensesMetadata) o;
 
-        if (license != null ? !license.equals(that.license) : that.license != null) return false;
-        return trialVersion != null ? trialVersion.equals(that.trialVersion) : that.trialVersion == null;
+        return Objects.equals(license, that.license) && Objects.equals(trialVersion, that.trialVersion);
     }
 
     @Override
@@ -205,8 +205,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     public LicensesMetadata merge(LicensesMetadata other) {
         if (other.license == null) {
             return this;
-        } else if (license == null
-                || OperationMode.compare(other.license.operationMode(), license.operationMode()) > 0) {
+        } else if (license == null || OperationMode.compare(other.license.operationMode(), license.operationMode()) > 0) {
             return other;
         }
         return this;

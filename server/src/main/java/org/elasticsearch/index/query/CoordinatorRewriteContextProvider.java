@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -22,32 +11,34 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 public class CoordinatorRewriteContextProvider {
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfig;
     private final NamedWriteableRegistry writeableRegistry;
     private final Client client;
     private final LongSupplier nowInMillis;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final Function<Index, DateFieldMapper.DateFieldType> mappingSupplier;
 
-    public CoordinatorRewriteContextProvider(NamedXContentRegistry xContentRegistry,
-                                             NamedWriteableRegistry writeableRegistry,
-                                             Client client,
-                                             LongSupplier nowInMillis,
-                                             Supplier<ClusterState> clusterStateSupplier,
-                                             Function<Index, DateFieldMapper.DateFieldType> mappingSupplier) {
-        this.xContentRegistry = xContentRegistry;
+    public CoordinatorRewriteContextProvider(
+        XContentParserConfiguration parserConfig,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis,
+        Supplier<ClusterState> clusterStateSupplier,
+        Function<Index, DateFieldMapper.DateFieldType> mappingSupplier
+    ) {
+        this.parserConfig = parserConfig;
         this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
@@ -60,7 +51,7 @@ public class CoordinatorRewriteContextProvider {
         ClusterState clusterState = clusterStateSupplier.get();
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
 
-        if (indexMetadata == null || indexMetadata.getTimestampMillisRange().containsAllShardRanges() == false) {
+        if (indexMetadata == null || indexMetadata.getTimestampRange().containsAllShardRanges() == false) {
             return null;
         }
 
@@ -70,14 +61,7 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
 
-        IndexLongFieldRange timestampMillisRange = indexMetadata.getTimestampMillisRange();
-        return new CoordinatorRewriteContext(xContentRegistry,
-            writeableRegistry,
-            client,
-            nowInMillis,
-            index,
-            timestampMillisRange,
-            dateFieldType
-        );
+        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, index, timestampRange, dateFieldType);
     }
 }

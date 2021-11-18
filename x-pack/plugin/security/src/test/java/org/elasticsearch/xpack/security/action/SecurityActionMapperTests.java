@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action;
 
@@ -38,9 +39,12 @@ public class SecurityActionMapperTests extends ESTestCase {
             actionNameBuilder.append(randomAlphaOfLengthBetween(2, 12));
         }
         String randomAction = actionNameBuilder.toString();
-        assumeFalse("Random action is one of the known mapped values: " + randomAction, randomAction.equals(ClearScrollAction.NAME) ||
-                    randomAction.equals(AnalyzeAction.NAME) ||
-                    randomAction.equals(AnalyzeAction.NAME + "[s]"));
+        assumeFalse(
+            "Random action is one of the known mapped values: " + randomAction,
+            randomAction.equals(ClearScrollAction.NAME)
+                || randomAction.equals(AnalyzeAction.NAME)
+                || randomAction.equals(AnalyzeAction.NAME + "[s]")
+        );
 
         assertThat(securityActionMapper.action(randomAction, null), equalTo(randomAction));
     }
@@ -63,11 +67,13 @@ public class SecurityActionMapperTests extends ESTestCase {
             clearScrollRequest.addScrollId(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
         clearScrollRequest.addScrollId("_all");
-        //make sure that wherever the _all is among the scroll ids the action name gets translated
+        // make sure that wherever the _all is among the scroll ids the action name gets translated
         Collections.shuffle(clearScrollRequest.getScrollIds(), random());
 
-        assertThat(securityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest),
-                equalTo(SecurityActionMapper.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME));
+        assertThat(
+            securityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest),
+            equalTo(SecurityActionMapper.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME)
+        );
     }
 
     public void testIndicesAnalyze() {
@@ -85,7 +91,9 @@ public class SecurityActionMapperTests extends ESTestCase {
     public void testClusterAnalyze() {
         SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(null).text("text");
-        assertThat(securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
-                equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE));
+        assertThat(
+            securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
+            equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE)
+        );
     }
 }

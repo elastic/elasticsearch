@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.lucene.store;
 
@@ -26,12 +15,14 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Test harness for verifying {@link IndexInput} implementations.
@@ -39,6 +30,8 @@ import java.util.concurrent.CountDownLatch;
 public class ESIndexInputTestCase extends ESTestCase {
 
     private static EsThreadPoolExecutor executor;
+
+    private AtomicLong uniqueIdGenerator;
 
     @BeforeClass
     public static void createExecutor() {
@@ -49,6 +42,12 @@ public class ESIndexInputTestCase extends ESTestCase {
     @AfterClass
     public static void destroyExecutor() {
         executor.shutdown();
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        uniqueIdGenerator = new AtomicLong();
     }
 
     /**
@@ -83,7 +82,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                 case 3:
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
-                    IndexInput slice = indexInput.slice("slice (" + readPos + ", " + len + ") of " + indexInput, readPos, len);
+                    final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
+                    IndexInput slice = indexInput.slice(randomUniqueSliceName() + sliceExtension, readPos, len);
                     temp = randomReadAndSlice(slice, len);
                     // assert that position in the original input didn't change
                     assertEquals(readPos, indexInput.getFilePointer());
@@ -132,7 +132,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                                     clone = indexInput.clone();
                                 } else {
                                     final int sliceEnd = between(readEnd, length);
-                                    clone = indexInput.slice("concurrent slice (0, " + sliceEnd + ") of " + indexInput, 0L, sliceEnd);
+                                    final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
+                                    clone = indexInput.slice("slice" + randomUniqueSliceName() + sliceExtension, 0L, sliceEnd);
                                 }
                                 startLatch.countDown();
                                 startLatch.await();
@@ -189,4 +190,13 @@ public class ESIndexInputTestCase extends ESTestCase {
         return output;
     }
 
+    // generate unique slice names for slicing index inputs because using the same slice name together with different slice sizes
+    // is not supported for .cfs files and thus we have to avoid slice name collisions
+    private String randomUniqueSliceName() {
+        return randomAlphaOfLength(10) + uniqueIdGenerator.incrementAndGet();
+    }
+
+    protected static String randomFileExtension() {
+        return '.' + randomFrom(LuceneFilesExtensions.values()).getExtension();
+    }
 }

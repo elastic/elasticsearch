@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Objects;
 
@@ -14,10 +15,12 @@ public final class IndexResolution {
         Objects.requireNonNull(index, "index must not be null if it was found");
         return new IndexResolution(index, null);
     }
+
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
         return new IndexResolution(null, invalid);
     }
+
     public static IndexResolution notFound(String name) {
         Objects.requireNonNull(name, "name must not be null");
         return invalid("Unknown index [" + name + "]");
@@ -61,8 +64,7 @@ public final class IndexResolution {
             return false;
         }
         IndexResolution other = (IndexResolution) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(invalid, other.invalid);
+        return Objects.equals(index, other.index) && Objects.equals(invalid, other.invalid);
     }
 
     @Override

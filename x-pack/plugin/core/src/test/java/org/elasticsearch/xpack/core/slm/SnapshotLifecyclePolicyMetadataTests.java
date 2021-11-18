@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,9 +35,9 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
 
     private static Map<String, String> randomHeaders() {
         Map<String, String> headers = new HashMap<>();
-        int headerCount = randomIntBetween(1,10);
+        int headerCount = randomIntBetween(1, 10);
         for (int i = 0; i < headerCount; i++) {
-            headers.put(randomAlphaOfLengthBetween(5,10), randomAlphaOfLengthBetween(5,10));
+            headers.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
         return headers;
     }
@@ -67,13 +68,15 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
                     .build();
             case 4:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setLastSuccess(randomValueOtherThan(instance.getLastSuccess(),
-                        SnapshotInvocationRecordTests::randomSnapshotInvocationRecord))
+                    .setLastSuccess(
+                        randomValueOtherThan(instance.getLastSuccess(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
+                    )
                     .build();
             case 5:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setLastFailure(randomValueOtherThan(instance.getLastFailure(),
-                        SnapshotInvocationRecordTests::randomSnapshotInvocationRecord))
+                    .setLastFailure(
+                        randomValueOtherThan(instance.getLastFailure(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
+                    )
                     .build();
             default:
                 throw new AssertionError("failure, got illegal switch case");
@@ -102,24 +105,27 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
         }
-        return new SnapshotLifecyclePolicy(policyId,
+        return new SnapshotLifecyclePolicy(
+            policyId,
             randomAlphaOfLength(4),
             randomSchedule(),
             randomAlphaOfLength(4),
             config,
-            randomRetention());
+            randomRetention()
+        );
     }
 
     public static SnapshotRetentionConfiguration randomRetention() {
-        return rarely() ? null : new SnapshotRetentionConfiguration(
-            rarely() ? null : TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"),
-            rarely() ? null : randomIntBetween(1, 10),
-            rarely() ? null : randomIntBetween(15, 30));
+        return rarely()
+            ? null
+            : new SnapshotRetentionConfiguration(
+                rarely() ? null : TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"),
+                rarely() ? null : randomIntBetween(1, 10),
+                rarely() ? null : randomIntBetween(15, 30)
+            );
     }
 
     public static String randomSchedule() {
-        return randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 12) + " * * ?";
+        return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
     }
 }

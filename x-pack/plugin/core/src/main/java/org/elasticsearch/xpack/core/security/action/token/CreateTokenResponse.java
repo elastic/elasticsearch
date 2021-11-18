@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
@@ -9,9 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
@@ -45,8 +46,14 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         }
     }
 
-    public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope, String refreshToken,
-                               String kerberosAuthenticationResponseToken, Authentication authentication) {
+    public CreateTokenResponse(
+        String tokenString,
+        TimeValue expiresIn,
+        String scope,
+        String refreshToken,
+        String kerberosAuthenticationResponseToken,
+        Authentication authentication
+    ) {
         this.tokenString = Objects.requireNonNull(tokenString);
         this.expiresIn = Objects.requireNonNull(expiresIn);
         this.scope = scope;
@@ -75,7 +82,9 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         return kerberosAuthenticationResponseToken;
     }
 
-    public Authentication getAuthentication() { return authentication; }
+    public Authentication getAuthentication() {
+        return authentication;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -91,10 +100,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("access_token", tokenString)
-            .field("type", "Bearer")
-            .field("expires_in", expiresIn.seconds());
+        builder.startObject().field("access_token", tokenString).field("type", "Bearer").field("expires_in", expiresIn.seconds());
         if (refreshToken != null) {
             builder.field("refresh_token", refreshToken);
         }
@@ -116,17 +122,16 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CreateTokenResponse that = (CreateTokenResponse) o;
-        return Objects.equals(tokenString, that.tokenString) &&
-            Objects.equals(expiresIn, that.expiresIn) &&
-            Objects.equals(scope, that.scope) &&
-            Objects.equals(refreshToken, that.refreshToken) &&
-            Objects.equals(kerberosAuthenticationResponseToken,  that.kerberosAuthenticationResponseToken) &&
-            Objects.equals(authentication, that.authentication);
+        return Objects.equals(tokenString, that.tokenString)
+            && Objects.equals(expiresIn, that.expiresIn)
+            && Objects.equals(scope, that.scope)
+            && Objects.equals(refreshToken, that.refreshToken)
+            && Objects.equals(kerberosAuthenticationResponseToken, that.kerberosAuthenticationResponseToken)
+            && Objects.equals(authentication, that.authentication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tokenString, expiresIn, scope, refreshToken, kerberosAuthenticationResponseToken,
-            authentication);
+        return Objects.hash(tokenString, expiresIn, scope, refreshToken, kerberosAuthenticationResponseToken, authentication);
     }
 }

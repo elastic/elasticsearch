@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.dataframe.stats.regression;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Hyperparameters implements ToXContentObject {
 
@@ -39,14 +28,16 @@ public class Hyperparameters implements ToXContentObject {
     public static final ParseField LAMBDA = new ParseField("lambda");
     public static final ParseField MAX_ATTEMPTS_TO_ADD_TREE = new ParseField("max_attempts_to_add_tree");
     public static final ParseField MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER = new ParseField(
-        "max_optimization_rounds_per_hyperparameter");
+        "max_optimization_rounds_per_hyperparameter"
+    );
     public static final ParseField MAX_TREES = new ParseField("max_trees");
     public static final ParseField NUM_FOLDS = new ParseField("num_folds");
     public static final ParseField NUM_SPLITS_PER_FEATURE = new ParseField("num_splits_per_feature");
     public static final ParseField SOFT_TREE_DEPTH_LIMIT = new ParseField("soft_tree_depth_limit");
     public static final ParseField SOFT_TREE_DEPTH_TOLERANCE = new ParseField("soft_tree_depth_tolerance");
 
-    public static ConstructingObjectParser<Hyperparameters, Void> PARSER = new ConstructingObjectParser<>("regression_hyperparameters",
+    public static ConstructingObjectParser<Hyperparameters, Void> PARSER = new ConstructingObjectParser<>(
+        "regression_hyperparameters",
         true,
         a -> new Hyperparameters(
             (Double) a[0],
@@ -63,7 +54,8 @@ public class Hyperparameters implements ToXContentObject {
             (Integer) a[11],
             (Double) a[12],
             (Double) a[13]
-        ));
+        )
+    );
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), ALPHA);
@@ -97,20 +89,22 @@ public class Hyperparameters implements ToXContentObject {
     private final Double softTreeDepthLimit;
     private final Double softTreeDepthTolerance;
 
-    public Hyperparameters(Double alpha,
-                           Double downsampleFactor,
-                           Double eta,
-                           Double etaGrowthRatePerTree,
-                           Double featureBagFraction,
-                           Double gamma,
-                           Double lambda,
-                           Integer maxAttemptsToAddTree,
-                           Integer maxOptimizationRoundsPerHyperparameter,
-                           Integer maxTrees,
-                           Integer numFolds,
-                           Integer numSplitsPerFeature,
-                           Double softTreeDepthLimit,
-                           Double softTreeDepthTolerance) {
+    public Hyperparameters(
+        Double alpha,
+        Double downsampleFactor,
+        Double eta,
+        Double etaGrowthRatePerTree,
+        Double featureBagFraction,
+        Double gamma,
+        Double lambda,
+        Integer maxAttemptsToAddTree,
+        Integer maxOptimizationRoundsPerHyperparameter,
+        Integer maxTrees,
+        Integer numFolds,
+        Integer numSplitsPerFeature,
+        Double softTreeDepthLimit,
+        Double softTreeDepthTolerance
+    ) {
         this.alpha = alpha;
         this.downsampleFactor = downsampleFactor;
         this.eta = eta;

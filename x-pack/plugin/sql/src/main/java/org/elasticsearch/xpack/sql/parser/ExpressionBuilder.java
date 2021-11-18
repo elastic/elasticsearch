@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
@@ -9,9 +10,9 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -22,8 +23,8 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionResolution;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryOptionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NamedValueExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NumberContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
@@ -131,6 +134,10 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.canConvert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
@@ -148,11 +155,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(ctx, Expression.class);
+        return typedParsing(this, ctx, Expression.class);
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
-        return visitList(contexts, Expression.class);
+        return visitList(this, contexts, Expression.class);
     }
 
     @Override
@@ -170,8 +177,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitStar(StarContext ctx) {
-        return new UnresolvedStar(source(ctx), ctx.qualifiedName() != null ?
-                new UnresolvedAttribute(source(ctx.qualifiedName()), visitQualifiedName(ctx.qualifiedName())) : null);
+        return new UnresolvedStar(
+            source(ctx),
+            ctx.qualifiedName() != null
+                ? new UnresolvedAttribute(source(ctx.qualifiedName()), visitQualifiedName(ctx.qualifiedName()))
+                : null
+        );
     }
 
     @Override
@@ -283,23 +294,36 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 escape = escapeString.charAt(0);
                 // these chars already have a meaning
                 if (escape == '%' || escape == '_') {
-                    throw new ParsingException(source(escapeCtx.escape),
-                            "Char [{}] cannot be used for escaping as it's one of the wildcard chars [%_]", escape);
+                    throw new ParsingException(
+                        source(escapeCtx.escape),
+                        "Char [{}] cannot be used for escaping as it's one of the wildcard chars [%_]",
+                        escape
+                    );
                 }
                 // lastly validate that escape chars (if present) are followed by special chars
                 for (int i = 0; i < pattern.length(); i++) {
                     char current = pattern.charAt(i);
                     if (current == escape) {
                         if (i + 1 == pattern.length()) {
-                            throw new ParsingException(source(ctx.value),
-                                    "Pattern [{}] is invalid as escape char [{}] at position {} does not escape anything", pattern, escape,
-                                    i);
+                            throw new ParsingException(
+                                source(ctx.value),
+                                "Pattern [{}] is invalid as escape char [{}] at position {} does not escape anything",
+                                pattern,
+                                escape,
+                                i
+                            );
                         }
                         char next = pattern.charAt(i + 1);
                         if (next != '%' && next != '_') {
-                            throw new ParsingException(source(ctx.value),
-                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape "
-                                    + "wildcard chars [%_]; found [{}]", pattern, escape, i, next);
+                            throw new ParsingException(
+                                source(ctx.value),
+                                "Pattern [{}] is invalid as escape char [{}] at position {} can only escape "
+                                    + "wildcard chars [%_]; found [{}]",
+                                pattern,
+                                escape,
+                                i,
+                                next
+                            );
                         }
                     }
                 }
@@ -308,7 +332,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         return new LikePattern(pattern, escape);
     }
-
 
     //
     // Arithmetic
@@ -364,19 +387,27 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitMatchQuery(MatchQueryContext ctx) {
-        return new MatchQueryPredicate(source(ctx), new UnresolvedAttribute(source(ctx.singleField),
-                visitQualifiedName(ctx.singleField)), string(ctx.queryString), getQueryOptions(ctx.matchQueryOptions()));
+        return new MatchQueryPredicate(
+            source(ctx),
+            new UnresolvedAttribute(source(ctx.singleField), visitQualifiedName(ctx.singleField)),
+            string(ctx.queryString),
+            getQueryOptions(ctx.matchQueryOptions())
+        );
     }
 
     @Override
     public Object visitMultiMatchQuery(MultiMatchQueryContext ctx) {
-        return new MultiMatchQueryPredicate(source(ctx), string(ctx.multiFields), string(ctx.queryString),
-            getQueryOptions(ctx.matchQueryOptions()));
+        return new MultiMatchQueryPredicate(
+            source(ctx),
+            string(ctx.multiFields),
+            string(ctx.queryString),
+            getQueryOptions(ctx.matchQueryOptions())
+        );
     }
 
     private String getQueryOptions(MatchQueryOptionsContext optionsCtx) {
         StringJoiner sj = new StringJoiner(";");
-        for (StringContext sc: optionsCtx.string()) {
+        for (StringContext sc : optionsCtx.string()) {
             sj.add(string(sc));
         }
         return sj.toString();
@@ -384,9 +415,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Order visitOrderBy(OrderByContext ctx) {
-        return new Order(source(ctx), expression(ctx.expression()),
-                ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
-                ctx.NULLS() != null ? (ctx.FIRST() != null ? NullsPosition.FIRST : NullsPosition.LAST) : null);
+        return new Order(
+            source(ctx),
+            expression(ctx.expression()),
+            ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
+            ctx.NULLS() != null ? (ctx.FIRST() != null ? NullsPosition.FIRST : NullsPosition.LAST) : null
+        );
     }
 
     @Override
@@ -401,7 +435,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Cast visitCastExpression(CastExpressionContext ctx) {
         CastTemplateContext castTc = ctx.castTemplate();
         if (castTc != null) {
-            return new Cast(source(castTc), expression(castTc.expression()), typedParsing(castTc.dataType(), DataType.class));
+            return new Cast(source(castTc), expression(castTc.expression()), typedParsing(this, castTc.dataType(), DataType.class));
         } else {
             ConvertTemplateContext convertTc = ctx.convertTemplate();
             DataType dataType = dataType(source(convertTc.dataType()), convertTc.dataType().getText());
@@ -420,15 +454,19 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) {
-        return new Cast(source(ctx), expression(ctx.primaryExpression()), typedParsing(ctx.dataType(), DataType.class));
+        return new Cast(source(ctx), expression(ctx.primaryExpression()), typedParsing(this, ctx.dataType(), DataType.class));
     }
 
     @Override
     public Function visitExtractExpression(ExtractExpressionContext ctx) {
         ExtractTemplateContext template = ctx.extractTemplate();
         String fieldString = visitIdentifier(template.field);
-        return new UnresolvedFunction(source(template), fieldString,
-                UnresolvedFunction.ResolutionType.EXTRACT, singletonList(expression(template.valueExpression())));
+        return new UnresolvedFunction(
+            source(template),
+            fieldString,
+            SqlFunctionResolution.EXTRACT,
+            singletonList(expression(template.valueExpression()))
+        );
     }
 
     @Override
@@ -440,11 +478,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         switch (ctx.name.getType()) {
             case SqlBaseLexer.CURRENT_TIMESTAMP:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_DATE:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_TIME:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
+                return new UnresolvedFunction(source, functionName, FunctionResolutionStrategy.DEFAULT, emptyList());
             default:
                 throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
@@ -455,9 +491,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         FunctionTemplateContext template = ctx.functionTemplate();
         String name = template.functionName().getText();
         boolean isDistinct = template.setQuantifier() != null && template.setQuantifier().DISTINCT() != null;
-        UnresolvedFunction.ResolutionType resolutionType =
-                isDistinct ? UnresolvedFunction.ResolutionType.DISTINCT : UnresolvedFunction.ResolutionType.STANDARD;
-        return new UnresolvedFunction(source(ctx), name, resolutionType, expressions(template.expression()));
+        FunctionResolutionStrategy resolutionStrategy = isDistinct ? SqlFunctionResolution.DISTINCT : FunctionResolutionStrategy.DEFAULT;
+        return new UnresolvedFunction(source(ctx), name, resolutionStrategy, expressions(template.expression()));
     }
 
     @Override
@@ -470,8 +505,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         List<Expression> expressions = new ArrayList<>(ctx.whenClause().size());
         for (SqlBaseParser.WhenClauseContext when : ctx.whenClause()) {
             if (ctx.operand != null) {
-                expressions.add(new IfConditional(source(when),
-                    new Equals(source(when), expression(ctx.operand), expression(when.condition), zoneId), expression(when.result)));
+                expressions.add(
+                    new IfConditional(
+                        source(when),
+                        new Equals(source(when), expression(ctx.operand), expression(when.condition), zoneId),
+                        expression(when.result)
+                    )
+                );
             } else {
                 expressions.add(new IfConditional(source(when), expression(when.condition), expression(when.result)));
             }
@@ -488,7 +528,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitParenthesizedExpression(ParenthesizedExpressionContext ctx) {
         return expression(ctx.expression());
     }
-
 
     //
     // Logical constructs
@@ -515,11 +554,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         throw new ParsingException(source, "Don't know how to parse {}", ctx);
     }
 
-
     //
     // Literal
     //
-
 
     @Override
     public Expression visitNullLiteral(NullLiteralContext ctx) {
@@ -535,15 +572,23 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // only YEAR TO MONTH or DAY TO HOUR/MINUTE/SECOND are valid declaration
         if (trailing != null) {
             if (leading == TimeUnit.YEAR && trailing != TimeUnit.MONTH) {
-                throw new ParsingException(source(interval.trailing),
-                        "Invalid interval declaration; YEAR trailing unit required to be MONTH, received {}", trailing);
+                throw new ParsingException(
+                    source(interval.trailing),
+                    "Invalid interval declaration; YEAR trailing unit required to be MONTH, received {}",
+                    trailing
+                );
             } else {
                 if (trailing.ordinal() <= leading.ordinal()) {
                     EnumSet<TimeUnit> range = EnumSet.range(leading, TimeUnit.SECOND);
                     range.remove(leading);
-                    throw new ParsingException(source(interval.trailing),
-                            "Invalid interval declaration; trailing unit [{}] needs to be smaller than leading unit[{}], "
-                            + "expected one of {}", trailing, leading, range);
+                    throw new ParsingException(
+                        source(interval.trailing),
+                        "Invalid interval declaration; trailing unit [{}] needs to be smaller than leading unit[{}], "
+                            + "expected one of {}",
+                        trailing,
+                        leading,
+                        range
+                    );
                 }
             }
         }
@@ -570,7 +615,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-
         // negation inside the interval
         negative ^= interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
 
@@ -578,17 +622,21 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         if (interval.valueNumeric != null) {
             if (trailing != null) {
-                throw new ParsingException(source(interval.trailing),
-                        "Invalid interval declaration; trailing unit [{}] specified but the value is with numeric (single unit), "
-                        + "use the string notation instead", trailing);
+                throw new ParsingException(
+                    source(interval.trailing),
+                    "Invalid interval declaration; trailing unit [{}] specified but the value is with numeric (single unit), "
+                        + "use the string notation instead",
+                    trailing
+                );
             }
             value = of(interval.valueNumeric, leading);
         } else {
             value = of(interval.valuePattern, negative, intervalType);
         }
 
-        Interval<?> timeInterval = value instanceof Period ? new IntervalYearMonth((Period) value,
-                intervalType) : new IntervalDayTime((Duration) value, intervalType);
+        Interval<?> timeInterval = value instanceof Period
+            ? new IntervalYearMonth((Period) value, intervalType)
+            : new IntervalDayTime((Duration) value, intervalType);
 
         return new Literal(source(interval), timeInterval, timeInterval.dataType());
     }
@@ -651,9 +699,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         boolean value;
         try {
             value = Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false);
-        } catch(IllegalArgumentException iae) {
+        } catch (IllegalArgumentException iae) {
             throw new ParsingException(source(ctx), iae.getMessage());
-    }
+        }
         return new Literal(source(ctx), Boolean.valueOf(value), DataTypes.BOOLEAN);
     }
 
@@ -714,8 +762,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         try {
             sourceType = DataTypes.fromJava(param.value);
         } catch (QlIllegalArgumentException ex) {
-            throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", param.value.getClass().getName(),
-                    param.type);
+            throw new ParsingException(
+                ex,
+                source,
+                "Unexpected actual parameter type [{}] for type [{}]",
+                param.value.getClass().getName(),
+                param.type
+            );
         }
         if (sourceType == dataType) {
             // no conversion is required if the value is already have correct type
@@ -724,8 +777,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
             if (canConvert(sourceType, dataType) == false) {
-                throw new ParsingException(source, "Cannot cast value [{}] of type [{}] to parameter type [{}]", param.value, sourceType,
-                    dataType);
+                throw new ParsingException(
+                    source,
+                    "Cannot cast value [{}] of type [{}] to parameter type [{}]",
+                    param.value,
+                    sourceType,
+                    dataType
+                );
             }
             return new Literal(source, converterFor(sourceType, dataType).convert(param.value), dataType);
         } catch (QlIllegalArgumentException ex) {
@@ -774,7 +832,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // parse yyyy-MM-dd (time optional but is set to 00:00:00.000 because of the conversion to DATE
         try {
             return new Literal(source, asDateOnly(string), SqlDataTypes.DATE);
-        } catch(DateTimeParseException ex) {
+        } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
     }
@@ -825,8 +883,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         int[] separatorPos = { 8, 13, 18, 23 };
         for (int pos : separatorPos) {
             if (lowerCase.charAt(pos) != '-') {
-                throw new ParsingException(source, "{}expected group separator at offset [{}], found [{}]",
-                        errorPrefix, pos, string.charAt(pos));
+                throw new ParsingException(
+                    source,
+                    "{}expected group separator at offset [{}], found [{}]",
+                    errorPrefix,
+                    pos,
+                    string.charAt(pos)
+                );
             }
         }
 
@@ -857,24 +920,19 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     private static Tuple<Source, String> withMinus(NumberContext ctx) {
         String string = ctx.getText();
-        Source source = minusAwareSource(ctx);
-
-        if (source != null) {
-            string = "-" + string;
-        } else {
-            source = source(ctx);
-        }
-
-        return new Tuple<>(source, string);
+        Tuple<Source, Boolean> tuple = minusAwareSource(ctx);
+        return new Tuple<>(tuple.v1(), (tuple.v2() ? "-" : "") + string);
     }
 
     /**
-     * Checks the presence of MINUS (-) in the parent and if found,
-     * returns the parent source or null otherwise.
+     * Checks the presence of MINUS (-) in the parent and if found, returns the parent source
+     * along with a boolean denoting if there is an odd number of MINUSes.
+     * If not found, returns the original source.
+     *
      * Parsing of the value should not depend on the returned source
      * as it might contain extra spaces.
      */
-    private static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
+    private static Tuple<Source, Boolean> minusAwareSource(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
         if (parentCtx != null) {
             if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
@@ -884,40 +942,42 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (parentCtx instanceof ValueExpressionDefaultContext) {
                         parentCtx = parentCtx.getParent();
 
-                        // Skip parentheses, e.g.: - (( (2.15) ) )
-                        while (parentCtx instanceof PredicatedContext) {
+                        ParserRuleContext returnCtx = null;
+                        boolean minus = false;
+                        while (parentCtx != null) {
+                            // Stop when we meet a higher level context to avoid unnecessary looping
+                            if (parentCtx instanceof ArithmeticBinaryContext
+                                || parentCtx instanceof ExtractTemplateContext
+                                || parentCtx instanceof NamedValueExpressionContext
+                                || parentCtx instanceof PredicateContext // Not PredicatedContext !!
+                                || parentCtx instanceof ComparisonContext) {
+                                break;
+                            }
+                            if (parentCtx instanceof ArithmeticUnaryContext) {
+                                returnCtx = parentCtx;
+                                if (((ArithmeticUnaryContext) parentCtx).MINUS() != null) {
+                                    minus ^= true;
+                                }
+                            }
                             parentCtx = parentCtx.getParent();
-                            if (parentCtx instanceof SqlBaseParser.BooleanDefaultContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
-                            if (parentCtx instanceof SqlBaseParser.ExpressionContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
-                            if (parentCtx instanceof SqlBaseParser.ParenthesizedExpressionContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
-                            if (parentCtx instanceof ValueExpressionDefaultContext) {
-                                parentCtx = parentCtx.getParent();
-                            }
                         }
-                        if (parentCtx instanceof ArithmeticUnaryContext) {
-                            if (((ArithmeticUnaryContext) parentCtx).MINUS() != null) {
-                                return source(parentCtx);
-                            }
+                        if (returnCtx != null) {
+                            return new Tuple<>(source(returnCtx), minus);
                         }
                     }
                 }
-            } else if (parentCtx instanceof SqlBaseParser.IntervalContext) {
+                // Intervals and SysTypes can only have a single "-" as parentheses are not allowed there
+            } else if (parentCtx instanceof IntervalContext) {
                 IntervalContext ic = (IntervalContext) parentCtx;
                 if (ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS) {
-                    return source(ic);
+                    return new Tuple<>(source(ic), true);
                 }
-            } else if (parentCtx instanceof SqlBaseParser.SysTypesContext) {
+            } else if (parentCtx instanceof SysTypesContext) {
                 if (((SysTypesContext) parentCtx).MINUS() != null) {
-                    return source(parentCtx);
+                    return new Tuple<>(source(parentCtx), true);
                 }
             }
         }
-        return null;
+        return new Tuple<>(source(ctx), false);
     }
 }

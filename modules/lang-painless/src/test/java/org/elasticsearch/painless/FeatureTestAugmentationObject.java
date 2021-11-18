@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -40,16 +29,23 @@ public class FeatureTestAugmentationObject {
     }
 
     public static int augmentInjectWithLambda(FeatureTestObject ft, int injected, Function<Short, Integer> fn, short arg) {
-        return ft.getX()*fn.apply(arg)*injected;
+        return ft.getX() * fn.apply(arg) * injected;
     }
 
     public static int augmentInjectMultiTimesX(FeatureTestObject ft, int inject1, int inject2, short user) {
         return ft.getX() * (inject1 + inject2) * user;
     }
 
-    public static int augmentInjectMultiWithLambda(FeatureTestObject ft,
-            int inject1, int inject2, int inject3, int inject4, Function<Short, Integer> fn, short arg) {
-        return ft.getX()*fn.apply(arg)*(inject1 + inject2 + inject3 + inject4);
+    public static int augmentInjectMultiWithLambda(
+        FeatureTestObject ft,
+        int inject1,
+        int inject2,
+        int inject3,
+        int inject4,
+        Function<Short, Integer> fn,
+        short arg
+    ) {
+        return ft.getX() * fn.apply(arg) * (inject1 + inject2 + inject3 + inject4);
     }
 
     private FeatureTestAugmentationObject() {}

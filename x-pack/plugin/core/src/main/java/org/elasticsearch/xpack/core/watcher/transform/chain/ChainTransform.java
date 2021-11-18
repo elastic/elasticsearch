@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -61,9 +62,7 @@ public class ChainTransform implements Transform {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray();
         for (Transform transform : transforms) {
-            builder.startObject()
-                    .field(transform.type(), transform, params)
-                    .endObject();
+            builder.startObject().field(transform.type(), transform, params).endObject();
         }
         return builder.endArray();
     }
@@ -71,8 +70,12 @@ public class ChainTransform implements Transform {
     static ChainTransform parse(String watchId, XContentParser parser, TransformRegistry transformRegistry) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. expected an array of transform objects," +
-                    " but found [{}] instead", TYPE, watchId, token);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] transform for watch [{}]. expected an array of transform objects," + " but found [{}] instead",
+                TYPE,
+                watchId,
+                token
+            );
         }
 
         List<Transform> transforms = new ArrayList<>();
@@ -80,8 +83,12 @@ public class ChainTransform implements Transform {
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. expected a transform object, but " +
-                        "found [{}] instead", TYPE, watchId, token);
+                throw new ElasticsearchParseException(
+                    "could not parse [{}] transform for watch [{}]. expected a transform object, but " + "found [{}] instead",
+                    TYPE,
+                    watchId,
+                    token
+                );
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -123,7 +130,7 @@ public class ChainTransform implements Transform {
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!results.isEmpty()) {
+            if (results.isEmpty() == false) {
                 builder.startObject(type);
                 builder.startArray(Field.RESULTS.getPreferredName());
                 for (Transform.Result result : results) {
@@ -149,8 +156,8 @@ public class ChainTransform implements Transform {
             return this;
         }
 
-        public Builder add(Transform.Builder... transforms) {
-            for (Transform.Builder transform: transforms) {
+        public Builder add(Transform.Builder<?>... transforms) {
+            for (Transform.Builder<?> transform : transforms) {
                 this.transforms.add(transform.build());
             }
             return this;

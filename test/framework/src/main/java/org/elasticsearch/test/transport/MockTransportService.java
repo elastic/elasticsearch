@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.transport;
@@ -25,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,10 +23,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -47,8 +36,8 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -105,8 +94,12 @@ public final class MockTransportService extends TransportService {
         return createNewService(settings, version, threadPool, null);
     }
 
-    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
-                                                        @Nullable ClusterSettings clusterSettings) {
+    public static MockTransportService createNewService(
+        Settings settings,
+        Version version,
+        ThreadPool threadPool,
+        @Nullable ClusterSettings clusterSettings
+    ) {
         MockNioTransport mockTransport = newMockTransport(settings, version, threadPool);
         return createNewService(settings, mockTransport, version, threadPool, clusterSettings, Collections.emptySet());
     }
@@ -114,23 +107,53 @@ public final class MockTransportService extends TransportService {
     public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
-            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());
+        return new MockNioTransport(
+            settings,
+            version,
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            new MockPageCacheRecycler(settings),
+            namedWriteableRegistry,
+            new NoneCircuitBreakerService()
+        );
     }
 
-    public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
-                                                        @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+    public static MockTransportService createNewService(
+        Settings settings,
+        Transport transport,
+        Version version,
+        ThreadPool threadPool,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
         return createNewService(settings, transport, version, threadPool, clusterSettings, taskHeaders, NOOP_TRANSPORT_INTERCEPTOR);
     }
 
-    public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
-                                                        @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders,
-                                                        TransportInterceptor interceptor) {
-        return new MockTransportService(settings, transport, threadPool, interceptor,
-            boundAddress ->
-                new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
-                    Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),
-            clusterSettings, taskHeaders);
+    public static MockTransportService createNewService(
+        Settings settings,
+        Transport transport,
+        Version version,
+        ThreadPool threadPool,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders,
+        TransportInterceptor interceptor
+    ) {
+        return new MockTransportService(
+            settings,
+            transport,
+            threadPool,
+            interceptor,
+            boundAddress -> new DiscoveryNode(
+                Node.NODE_NAME_SETTING.get(settings),
+                UUIDs.randomBase64UUID(),
+                boundAddress.publishAddress(),
+                Node.NODE_ATTRIBUTES.getAsMap(settings),
+                DiscoveryNode.getRolesFromSettings(settings),
+                version
+            ),
+            clusterSettings,
+            taskHeaders
+        );
     }
 
     private final Transport original;
@@ -142,11 +165,26 @@ public final class MockTransportService extends TransportService {
      *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
      *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
-                                @Nullable ClusterSettings clusterSettings) {
-        this(settings, transport, threadPool, interceptor, (boundAddress) ->
-            DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), settings.get(Node.NODE_NAME_SETTING.getKey(),
-                UUIDs.randomBase64UUID())), clusterSettings, Collections.emptySet());
+    public MockTransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        @Nullable ClusterSettings clusterSettings
+    ) {
+        this(
+            settings,
+            transport,
+            threadPool,
+            interceptor,
+            (boundAddress) -> DiscoveryNode.createLocal(
+                settings,
+                boundAddress.publishAddress(),
+                settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
+            ),
+            clusterSettings,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -156,17 +194,37 @@ public final class MockTransportService extends TransportService {
      *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
      *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
-                                Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+    public MockTransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
         this(settings, new StubbableTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
     }
 
-    private MockTransportService(Settings settings, StubbableTransport transport, ThreadPool threadPool, TransportInterceptor interceptor,
-                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                 @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        super(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
-            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport)));
+    private MockTransportService(
+        Settings settings,
+        StubbableTransport transport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
+        super(
+            settings,
+            transport,
+            threadPool,
+            interceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskHeaders,
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport))
+        );
         this.original = transport.getDelegate();
     }
 
@@ -234,8 +292,12 @@ public final class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
-            listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated")));
+        transport().addConnectBehavior(
+            transportAddress,
+            (transport, discoveryNode, profile, listener) -> listener.onFailure(
+                new ConnectTransportException(discoveryNode, "DISCONNECT: simulated")
+            )
+        );
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
             connection.close();
@@ -288,14 +350,24 @@ public final class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
-            listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated")));
+        transport().addConnectBehavior(
+            transportAddress,
+            (transport, discoveryNode, profile, listener) -> listener.onFailure(
+                new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated")
+            )
+        );
 
         transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
-            private Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
+            private final Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
+
             @Override
-            public void sendRequest(Transport.Connection connection, long requestId, String action,
-                                    TransportRequest request, TransportRequestOptions options) {
+            public void sendRequest(
+                Transport.Connection connection,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options
+            ) {
                 // don't send anything, the receiving node is unresponsive
                 toClose.add(connection);
             }
@@ -338,9 +410,14 @@ public final class MockTransportService extends TransportService {
 
         transport().addConnectBehavior(transportAddress, new StubbableTransport.OpenConnectionBehavior() {
             private CountDownLatch stopLatch = new CountDownLatch(1);
+
             @Override
-            public void openConnection(Transport transport, DiscoveryNode discoveryNode,
-                                             ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+            public void openConnection(
+                Transport transport,
+                DiscoveryNode discoveryNode,
+                ConnectionProfile profile,
+                ActionListener<Transport.Connection> listener
+            ) {
                 TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
                     original.openConnection(discoveryNode, profile, listener);
@@ -373,8 +450,13 @@ public final class MockTransportService extends TransportService {
             private boolean cleared = false;
 
             @Override
-            public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException {
+            public void sendRequest(
+                Transport.Connection connection,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options
+            ) throws IOException {
                 // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
                 TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
@@ -383,7 +465,7 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // poor mans request cloning...
-                RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
+                RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
@@ -426,8 +508,10 @@ public final class MockTransportService extends TransportService {
      * Adds a new handling behavior that is used when the defined request is received.
      *
      */
-    public <R extends TransportRequest> void addRequestHandlingBehavior(String actionName,
-                                                                        StubbableTransport.RequestHandlingBehavior<R> handlingBehavior) {
+    public <R extends TransportRequest> void addRequestHandlingBehavior(
+        String actionName,
+        StubbableTransport.RequestHandlingBehavior<R> handlingBehavior
+    ) {
         transport().addRequestHandlingBehavior(actionName, handlingBehavior);
     }
 
@@ -461,7 +545,6 @@ public final class MockTransportService extends TransportService {
     public boolean addSendBehavior(StubbableTransport.SendRequestBehavior behavior) {
         return transport().setDefaultSendBehavior(behavior);
     }
-
 
     /**
      * Adds a new connect behavior that is used for creating connections with the given delegate service.
@@ -520,6 +603,7 @@ public final class MockTransportService extends TransportService {
         return (StubbableConnectionManager) connectionManager;
     }
 
+    @SuppressWarnings("resource") // Close is handled elsewhere
     public Transport getOriginalTransport() {
         Transport transport = transport();
         while (transport instanceof StubbableTransport) {
@@ -530,7 +614,7 @@ public final class MockTransportService extends TransportService {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
-        super.openConnection(node, connectionProfile, ActionListener.delegateFailure(listener, (l, connection) -> {
+        super.openConnection(node, connectionProfile, listener.delegateFailure((l, connection) -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
                 connection.addCloseListener(ActionListener.wrap(() -> {

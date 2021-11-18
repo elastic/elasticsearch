@@ -1,36 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -50,9 +41,8 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
     private final long rewriteTime;
 
-    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime,
-                              CollectorResult profileCollector) {
-        assert(profileCollector != null);
+    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+        assert (profileCollector != null);
         this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
@@ -82,7 +72,6 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         out.writeLong(rewriteTime);
     }
 
-
     public List<ProfileResult> getQueryResults() {
         return Collections.unmodifiableList(queryProfileResults);
     }
@@ -111,6 +100,27 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         return builder;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        QueryProfileShardResult other = (QueryProfileShardResult) obj;
+        return queryProfileResults.equals(other.queryProfileResults)
+            && profileCollector.equals(other.profileCollector)
+            && rewriteTime == other.rewriteTime;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queryProfileResults, profileCollector, rewriteTime);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
     public static QueryProfileShardResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
@@ -118,7 +128,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         List<ProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;
         CollectorResult collector = null;
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

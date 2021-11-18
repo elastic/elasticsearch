@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.action;
@@ -20,16 +21,19 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
-public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest,GetApiKeyResponse> {
+public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest, GetApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportGetApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
-                                    SecurityContext context) {
-        super(GetApiKeyAction.NAME, transportService, actionFilters,
-                (Writeable.Reader<GetApiKeyRequest>) GetApiKeyRequest::new);
+    public TransportGetApiKeyAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ApiKeyService apiKeyService,
+        SecurityContext context
+    ) {
+        super(GetApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<GetApiKeyRequest>) GetApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }

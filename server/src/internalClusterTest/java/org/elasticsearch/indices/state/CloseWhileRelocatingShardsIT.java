@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices.state;
 
@@ -33,8 +22,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
@@ -72,10 +61,10 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final int maxRecoveries = Integer.MAX_VALUE;
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), maxRecoveries)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), maxRecoveries)
             .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
@@ -104,13 +93,16 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     nbDocs = scaledRandomIntBetween(1, 100);
                     logger.debug("creating index {} with {} documents", indexName, nbDocs);
                     createIndex(indexName);
-                    indexRandom(randomBoolean(), IntStream.range(0, nbDocs)
-                        .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                        .collect(Collectors.toList()));
+                    indexRandom(
+                        randomBoolean(),
+                        IntStream.range(0, nbDocs)
+                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
+                            .collect(Collectors.toList())
+                    );
                     break;
                 default:
                     logger.debug("creating index {} with background indexing", indexName);
-                    final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), -1, 1);
+                    final BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), -1, 1);
                     indexers.put(indexName, indexer);
                     indexer.setFailureAssertion(t -> assertException(t, indexName));
                     waitForDocs(1, indexer);
@@ -119,10 +111,16 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             indices[i] = indexName;
         }
 
-        ensureGreen(TimeValue.timeValueSeconds(60L),indices);
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())));
+        ensureGreen(TimeValue.timeValueSeconds(60L), indices);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
+                )
+        );
 
         final String targetNode = internalCluster().startDataOnlyNode();
         ensureClusterSizeConsistency(); // wait for the master to finish processing join.
@@ -155,7 +153,8 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             }
 
             // Build the list of shards for which recoveries will be blocked
-            final Set<ShardId> blockedShards = commands.commands().stream()
+            final Set<ShardId> blockedShards = commands.commands()
+                .stream()
                 .map(c -> (MoveAllocationCommand) c)
                 .map(c -> new ShardId(clusterService.state().metadata().index(c.index()).getIndex(), c.shardId()))
                 .collect(Collectors.toSet());
@@ -175,8 +174,13 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                             release.await();
                             logger.debug("releasing recovery of shard {}", startRecoveryRequest.shardId());
                         } catch (final InterruptedException e) {
-                            logger.warn(() -> new ParameterizedMessage("exception when releasing recovery of shard {}",
-                                startRecoveryRequest.shardId()), e);
+                            logger.warn(
+                                () -> new ParameterizedMessage(
+                                    "exception when releasing recovery of shard {}",
+                                    startRecoveryRequest.shardId()
+                                ),
+                                e
+                            );
                             interruptedRecoveries.add(startRecoveryRequest.shardId().getIndexName());
                             Thread.currentThread().interrupt();
                             return;
@@ -186,11 +190,13 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             };
 
-            final MockTransportService targetTransportService =
-                (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
+            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                targetNode
+            );
 
             for (DiscoveryNode node : state.getNodes()) {
-                if (node.isDataNode() && node.getName().equals(targetNode) == false) {
+                if (node.canContainData() && node.getName().equals(targetNode) == false) {
                     final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
                     targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
                 }
@@ -256,13 +262,29 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
             for (String index : acknowledgedCloses) {
                 long docsCount = client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
-                assertEquals("Expected " + docsPerIndex.get(index) + " docs in index " + index + " but got " + docsCount
-                    + " (close acknowledged=" + acknowledgedCloses.contains(index) + ")", (long) docsPerIndex.get(index), docsCount);
+                assertEquals(
+                    "Expected "
+                        + docsPerIndex.get(index)
+                        + " docs in index "
+                        + index
+                        + " but got "
+                        + docsCount
+                        + " (close acknowledged="
+                        + acknowledgedCloses.contains(index)
+                        + ")",
+                    (long) docsPerIndex.get(index),
+                    docsCount
+                );
             }
         } finally {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
-                    .putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())));
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(
+                        Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())
+                    )
+            );
         }
     }
 }

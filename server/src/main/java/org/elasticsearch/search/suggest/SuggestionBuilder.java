@@ -1,38 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -110,7 +99,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-
     /**
      * Same as in {@link SuggestBuilder#setGlobalText(String)}, but in the suggestion scope.
      */
@@ -167,7 +155,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     @SuppressWarnings("unchecked")
     public T analyzer(String analyzer) {
         this.analyzer = analyzer;
-        return (T)this;
+        return (T) this;
     }
 
     /**
@@ -186,7 +174,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             throw new IllegalArgumentException("size must be positive");
         }
         this.size = size;
-        return (T)this;
+        return (T) this;
     }
 
     /**
@@ -211,7 +199,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     @SuppressWarnings("unchecked")
     public T shardSize(Integer shardSize) {
         this.shardSize = shardSize;
-        return (T)this;
+        return (T) this;
     }
 
     /**
@@ -291,13 +279,13 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         return suggestionBuilder;
     }
 
-    protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
+    protected abstract SuggestionContext build(SearchExecutionContext context) throws IOException;
 
     /**
      * Transfers the text, prefix, regex, analyzer, field, size and shard size settings from the
      * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
      */
-    protected void populateCommonFields(QueryShardContext context, SuggestionSearchContext.SuggestionContext suggestionContext) {
+    protected void populateCommonFields(SearchExecutionContext context, SuggestionSearchContext.SuggestionContext suggestionContext) {
 
         Objects.requireNonNull(field, "field must not be null");
         if (context.isFieldMapped(field) == false) {
@@ -346,7 +334,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     }
 
     private String getSuggesterName() {
-        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
+        // default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
         return getWriteableName();
     }
 
@@ -360,14 +348,14 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         }
         @SuppressWarnings("unchecked")
         T other = (T) obj;
-        return Objects.equals(text, other.text()) &&
-               Objects.equals(prefix, other.prefix()) &&
-               Objects.equals(regex, other.regex()) &&
-               Objects.equals(field, other.field()) &&
-               Objects.equals(analyzer, other.analyzer()) &&
-               Objects.equals(size, other.size()) &&
-               Objects.equals(shardSize, other.shardSize()) &&
-               doEquals(other);
+        return Objects.equals(text, other.text())
+            && Objects.equals(prefix, other.prefix())
+            && Objects.equals(regex, other.regex())
+            && Objects.equals(field, other.field())
+            && Objects.equals(analyzer, other.analyzer())
+            && Objects.equals(size, other.size())
+            && Objects.equals(shardSize, other.shardSize())
+            && doEquals(other);
     }
 
     /**

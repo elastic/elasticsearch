@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.search.action;
 
@@ -9,12 +10,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
@@ -40,11 +41,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     /**
      * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
      */
-    public AsyncSearchResponse(String id,
-                               boolean isPartial,
-                               boolean isRunning,
-                               long startTimeMillis,
-                               long expirationTimeMillis) {
+    public AsyncSearchResponse(String id, boolean isPartial, boolean isRunning, long startTimeMillis, long expirationTimeMillis) {
         this(id, null, null, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 
@@ -59,13 +56,15 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      * @param isRunning Whether the search is running in the cluster.
      * @param startTimeMillis The start date of the search in milliseconds since epoch.
      */
-    public AsyncSearchResponse(String id,
-                               SearchResponse searchResponse,
-                               Exception error,
-                               boolean isPartial,
-                               boolean isRunning,
-                               long startTimeMillis,
-                               long expirationTimeMillis) {
+    public AsyncSearchResponse(
+        String id,
+        SearchResponse searchResponse,
+        Exception error,
+        boolean isPartial,
+        boolean isRunning,
+        long startTimeMillis,
+        long expirationTimeMillis
+    ) {
         this.id = id;
         this.error = error;
         this.searchResponse = searchResponse;
@@ -204,5 +203,11 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public AsyncSearchResponse convertToFailure(Exception exc) {
+        exc.setStackTrace(new StackTraceElement[0]); // we don't need to store stack traces
+        return new AsyncSearchResponse(id, null, exc, isPartial, false, startTimeMillis, expirationTimeMillis);
     }
 }

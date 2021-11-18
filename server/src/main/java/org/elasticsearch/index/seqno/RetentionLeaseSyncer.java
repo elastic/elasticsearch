@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -42,10 +31,16 @@ public class RetentionLeaseSyncer {
 
     public static final RetentionLeaseSyncer EMPTY = new RetentionLeaseSyncer(
         (shardId, primaryAllocationId, primaryTerm, retentionLeases, listener) -> listener.onResponse(new ReplicationResponse()),
-        (shardId, primaryAllocationId, primaryTerm, retentionLeases) -> { });
+        (shardId, primaryAllocationId, primaryTerm, retentionLeases) -> {}
+    );
 
-    public void sync(ShardId shardId, String primaryAllocationId, long primaryTerm,
-                     RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
+    public void sync(
+        ShardId shardId,
+        String primaryAllocationId,
+        long primaryTerm,
+        RetentionLeases retentionLeases,
+        ActionListener<ReplicationResponse> listener
+    ) {
         syncAction.sync(shardId, primaryAllocationId, primaryTerm, retentionLeases, listener);
     }
 
@@ -58,8 +53,13 @@ public class RetentionLeaseSyncer {
      * or removed on the primary. The specified listener is invoked when the syncing completes with success or failure.
      */
     public interface SyncAction {
-        void sync(ShardId shardId, String primaryAllocationId, long primaryTerm,
-                  RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener);
+        void sync(
+            ShardId shardId,
+            String primaryAllocationId,
+            long primaryTerm,
+            RetentionLeases retentionLeases,
+            ActionListener<ReplicationResponse> listener
+        );
     }
 
     /**

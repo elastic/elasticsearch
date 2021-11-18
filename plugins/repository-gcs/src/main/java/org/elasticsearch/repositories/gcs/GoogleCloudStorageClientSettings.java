@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.gcs;
 
@@ -25,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,38 +36,59 @@ public class GoogleCloudStorageClientSettings {
     private static final String PREFIX = "gcs.client.";
 
     /** A json Service Account file loaded from secure settings. */
-    static final Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(PREFIX, "credentials_file",
-            key -> SecureSetting.secureFile(key, null));
+    static final Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "credentials_file",
+        key -> SecureSetting.secureFile(key, null)
+    );
 
     /** An override for the Storage endpoint to connect to. */
-    static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
-            key -> Setting.simpleString(key, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "endpoint",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
 
     /** An override for the Google Project ID. */
-    static final Setting.AffixSetting<String> PROJECT_ID_SETTING = Setting.affixKeySetting(PREFIX, "project_id",
-            key -> Setting.simpleString(key, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<String> PROJECT_ID_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "project_id",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
 
     /** An override for the Token Server URI in the oauth flow. */
-    static final Setting.AffixSetting<URI> TOKEN_URI_SETTING = Setting.affixKeySetting(PREFIX, "token_uri",
-            key -> new Setting<>(key, "", URI::create, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<URI> TOKEN_URI_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "token_uri",
+        key -> new Setting<>(key, "", URI::create, Setting.Property.NodeScope)
+    );
 
     /**
      * The timeout to establish a connection. A value of {@code -1} corresponds to an infinite timeout. A value of {@code 0}
      * corresponds to the default timeout of the Google Cloud Storage Java Library.
      */
-    static final Setting.AffixSetting<TimeValue> CONNECT_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "connect_timeout",
-        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<TimeValue> CONNECT_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "connect_timeout",
+        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope)
+    );
 
     /**
      * The timeout to read data from an established connection. A value of {@code -1} corresponds to an infinite timeout. A value of
      * {@code 0} corresponds to the default timeout of the Google Cloud Storage Java Library.
      */
-    static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
-        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope));
+    static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "read_timeout",
+        key -> timeSetting(key, TimeValue.ZERO, TimeValue.MINUS_ONE, Setting.Property.NodeScope)
+    );
 
     /** Name used by the client when it uses the Google Cloud JSON API. */
-    static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(PREFIX, "application_name",
-        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated));
+    static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "application_name",
+        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+    );
 
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
@@ -101,13 +111,15 @@ public class GoogleCloudStorageClientSettings {
     /** The token server URI. This leases access tokens in the oauth flow. */
     private final URI tokenUri;
 
-    GoogleCloudStorageClientSettings(final ServiceAccountCredentials credential,
-                                     final String endpoint,
-                                     final String projectId,
-                                     final TimeValue connectTimeout,
-                                     final TimeValue readTimeout,
-                                     final String applicationName,
-                                     final URI tokenUri) {
+    GoogleCloudStorageClientSettings(
+        final ServiceAccountCredentials credential,
+        final String endpoint,
+        final String projectId,
+        final TimeValue connectTimeout,
+        final TimeValue readTimeout,
+        final String applicationName,
+        final URI tokenUri
+    ) {
         this.credential = credential;
         this.endpoint = endpoint;
         this.projectId = projectId;
@@ -147,7 +159,7 @@ public class GoogleCloudStorageClientSettings {
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
-        for (final String clientName: settings.getGroups(PREFIX).keySet()) {
+        for (final String clientName : settings.getGroups(PREFIX).keySet()) {
             clients.put(clientName, getClientSettings(settings, clientName));
         }
         if (clients.containsKey("default") == false) {

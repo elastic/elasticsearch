@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp;
 
@@ -11,8 +12,8 @@ import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
 
@@ -36,10 +37,10 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
 
     @Before
     public void defineApplicationPrivileges() throws IOException {
-        super.createApplicationPrivileges("elastic-cloud", Map.ofEntries(
-            Map.entry("deployment_admin", Set.of("sso:admin")),
-            Map.entry("deployment_viewer", Set.of("sso:viewer"))
-        ));
+        super.createApplicationPrivileges(
+            "elastic-cloud",
+            Map.ofEntries(Map.entry("deployment_admin", Set.of("sso:admin")), Map.entry("deployment_viewer", Set.of("sso:viewer")))
+        );
     }
 
     public void testGetWildcardServiceProviderMetadata() throws Exception {
@@ -64,7 +65,9 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         final User user = createUser(username, password, roleName);
 
         final ApplicationResourcePrivileges applicationPrivilege = new ApplicationResourcePrivileges(
-            "elastic-cloud", List.of("sso:admin"), List.of("sso:" + entityId)
+            "elastic-cloud",
+            List.of("sso:admin"),
+            List.of("sso:" + entityId)
         );
         createRole(roleName, List.of(), List.of(), List.of(applicationPrivilege));
 
@@ -98,8 +101,14 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
     private String initSso(String entityId, String acs, UsernamePasswordToken secondaryAuth) throws IOException {
         final Request request = new Request("POST", "/_idp/saml/init/");
         request.setJsonEntity(toJson(Map.of("entity_id", entityId, "acs", acs)));
-        request.setOptions(request.getOptions().toBuilder().addHeader("es-secondary-authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())));
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    "es-secondary-authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())
+                )
+        );
         Response response = client().performRequest(request);
 
         final Map<String, Object> map = entityAsMap(response);

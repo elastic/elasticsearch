@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,8 +55,13 @@ public class TaskExecutorTests extends ESTestCase {
 
     @Before
     public void setUpExecutor() {
-        threadExecutor = EsExecutors.newSinglePrioritizing(getClass().getName() + "/" + getTestName(),
-            daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext(), threadPool.scheduler());
+        threadExecutor = EsExecutors.newSinglePrioritizing(
+            getClass().getName() + "/" + getTestName(),
+            daemonThreadFactory(Settings.EMPTY, "test_thread"),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
     }
 
     @After
@@ -87,7 +81,7 @@ public class TaskExecutorTests extends ESTestCase {
         void execute(List<T> tasks);
 
         default String describeTasks(List<T> tasks) {
-            return tasks.stream().map(T::toString).reduce((s1,s2) -> {
+            return tasks.stream().map(T::toString).reduce((s1, s2) -> {
                 if (s1.isEmpty()) {
                     return s2;
                 } else if (s2.isEmpty()) {
@@ -152,7 +146,6 @@ public class TaskExecutorTests extends ESTestCase {
             threadExecutor.execute(task);
         }
     }
-
 
     public void testTimedOutTaskCleanedUp() throws Exception {
         final CountDownLatch block = new CountDownLatch(1);
@@ -319,8 +312,7 @@ public class TaskExecutorTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-        }
+        public void onFailure(String source, Exception e) {}
 
         @Override
         public Priority priority() {

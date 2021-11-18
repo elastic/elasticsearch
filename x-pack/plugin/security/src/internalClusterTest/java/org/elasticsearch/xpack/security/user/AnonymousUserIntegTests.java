@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.user;
 
@@ -28,28 +29,24 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
-                .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
+            .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
+            .build();
     }
 
     @Override
     public String configRoles() {
-        return super.configRoles() + "\n" +
-                "anonymous:\n" +
-                "  indices:\n" +
-                "    - names: '*'\n" +
-                "      privileges: [ READ ]\n";
+        return super.configRoles() + "\n" + "anonymous:\n" + "  indices:\n" + "    - names: '*'\n" + "      privileges: [ READ ]\n";
     }
 
     public void testAnonymousViaHttp() throws Exception {
         try {
             getRestClient().performRequest(new Request("GET", "/_nodes"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             int statusCode = e.getResponse().getStatusLine().getStatusCode();
             Response response = e.getResponse();
             if (authorizationExceptionsEnabled) {

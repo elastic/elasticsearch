@@ -1,45 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -76,18 +64,19 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private static final ObjectParser<CompletionSuggestionBuilder.InnerBuilder, Void> PARSER = new ObjectParser<>(SUGGESTION_NAME);
     static {
         PARSER.declareField((parser, completionSuggestionContext, context) -> {
-                if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (parser.booleanValue()) {
-                        completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
-                    }
-                } else {
-                    completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
+            if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                if (parser.booleanValue()) {
+                    completionSuggestionContext.fuzzyOptions = new FuzzyOptions.Builder().build();
                 }
-            },
-            FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
-        PARSER.declareField((parser, completionSuggestionContext, context) ->
-            completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
-            RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
+            } else {
+                completionSuggestionContext.fuzzyOptions = FuzzyOptions.parse(parser);
+            }
+        }, FuzzyOptions.FUZZY_OPTIONS, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
+        PARSER.declareField(
+            (parser, completionSuggestionContext, context) -> completionSuggestionContext.regexOptions = RegexOptions.parse(parser),
+            RegexOptions.REGEX_OPTIONS,
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
         PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
         PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
@@ -273,14 +262,13 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         String field = builder.field;
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
-            throw new ElasticsearchParseException(
-                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
+            throw new ElasticsearchParseException("the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new CompletionSuggestionBuilder(field, builder);
     }
 
     @Override
-    public SuggestionContext build(QueryShardContext context) throws IOException {
+    public SuggestionContext build(SearchExecutionContext context) throws IOException {
         CompletionSuggestionContext suggestionContext = new CompletionSuggestionContext(context);
         // copy over common settings to each suggestion builder
         populateCommonFields(context, suggestionContext);
@@ -297,8 +285,11 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
         suggestionContext.setFieldType(type);
         if (type.hasContextMappings() && contextBytes != null) {
-            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(contextBytes,
-                context.getXContentRegistry(), type.getContextMappings());
+            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(
+                contextBytes,
+                context.getParserConfig(),
+                type.getContextMappings()
+            );
             suggestionContext.setQueryContexts(queryContexts);
         } else if (contextBytes != null) {
             throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
@@ -307,10 +298,12 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         return suggestionContext;
     }
 
-    static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(BytesReference contextBytes,
-            NamedXContentRegistry xContentRegistry, ContextMappings contextMappings) throws IOException {
-        try (XContentParser contextParser = XContentHelper.createParser(xContentRegistry,
-            LoggingDeprecationHandler.INSTANCE, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
+    static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(
+        BytesReference contextBytes,
+        XContentParserConfiguration parserConfig,
+        ContextMappings contextMappings
+    ) throws IOException {
+        try (XContentParser contextParser = XContentHelper.createParser(parserConfig, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
             contextParser.nextToken();
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
             assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
@@ -334,10 +327,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     @Override
     protected boolean doEquals(CompletionSuggestionBuilder other) {
-        return skipDuplicates == other.skipDuplicates &&
-            Objects.equals(fuzzyOptions, other.fuzzyOptions) &&
-            Objects.equals(regexOptions, other.regexOptions) &&
-            Objects.equals(contextBytes, other.contextBytes);
+        return skipDuplicates == other.skipDuplicates
+            && Objects.equals(fuzzyOptions, other.fuzzyOptions)
+            && Objects.equals(regexOptions, other.regexOptions)
+            && Objects.equals(contextBytes, other.contextBytes);
     }
 
     @Override

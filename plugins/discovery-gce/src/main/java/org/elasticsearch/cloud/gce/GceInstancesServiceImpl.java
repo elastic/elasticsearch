@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cloud.gce;
@@ -42,7 +31,7 @@ import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
 import java.io.IOException;
@@ -54,14 +43,21 @@ import java.util.List;
 import java.util.function.Function;
 
 public class GceInstancesServiceImpl implements GceInstancesService {
-    
+
     private static final Logger logger = LogManager.getLogger(GceInstancesServiceImpl.class);
 
     // all settings just used for testing - not registered by default
-    public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
-        Setting.boolSetting("cloud.gce.validate_certificates", true, Property.NodeScope);
-    public static final Setting<String> GCE_ROOT_URL =
-        new Setting<>("cloud.gce.root_url", "https://www.googleapis.com", Function.identity(), Property.NodeScope);
+    public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES = Setting.boolSetting(
+        "cloud.gce.validate_certificates",
+        true,
+        Property.NodeScope
+    );
+    public static final Setting<String> GCE_ROOT_URL = new Setting<>(
+        "cloud.gce.root_url",
+        "https://www.googleapis.com",
+        Function.identity(),
+        Property.NodeScope
+    );
 
     private final String project;
     private final List<String> zones;
@@ -78,8 +74,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                     return list.execute();
                 });
                 // assist type inference
-                return instanceList.isEmpty() || instanceList.getItems() == null ?
-                    Collections.<Instance>emptyList() : instanceList.getItems();
+                return instanceList.isEmpty() || instanceList.getItems() == null
+                    ? Collections.<Instance>emptyList()
+                    : instanceList.getItems();
             } catch (IOException e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
@@ -138,8 +135,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         }
 
         try {
-            final String defaultZone =
-                getAppEngineValueFromMetadataServer("/computeMetadata/v1/project/attributes/google-compute-default-zone");
+            final String defaultZone = getAppEngineValueFromMetadataServer(
+                "/computeMetadata/v1/project/attributes/google-compute-default-zone"
+            );
             return Collections.singletonList(defaultZone);
         } catch (Exception e) {
             logger.warn("unable to resolve default zone from metadata server for GCE discovery service", e);
@@ -181,8 +179,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     public synchronized Compute client() {
         if (refreshInterval != null && refreshInterval.millis() != 0) {
-            if (client != null &&
-                (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+            if (client != null && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 if (logger.isTraceEnabled()) logger.trace("using cache to retrieve client");
                 return client;
             }
@@ -194,13 +191,13 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
             logger.info("starting GCE discovery service");
             // Forcing Google Token API URL as set in GCE SDK to
-            //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
+            // http://metadata/computeMetadata/v1/instance/service-accounts/default/token
             // See https://developers.google.com/compute/docs/metadata#metadataserver
-            String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings) +
-                "/computeMetadata/v1/instance/service-accounts/default/token";
-            ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                .setTokenServerEncodedUrl(tokenServerEncodedUrl)
-                .build();
+            String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings)
+                + "/computeMetadata/v1/instance/service-accounts/default/token";
+            ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory).setTokenServerEncodedUrl(
+                tokenServerEncodedUrl
+            ).build();
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
@@ -210,7 +207,6 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             if (credential.getExpiresInSeconds() != null) {
                 refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds() - 1);
             }
-
 
             Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null).setApplicationName(VERSION)
                 .setRootUrl(GCE_ROOT_URL.get(settings));

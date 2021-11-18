@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
@@ -33,12 +34,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testGet() throws Exception {
-        PutWatchResponse putResponse = new PutWatchRequestBuilder(client(), "_name").setSource(watchBuilder()
-                .trigger(schedule(interval("5m")))
+        PutWatchResponse putResponse = new PutWatchRequestBuilder(client(), "_name").setSource(
+            watchBuilder().trigger(schedule(interval("5m")))
                 .input(simpleInput())
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
-                .get();
+                .addAction("_action1", loggingAction("{{ctx.watch_id}}"))
+        ).get();
 
         assertThat(putResponse, notNullValue());
         assertThat(putResponse.isCreated(), is(true));

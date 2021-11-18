@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -27,24 +28,38 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import java.util.Collections;
 import java.util.Map;
 
-public class TransportGetAutoFollowPatternAction
-    extends TransportMasterNodeReadAction<GetAutoFollowPatternAction.Request, GetAutoFollowPatternAction.Response> {
+public class TransportGetAutoFollowPatternAction extends TransportMasterNodeReadAction<
+    GetAutoFollowPatternAction.Request,
+    GetAutoFollowPatternAction.Response> {
 
     @Inject
-    public TransportGetAutoFollowPatternAction(TransportService transportService,
-                                               ClusterService clusterService,
-                                               ThreadPool threadPool,
-                                               ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetAutoFollowPatternAction.Request::new, indexNameExpressionResolver, GetAutoFollowPatternAction.Response::new,
-                ThreadPool.Names.SAME);
+    public TransportGetAutoFollowPatternAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetAutoFollowPatternAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetAutoFollowPatternAction.Request::new,
+            indexNameExpressionResolver,
+            GetAutoFollowPatternAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, GetAutoFollowPatternAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<GetAutoFollowPatternAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        GetAutoFollowPatternAction.Request request,
+        ClusterState state,
+        ActionListener<GetAutoFollowPatternAction.Response> listener
+    ) throws Exception {
         Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metadata(), request.getName());
         listener.onResponse(new GetAutoFollowPatternAction.Response(autoFollowPatterns));
     }

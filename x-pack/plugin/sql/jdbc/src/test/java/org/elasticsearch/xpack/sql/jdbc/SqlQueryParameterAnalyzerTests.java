@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -22,14 +23,15 @@ public class SqlQueryParameterAnalyzerTests extends ESTestCase {
 
     }
 
-
     public void testSingleParameter() throws Exception {
         assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("SELECT * FROM 'table' WHERE s = '?' AND b = ?"));
         assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("SELECT * FROM 'table' WHERE b = ? AND s = '?'"));
-        assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("SELECT ?/10 /* multiline  \n" +
-                " * query \n" +
-                " * more ? /* lines */ ? here \n" +
-                " */ FROM foo"));
+        assertEquals(
+            1,
+            SqlQueryParameterAnalyzer.parametersCount(
+                "SELECT ?/10 /* multiline  \n" + " * query \n" + " * more ? /* lines */ ? here \n" + " */ FROM foo"
+            )
+        );
         assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("SELECT ?"));
 
     }
@@ -38,9 +40,14 @@ public class SqlQueryParameterAnalyzerTests extends ESTestCase {
         assertEquals(4, SqlQueryParameterAnalyzer.parametersCount("SELECT ?, ?, ? , ?"));
         assertEquals(3, SqlQueryParameterAnalyzer.parametersCount("SELECT ?, ?, '?' , ?"));
         assertEquals(3, SqlQueryParameterAnalyzer.parametersCount("SELECT ?, ?\n, '?' , ?"));
-        assertEquals(3, SqlQueryParameterAnalyzer.parametersCount("SELECT ? - 10 -- first parameter with ????\n" +
-                ", ? -- second parameter with random \" and ' \n" +
-                ", ? -- last parameter without new line"));
+        assertEquals(
+            3,
+            SqlQueryParameterAnalyzer.parametersCount(
+                "SELECT ? - 10 -- first parameter with ????\n"
+                    + ", ? -- second parameter with random \" and ' \n"
+                    + ", ? -- last parameter without new line"
+            )
+        );
     }
 
     public void testUnclosedJdbcEscape() {

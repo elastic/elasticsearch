@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.apache.lucene.queries;
 
@@ -111,7 +100,7 @@ public abstract class BlendedTermQuery extends Query {
             // at least max(df) documents have that term. Sum or Averages don't seem
             // to have a significant meaning here.
             // TODO: Maybe it could also make sense to assume independent distributions of documents and eg. have:
-            //   df = df1 + df2 - (df1 * df2 / maxDoc)?
+            // df = df1 + df2 - (df1 * df2 / maxDoc)?
             max = Math.max(df, max);
             if (ctx.totalTermFreq() > 0) {
                 // we need to find out the minimum sumTTF to adjust the statistics
@@ -120,7 +109,7 @@ public abstract class BlendedTermQuery extends Query {
             }
         }
         if (maxDoc > minSumTTF) {
-            maxDoc = (int)minSumTTF;
+            maxDoc = (int) minSumTTF;
         }
         if (max == 0) {
             return; // we are done that term doesn't exist at all
@@ -137,6 +126,7 @@ public abstract class BlendedTermQuery extends Query {
                 tieBreak[i] = tieBreak[j];
                 tieBreak[j] = tmp;
             }
+
             @Override
             protected int compare(int i, int j) {
                 return Integer.compare(contexts[tieBreak[j]].docFreq(), contexts[tieBreak[i]].docFreq());
@@ -144,8 +134,7 @@ public abstract class BlendedTermQuery extends Query {
         }.sort(0, tieBreak.length);
         int prev = contexts[tieBreak[0]].docFreq();
         int actualDf = Math.min(maxDoc, max);
-        assert actualDf >=0 : "DF must be >= 0";
-
+        assert actualDf >= 0 : "DF must be >= 0";
 
         // here we try to add a little bias towards
         // the more popular (more frequent) fields
@@ -290,7 +279,7 @@ public abstract class BlendedTermQuery extends Query {
 
         @Override
         public int hashCode() {
-            return  31 * term.hashCode() + Float.hashCode(boost);
+            return 31 * term.hashCode() + Float.hashCode(boost);
         }
     }
 
@@ -302,7 +291,7 @@ public abstract class BlendedTermQuery extends Query {
         }
         if (terms.length == 1) {
             float boost = (boosts != null ? boosts[0] : 1f);
-            equalTermsAndBoosts = new TermAndBoost[] {new TermAndBoost(terms[0], boost)};
+            equalTermsAndBoosts = new TermAndBoost[] { new TermAndBoost(terms[0], boost) };
         } else {
             // sort the terms to make sure equals and hashCode are consistent
             // this should be a very small cost and equivalent to a HashSet but less object creation

@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
@@ -43,7 +32,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * {@link GCEFixture} is a fixture that emulates a GCE service.
@@ -113,51 +102,66 @@ public class GCEFixture extends AbstractHttpFixture {
         };
 
         // https://cloud.google.com/compute/docs/storing-retrieving-metadata
-        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/project/project-id"),
-            request -> simpleValue.apply(PROJECT_ID));
-        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/project/attributes/google-compute-default-zone"),
-            request -> simpleValue.apply(ZONE));
+        handlers.insert(
+            nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/project/project-id"),
+            request -> simpleValue.apply(PROJECT_ID)
+        );
+        handlers.insert(
+            nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/project/attributes/google-compute-default-zone"),
+            request -> simpleValue.apply(ZONE)
+        );
         // https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances
-        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/instance/service-accounts/default/token"),
-            request -> jsonValue.apply(Strings.toString(jsonBuilder()
-                .startObject()
-                    .field("access_token", TOKEN)
-                    .field("expires_in", TimeUnit.HOURS.toSeconds(1))
-                    .field("token_type", TOKEN_TYPE)
-                .endObject())));
+        handlers.insert(
+            nonAuthPath(HttpGet.METHOD_NAME, "/computeMetadata/v1/instance/service-accounts/default/token"),
+            request -> jsonValue.apply(
+                Strings.toString(
+                    jsonBuilder().startObject()
+                        .field("access_token", TOKEN)
+                        .field("expires_in", TimeUnit.HOURS.toSeconds(1))
+                        .field("token_type", TOKEN_TYPE)
+                        .endObject()
+                )
+            )
+        );
 
         // https://cloud.google.com/compute/docs/reference/rest/v1/instances
-        handlers.insert(authPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"),
-            request -> {
-                final var items = new ArrayList<Map<String, Object>>();
-                int count = 0;
-                for (String address : Files.readAllLines(nodes)) {
-                    count++;
-                    items.add(Map.of(
-                            "id", Long.toString(9309873766405L + count),
-                            "description", "ES node" + count,
-                            "name", "test" + count,
-                            "kind", "compute#instance",
-                            "machineType", "n1-standard-1",
-                            "networkInterfaces", List.of(Map.of(
-                                    "accessConfigs", Collections.emptyList(),
-                                    "name", "nic0",
-                                    "network", "default",
-                                    "networkIP", address)),
-                            "status", "RUNNING",
-                            "zone", ZONE));
-                }
+        handlers.insert(authPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"), request -> {
+            final var items = new ArrayList<Map<String, Object>>();
+            int count = 0;
+            for (String address : Files.readAllLines(nodes)) {
+                count++;
+                items.add(
+                    Map.of(
+                        "id",
+                        Long.toString(9309873766405L + count),
+                        "description",
+                        "ES node" + count,
+                        "name",
+                        "test" + count,
+                        "kind",
+                        "compute#instance",
+                        "machineType",
+                        "n1-standard-1",
+                        "networkInterfaces",
+                        List.of(
+                            Map.of("accessConfigs", Collections.emptyList(), "name", "nic0", "network", "default", "networkIP", address)
+                        ),
+                        "status",
+                        "RUNNING",
+                        "zone",
+                        ZONE
+                    )
+                );
+            }
 
-                final String json = Strings.toString(jsonBuilder()
-                    .startObject()
-                    .field("id", "test-instances")
-                    .field("items", items)
-                    .endObject());
+            final String json = Strings.toString(
+                jsonBuilder().startObject().field("id", "test-instances").field("items", items).endObject()
+            );
 
-                final byte[] responseAsBytes = json.getBytes(StandardCharsets.UTF_8);
-                final Map<String, String> headers = new HashMap<>(JSON_CONTENT_TYPE);
-                commonHeaderConsumer.accept(headers);
-                return new Response(RestStatus.OK.getStatus(), headers, responseAsBytes);
+            final byte[] responseAsBytes = json.getBytes(StandardCharsets.UTF_8);
+            final Map<String, String> headers = new HashMap<>(JSON_CONTENT_TYPE);
+            commonHeaderConsumer.accept(headers);
+            return new Response(RestStatus.OK.getStatus(), headers, responseAsBytes);
         });
         return handlers;
     }
@@ -184,22 +188,29 @@ public class GCEFixture extends AbstractHttpFixture {
     }
 
     private static Response newError(final RestStatus status, final String code, final String message) throws IOException {
-        final String response = Strings.toString(jsonBuilder()
-            .startObject()
-            .field("error", MapBuilder.<String, Object>newMapBuilder()
-                .put("errors", Collections.singletonList(
+        final String response = Strings.toString(
+            jsonBuilder().startObject()
+                .field(
+                    "error",
                     MapBuilder.<String, Object>newMapBuilder()
-                    .put("domain", "global")
-                    .put("reason", "required")
-                    .put("message", message)
-                    .put("locationType", "header")
-                    .put("location", code)
-                    .immutableMap()
-                ))
-                .put("code", status.getStatus())
-                .put("message", message)
-                .immutableMap())
-            .endObject());
+                        .put(
+                            "errors",
+                            Collections.singletonList(
+                                MapBuilder.<String, Object>newMapBuilder()
+                                    .put("domain", "global")
+                                    .put("reason", "required")
+                                    .put("message", message)
+                                    .put("locationType", "header")
+                                    .put("location", code)
+                                    .immutableMap()
+                            )
+                        )
+                        .put("code", status.getStatus())
+                        .put("message", message)
+                        .immutableMap()
+                )
+                .endObject()
+        );
 
         return new Response(status.getStatus(), JSON_CONTENT_TYPE, response.getBytes(UTF_8));
     }

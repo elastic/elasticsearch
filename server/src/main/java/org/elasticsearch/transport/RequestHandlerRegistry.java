@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -39,9 +28,15 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final TaskManager taskManager;
     private final Writeable.Reader<Request> requestReader;
 
-    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, TaskManager taskManager,
-                                  TransportRequestHandler<Request> handler, String executor, boolean forceExecution,
-                                  boolean canTripCircuitBreaker) {
+    public RequestHandlerRegistry(
+        String action,
+        Writeable.Reader<Request> requestReader,
+        TaskManager taskManager,
+        TransportRequestHandler<Request> handler,
+        String executor,
+        boolean forceExecution,
+        boolean canTripCircuitBreaker
+    ) {
         this.action = action;
         this.requestReader = requestReader;
         this.handler = handler;
@@ -97,9 +92,18 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return handler.toString();
     }
 
-    public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(RequestHandlerRegistry<R> registry,
-                                                                                        TransportRequestHandler<R> handler) {
-        return new RequestHandlerRegistry<>(registry.action, registry.requestReader, registry.taskManager, handler,
-            registry.executor, registry.forceExecution, registry.canTripCircuitBreaker);
+    public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(
+        RequestHandlerRegistry<R> registry,
+        TransportRequestHandler<R> handler
+    ) {
+        return new RequestHandlerRegistry<>(
+            registry.action,
+            registry.requestReader,
+            registry.taskManager,
+            handler,
+            registry.executor,
+            registry.forceExecution,
+            registry.canTripCircuitBreaker
+        );
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.dataframe.evaluation;
 
@@ -32,9 +21,9 @@ import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredEr
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Arrays;
 import java.util.List;
@@ -50,15 +39,14 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
      * @return name appropriate for registering a metric (or metric result) in {@link NamedXContentRegistry}
      */
     public static String registeredMetricName(String evaluationName, String metricName) {
-        return evaluationName + "." +  metricName;
+        return evaluationName + "." + metricName;
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
             // Evaluations
-            new NamedXContentRegistry.Entry(
-                Evaluation.class, new ParseField(OutlierDetection.NAME), OutlierDetection::fromXContent),
+            new NamedXContentRegistry.Entry(Evaluation.class, new ParseField(OutlierDetection.NAME), OutlierDetection::fromXContent),
             new NamedXContentRegistry.Entry(Evaluation.class, new ParseField(Classification.NAME), Classification::fromXContent),
             new NamedXContentRegistry.Entry(Evaluation.class, new ParseField(Regression.NAME), Regression::fromXContent),
             // Evaluation metrics
@@ -66,118 +54,163 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 EvaluationMetric.class,
                 new ParseField(
                     registeredMetricName(
-                        OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME)),
-                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric::fromXContent),
+                        OutlierDetection.NAME,
+                        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME
+                    )
+                ),
+                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(
                     registeredMetricName(
-                        OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME)),
-                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric::fromXContent),
+                        OutlierDetection.NAME,
+                        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME
+                    )
+                ),
+                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(
                     registeredMetricName(
-                        OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME)),
-                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric::fromXContent),
+                        OutlierDetection.NAME,
+                        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME
+                    )
+                ),
+                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(OutlierDetection.NAME, ConfusionMatrixMetric.NAME)),
-                ConfusionMatrixMetric::fromXContent),
+                ConfusionMatrixMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Classification.NAME, AucRocMetric.NAME)),
-                AucRocMetric::fromXContent),
+                AucRocMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Classification.NAME, AccuracyMetric.NAME)),
-                AccuracyMetric::fromXContent),
+                AccuracyMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Classification.NAME, PrecisionMetric.NAME)),
-                PrecisionMetric::fromXContent),
+                PrecisionMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Classification.NAME, RecallMetric.NAME)),
-                RecallMetric::fromXContent),
+                RecallMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME)),
-                MulticlassConfusionMatrixMetric::fromXContent),
+                MulticlassConfusionMatrixMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME)),
-                MeanSquaredErrorMetric::fromXContent),
+                MeanSquaredErrorMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME)),
-                MeanSquaredLogarithmicErrorMetric::fromXContent),
+                MeanSquaredLogarithmicErrorMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Regression.NAME, HuberMetric.NAME)),
-                HuberMetric::fromXContent),
+                HuberMetric::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
                 new ParseField(registeredMetricName(Regression.NAME, RSquaredMetric.NAME)),
-                RSquaredMetric::fromXContent),
+                RSquaredMetric::fromXContent
+            ),
             // Evaluation metrics results
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
-                new ParseField(registeredMetricName(
-                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME)),
-                AucRocResult::fromXContent),
+                new ParseField(
+                    registeredMetricName(
+                        OutlierDetection.NAME,
+                        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME
+                    )
+                ),
+                AucRocResult::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(
                     registeredMetricName(
-                        OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME)),
-                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.Result::fromXContent),
+                        OutlierDetection.NAME,
+                        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME
+                    )
+                ),
+                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(
                     registeredMetricName(
-                        OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME)),
-                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.Result::fromXContent),
+                        OutlierDetection.NAME,
+                        org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME
+                    )
+                ),
+                org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(OutlierDetection.NAME, ConfusionMatrixMetric.NAME)),
-                ConfusionMatrixMetric.Result::fromXContent),
+                ConfusionMatrixMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, AucRocMetric.NAME)),
-                AucRocResult::fromXContent),
+                AucRocResult::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, AccuracyMetric.NAME)),
-                AccuracyMetric.Result::fromXContent),
+                AccuracyMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, PrecisionMetric.NAME)),
-                PrecisionMetric.Result::fromXContent),
+                PrecisionMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, RecallMetric.NAME)),
-                RecallMetric.Result::fromXContent),
+                RecallMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME)),
-                MulticlassConfusionMatrixMetric.Result::fromXContent),
+                MulticlassConfusionMatrixMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME)),
-                MeanSquaredErrorMetric.Result::fromXContent),
+                MeanSquaredErrorMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME)),
-                MeanSquaredLogarithmicErrorMetric.Result::fromXContent),
+                MeanSquaredLogarithmicErrorMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Regression.NAME, HuberMetric.NAME)),
-                HuberMetric.Result::fromXContent),
+                HuberMetric.Result::fromXContent
+            ),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Regression.NAME, RSquaredMetric.NAME)),
-                RSquaredMetric.Result::fromXContent)
+                RSquaredMetric.Result::fromXContent
+            )
         );
     }
 }

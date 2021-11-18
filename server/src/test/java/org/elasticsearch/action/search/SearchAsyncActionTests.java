@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
@@ -72,15 +61,24 @@ public class SearchAsyncActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
         int numShards = 10;
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
-            (e) -> { throw new AssertionError("unexpected", e);});
+
+        AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
+            searchResponse::set,
+            (e) -> { throw new AssertionError("unexpected", e); }
+        );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
-            numShards, randomBoolean(), primaryNode, replicaNode);
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards,
+            randomBoolean(),
+            primaryNode,
+            replicaNode
+        );
         int numSkipped = 0;
         for (SearchShardIterator iter : shardsIter) {
             if (iter.shardId().id() % 2 == 0) {
@@ -88,7 +86,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 numSkipped++;
             }
         }
-        CountDownLatch latch = new CountDownLatch(numShards - numSkipped);
+        CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
 
         SearchTransportService transportService = new SearchTransportService(null, null, null);
@@ -98,69 +96,71 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
-        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
-            new AbstractSearchAsyncAction<TestSearchPhaseResult>(
-                "test",
-                logger,
-                transportService,
-                (cluster, node) -> {
-                    assert cluster == null : "cluster was not null: " + cluster;
-                    return lookup.get(node); },
-                aliasFilters,
-                Collections.emptyMap(),
-                null,
-                request,
-                responseListener,
-                shardsIter,
-                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                ClusterState.EMPTY_STATE,
-                null,
-                new ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
+            "test",
+            logger,
+            transportService,
+            (cluster, node) -> {
+                assert cluster == null : "cluster was not null: " + cluster;
+                return lookup.get(node);
+            },
+            aliasFilters,
+            Collections.emptyMap(),
+            null,
+            request,
+            responseListener,
+            shardsIter,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            null,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY
+        ) {
 
-                @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
-                                                   SearchActionListener<TestSearchPhaseResult> listener) {
-                    seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
-                        numRequests.incrementAndGet(); // only count this once per replica
-                        return Boolean.TRUE;
-                    });
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<TestSearchPhaseResult> listener
+            ) {
+                seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
+                    numRequests.incrementAndGet(); // only count this once per replica
+                    return Boolean.TRUE;
+                });
 
-                    new Thread(() -> {
-                        Transport.Connection connection = getConnection(null, shard.getNodeId());
-                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
-                            new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
-                        connection.getNode());
-                        listener.onResponse(testSearchPhaseResult);
+                new Thread(() -> {
+                    Transport.Connection connection = getConnection(null, shard.getNodeId());
+                    TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
+                        new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
+                        connection.getNode()
+                    );
+                    listener.onResponse(testSearchPhaseResult);
 
-                    }).start();
-                }
+                }).start();
+            }
 
-                @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
-                    return new SearchPhase("test") {
-                        @Override
-                        public void run() {
-                            assertTrue(searchPhaseDidRun.compareAndSet(false, true));
-                        }
-                    };
-                }
-
-                @Override
-                protected void executeNext(Runnable runnable, Thread originalThread) {
-                    super.executeNext(runnable, originalThread);
-                    latch.countDown();
-                }
-            };
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        latch.countDown();
+                    }
+                };
+            }
+        };
         asyncAction.start();
         latch.await();
         assertTrue(searchPhaseDidRun.get());
-        SearchResponse searchResponse = asyncAction.buildSearchResponse(null, asyncAction.buildShardFailures(), null, null);
         assertEquals(shardsIter.size() - numSkipped, numRequests.get());
-        assertEquals(0, searchResponse.getFailedShards());
-        assertEquals(numSkipped, searchResponse.getSkippedShards());
-        assertEquals(shardsIter.size(), searchResponse.getSuccessfulShards());
+
+        asyncAction.sendSearchResponse(null, null);
+        assertNotNull(searchResponse.get());
+        assertEquals(0, searchResponse.get().getFailedShards());
+        assertEquals(numSkipped, searchResponse.get().getSkippedShards());
+        assertEquals(shardsIter.size(), searchResponse.get().getSuccessfulShards());
     }
 
     public void testLimitConcurrentShardRequests() throws InterruptedException {
@@ -170,7 +170,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.setMaxConcurrentShardRequests(numConcurrent);
         boolean doReplicas = randomBoolean();
         int numShards = randomIntBetween(5, 10);
-        int numShardAttempts = numShards;
         Boolean[] shardFailures = new Boolean[numShards];
         // at least one response otherwise the entire request fails
         shardFailures[randomIntBetween(0, shardFailures.length - 1)] = false;
@@ -178,23 +177,27 @@ public class SearchAsyncActionTests extends ESTestCase {
             if (shardFailures[i] == null) {
                 boolean failure = randomBoolean();
                 shardFailures[i] = failure;
-                if (failure && doReplicas) {
-                    numShardAttempts++;
-                }
             }
         }
-        CountDownLatch latch = new CountDownLatch(numShardAttempts);
+        CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
-            (e) -> { throw new AssertionError("unexpected", e);});
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
+            response -> {},
+            (e) -> { throw new AssertionError("unexpected", e); }
+        );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
         DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
-            numShards, doReplicas, primaryNode, replicaNode);
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards,
+            doReplicas,
+            primaryNode,
+            replicaNode
+        );
         SearchTransportService transportService = new SearchTransportService(null, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
@@ -203,68 +206,69 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
-        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
-            new AbstractSearchAsyncAction<TestSearchPhaseResult>(
-                "test",
-                logger,
-                transportService,
-                (cluster, node) -> {
-                    assert cluster == null : "cluster was not null: " + cluster;
-                    return lookup.get(node); },
-                aliasFilters,
-                Collections.emptyMap(),
-                null,
-                request,
-                responseListener,
-                shardsIter,
-                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                ClusterState.EMPTY_STATE,
-                null,
-                new ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
+            "test",
+            logger,
+            transportService,
+            (cluster, node) -> {
+                assert cluster == null : "cluster was not null: " + cluster;
+                return lookup.get(node);
+            },
+            aliasFilters,
+            Collections.emptyMap(),
+            null,
+            request,
+            responseListener,
+            shardsIter,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            null,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY
+        ) {
 
-                @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
-                                                   SearchActionListener<TestSearchPhaseResult> listener) {
-                    seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
-                        numRequests.incrementAndGet(); // only count this once per shard copy
-                        return Boolean.TRUE;
-                    });
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<TestSearchPhaseResult> listener
+            ) {
+                seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
+                    numRequests.incrementAndGet(); // only count this once per shard copy
+                    return Boolean.TRUE;
+                });
 
-                    new Thread(() -> {
-                        try {
-                            awaitInitialRequests.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
-                        Transport.Connection connection = getConnection(null, shard.getNodeId());
-                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
-                            new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
-                        if (shardFailures[shard.getShardId().id()]) {
-                            listener.onFailure(new RuntimeException());
-                        } else {
-                            listener.onResponse(testSearchPhaseResult);
-                        }
-                    }).start();
-                }
+                new Thread(() -> {
+                    try {
+                        awaitInitialRequests.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    Transport.Connection connection = getConnection(null, shard.getNodeId());
+                    TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
+                        new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
+                        connection.getNode()
+                    );
+                    if (shardFailures[shard.getShardId().id()]) {
+                        listener.onFailure(new RuntimeException());
+                    } else {
+                        listener.onResponse(testSearchPhaseResult);
+                    }
+                }).start();
+            }
 
-                @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
-                    return new SearchPhase("test") {
-                        @Override
-                        public void run() {
-                            assertTrue(searchPhaseDidRun.compareAndSet(false, true));
-                        }
-                    };
-                }
-
-                @Override
-                protected void executeNext(Runnable runnable, Thread originalThread) {
-                    super.executeNext(runnable, originalThread);
-                    latch.countDown();
-                }
-            };
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        latch.countDown();
+                    }
+                };
+            }
+        };
         asyncAction.start();
         assertEquals(numConcurrent, numRequests.get());
         awaitInitialRequests.countDown();
@@ -280,16 +284,22 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(
             searchResponse -> response.set((TestSearchResponse) searchResponse),
-            (e) -> { throw new AssertionError("unexpected", e);});
+            (e) -> { throw new AssertionError("unexpected", e); }
+        );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(1, 10);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-                new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
-                numShards, randomBoolean(), primaryNode, replicaNode);
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards,
+            randomBoolean(),
+            primaryNode,
+            replicaNode
+        );
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null, null) {
             @Override
@@ -304,36 +314,43 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
-        final CountDownLatch latch = new CountDownLatch(numShards);
-        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
-                new AbstractSearchAsyncAction<TestSearchPhaseResult>(
-                        "test",
-                        logger,
-                        transportService,
-                        (cluster, node) -> {
-                            assert cluster == null : "cluster was not null: " + cluster;
-                            return lookup.get(node); },
-                        aliasFilters,
-                        Collections.emptyMap(),
-                        executor,
-                        request,
-                        responseListener,
-                        shardsIter,
-                        new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                        ClusterState.EMPTY_STATE,
-                        null,
-                        new ArraySearchPhaseResults<>(shardsIter.size()),
-                        request.getMaxConcurrentShardRequests(),
-                        SearchResponse.Clusters.EMPTY) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean latchTriggered = new AtomicBoolean();
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
+            "test",
+            logger,
+            transportService,
+            (cluster, node) -> {
+                assert cluster == null : "cluster was not null: " + cluster;
+                return lookup.get(node);
+            },
+            aliasFilters,
+            Collections.emptyMap(),
+            executor,
+            request,
+            responseListener,
+            shardsIter,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            null,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY
+        ) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
-            protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
-                                               SearchActionListener<TestSearchPhaseResult> listener) {
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<TestSearchPhaseResult> listener
+            ) {
                 assertTrue("shard: " + shard.getShardId() + " has been queried twice", response.queried.add(shard.getShardId()));
                 Transport.Connection connection = getConnection(null, shard.getNodeId());
                 TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
-                    new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
+                    connection.getNode()
+                );
                 Set<ShardSearchContextId> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
                 ids.add(testSearchPhaseResult.getContextId());
                 if (randomBoolean()) {
@@ -354,14 +371,12 @@ public class SearchAsyncActionTests extends ESTestCase {
                             sendReleaseSearchContext(result.getContextId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }
                         responseListener.onResponse(response);
+                        if (latchTriggered.compareAndSet(false, true) == false) {
+                            throw new AssertionError("latch triggered twice");
+                        }
+                        latch.countDown();
                     }
                 };
-            }
-
-            @Override
-            protected void executeNext(Runnable runnable, Thread originalThread) {
-                super.executeNext(runnable, originalThread);
-                latch.countDown();
             }
         };
         asyncAction.start();
@@ -375,7 +390,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         } else {
             assertTrue(nodeToContextMap.get(replicaNode).toString(), nodeToContextMap.get(replicaNode).isEmpty());
         }
-        executor.shutdown();
+        final List<Runnable> runnables = executor.shutdownNow();
+        assertThat(runnables, equalTo(Collections.emptyList()));
     }
 
     public void testFanOutAndFail() throws InterruptedException {
@@ -389,16 +405,22 @@ public class SearchAsyncActionTests extends ESTestCase {
             exc -> {
                 failure.set(exc);
                 latch.countDown();
-            });
+            }
+        );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(2, 10);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
-            numShards, randomBoolean(), primaryNode, replicaNode);
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards,
+            randomBoolean(),
+            primaryNode,
+            replicaNode
+        );
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null, null) {
             @Override
@@ -414,73 +436,79 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
-        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
-            new AbstractSearchAsyncAction<TestSearchPhaseResult>(
-                "test",
-                logger,
-                transportService,
-                (cluster, node) -> {
-                    assert cluster == null : "cluster was not null: " + cluster;
-                    return lookup.get(node); },
-                aliasFilters,
-                Collections.emptyMap(),
-                executor,
-                request,
-                responseListener,
-                shardsIter,
-                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                ClusterState.EMPTY_STATE,
-                null,
-                new ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
-                TestSearchResponse response = new TestSearchResponse();
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
+            "test",
+            logger,
+            transportService,
+            (cluster, node) -> {
+                assert cluster == null : "cluster was not null: " + cluster;
+                return lookup.get(node);
+            },
+            aliasFilters,
+            Collections.emptyMap(),
+            executor,
+            request,
+            responseListener,
+            shardsIter,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            null,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY
+        ) {
+            TestSearchResponse response = new TestSearchResponse();
 
-                @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt,
-                                                   SearchShardTarget shard,
-                                                   SearchActionListener<TestSearchPhaseResult> listener) {
-                    assertTrue("shard: " + shard.getShardId() + " has been queried twice", response.queried.add(shard.getShardId()));
-                    Transport.Connection connection = getConnection(null, shard.getNodeId());
-                    final TestSearchPhaseResult testSearchPhaseResult;
-                    if (shard.getShardId().id() == 0) {
-                        testSearchPhaseResult = new TestSearchPhaseResult(null, connection.getNode());
-                    } else {
-                        testSearchPhaseResult = new TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(),
-                            contextIdGenerator.incrementAndGet()), connection.getNode());
-                        Set<ShardSearchContextId> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
-                        ids.add(testSearchPhaseResult.getContextId());
-                    }
-                    if (randomBoolean()) {
-                        listener.onResponse(testSearchPhaseResult);
-                    } else {
-                        new Thread(() -> listener.onResponse(testSearchPhaseResult)).start();
-                    }
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<TestSearchPhaseResult> listener
+            ) {
+                assertTrue("shard: " + shard.getShardId() + " has been queried twice", response.queried.add(shard.getShardId()));
+                Transport.Connection connection = getConnection(null, shard.getNodeId());
+                final TestSearchPhaseResult testSearchPhaseResult;
+                if (shard.getShardId().id() == 0) {
+                    testSearchPhaseResult = new TestSearchPhaseResult(null, connection.getNode());
+                } else {
+                    testSearchPhaseResult = new TestSearchPhaseResult(
+                        new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
+                        connection.getNode()
+                    );
+                    Set<ShardSearchContextId> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
+                    ids.add(testSearchPhaseResult.getContextId());
                 }
+                if (randomBoolean()) {
+                    listener.onResponse(testSearchPhaseResult);
+                } else {
+                    new Thread(() -> listener.onResponse(testSearchPhaseResult)).start();
+                }
+            }
 
-                @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
-                    return new SearchPhase("test") {
-                        @Override
-                        public void run() {
-                            throw new RuntimeException("boom");
-                        }
-                    };
-                }
-            };
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        throw new RuntimeException("boom");
+                    }
+                };
+            }
+        };
         asyncAction.start();
         latch.await();
         assertNotNull(failure.get());
         assertThat(failure.get().getCause().getMessage(), containsString("boom"));
         assertFalse(nodeToContextMap.isEmpty());
         assertTrue(nodeToContextMap.toString(), nodeToContextMap.containsKey(primaryNode) || nodeToContextMap.containsKey(replicaNode));
-        assertEquals(shardsIter.size()-1, numFreedContext.get());
+        assertEquals(shardsIter.size() - 1, numFreedContext.get());
         if (nodeToContextMap.containsKey(primaryNode)) {
             assertTrue(nodeToContextMap.get(primaryNode).toString(), nodeToContextMap.get(primaryNode).isEmpty());
         } else {
             assertTrue(nodeToContextMap.get(replicaNode).toString(), nodeToContextMap.get(replicaNode).isEmpty());
         }
-        executor.shutdown();
+        final List<Runnable> runnables = executor.shutdownNow();
+        assertThat(runnables, equalTo(Collections.emptyList()));
     }
 
     public void testAllowPartialResults() throws InterruptedException {
@@ -490,21 +518,24 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.setMaxConcurrentShardRequests(numConcurrent);
         int numShards = randomIntBetween(5, 10);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
-            (e) -> { throw new AssertionError("unexpected", e);} );
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
+            response -> {},
+            (e) -> { throw new AssertionError("unexpected", e); }
+        );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
         DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
-            numShards, true, primaryNode, replicaNode);
-        int numShardAttempts = 0;
-        for (SearchShardIterator it : shardsIter) {
-            numShardAttempts += it.remaining();
-        }
-        CountDownLatch latch = new CountDownLatch(numShardAttempts);
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards,
+            true,
+            primaryNode,
+            replicaNode
+        );
+        CountDownLatch latch = new CountDownLatch(1);
 
         SearchTransportService transportService = new SearchTransportService(null, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
@@ -514,63 +545,64 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
         AtomicInteger numFailReplicas = new AtomicInteger(0);
-        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
-            new AbstractSearchAsyncAction<>(
-                "test",
-                logger,
-                transportService,
-                (cluster, node) -> {
-                    assert cluster == null : "cluster was not null: " + cluster;
-                    return lookup.get(node); },
-                aliasFilters,
-                Collections.emptyMap(),
-                null,
-                request,
-                responseListener,
-                shardsIter,
-                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                ClusterState.EMPTY_STATE,
-                null,
-                new ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
+            "test",
+            logger,
+            transportService,
+            (cluster, node) -> {
+                assert cluster == null : "cluster was not null: " + cluster;
+                return lookup.get(node);
+            },
+            aliasFilters,
+            Collections.emptyMap(),
+            null,
+            request,
+            responseListener,
+            shardsIter,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            null,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY
+        ) {
 
-                @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
-                                                   SearchActionListener<TestSearchPhaseResult> listener) {
-                    seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
-                        numRequests.incrementAndGet(); // only count this once per shard copy
-                        return Boolean.TRUE;
-                    });
-                    new Thread(() -> {
-                        Transport.Connection connection = getConnection(null, shard.getNodeId());
-                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
-                            new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
-                        if (shardIt.remaining() > 0) {
-                            numFailReplicas.incrementAndGet();
-                            listener.onFailure(new RuntimeException());
-                        } else {
-                            listener.onResponse(testSearchPhaseResult);
-                        }
-                    }).start();
-                }
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<TestSearchPhaseResult> listener
+            ) {
+                seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
+                    numRequests.incrementAndGet(); // only count this once per shard copy
+                    return Boolean.TRUE;
+                });
+                new Thread(() -> {
+                    Transport.Connection connection = getConnection(null, shard.getNodeId());
+                    TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
+                        new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
+                        connection.getNode()
+                    );
+                    if (shardIt.remaining() > 0) {
+                        numFailReplicas.incrementAndGet();
+                        listener.onFailure(new RuntimeException());
+                    } else {
+                        listener.onResponse(testSearchPhaseResult);
+                    }
+                }).start();
+            }
 
-                @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
-                    return new SearchPhase("test") {
-                        @Override
-                        public void run() {
-                            assertTrue(searchPhaseDidRun.compareAndSet(false, true));
-                        }
-                    };
-                }
-
-                @Override
-                protected void executeNext(Runnable runnable, Thread originalThread) {
-                    super.executeNext(runnable, originalThread);
-                    latch.countDown();
-                }
-            };
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        latch.countDown();
+                    }
+                };
+            }
+        };
         asyncAction.start();
         latch.await();
         assertTrue(searchPhaseDidRun.get());
@@ -581,17 +613,25 @@ public class SearchAsyncActionTests extends ESTestCase {
     public void testSkipUnavailableSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
-            (e) -> { throw new AssertionError("unexpected", e);});
+
+        AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
+            searchResponse::set,
+            (e) -> { throw new AssertionError("unexpected", e); }
+        );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
 
         final int numUnavailableSkippedShards = randomIntBetween(1, 10);
         List<SearchShardIterator> searchShardIterators = new ArrayList<>(numUnavailableSkippedShards);
-        OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
         for (int i = 0; i < numUnavailableSkippedShards; i++) {
             Index index = new Index("idx", "_na_");
-            SearchShardIterator searchShardIterator =
-                new SearchShardIterator(null, new ShardId(index, 0), Collections.emptyList(), originalIndices);
+            SearchShardIterator searchShardIterator = new SearchShardIterator(
+                null,
+                new ShardId(index, 0),
+                Collections.emptyList(),
+                originalIndices
+            );
             // Skip all the shards
             searchShardIterator.resetAndSkip();
             searchShardIterators.add(searchShardIterator);
@@ -601,80 +641,104 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
-        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
-            new AbstractSearchAsyncAction<>(
-                "test",
-                logger,
-                new SearchTransportService(null, null, null),
-                (cluster, node) -> {
-                    assert cluster == null : "cluster was not null: " + cluster;
-                    return lookup.get(node); },
-                Map.of("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(),
-                null,
-                request,
-                responseListener,
-                shardsIter,
-                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                ClusterState.EMPTY_STATE,
-                null,
-                new ArraySearchPhaseResults<>(shardsIter.size()),
-                request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
+            "test",
+            logger,
+            new SearchTransportService(null, null, null),
+            (cluster, node) -> {
+                assert cluster == null : "cluster was not null: " + cluster;
+                return lookup.get(node);
+            },
+            Map.of("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.emptyMap(),
+            null,
+            request,
+            responseListener,
+            shardsIter,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            null,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY
+        ) {
 
-                @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
-                                                   SearchActionListener<TestSearchPhaseResult> listener) {
-                    assert false : "Expected to skip all shards";
-                }
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<TestSearchPhaseResult> listener
+            ) {
+                assert false : "Expected to skip all shards";
+            }
 
-                @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
-                    return new SearchPhase("test") {
-                        @Override
-                        public void run() {
-                            assertTrue(searchPhaseDidRun.compareAndSet(false, true));
-                            latch.countDown();
-                        }
-                    };
-                }
-            };
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        latch.countDown();
+                    }
+                };
+            }
+        };
         asyncAction.start();
         assertThat(latch.await(4, TimeUnit.SECONDS), equalTo(true));
         assertThat(searchPhaseDidRun.get(), equalTo(true));
 
-        SearchResponse searchResponse =
-            asyncAction.buildSearchResponse(null, asyncAction.buildShardFailures(), null, null);
-        assertThat(searchResponse.getSkippedShards(), equalTo(numUnavailableSkippedShards));
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getSuccessfulShards(), equalTo(shardsIter.size()));
+        asyncAction.sendSearchResponse(null, null);
+        assertNotNull(searchResponse.get());
+        assertThat(searchResponse.get().getSkippedShards(), equalTo(numUnavailableSkippedShards));
+        assertThat(searchResponse.get().getFailedShards(), equalTo(0));
+        assertThat(searchResponse.get().getSuccessfulShards(), equalTo(shardsIter.size()));
     }
 
-    static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, OriginalIndices originalIndices, int numShards,
-                                                     boolean doReplicas, DiscoveryNode primaryNode, DiscoveryNode replicaNode) {
+    static GroupShardsIterator<SearchShardIterator> getShardsIter(
+        String index,
+        OriginalIndices originalIndices,
+        int numShards,
+        boolean doReplicas,
+        DiscoveryNode primaryNode,
+        DiscoveryNode replicaNode
+    ) {
         return new GroupShardsIterator<>(
             getShardsIter(new Index(index, "_na_"), originalIndices, numShards, doReplicas, primaryNode, replicaNode)
         );
     }
 
-    static List<SearchShardIterator> getShardsIter(Index index, OriginalIndices originalIndices, int numShards,
-                                                   boolean doReplicas, DiscoveryNode primaryNode, DiscoveryNode replicaNode) {
+    static List<SearchShardIterator> getShardsIter(
+        Index index,
+        OriginalIndices originalIndices,
+        int numShards,
+        boolean doReplicas,
+        DiscoveryNode primaryNode,
+        DiscoveryNode replicaNode
+    ) {
         ArrayList<SearchShardIterator> list = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
             ArrayList<ShardRouting> started = new ArrayList<>();
             ArrayList<ShardRouting> initializing = new ArrayList<>();
             ArrayList<ShardRouting> unassigned = new ArrayList<>();
 
-            ShardRouting routing = ShardRouting.newUnassigned(new ShardId(index, i), true,
-                RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
+            ShardRouting routing = ShardRouting.newUnassigned(
+                new ShardId(index, i),
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);
                 routing = routing.moveToStarted();
                 started.add(routing);
             }
             if (doReplicas && primaryNode != null) {
-                routing = ShardRouting.newUnassigned(new ShardId(index, i), false,
-                    RecoverySource.PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
+                routing = ShardRouting.newUnassigned(
+                    new ShardId(index, i),
+                    false,
+                    RecoverySource.PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+                );
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);
                     if (randomBoolean()) {
@@ -694,7 +758,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         return list;
     }
 
-
     public static class TestSearchResponse extends SearchResponse {
         final Set<ShardId> queried = new HashSet<>();
 
@@ -705,6 +768,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
     public static class TestSearchPhaseResult extends SearchPhaseResult {
         final DiscoveryNode node;
+
         TestSearchPhaseResult(ShardSearchContextId contextId, DiscoveryNode node) {
             this.contextId = contextId;
             this.node = node;
@@ -736,9 +800,10 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public void addCloseListener(ActionListener<Void> listener) {
+        public void addCloseListener(ActionListener<Void> listener) {}
 
-        }
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {}
 
         @Override
         public boolean isClosed() {
@@ -748,6 +813,30 @@ public class SearchAsyncActionTests extends ESTestCase {
         @Override
         public void close() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void onRemoved() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "shouldn't release a mock connection";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
         }
     }
 }

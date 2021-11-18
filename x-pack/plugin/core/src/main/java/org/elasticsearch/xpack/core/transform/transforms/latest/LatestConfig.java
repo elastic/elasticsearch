@@ -1,23 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.latest;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -26,9 +29,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class LatestConfig implements Writeable, ToXContentObject {
 
@@ -43,9 +47,13 @@ public class LatestConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<LatestConfig, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<LatestConfig, Void> LENIENT_PARSER = createParser(true);
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<LatestConfig, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<LatestConfig, Void> parser =
-            new ConstructingObjectParser<>(NAME, lenient, args -> new LatestConfig((List<String>) args[0], (String) args[1]));
+        ConstructingObjectParser<LatestConfig, Void> parser = new ConstructingObjectParser<>(
+            NAME,
+            lenient,
+            args -> new LatestConfig((List<String>) args[0], (String) args[1])
+        );
 
         parser.declareStringArray(constructorArg(), UNIQUE_KEY);
         parser.declareString(constructorArg(), SORT);
@@ -86,13 +94,12 @@ public class LatestConfig implements Writeable, ToXContentObject {
             Set<String> uniqueKeyElements = new HashSet<>();
             for (int i = 0; i < uniqueKey.size(); ++i) {
                 if (uniqueKey.get(i).isEmpty()) {
-                    validationException =
-                        addValidationError("latest.unique_key[" + i + "] element must be non-empty", validationException);
+                    validationException = addValidationError("latest.unique_key[" + i + "] element must be non-empty", validationException);
                 } else if (uniqueKeyElements.contains(uniqueKey.get(i))) {
-                    validationException =
-                        addValidationError(
-                            "latest.unique_key elements must be unique, found duplicate element [" + uniqueKey.get(i) + "]",
-                            validationException);
+                    validationException = addValidationError(
+                        "latest.unique_key elements must be unique, found duplicate element [" + uniqueKey.get(i) + "]",
+                        validationException
+                    );
                 } else {
                     uniqueKeyElements.add(uniqueKey.get(i));
                 }
@@ -105,6 +112,8 @@ public class LatestConfig implements Writeable, ToXContentObject {
 
         return validationException;
     }
+
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

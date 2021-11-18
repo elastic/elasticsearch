@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -88,11 +89,11 @@ class ScrollDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
         Optional<InputStream> stream = tryNextStream();
-        if (!stream.isPresent()) {
+        if (stream.isPresent() == false) {
             hasNext = false;
         }
         return stream;
@@ -100,8 +101,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     private Optional<InputStream> tryNextStream() throws IOException {
         try {
-            return scrollId == null ?
-                Optional.ofNullable(initScroll(context.start)) : Optional.ofNullable(continueScroll());
+            return scrollId == null ? Optional.ofNullable(initScroll(context.start)) : Optional.ofNullable(continueScroll());
         } catch (Exception e) {
             scrollId = null;
             if (searchHasShardFailure) {
@@ -126,19 +126,16 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(context.scrollSize)
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(context.scrollSize)
             .sort(context.extractedFields.timeField(), SortOrder.ASC)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(
-                context.query, context.extractedFields.timeField(), start, context.end))
+            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
             .runtimeMappings(context.runtimeMappings);
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
-                .setScroll(SCROLL_TIMEOUT)
-                .setIndices(context.indices)
-                .setIndicesOptions(context.indicesOptions)
-                .setAllowPartialSearchResults(false)
-                .setSource(searchSourceBuilder);
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE).setScroll(SCROLL_TIMEOUT)
+            .setIndices(context.indices)
+            .setIndicesOptions(context.indicesOptions)
+            .setAllowPartialSearchResults(false)
+            .setSource(searchSourceBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
@@ -180,7 +177,7 @@ class ScrollDataExtractor implements DataExtractor {
                 }
                 hitProcessor.process(hit);
             }
-            SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length -1];
+            SearchHit lastHit = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
             lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         }
         return new ByteArrayInputStream(outputStream.toByteArray());
@@ -190,13 +187,12 @@ class ScrollDataExtractor implements DataExtractor {
         LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
         SearchResponse searchResponse;
         try {
-             searchResponse = executeSearchScrollRequest(scrollId);
+            searchResponse = executeSearchScrollRequest(scrollId);
         } catch (SearchPhaseExecutionException searchExecutionException) {
             if (searchHasShardFailure) {
                 throw searchExecutionException;
             }
-            LOGGER.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll",
-                context.jobId);
+            LOGGER.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll", context.jobId);
             markScrollAsErrored();
             searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
         }
@@ -216,19 +212,24 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
-            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE)
-                .setScroll(SCROLL_TIMEOUT)
-                .setScrollId(scrollId)
-                .get());
+        return ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
+        );
     }
 
     private void clearScroll() {
         if (scrollId != null) {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
-            ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
-                    () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet());
+            ClientHelper.executeWithHeaders(
+                context.headers,
+                ClientHelper.ML_ORIGIN,
+                client,
+                () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet()
+            );
             scrollId = null;
         }
     }

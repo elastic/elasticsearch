@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -67,17 +68,14 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull("search.max_buckets"))
-            .get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("search.max_buckets")).get();
     }
 
     public void testEvaluate_DefaultMetrics() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX,
-                new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, null));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, null)
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
@@ -92,14 +90,15 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_AllMetrics() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX,
-                new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD,
-                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    null,
-                    List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(
+                ANIMAL_NAME_KEYWORD_FIELD,
+                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                null,
+                List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())
+            )
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
@@ -108,45 +107,50 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 Accuracy.NAME.getPreferredName(),
                 MulticlassConfusionMatrix.NAME.getPreferredName(),
                 Precision.NAME.getPreferredName(),
-                Recall.NAME.getPreferredName()));
+                Recall.NAME.getPreferredName()
+            )
+        );
     }
 
     public void testEvaluate_AllMetrics_KeywordField_CaseSensitivity() {
         String indexName = "some-index";
         String actualField = "fieldA";
         String predictedField = "fieldB";
-        client().admin().indices().prepareCreate(indexName)
-            .setMapping(
-                actualField, "type=keyword",
-                predictedField, "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate(indexName).setMapping(actualField, "type=keyword", predictedField, "type=keyword").get();
         client().prepareIndex(indexName)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setSource(
-                actualField, "crocodile",
-                predictedField, "cRoCoDiLe")
+            .setSource(actualField, "crocodile", predictedField, "cRoCoDiLe")
             .get();
 
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                indexName,
-                new Classification(
-                    actualField,
-                    predictedField,
-                    null,
-                    List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            indexName,
+            new Classification(
+                actualField,
+                predictedField,
+                null,
+                List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())
+            )
+        );
 
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getClasses(), contains(new PerClassSingleValue("crocodile", 0.0)));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.0));
 
-        MulticlassConfusionMatrix.Result confusionMatrixResult =
-            (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(1);
+        MulticlassConfusionMatrix.Result confusionMatrixResult = (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics()
+            .get(1);
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
-            equalTo(List.of(
-                new MulticlassConfusionMatrix.ActualClass(
-                    "crocodile", 1, List.of(new MulticlassConfusionMatrix.PredictedClass("crocodile", 0L)), 1))));
+            equalTo(
+                List.of(
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "crocodile",
+                        1,
+                        List.of(new MulticlassConfusionMatrix.PredictedClass("crocodile", 0L)),
+                        1
+                    )
+                )
+            )
+        );
 
         Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(2);
         assertThat(precisionResult.getClasses(), empty());
@@ -158,10 +162,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     private AucRoc.Result evaluateAucRoc(boolean includeCurve) {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX,
-                new Classification(ANIMAL_NAME_KEYWORD_FIELD, null, ML_TOP_CLASSES_FIELD, List.of(new AucRoc(includeCurve, "cat"))));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(ANIMAL_NAME_KEYWORD_FIELD, null, ML_TOP_CLASSES_FIELD, List.of(new AucRoc(includeCurve, "cat")))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -184,8 +188,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     private Accuracy.Result evaluateAccuracy(String actualField, String predictedField) {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Accuracy())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(actualField, predictedField, null, List.of(new Accuracy()))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -196,13 +202,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Accuracy_KeywordField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("ant", 47.0 / 75),
-                new PerClassSingleValue("cat", 47.0 / 75),
-                new PerClassSingleValue("dog", 47.0 / 75),
-                new PerClassSingleValue("fox", 47.0 / 75),
-                new PerClassSingleValue("mouse", 47.0 / 75));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("ant", 47.0 / 75),
+            new PerClassSingleValue("cat", 47.0 / 75),
+            new PerClassSingleValue("dog", 47.0 / 75),
+            new PerClassSingleValue("fox", 47.0 / 75),
+            new PerClassSingleValue("mouse", 47.0 / 75)
+        );
         double expectedOverallAccuracy = 5.0 / 75;
 
         Accuracy.Result accuracyResult = evaluateAccuracy(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD);
@@ -216,13 +222,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Accuracy_IntegerField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("1", 57.0 / 75),
-                new PerClassSingleValue("2", 54.0 / 75),
-                new PerClassSingleValue("3", 51.0 / 75),
-                new PerClassSingleValue("4", 48.0 / 75),
-                new PerClassSingleValue("5", 45.0 / 75));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("1", 57.0 / 75),
+            new PerClassSingleValue("2", 54.0 / 75),
+            new PerClassSingleValue("3", 51.0 / 75),
+            new PerClassSingleValue("4", 48.0 / 75),
+            new PerClassSingleValue("5", 45.0 / 75)
+        );
         double expectedOverallAccuracy = 15.0 / 75;
 
         Accuracy.Result accuracyResult = evaluateAccuracy(NO_LEGS_INTEGER_FIELD, NO_LEGS_PREDICTION_INTEGER_FIELD);
@@ -246,10 +252,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Accuracy_BooleanField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("false", 18.0 / 30),
-                new PerClassSingleValue("true", 27.0 / 45));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("false", 18.0 / 30),
+            new PerClassSingleValue("true", 27.0 / 45)
+        );
         double expectedOverallAccuracy = 45.0 / 75;
 
         Accuracy.Result accuracyResult = evaluateAccuracy(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_BOOLEAN_FIELD);
@@ -275,13 +281,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_Accuracy_FieldTypeMismatch() {
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint
-            List<PerClassSingleValue> expectedPerClassResults =
-                List.of(
-                    new PerClassSingleValue("1", 0.8),
-                    new PerClassSingleValue("2", 0.8),
-                    new PerClassSingleValue("3", 0.8),
-                    new PerClassSingleValue("4", 0.8),
-                    new PerClassSingleValue("5", 0.8));
+            List<PerClassSingleValue> expectedPerClassResults = List.of(
+                new PerClassSingleValue("1", 0.8),
+                new PerClassSingleValue("2", 0.8),
+                new PerClassSingleValue("3", 0.8),
+                new PerClassSingleValue("4", 0.8),
+                new PerClassSingleValue("5", 0.8)
+            );
             double expectedOverallAccuracy = 0.0;
 
             Accuracy.Result accuracyResult = evaluateAccuracy(NO_LEGS_INTEGER_FIELD, IS_PREDATOR_BOOLEAN_FIELD);
@@ -290,10 +296,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         }
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint
-            List<PerClassSingleValue> expectedPerClassResults =
-                List.of(
-                    new PerClassSingleValue("false", 0.6),
-                    new PerClassSingleValue("true", 0.4));
+            List<PerClassSingleValue> expectedPerClassResults = List.of(
+                new PerClassSingleValue("false", 0.6),
+                new PerClassSingleValue("true", 0.4)
+            );
             double expectedOverallAccuracy = 0.0;
 
             Accuracy.Result accuracyResult = evaluateAccuracy(IS_PREDATOR_BOOLEAN_FIELD, NO_LEGS_INTEGER_FIELD);
@@ -303,8 +309,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     private Precision.Result evaluatePrecision(String actualField, String predictedField) {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Precision())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(actualField, predictedField, null, List.of(new Precision()))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -315,13 +323,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Precision_KeywordField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("ant", 1.0 / 15),
-                new PerClassSingleValue("cat", 1.0 / 15),
-                new PerClassSingleValue("dog", 1.0 / 15),
-                new PerClassSingleValue("fox", 1.0 / 15),
-                new PerClassSingleValue("mouse", 1.0 / 15));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("ant", 1.0 / 15),
+            new PerClassSingleValue("cat", 1.0 / 15),
+            new PerClassSingleValue("dog", 1.0 / 15),
+            new PerClassSingleValue("fox", 1.0 / 15),
+            new PerClassSingleValue("mouse", 1.0 / 15)
+        );
         double expectedAvgPrecision = 5.0 / 75;
 
         Precision.Result precisionResult = evaluatePrecision(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD);
@@ -332,13 +340,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Precision_IntegerField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("1", 0.2),
-                new PerClassSingleValue("2", 0.2),
-                new PerClassSingleValue("3", 0.2),
-                new PerClassSingleValue("4", 0.2),
-                new PerClassSingleValue("5", 0.2));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("1", 0.2),
+            new PerClassSingleValue("2", 0.2),
+            new PerClassSingleValue("3", 0.2),
+            new PerClassSingleValue("4", 0.2),
+            new PerClassSingleValue("5", 0.2)
+        );
         double expectedAvgPrecision = 0.2;
 
         Precision.Result precisionResult = evaluatePrecision(NO_LEGS_INTEGER_FIELD, NO_LEGS_PREDICTION_INTEGER_FIELD);
@@ -356,10 +364,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Precision_BooleanField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("false", 0.5),
-                new PerClassSingleValue("true", 9.0 / 13));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("false", 0.5),
+            new PerClassSingleValue("true", 9.0 / 13)
+        );
         double expectedAvgPrecision = 31.0 / 52;
 
         Precision.Result precisionResult = evaluatePrecision(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_BOOLEAN_FIELD);
@@ -393,18 +401,21 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Precision_CardinalityTooHigh() {
         indexDistinctAnimals(ANIMALS_DATA_INDEX, 1001);
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX,
-                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Precision()))));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> evaluateDataFrame(
+                ANIMALS_DATA_INDEX,
+                new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Precision()))
+            )
+        );
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
     private Recall.Result evaluateRecall(String actualField, String predictedField) {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, null, List.of(new Recall())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(actualField, predictedField, null, List.of(new Recall()))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -415,13 +426,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Recall_KeywordField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("ant", 1.0 / 15),
-                new PerClassSingleValue("cat", 1.0 / 15),
-                new PerClassSingleValue ("dog", 1.0 / 15),
-                new PerClassSingleValue("fox", 1.0 / 15),
-                new PerClassSingleValue("mouse", 1.0 / 15));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("ant", 1.0 / 15),
+            new PerClassSingleValue("cat", 1.0 / 15),
+            new PerClassSingleValue("dog", 1.0 / 15),
+            new PerClassSingleValue("fox", 1.0 / 15),
+            new PerClassSingleValue("mouse", 1.0 / 15)
+        );
         double expectedAvgRecall = 5.0 / 75;
 
         Recall.Result recallResult = evaluateRecall(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD);
@@ -432,13 +443,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Recall_IntegerField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("1", 1.0 / 15),
-                new PerClassSingleValue("2", 2.0 / 15),
-                new PerClassSingleValue("3", 3.0 / 15),
-                new PerClassSingleValue("4", 4.0 / 15),
-                new PerClassSingleValue("5", 5.0 / 15));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("1", 1.0 / 15),
+            new PerClassSingleValue("2", 2.0 / 15),
+            new PerClassSingleValue("3", 3.0 / 15),
+            new PerClassSingleValue("4", 4.0 / 15),
+            new PerClassSingleValue("5", 5.0 / 15)
+        );
         double expectedAvgRecall = 3.0 / 15;
 
         Recall.Result recallResult = evaluateRecall(NO_LEGS_INTEGER_FIELD, NO_LEGS_PREDICTION_INTEGER_FIELD);
@@ -456,10 +467,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_Recall_BooleanField() {
-        List<PerClassSingleValue> expectedPerClassResults =
-            List.of(
-                new PerClassSingleValue("true", 0.6),
-                new PerClassSingleValue("false", 0.6));
+        List<PerClassSingleValue> expectedPerClassResults = List.of(
+            new PerClassSingleValue("true", 0.6),
+            new PerClassSingleValue("false", 0.6)
+        );
         double expectedAvgRecall = 0.6;
 
         Recall.Result recallResult = evaluateRecall(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_BOOLEAN_FIELD);
@@ -479,13 +490,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_Recall_FieldTypeMismatch() {
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint, hence 0.0 results here
-            List<PerClassSingleValue> expectedPerClassResults =
-                List.of(
-                    new PerClassSingleValue("1", 0.0),
-                    new PerClassSingleValue("2", 0.0),
-                    new PerClassSingleValue("3", 0.0),
-                    new PerClassSingleValue("4", 0.0),
-                    new PerClassSingleValue("5", 0.0));
+            List<PerClassSingleValue> expectedPerClassResults = List.of(
+                new PerClassSingleValue("1", 0.0),
+                new PerClassSingleValue("2", 0.0),
+                new PerClassSingleValue("3", 0.0),
+                new PerClassSingleValue("4", 0.0),
+                new PerClassSingleValue("5", 0.0)
+            );
             double expectedAvgRecall = 0.0;
 
             Recall.Result recallResult = evaluateRecall(NO_LEGS_INTEGER_FIELD, IS_PREDATOR_BOOLEAN_FIELD);
@@ -494,10 +505,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         }
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint, hence 0.0 results here
-            List<PerClassSingleValue> expectedPerClassResults =
-                List.of(
-                    new PerClassSingleValue("true", 0.0),
-                    new PerClassSingleValue("false", 0.0));
+            List<PerClassSingleValue> expectedPerClassResults = List.of(
+                new PerClassSingleValue("true", 0.0),
+                new PerClassSingleValue("false", 0.0)
+            );
             double expectedAvgRecall = 0.0;
 
             Recall.Result recallResult = evaluateRecall(IS_PREDATOR_BOOLEAN_FIELD, NO_LEGS_INTEGER_FIELD);
@@ -508,92 +519,113 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Recall_CardinalityTooHigh() {
         indexDistinctAnimals(ANIMALS_DATA_INDEX, 1001);
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> evaluateDataFrame(
-                    ANIMALS_DATA_INDEX,
-                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Recall()))));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> evaluateDataFrame(
+                ANIMALS_DATA_INDEX,
+                new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, null, List.of(new Recall()))
+            )
+        );
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
     private void evaluateMulticlassConfusionMatrix() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX,
-                new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD,
-                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    null,
-                    List.of(new MulticlassConfusionMatrix())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(
+                ANIMAL_NAME_KEYWORD_FIELD,
+                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                null,
+                List.of(new MulticlassConfusionMatrix())
+            )
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
 
-        MulticlassConfusionMatrix.Result confusionMatrixResult =
-            (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        MulticlassConfusionMatrix.Result confusionMatrixResult = (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics()
+            .get(0);
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
-            equalTo(List.of(
-                new MulticlassConfusionMatrix.ActualClass("ant",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 1L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 4L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 3L),
-                        new MulticlassConfusionMatrix.PredictedClass("fox", 2L),
-                        new MulticlassConfusionMatrix.PredictedClass("mouse", 5L)),
-                    0),
-                new MulticlassConfusionMatrix.ActualClass("cat",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 3L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 1L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 5L),
-                        new MulticlassConfusionMatrix.PredictedClass("fox", 4L),
-                        new MulticlassConfusionMatrix.PredictedClass("mouse", 2L)),
-                    0),
-                new MulticlassConfusionMatrix.ActualClass("dog",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 4L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 2L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 1L),
-                        new MulticlassConfusionMatrix.PredictedClass("fox", 5L),
-                        new MulticlassConfusionMatrix.PredictedClass("mouse", 3L)),
-                    0),
-                new MulticlassConfusionMatrix.ActualClass("fox",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 5L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 3L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 2L),
-                        new MulticlassConfusionMatrix.PredictedClass("fox", 1L),
-                        new MulticlassConfusionMatrix.PredictedClass("mouse", 4L)),
-                    0),
-                new MulticlassConfusionMatrix.ActualClass("mouse",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 2L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 5L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 4L),
-                        new MulticlassConfusionMatrix.PredictedClass("fox", 3L),
-                        new MulticlassConfusionMatrix.PredictedClass("mouse", 1L)),
-                    0))));
+            equalTo(
+                List.of(
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "ant",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 1L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 4L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 3L),
+                            new MulticlassConfusionMatrix.PredictedClass("fox", 2L),
+                            new MulticlassConfusionMatrix.PredictedClass("mouse", 5L)
+                        ),
+                        0
+                    ),
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "cat",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 3L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 1L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 5L),
+                            new MulticlassConfusionMatrix.PredictedClass("fox", 4L),
+                            new MulticlassConfusionMatrix.PredictedClass("mouse", 2L)
+                        ),
+                        0
+                    ),
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "dog",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 4L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 2L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 1L),
+                            new MulticlassConfusionMatrix.PredictedClass("fox", 5L),
+                            new MulticlassConfusionMatrix.PredictedClass("mouse", 3L)
+                        ),
+                        0
+                    ),
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "fox",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 5L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 3L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 2L),
+                            new MulticlassConfusionMatrix.PredictedClass("fox", 1L),
+                            new MulticlassConfusionMatrix.PredictedClass("mouse", 4L)
+                        ),
+                        0
+                    ),
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "mouse",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 2L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 5L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 4L),
+                            new MulticlassConfusionMatrix.PredictedClass("fox", 3L),
+                            new MulticlassConfusionMatrix.PredictedClass("mouse", 1L)
+                        ),
+                        0
+                    )
+                )
+            )
+        );
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
     }
 
     public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 20)).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 20)).get();
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 7)).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 7)).get();
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("search.max_buckets", 6)).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 6)).get();
         ElasticsearchException e = expectThrows(ElasticsearchException.class, this::evaluateMulticlassConfusionMatrix);
 
         assertThat(e.getCause(), is(instanceOf(TooManyBucketsException.class)));
@@ -602,92 +634,128 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_ConfusionMatrixMetricWithUserProvidedSize() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX,
-                new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD,
-                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    null,
-                    List.of(new MulticlassConfusionMatrix(3, null))));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new Classification(
+                ANIMAL_NAME_KEYWORD_FIELD,
+                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                null,
+                List.of(new MulticlassConfusionMatrix(3, null))
+            )
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
-        MulticlassConfusionMatrix.Result confusionMatrixResult =
-            (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        MulticlassConfusionMatrix.Result confusionMatrixResult = (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics()
+            .get(0);
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
-            equalTo(List.of(
-                new MulticlassConfusionMatrix.ActualClass("ant",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 1L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 4L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 3L)),
-                    7),
-                new MulticlassConfusionMatrix.ActualClass("cat",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 3L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 1L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 5L)),
-                    6),
-                new MulticlassConfusionMatrix.ActualClass("dog",
-                    15,
-                    List.of(
-                        new MulticlassConfusionMatrix.PredictedClass("ant", 4L),
-                        new MulticlassConfusionMatrix.PredictedClass("cat", 2L),
-                        new MulticlassConfusionMatrix.PredictedClass("dog", 1L)),
-                    8))));
+            equalTo(
+                List.of(
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "ant",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 1L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 4L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 3L)
+                        ),
+                        7
+                    ),
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "cat",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 3L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 1L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 5L)
+                        ),
+                        6
+                    ),
+                    new MulticlassConfusionMatrix.ActualClass(
+                        "dog",
+                        15,
+                        List.of(
+                            new MulticlassConfusionMatrix.PredictedClass("ant", 4L),
+                            new MulticlassConfusionMatrix.PredictedClass("cat", 2L),
+                            new MulticlassConfusionMatrix.PredictedClass("dog", 1L)
+                        ),
+                        8
+                    )
+                )
+            )
+        );
         assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(2L));
     }
 
     static void createAnimalsIndex(String indexName) {
-        client().admin().indices().prepareCreate(indexName)
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
             .setMapping(
-                ANIMAL_NAME_KEYWORD_FIELD, "type=keyword",
-                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, "type=keyword",
-                NO_LEGS_KEYWORD_FIELD, "type=keyword",
-                NO_LEGS_INTEGER_FIELD, "type=integer",
-                NO_LEGS_PREDICTION_INTEGER_FIELD, "type=integer",
-                IS_PREDATOR_KEYWORD_FIELD, "type=keyword",
-                IS_PREDATOR_BOOLEAN_FIELD, "type=boolean",
-                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD, "type=boolean",
-                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, "type=double",
-                ML_TOP_CLASSES_FIELD, "type=nested")
+                ANIMAL_NAME_KEYWORD_FIELD,
+                "type=keyword",
+                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                "type=keyword",
+                NO_LEGS_KEYWORD_FIELD,
+                "type=keyword",
+                NO_LEGS_INTEGER_FIELD,
+                "type=integer",
+                NO_LEGS_PREDICTION_INTEGER_FIELD,
+                "type=integer",
+                IS_PREDATOR_KEYWORD_FIELD,
+                "type=keyword",
+                IS_PREDATOR_BOOLEAN_FIELD,
+                "type=boolean",
+                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD,
+                "type=boolean",
+                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
+                "type=double",
+                ML_TOP_CLASSES_FIELD,
+                "type=nested"
+            )
             .get();
     }
 
     static void indexAnimalsData(String indexName) {
         List<String> animalNames = List.of("dog", "cat", "mouse", "ant", "fox");
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < animalNames.size(); i++) {
             for (int j = 0; j < animalNames.size(); j++) {
                 for (int k = 0; k < j + 1; k++) {
-                    List<?> topClasses =
-                        IntStream
-                            .range(0, 5)
-                            .mapToObj(ix -> new HashMap<String, Object>() {{
-                                put("class_name", animalNames.get(ix));
-                                put("class_probability", 0.4 - 0.1 * ix);
-                            }})
-                            .collect(toList());
+                    List<?> topClasses = IntStream.range(0, 5).mapToObj(ix -> new HashMap<String, Object>() {
+                        {
+                            put("class_name", animalNames.get(ix));
+                            put("class_probability", 0.4 - 0.1 * ix);
+                        }
+                    }).collect(toList());
                     bulkRequestBuilder.add(
-                        new IndexRequest(indexName)
-                            .source(
-                                ANIMAL_NAME_KEYWORD_FIELD, animalNames.get(i),
-                                ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, animalNames.get((i + j) % animalNames.size()),
-                                ANIMAL_NAME_PREDICTION_PROB_FIELD, animalNames.get((i + j) % animalNames.size()),
-                                NO_LEGS_KEYWORD_FIELD, String.valueOf(i + 1),
-                                NO_LEGS_INTEGER_FIELD, i + 1,
-                                NO_LEGS_PREDICTION_INTEGER_FIELD, j + 1,
-                                IS_PREDATOR_KEYWORD_FIELD, String.valueOf(i % 2 == 0),
-                                IS_PREDATOR_BOOLEAN_FIELD, i % 2 == 0,
-                                IS_PREDATOR_PREDICTION_BOOLEAN_FIELD, (i + j) % 2 == 0,
-                                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, i % 2 == 0 ? 1.0 - 0.1 * i : 0.1 * i,
-                                ML_TOP_CLASSES_FIELD, topClasses));
+                        new IndexRequest(indexName).source(
+                            ANIMAL_NAME_KEYWORD_FIELD,
+                            animalNames.get(i),
+                            ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                            animalNames.get((i + j) % animalNames.size()),
+                            ANIMAL_NAME_PREDICTION_PROB_FIELD,
+                            animalNames.get((i + j) % animalNames.size()),
+                            NO_LEGS_KEYWORD_FIELD,
+                            String.valueOf(i + 1),
+                            NO_LEGS_INTEGER_FIELD,
+                            i + 1,
+                            NO_LEGS_PREDICTION_INTEGER_FIELD,
+                            j + 1,
+                            IS_PREDATOR_KEYWORD_FIELD,
+                            String.valueOf(i % 2 == 0),
+                            IS_PREDATOR_BOOLEAN_FIELD,
+                            i % 2 == 0,
+                            IS_PREDATOR_PREDICTION_BOOLEAN_FIELD,
+                            (i + j) % 2 == 0,
+                            IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
+                            i % 2 == 0 ? 1.0 - 0.1 * i : 0.1 * i,
+                            ML_TOP_CLASSES_FIELD,
+                            topClasses
+                        )
+                    );
                 }
             }
         }
@@ -698,12 +766,16 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     private static void indexDistinctAnimals(String indexName, int distinctAnimalCount) {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < distinctAnimalCount; i++) {
             bulkRequestBuilder.add(
-                new IndexRequest(indexName)
-                    .source(ANIMAL_NAME_KEYWORD_FIELD, "animal_" + i, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, randomAlphaOfLength(5)));
+                new IndexRequest(indexName).source(
+                    ANIMAL_NAME_KEYWORD_FIELD,
+                    "animal_" + i,
+                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                    randomAlphaOfLength(5)
+                )
+            );
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         if (bulkResponse.hasFailures()) {

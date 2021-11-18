@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -97,7 +87,7 @@ public class ClusterChangedEvent {
      */
     public boolean indexRoutingTableChanged(String index) {
         Objects.requireNonNull(index, "index must not be null");
-        if (!state.routingTable().hasIndex(index) && !previousState.routingTable().hasIndex(index)) {
+        if (state.routingTable().hasIndex(index) == false && previousState.routingTable().hasIndex(index) == false) {
             return false;
         }
         if (state.routingTable().hasIndex(index) && previousState.routingTable().hasIndex(index)) {
@@ -110,13 +100,13 @@ public class ClusterChangedEvent {
      * Returns the indices created in this event
      */
     public List<String> indicesCreated() {
-        if (!metadataChanged()) {
+        if (metadataChanged() == false) {
             return Collections.emptyList();
         }
         List<String> created = null;
         for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
             String index = cursor.value;
-            if (!previousState.metadata().hasIndex(index)) {
+            if (previousState.metadata().hasIndex(index) == false) {
                 if (created == null) {
                     created = new ArrayList<>();
                 }
@@ -161,7 +151,7 @@ public class ClusterChangedEvent {
             for (ObjectObjectCursor<String, Metadata.Custom> currentCustomMetadata : currentCustoms) {
                 // new custom md added or existing custom md changed
                 if (previousCustoms.containsKey(currentCustomMetadata.key) == false
-                        || currentCustomMetadata.value.equals(previousCustoms.get(currentCustomMetadata.key)) == false) {
+                    || currentCustomMetadata.value.equals(previousCustoms.get(currentCustomMetadata.key)) == false) {
                     result.add(currentCustomMetadata.key);
                 }
             }
@@ -249,7 +239,7 @@ public class ClusterChangedEvent {
     private List<Index> indicesDeletedFromClusterState() {
         // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected
         // master that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
-        // rather we want to import them as dangling indices instead.  So we check here if the cluster UUID differs from the previous
+        // rather we want to import them as dangling indices instead. So we check here if the cluster UUID differs from the previous
         // cluster UUID, in which case, we don't want to delete indices that the master erroneously believes shouldn't exist.
         // See test DiscoveryWithServiceDisruptionsIT.testIndicesDeleted()
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
@@ -261,8 +251,7 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        for (ObjectCursor<IndexMetadata> cursor : previousMetadata.indices().values()) {
-            IndexMetadata index = cursor.value;
+        for (IndexMetadata index : previousMetadata.indices().values()) {
             IndexMetadata current = currentMetadata.index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {
@@ -297,10 +286,10 @@ public class ClusterChangedEvent {
     }
 
     private List<Index> indicesDeletedFromTombstones() {
-        // We look at the full tombstones list to see which indices need to be deleted.  In the case of
+        // We look at the full tombstones list to see which indices need to be deleted. In the case of
         // a valid previous cluster state, indicesDeletedFromClusterState() will be used to get the deleted
-        // list, so a diff doesn't make sense here.  When a node (re)joins the cluster, its possible for it
-        // to re-process the same deletes or process deletes about indices it never knew about.  This is not
+        // list, so a diff doesn't make sense here. When a node (re)joins the cluster, its possible for it
+        // to re-process the same deletes or process deletes about indices it never knew about. This is not
         // an issue because there are safeguards in place in the delete store operation in case the index
         // folder doesn't exist on the file system.
         List<IndexGraveyard.Tombstone> tombstones = state.metadata().indexGraveyard().getTombstones();

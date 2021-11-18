@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -21,22 +20,30 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
-public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, BoxplotAggregationBuilder> {
+public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
+    ValuesSource,
+    BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
     public static final ValuesSourceRegistry.RegistryKey<BoxplotAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         BoxplotAggregatorSupplier.class
     );
 
-    public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, BoxplotAggregationBuilder::new);
+    public static final ObjectParser<BoxplotAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        BoxplotAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
@@ -48,8 +55,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
         super(name);
     }
 
-    protected BoxplotAggregationBuilder(BoxplotAggregationBuilder clone,
-                                        AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected BoxplotAggregationBuilder(
+        BoxplotAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
     }
@@ -72,6 +82,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     }
 
     @Override
+    public Set<String> metricNames() {
+        return InternalBoxplot.METRIC_NAMES;
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
     }
@@ -88,7 +103,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     public BoxplotAggregationBuilder compression(double compression) {
         if (compression < 0.0) {
             throw new IllegalArgumentException(
-                "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]");
+                "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]"
+            );
         }
         this.compression = compression;
         return this;
@@ -103,15 +119,15 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     }
 
     @Override
-    protected BoxplotAggregatorFactory innerBuild(AggregationContext context,
-                                                  ValuesSourceConfig config,
-                                                  AggregatorFactory parent,
-                                                  AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        BoxplotAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected BoxplotAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        BoxplotAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder,
-                                            metadata, aggregatorSupplier);
+        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override
@@ -143,5 +159,9 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
-}
 
+    @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(InternalBoxplot.METRIC_NAMES);
+    }
+}

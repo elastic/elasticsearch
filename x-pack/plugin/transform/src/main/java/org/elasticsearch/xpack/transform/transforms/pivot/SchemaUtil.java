@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -14,7 +15,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -80,19 +82,21 @@ public final class SchemaUtil {
     }
 
     /**
-     * Deduce the mappings for the destination index given the source index
+     * Deduce the mappings for the destination index given the source index and runtime mappings
      *
      * The Listener is alerted with a {@code Map<String, String>} that is a "field-name":"type" mapping
      *
      * @param client Client from which to make requests against the cluster
      * @param config The PivotConfig for which to deduce destination mapping
-     * @param source Source index that contains the data to pivot
+     * @param sourceIndex Source index that contains the data to pivot
+     * @param runtimeMappings Source runtime mappings
      * @param listener Listener to alert on success or failure.
      */
     public static void deduceMappings(
         final Client client,
         final PivotConfig config,
-        final String[] source,
+        final String[] sourceIndex,
+        final Map<String, Object> runtimeMappings,
         final ActionListener<Map<String, String>> listener
     ) {
         // collects the fieldnames used as source for aggregations
@@ -104,23 +108,19 @@ public final class SchemaUtil {
         // collects the target mapping types used for grouping
         Map<String, String> fieldTypesForGrouping = new HashMap<>();
 
-        config.getGroupConfig()
-            .getGroups()
-            .forEach(
-                (destinationFieldName, group) -> {
-                    // skip any fields that use scripts as there will be no source mapping
-                    if (group.getScriptConfig() != null) {
-                        return;
-                    }
+        config.getGroupConfig().getGroups().forEach((destinationFieldName, group) -> {
+            // skip any fields that use scripts as there will be no source mapping
+            if (group.getScriptConfig() != null) {
+                return;
+            }
 
-                    // We will always need the field name for the grouping to create the mapping
-                    fieldNamesForGrouping.put(destinationFieldName, group.getField());
-                    // Sometimes the group config will supply a desired mapping as well
-                    if (group.getMappingType() != null) {
-                        fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
-                    }
-                }
-            );
+            // We will always need the field name for the grouping to create the mapping
+            fieldNamesForGrouping.put(destinationFieldName, group.getField());
+            // Sometimes the group config will supply a desired mapping as well
+            if (group.getMappingType() != null) {
+                fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
+            }
+        });
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
@@ -142,8 +142,9 @@ public final class SchemaUtil {
 
         getSourceFieldMappings(
             client,
-            source,
+            sourceIndex,
             allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
+            runtimeMappings,
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
                     resolveMappings(
@@ -250,14 +251,20 @@ public final class SchemaUtil {
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    private static void getSourceFieldMappings(
+    static void getSourceFieldMappings(
         Client client,
         String[] index,
         String[] fields,
+        Map<String, Object> runtimeMappings,
         ActionListener<Map<String, String>> listener
     ) {
+        if (index == null || index.length == 0 || fields == null || fields.length == 0) {
+            listener.onResponse(Collections.emptyMap());
+            return;
+        }
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
             .fields(fields)
+            .runtimeFields(runtimeMappings)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         client.execute(
             FieldCapabilitiesAction.INSTANCE,

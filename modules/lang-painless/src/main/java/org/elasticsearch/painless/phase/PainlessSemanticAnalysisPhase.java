@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.phase;
@@ -60,8 +49,8 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
         if ("execute".equals(functionName)) {
             ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
-            LocalFunction localFunction =
-                    scriptScope.getFunctionTable().getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
+            LocalFunction localFunction = scriptScope.getFunctionTable()
+                .getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
             List<Class<?>> typeParameters = localFunction.getTypeParameters();
             FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
 
@@ -82,9 +71,17 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             SBlock userBlockNode = userFunctionNode.getBlockNode();
 
             if (userBlockNode.getStatementNodes().isEmpty()) {
-                throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                        "found no statements for function " +
-                        "[" + functionName + "] with [" + typeParameters.size() + "] parameters"));
+                throw userFunctionNode.createError(
+                    new IllegalArgumentException(
+                        "invalid function definition: "
+                            + "found no statements for function "
+                            + "["
+                            + functionName
+                            + "] with ["
+                            + typeParameters.size()
+                            + "] parameters"
+                    )
+                );
             }
 
             functionScope.setCondition(userBlockNode, LastSource.class);
@@ -129,8 +126,12 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.putDecoration(userStatementNode, new TargetType(rtnType));
             semanticScope.setCondition(userStatementNode, Internal.class);
             if ("execute".equals(functionName)) {
-                decorateWithCastForReturn(userStatementNode, userExpressionNode, semanticScope,
-                    semanticScope.getScriptScope().getScriptClassInfo());
+                decorateWithCastForReturn(
+                    userStatementNode,
+                    userExpressionNode,
+                    semanticScope,
+                    semanticScope.getScriptScope().getScriptClassInfo()
+                );
             } else {
                 decorateWithCast(userStatementNode, semanticScope);
             }
@@ -154,9 +155,17 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
         if (userValueNode == null) {
             if (semanticScope.getReturnType() != void.class) {
-                throw userReturnNode.createError(new ClassCastException("cannot cast from " +
-                    "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
+                throw userReturnNode.createError(
+                    new ClassCastException(
+                        "cannot cast from "
+                            + "["
+                            + semanticScope.getReturnCanonicalTypeName()
+                            + "] to "
+                            + "["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(void.class)
+                            + "]"
+                    )
+                );
             }
         } else {
             semanticScope.setCondition(userValueNode, Read.class);
@@ -164,8 +173,12 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.setCondition(userValueNode, Internal.class);
             checkedVisit(userValueNode, semanticScope);
             if ("execute".equals(functionName)) {
-                decorateWithCastForReturn(userValueNode, userReturnNode, semanticScope,
-                    semanticScope.getScriptScope().getScriptClassInfo());
+                decorateWithCastForReturn(
+                    userValueNode,
+                    userReturnNode,
+                    semanticScope,
+                    semanticScope.getScriptScope().getScriptClassInfo()
+                );
             } else {
                 decorateWithCast(userValueNode, semanticScope);
             }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.phase;
@@ -45,17 +34,28 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
         int parameterCount = canonicalTypeNameParameters.size();
 
         if (parameterCount != parameterNames.size()) {
-            throw userFunctionNode.createError(new IllegalStateException("invalid function definition: " +
-                    "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
-                    "parameter names size [" + parameterNames.size() + "] for function [" + functionName +"]"));
+            throw userFunctionNode.createError(
+                new IllegalStateException(
+                    "invalid function definition: "
+                        + "parameter types size ["
+                        + canonicalTypeNameParameters.size()
+                        + "] is not equal to "
+                        + "parameter names size ["
+                        + parameterNames.size()
+                        + "] for function ["
+                        + functionName
+                        + "]"
+                )
+            );
         }
 
         FunctionTable functionTable = scriptScope.getFunctionTable();
         String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
 
         if (functionTable.getFunction(functionKey) != null) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "found duplicate function [" + functionKey + "]."));
+            throw userFunctionNode.createError(
+                new IllegalArgumentException("invalid function definition: " + "found duplicate function [" + functionKey + "].")
+            );
         }
 
         PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
@@ -63,8 +63,16 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
         Class<?> returnType = painlessLookup.canonicalTypeNameToType(returnCanonicalTypeName);
 
         if (returnType == null) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "return type [" + returnCanonicalTypeName + "] not found for function [" + functionKey + "]"));
+            throw userFunctionNode.createError(
+                new IllegalArgumentException(
+                    "invalid function definition: "
+                        + "return type ["
+                        + returnCanonicalTypeName
+                        + "] not found for function ["
+                        + functionKey
+                        + "]"
+                )
+            );
         }
 
         List<Class<?>> typeParameters = new ArrayList<>();
@@ -73,13 +81,27 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
             Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
 
             if (paramType == null) {
-                throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                        "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
+                throw userFunctionNode.createError(
+                    new IllegalArgumentException(
+                        "invalid function definition: "
+                            + "parameter type ["
+                            + typeParameter
+                            + "] not found for function ["
+                            + functionKey
+                            + "]"
+                    )
+                );
             }
 
             typeParameters.add(paramType);
         }
 
-        functionTable.addFunction(functionName, returnType, typeParameters, userFunctionNode.isInternal(), userFunctionNode.isStatic());
+        functionTable.addMangledFunction(
+            functionName,
+            returnType,
+            typeParameters,
+            userFunctionNode.isInternal(),
+            userFunctionNode.isStatic()
+        );
     }
 }

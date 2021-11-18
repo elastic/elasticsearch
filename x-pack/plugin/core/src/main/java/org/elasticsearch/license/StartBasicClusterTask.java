@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
@@ -23,8 +24,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class StartBasicClusterTask extends ClusterStateUpdateTask {
 
-    private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
-            "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:";
+    private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
+        + "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:";
 
     private final Logger logger;
     private final String clusterName;
@@ -33,8 +34,13 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     private final Clock clock;
     private AtomicReference<Map<String, String[]>> ackMessages = new AtomicReference<>(Collections.emptyMap());
 
-    StartBasicClusterTask(Logger logger, String clusterName, Clock clock, PostStartBasicRequest request,
-                          ActionListener<PostStartBasicResponse> listener) {
+    StartBasicClusterTask(
+        Logger logger,
+        String clusterName,
+        Clock clock,
+        PostStartBasicRequest request,
+        ActionListener<PostStartBasicResponse> listener
+    ) {
         this.logger = logger;
         this.clusterName = clusterName;
         this.request = request;
@@ -49,11 +55,12 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         License oldLicense = LicensesMetadata.extractLicense(oldLicensesMetadata);
         Map<String, String[]> acknowledgeMessages = ackMessages.get();
         if (acknowledgeMessages.isEmpty() == false) {
-            listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages,
-                    ACKNOWLEDGEMENT_HEADER));
+            listener.onResponse(
+                new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages, ACKNOWLEDGEMENT_HEADER)
+            );
         } else if (oldLicense != null && License.LicenseType.isBasic(oldLicense.type())) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.ALREADY_USING_BASIC));
-        }  else {
+        } else {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.GENERATED_BASIC));
         }
     }

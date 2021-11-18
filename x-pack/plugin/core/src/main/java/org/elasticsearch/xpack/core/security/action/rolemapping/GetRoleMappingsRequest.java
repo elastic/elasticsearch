@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
@@ -30,15 +31,13 @@ public class GetRoleMappingsRequest extends ActionRequest {
         names = in.readStringArray();
     }
 
-    public GetRoleMappingsRequest() {
-    }
+    public GetRoleMappingsRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (names == null) {
-            validationException = addValidationError("role-mapping names are missing",
-                    validationException);
+            validationException = addValidationError("role-mapping names are missing", validationException);
         }
         return validationException;
     }

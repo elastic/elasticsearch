@@ -1,47 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.transport.TransportInfo;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -86,10 +75,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
             this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
-            TransportAddress publishAddress =
-                    nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
+            TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
+            if (seenAddresses.add(inetAddress) == false) {
                 continue;
             }
             if (nodeResponse.nodeStats().getFs() != null) {
@@ -199,10 +187,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         private Counts(final List<NodeInfo> nodeInfos) {
             // TODO: do we need to report zeros?
-            final Map<String, Integer> roles = new HashMap<>(DiscoveryNode.getPossibleRoleNames().size());
+            final Map<String, Integer> roles = new HashMap<>(DiscoveryNodeRole.roles().size() + 1);
             roles.put(COORDINATING_ONLY, 0);
-            for (final String possibleRoleName : DiscoveryNode.getPossibleRoleNames()) {
-                roles.put(possibleRoleName, 0);
+            for (final DiscoveryNodeRole role : DiscoveryNodeRole.roles()) {
+                roles.put(role.roleName(), 0);
             }
 
             int total = 0;
@@ -233,8 +221,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.TOTAL, total);
             for (Map.Entry<String, Integer> entry : new TreeMap<>(roles).entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -248,6 +235,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
         final ObjectIntHashMap<String> prettyNames;
+        final ObjectIntHashMap<String> architectures;
         final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
@@ -256,6 +244,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
             this.prettyNames = new ObjectIntHashMap<>();
+            this.architectures = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
@@ -268,25 +257,34 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 if (nodeInfo.getInfo(OsInfo.class).getPrettyName() != null) {
                     prettyNames.addTo(nodeInfo.getInfo(OsInfo.class).getPrettyName(), 1);
                 }
+                if (nodeInfo.getInfo(OsInfo.class).getArch() != null) {
+                    architectures.addTo(nodeInfo.getInfo(OsInfo.class).getArch(), 1);
+                }
             }
             this.availableProcessors = availableProcessors;
             this.allocatedProcessors = allocatedProcessors;
 
             long totalMemory = 0;
+            long adjustedTotalMemory = 0;
             long freeMemory = 0;
             for (NodeStats nodeStats : nodeStatsList) {
                 if (nodeStats.getOs() != null) {
-                    long total = nodeStats.getOs().getMem().getTotal().getBytes();
+                    org.elasticsearch.monitor.os.OsStats.Mem mem = nodeStats.getOs().getMem();
+                    long total = mem.getTotal().getBytes();
                     if (total > 0) {
                         totalMemory += total;
                     }
-                    long free = nodeStats.getOs().getMem().getFree().getBytes();
+                    long adjustedTotal = mem.getAdjustedTotal().getBytes();
+                    if (adjustedTotal > 0) {
+                        adjustedTotalMemory += adjustedTotal;
+                    }
+                    long free = mem.getFree().getBytes();
                     if (free > 0) {
                         freeMemory += free;
                     }
                 }
             }
-            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, freeMemory);
+            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, adjustedTotalMemory, freeMemory);
         }
 
         public int getAvailableProcessors() {
@@ -308,12 +306,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String NAMES = "names";
             static final String PRETTY_NAME = "pretty_name";
             static final String PRETTY_NAMES = "pretty_names";
+            static final String ARCH = "arch";
+            static final String ARCHITECTURES = "architectures";
             static final String COUNT = "count";
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
             builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startArray(Fields.NAMES);
@@ -335,6 +334,18 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     {
                         builder.field(Fields.PRETTY_NAME, prettyName.key);
                         builder.field(Fields.COUNT, prettyName.value);
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.ARCHITECTURES);
+            {
+                for (final ObjectIntCursor<String> arch : architectures) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.ARCH, arch.key);
+                        builder.field(Fields.COUNT, arch.value);
                     }
                     builder.endObject();
                 }
@@ -425,8 +436,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(Fields.CPU).field(Fields.PERCENT, cpuPercent).endObject();
             if (count > 0) {
                 builder.startObject(Fields.OPEN_FILE_DESCRIPTORS);
@@ -532,8 +542,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.humanReadableField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, new TimeValue(maxUptime));
             builder.startArray(Fields.VERSIONS);
             for (ObjectIntCursor<JvmVersion> v : versions) {
@@ -605,19 +614,16 @@ public class ClusterStatsNodes implements ToXContentFragment {
             final Map<String, AtomicInteger> httpTypes = new HashMap<>();
             for (final NodeInfo nodeInfo : nodeInfos) {
                 final Settings settings = nodeInfo.getSettings();
-                final String transportType =
-                    settings.get(NetworkModule.TRANSPORT_TYPE_KEY,
-                            NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
-                final String httpType =
-                    settings.get(NetworkModule.HTTP_TYPE_KEY,
-                            NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
+                final String transportType = settings.get(
+                    NetworkModule.TRANSPORT_TYPE_KEY,
+                    NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings)
+                );
+                final String httpType = settings.get(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
                 if (Strings.hasText(transportType)) {
-                    transportTypes.computeIfAbsent(transportType,
-                            k -> new AtomicInteger()).incrementAndGet();
+                    transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
                 }
                 if (Strings.hasText(httpType)) {
-                    httpTypes.computeIfAbsent(httpType,
-                            k -> new AtomicInteger()).incrementAndGet();
+                    httpTypes.computeIfAbsent(httpType, k -> new AtomicInteger()).incrementAndGet();
                 }
             }
             this.transportTypes = Collections.unmodifiableMap(transportTypes);
@@ -710,9 +716,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
             SortedMap<String, long[]> stats = new TreeMap<>();
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
-                    for (Map.Entry<String,
-                            List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
-                            .getProcessorStats().entrySet()) {
+                    for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat
+                        .getIngestStats()
+                        .getProcessorStats()
+                        .entrySet()) {
                         pipelineIds.add(processorStats.getKey());
                         for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
                             stats.compute(stat.getType(), (k, v) -> {
@@ -722,8 +729,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                                         nodeIngestStats.getIngestCount(),
                                         nodeIngestStats.getIngestFailedCount(),
                                         nodeIngestStats.getIngestCurrent(),
-                                        nodeIngestStats.getIngestTimeInMillis()
-                                    };
+                                        nodeIngestStats.getIngestTimeInMillis() };
                                 } else {
                                     v[0] += nodeIngestStats.getIngestCount();
                                     v[1] += nodeIngestStats.getIngestFailedCount();
@@ -752,8 +758,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     builder.field("count", statValues[0]);
                     builder.field("failed", statValues[1]);
                     builder.field("current", statValues[2]);
-                    builder.humanReadableField("time_in_millis", "time",
-                        new TimeValue(statValues[3], TimeUnit.MILLISECONDS));
+                    builder.humanReadableField("time_in_millis", "time", new TimeValue(statValues[3], TimeUnit.MILLISECONDS));
                     builder.endObject();
                 }
                 builder.endObject();

@@ -1,37 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.analytics;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Results from the {@code string_stats} aggregation.
@@ -52,8 +41,16 @@ public class ParsedStringStats extends ParsedAggregation {
     private final boolean showDistribution;
     private final Map<String, Double> distribution;
 
-    private ParsedStringStats(String name, long count, int minLength, int maxLength, double avgLength, double entropy,
-            boolean showDistribution, Map<String, Double> distribution) {
+    private ParsedStringStats(
+        String name,
+        long count,
+        int minLength,
+        int maxLength,
+        double avgLength,
+        double entropy,
+        boolean showDistribution,
+        Map<String, Double> distribution
+    ) {
         setName(name);
         this.count = count;
         this.minLength = minLength;
@@ -119,34 +116,39 @@ public class ParsedStringStats extends ParsedAggregation {
 
     private static final Object NULL_DISTRIBUTION_MARKER = new Object();
     public static final ConstructingObjectParser<ParsedStringStats, String> PARSER = new ConstructingObjectParser<>(
-            StringStatsAggregationBuilder.NAME, true, (args, name) -> {
-                long count = (long) args[0];
-                boolean disributionWasExplicitNull = args[5] == NULL_DISTRIBUTION_MARKER;
-                if (count == 0) {
-                    return new ParsedStringStats(name, count, 0, 0, 0, 0, disributionWasExplicitNull, null);
-                }
-                int minLength = (int) args[1];
-                int maxLength = (int) args[2];
-                double averageLength = (double) args[3];
-                double entropy = (double) args[4];
-                if (disributionWasExplicitNull) {
-                    return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy,
-                            disributionWasExplicitNull, null);
-                } else {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Double> distribution = (Map<String, Double>) args[5];
-                    return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy,
-                            distribution != null, distribution);
-                }
-            });
+        StringStatsAggregationBuilder.NAME,
+        true,
+        (args, name) -> {
+            long count = (long) args[0];
+            boolean disributionWasExplicitNull = args[5] == NULL_DISTRIBUTION_MARKER;
+            if (count == 0) {
+                return new ParsedStringStats(name, count, 0, 0, 0, 0, disributionWasExplicitNull, null);
+            }
+            int minLength = (int) args[1];
+            int maxLength = (int) args[2];
+            double averageLength = (double) args[3];
+            double entropy = (double) args[4];
+            if (disributionWasExplicitNull) {
+                return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy, disributionWasExplicitNull, null);
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Double> distribution = (Map<String, Double>) args[5];
+                return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy, distribution != null, distribution);
+            }
+        }
+    );
     static {
         PARSER.declareLong(constructorArg(), COUNT_FIELD);
         PARSER.declareIntOrNull(constructorArg(), 0, MIN_LENGTH_FIELD);
         PARSER.declareIntOrNull(constructorArg(), 0, MAX_LENGTH_FIELD);
         PARSER.declareDoubleOrNull(constructorArg(), 0, AVG_LENGTH_FIELD);
         PARSER.declareDoubleOrNull(constructorArg(), 0, ENTROPY_FIELD);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> unmodifiableMap(p.map(HashMap::new, XContentParser::doubleValue)),
-                NULL_DISTRIBUTION_MARKER, DISTRIBUTION_FIELD);
+        PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            (p, c) -> unmodifiableMap(p.map(HashMap::new, XContentParser::doubleValue)),
+            NULL_DISTRIBUTION_MARKER,
+            DISTRIBUTION_FIELD
+        );
         ParsedAggregation.declareAggregationFields(PARSER);
     }
 

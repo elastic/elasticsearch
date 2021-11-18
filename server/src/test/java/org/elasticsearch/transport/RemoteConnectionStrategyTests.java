@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
@@ -32,8 +20,12 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
-        FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
+        FakeConnectionStrategy first = new FakeConnectionStrategy(
+            "cluster-alias",
+            mock(TransportService.class),
+            remoteConnectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
+        );
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
             .put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
@@ -44,8 +36,12 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     public void testSameStrategyChangeMeansThatStrategyDoesNotNeedToBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
-        FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
+        FakeConnectionStrategy first = new FakeConnectionStrategy(
+            "cluster-alias",
+            mock(TransportService.class),
+            remoteConnectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
+        );
         Settings newSettings = Settings.builder()
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy")
             .put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
@@ -56,19 +52,40 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     public void testChangeInConnectionProfileMeansTheStrategyMustBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
-        assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
+        assertEquals(Compression.Enabled.INDEXING_DATA, connectionManager.getConnectionProfile().getCompressionEnabled());
+        assertEquals(Compression.Scheme.LZ4, connectionManager.getConnectionProfile().getCompressionScheme());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
-        FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy.PROXY);
+        FakeConnectionStrategy first = new FakeConnectionStrategy(
+            "cluster-alias",
+            mock(TransportService.class),
+            remoteConnectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy.PROXY
+        );
 
         Settings.Builder newBuilder = Settings.builder();
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
         newBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
-        if (randomBoolean()) {
-            newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
-                TimeValue.timeValueSeconds(5));
+        String ping = "ping";
+        String compress = "compress";
+        String compressionScheme = "compression_scheme";
+        String change = randomFrom(ping, compress, compressionScheme);
+        if (change.equals(ping)) {
+            newBuilder.put(
+                RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                TimeValue.timeValueSeconds(5)
+            );
+        } else if (change.equals(compress)) {
+            newBuilder.put(
+                RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                randomFrom(Compression.Enabled.FALSE, Compression.Enabled.TRUE)
+            );
+        } else if (change.equals(compressionScheme)) {
+            newBuilder.put(
+                RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                Compression.Scheme.DEFLATE
+            );
         } else {
-            newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), true);
+            throw new AssertionError("Unexpected option: " + change);
         }
         assertTrue(first.shouldRebuildConnection(newBuilder.build()));
     }
@@ -80,8 +97,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             String settingKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
             Settings proxySettings = Settings.builder().put(settingKey, strategy.name()).build();
             ConnectionProfile proxyProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, proxySettings);
-            assertEquals("Incorrect number of channels for " + strategy.name(),
-                strategy.getNumberOfChannels(), proxyProfile.getNumConnections());
+            assertEquals(
+                "Incorrect number of channels for " + strategy.name(),
+                strategy.getNumberOfChannels(),
+                proxyProfile.getNumConnections()
+            );
         }
     }
 
@@ -89,8 +109,12 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         private final ConnectionStrategy strategy;
 
-        FakeConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                               RemoteConnectionStrategy.ConnectionStrategy strategy) {
+        FakeConnectionStrategy(
+            String clusterAlias,
+            TransportService transportService,
+            RemoteConnectionManager connectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy strategy
+        ) {
             super(clusterAlias, transportService, connectionManager, Settings.EMPTY);
             this.strategy = strategy;
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -12,8 +13,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -26,10 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -54,6 +55,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -63,14 +66,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         createReviewsIndex();
         createReviewsIndexNano();
         indicesCreated = true;
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-
-        // at random test the old deprecated roles, to be removed in 9.0.0
-        if (useDeprecatedEndpoints() && randomBoolean()) {
-            setupUser(TEST_USER_NAME, Arrays.asList("data_frame_transforms_admin", DATA_ACCESS_ROLE));
-        } else {
-            setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
-        }
     }
 
     public void testSimplePivot() throws Exception {
@@ -1125,7 +1120,12 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testPivotWithGeoBoundsAgg() throws Exception {
         String transformId = "geo_bounds_pivot";
         String transformIndex = "geo_bounds_pivot_reviews";
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        String indexName = "reviews_geo_bounds";
+
+        // gh#71874 regression test: create some sparse data
+        createReviewsIndex(indexName, 1000, "date", false, 5, "location");
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
 
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",
@@ -1133,13 +1133,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = "{"
-            + " \"source\": {\"index\":\""
-            + REVIEWS_INDEX_NAME
-            + "\"},"
-            + " \"dest\": {\"index\":\""
-            + transformIndex
-            + "\"},";
+        String config = "{" + " \"source\": {\"index\":\"" + indexName + "\"}," + " \"dest\": {\"index\":\"" + transformIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -1238,6 +1232,65 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String[] latlon = actualString.split(",");
         assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
         assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPivotWithGeoLineAgg() throws Exception {
+        String transformId = "geo_line_pivot";
+        String transformIndex = "geo_line_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"location\": {"
+            + "       \"geo_line\": {\"point\": {\"field\":\"location\"}, \"sort\": {\"field\": \"timestamp\"}}"
+            + " } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        Map<String, Object> actualString = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.location",
+            searchResult
+        )).get(0);
+        assertThat(actualString, hasEntry("type", "LineString"));
     }
 
     @SuppressWarnings("unchecked")
@@ -1353,6 +1406,59 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(4.47169811, actual.doubleValue(), 0.000001);
     }
 
+    public void testPivotWithTopMetrics() throws Exception {
+        String transformId = "top_metrics_transform";
+        String transformIndex = "top_metrics_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"top_business\": {"
+            + "       \"top_metrics\": {"
+            + "         \"metrics\": {\"field\": \"business_id\"},"
+            + "         \"sort\": {\"timestamp\": \"desc\"}"
+            + "} } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        String actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(
+            0
+        );
+        assertEquals("business_9", actual);
+
+        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(0);
+        assertEquals("business_3", actual);
+    }
+
     public void testManyBucketsWithSmallPageSize() throws Exception {
         String transformId = "test_with_many_buckets";
         String transformIndex = transformId + "-idx";
@@ -1402,7 +1508,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testContinuousStopWaitForCheckpoint() throws Exception {
         Request updateLoggingLevels = new Request("PUT", "/_cluster/settings");
         updateLoggingLevels.setJsonEntity(
-            "{\"transient\": {"
+            "{\"persistent\": {"
                 + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
                 + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
         );
@@ -1703,11 +1809,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         createPivotReviewsTransform(transformId, transformIndex, null, null, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
-        Response response = adminClient().performRequest(new Request("GET",
-            getTransformEndpoint() + transformId + "?exclude_generated=true"));
-        Map<String, Object> storedConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
-            "transforms",
-            entityAsMap(response)))
+        Response response = adminClient().performRequest(
+            new Request("GET", getTransformEndpoint() + transformId + "?exclude_generated=true")
+        );
+        Map<String, Object> storedConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response)))
             .get(0);
         storedConfig.remove("id");
         try (XContentBuilder builder = jsonBuilder()) {
@@ -1717,11 +1822,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             adminClient().performRequest(putTransform);
         }
 
-        response = adminClient().performRequest(new Request("GET",
-            getTransformEndpoint() + transformId + "-import" + "?exclude_generated=true"));
-        Map<String, Object> importConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
-            "transforms",
-            entityAsMap(response)))
+        response = adminClient().performRequest(
+            new Request("GET", getTransformEndpoint() + transformId + "-import" + "?exclude_generated=true")
+        );
+        Map<String, Object> importConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response)))
             .get(0);
         importConfig.remove("id");
         assertThat(storedConfig, equalTo(importConfig));

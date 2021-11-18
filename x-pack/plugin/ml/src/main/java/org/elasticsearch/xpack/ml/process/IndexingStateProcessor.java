@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -16,13 +17,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -61,9 +62,11 @@ public class IndexingStateProcessor implements StateProcessor {
     private final AbstractAuditor<? extends AbstractAuditMessage> auditor;
     private final ResultsPersisterService resultsPersisterService;
 
-    public IndexingStateProcessor(String jobId,
-                                  ResultsPersisterService resultsPersisterService,
-                                  AbstractAuditor<? extends AbstractAuditMessage> auditor) {
+    public IndexingStateProcessor(
+        String jobId,
+        ResultsPersisterService resultsPersisterService,
+        AbstractAuditor<? extends AbstractAuditMessage> auditor
+    ) {
         this.jobId = jobId;
         this.resultsPersisterService = resultsPersisterService;
         this.auditor = auditor;
@@ -137,17 +140,18 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     void persist(String indexOrAlias, BytesReference bytes) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .requireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
         bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());
             try {
-                resultsPersisterService.bulkIndexWithRetry(bulkRequest,
+                resultsPersisterService.bulkIndexWithRetry(
+                    bulkRequest,
                     jobId,
                     () -> true,
-                    retryMessage -> LOGGER.debug("[{}] Bulk indexing of state failed {}", jobId, retryMessage));
+                    retryMessage -> LOGGER.debug("[{}] Bulk indexing of state failed {}", jobId, retryMessage)
+                );
             } catch (Exception ex) {
                 String msg = "failed indexing updated state docs";
                 LOGGER.error(() -> new ParameterizedMessage("[{}] {}", jobId, msg), ex);
@@ -157,7 +161,7 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     private static int findNextZeroByte(BytesReference bytesRef, int searchFrom, int splitFrom) {
-        return bytesRef.indexOf((byte)0, Math.max(searchFrom, splitFrom));
+        return bytesRef.indexOf((byte) 0, Math.max(searchFrom, splitFrom));
     }
 
     @SuppressWarnings("unchecked")
@@ -166,18 +170,22 @@ public class IndexingStateProcessor implements StateProcessor {
      * Only first non-blank line is parsed and document id is assumed to be a nested "index._id" field of type String.
      */
     static String extractDocId(String firstNonBlankLine) throws IOException {
-        try (XContentParser parser =
-                 JsonXContent.jsonXContent.createParser(
-                     NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, firstNonBlankLine)) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                firstNonBlankLine
+            )
+        ) {
             Map<String, Object> map = parser.map();
             if ((map.get("index") instanceof Map) == false) {
                 throw new IllegalStateException("Could not extract \"index\" field out of [" + firstNonBlankLine + "]");
             }
-            map = (Map<String, Object>)map.get("index");
+            map = (Map<String, Object>) map.get("index");
             if ((map.get("_id") instanceof String) == false) {
                 throw new IllegalStateException("Could not extract \"index._id\" field out of [" + firstNonBlankLine + "]");
             }
-            return (String)map.get("_id");
+            return (String) map.get("_id");
         }
     }
 
@@ -213,23 +221,20 @@ public class IndexingStateProcessor implements StateProcessor {
 
     private String getConcreteIndexOrWriteAlias(String documentId) {
         Objects.requireNonNull(documentId);
-        SearchRequest searchRequest =
-            new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .allowPartialSearchResults(false)
-                .source(
-                    new SearchSourceBuilder()
-                        .size(1)
-                        .trackTotalHits(false)
-                        .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(documentId))));
-        SearchResponse searchResponse =
-            resultsPersisterService.searchWithRetry(
-                searchRequest,
-                jobId,
-                () -> true,
-                retryMessage -> LOGGER.debug("[{}] {} {}", jobId, documentId, retryMessage));
+        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
+            .source(
+                new SearchSourceBuilder().size(1)
+                    .trackTotalHits(false)
+                    .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(documentId)))
+            );
+        SearchResponse searchResponse = resultsPersisterService.searchWithRetry(
+            searchRequest,
+            jobId,
+            () -> true,
+            retryMessage -> LOGGER.debug("[{}] {} {}", jobId, documentId, retryMessage)
+        );
         return searchResponse.getHits().getHits().length > 0
             ? searchResponse.getHits().getHits()[0].getIndex()
             : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
     }
 }
-

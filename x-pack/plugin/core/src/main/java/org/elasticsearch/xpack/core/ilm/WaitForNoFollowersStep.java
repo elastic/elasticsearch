@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -14,11 +15,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,7 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A step that waits until the index it's used on is no longer a leader index.
+ * A step that waits until the managed index is no longer a leader index.
  * This is necessary as there are some actions which are not safe to perform on
  * a leader index, such as those which delete the index, including Shrink and
  * Delete.
@@ -41,6 +42,11 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     WaitForNoFollowersStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     @Override
@@ -78,10 +84,10 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
         static final ParseField MESSAGE_FIELD = new ParseField("message");
 
-        private static final String message = "this index is a leader index; waiting for all following indices to cease " +
-            "following before proceeding";
+        private static final String message = "this index is a leader index; waiting for all following indices to cease "
+            + "following before proceeding";
 
-        Info() { }
+        Info() {}
 
         String getMessage() {
             return message;

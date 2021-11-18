@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.functionscore;
@@ -29,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -54,11 +45,11 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -75,12 +66,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public <T> T compile(
-                    String scriptName,
-                    String scriptSource,
-                    ScriptContext<T> context,
-                    Map<String, String> params
-                ) {
+                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScoreScript.CONTEXT;
                     ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
@@ -90,8 +76,8 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                            return new MyScript(params1, lookup, ctx);
+                        public ScoreScript newInstance(DocReader docReader) throws IOException {
+                            return new MyScript(params1, lookup, ((DocValuesDocReader) docReader).getLeafReaderContext());
                         }
                     };
                     return context.factoryClazz.cast(factory);
@@ -108,7 +94,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
     static class MyScript extends ScoreScript implements ExplainableScoreScript {
 
         MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(params, lookup, leafContext);
+            super(params, null, new DocValuesDocReader(lookup, leafContext));
         }
 
         @Override
@@ -131,18 +117,27 @@ public class ExplainableScriptIT extends ESIntegTestCase {
     public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource(
-                    jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
+            indexRequests.add(
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
+            );
         }
         indexRandom(true, true, indexRequests);
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
-        SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text"),
-                                        scriptFunction(
-                                            new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap())))
-                                        .boostMode(CombineFunction.REPLACE)))).actionGet();
+        SearchResponse response = client().search(
+            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+                .source(
+                    searchSource().explain(true)
+                        .query(
+                            functionScoreQuery(
+                                termQuery("text", "text"),
+                                scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
+                            ).boostMode(CombineFunction.REPLACE)
+                        )
+                )
+        ).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -40,12 +41,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
 
 public class BatchedDocumentsIteratorTests extends ESTestCase {
 
@@ -78,9 +78,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     public void testCallingNextWhenHasNextIsFalseThrows() {
-        new ScrollResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
-            .finishMock();
+        new ScrollResponsesMocker(client).addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c")).finishMock();
         testIterator.next();
         assertFalse(testIterator.hasNext());
 
@@ -88,9 +86,11 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     public void testQueryReturnsSingleBatch() {
-        ResponsesMocker scrollResponsesMocker = new ScrollResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
-            .finishMock();
+        ResponsesMocker scrollResponsesMocker = new ScrollResponsesMocker(client).addBatch(
+            createJsonDoc("a"),
+            createJsonDoc("b"),
+            createJsonDoc("c")
+        ).finishMock();
 
         assertTrue(testIterator.hasNext());
         Deque<String> batch = testIterator.next();
@@ -104,11 +104,11 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     public void testQueryReturnsThreeBatches() {
-        ResponsesMocker responsesMocker = new ScrollResponsesMocker(client)
-            .addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
-            .addBatch(createJsonDoc("d"), createJsonDoc("e"))
-            .addBatch(createJsonDoc("f"))
-            .finishMock();
+        ResponsesMocker responsesMocker = new ScrollResponsesMocker(client).addBatch(
+            createJsonDoc("a"),
+            createJsonDoc("b"),
+            createJsonDoc("c")
+        ).addBatch(createJsonDoc("d"), createJsonDoc("e")).addBatch(createJsonDoc("f")).finishMock();
 
         assertTrue(testIterator.hasNext());
 
@@ -145,7 +145,6 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
     }
 
-
     abstract static class ResponsesMocker {
         protected Client client;
         protected List<String[]> batches = new ArrayList<>();
@@ -169,7 +168,6 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
 
         abstract ResponsesMocker finishMock();
 
-
         protected SearchResponse createSearchResponseWithHits(String... hits) {
             SearchHits searchHits = createHits(hits);
             SearchResponse searchResponse = mock(SearchResponse.class);
@@ -190,7 +188,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             List<SearchRequest> searchRequests = searchRequestCaptor.getAllValues();
             assertThat(searchRequests.size(), equalTo(1));
             SearchRequest searchRequest = searchRequests.get(0);
-            assertThat(searchRequest.indices(), equalTo(new String[] {indexName}));
+            assertThat(searchRequest.indices(), equalTo(new String[] { indexName }));
             assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
             assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
             assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
@@ -214,8 +212,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        ResponsesMocker finishMock()
-        {
+        ResponsesMocker finishMock() {
             if (batches.isEmpty()) {
                 givenInitialResponse();
                 return this;
@@ -255,8 +252,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        ResponsesMocker finishMock()
-        {
+        ResponsesMocker finishMock() {
             if (batches.isEmpty()) {
                 doAnswer(invocationOnMock -> {
                     ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
@@ -280,7 +276,6 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             return this;
         }
     }
-
 
     private static class TestIterator extends BatchedDocumentsIterator<String> {
         TestIterator(OriginSettingClient client, String jobId) {

@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -114,8 +103,16 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertTransitions(zone, min, max, time("2020-06-01", zone), min + hours(1), 3, hours(-5), hours(-4));
     }
 
-    private void assertTransitions(ZoneId zone, long min, long max, long between, long sameOffsetAsMin,
-            int size, long minMaxOffset, long betweenOffset) {
+    private void assertTransitions(
+        ZoneId zone,
+        long min,
+        long max,
+        long between,
+        long sameOffsetAsMin,
+        int size,
+        long minMaxOffset,
+        long betweenOffset
+    ) {
         LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, min, max);
         assertThat(lookup.size(), equalTo(size));
         assertRoundingAtOffset(lookup.lookup(min), min, minMaxOffset);
@@ -208,12 +205,16 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(firstMidnightOffset.localToUtcInThisOffset(localFirstMidnight), equalTo(firstMidnight));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localFirstMidnight), equalTo(secondMidnight));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlapEnds), equalTo(overlapEnds));
-        assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
-                equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis));
+        assertThat(
+            secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
+            equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis)
+        );
 
         long beforeOverlapValue = randomLong();
-        assertThat(secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
-                equalTo(beforeOverlapValue));
+        assertThat(
+            secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
+            equalTo(beforeOverlapValue)
+        );
         long overlapValue = randomLong();
         assertThat(secondMidnightOffset.localToUtc(localFirstMidnight, useValueForOverlap(overlapValue)), equalTo(overlapValue));
         assertThat(secondMidnightOffset.localToUtc(localOverlapEnds, unusedStrategy()), equalTo(overlapEnds));
@@ -281,7 +282,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
      */
     private static ZoneOffsetTransition lastTransitionIn(ZoneId zone) {
         List<ZoneOffsetTransition> transitions = zone.getRules().getTransitions();
-        return transitions.get(transitions.size() -1);
+        return transitions.get(transitions.size() - 1);
     }
 
     private static LocalTimeOffset.Strategy unusedStrategy() {
@@ -392,7 +393,6 @@ public class LocalTimeOffsetTests extends ESTestCase {
             }
         };
     }
-
 
     private static LocalTimeOffset.Strategy useValueForBeforeOverlap(long beforeOverlapValue) {
         return new LocalTimeOffset.Strategy() {

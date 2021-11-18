@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
@@ -20,8 +21,15 @@ public class ForecastParams {
     private final Long maxModelMemory;
     private final Long minAvailableDiskSpace;
 
-    private ForecastParams(String forecastId, long createTime, long duration, long expiresIn, String tmpStorage, Long maxModelMemory,
-                           Long minAvailableDiskSpace) {
+    private ForecastParams(
+        String forecastId,
+        long createTime,
+        long duration,
+        long expiresIn,
+        String tmpStorage,
+        Long maxModelMemory,
+        Long minAvailableDiskSpace
+    ) {
         this.forecastId = forecastId;
         this.createTime = createTime;
         this.duration = duration;
@@ -91,12 +99,12 @@ public class ForecastParams {
         }
         ForecastParams other = (ForecastParams) obj;
         return Objects.equals(forecastId, other.forecastId)
-                && Objects.equals(createTime, other.createTime)
-                && Objects.equals(duration, other.duration)
-                && Objects.equals(expiresIn, other.expiresIn)
-                && Objects.equals(tmpStorage, other.tmpStorage)
-                && Objects.equals(maxModelMemory, other.maxModelMemory)
-                && Objects.equals(minAvailableDiskSpace, other.minAvailableDiskSpace);
+            && Objects.equals(createTime, other.createTime)
+            && Objects.equals(duration, other.duration)
+            && Objects.equals(expiresIn, other.expiresIn)
+            && Objects.equals(tmpStorage, other.tmpStorage)
+            && Objects.equals(maxModelMemory, other.maxModelMemory)
+            && Objects.equals(minAvailableDiskSpace, other.minAvailableDiskSpace);
     }
 
     public static Builder builder() {
@@ -147,9 +155,15 @@ public class ForecastParams {
         }
 
         public ForecastParams build() {
-            return new ForecastParams(forecastId, createTimeEpochSecs, durationSecs, expiresInSecs, tmpStorage, maxModelMemory,
-                minAvailableDiskSpace);
+            return new ForecastParams(
+                forecastId,
+                createTimeEpochSecs,
+                durationSecs,
+                expiresInSecs,
+                tmpStorage,
+                maxModelMemory,
+                minAvailableDiskSpace
+            );
         }
     }
 }
-

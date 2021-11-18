@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -45,10 +46,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch conversion = new Batch("Mapping",
-                new JoinMapper(),
-                new SimpleExecMapper()
-                );
+        Batch conversion = new Batch("Mapping", new JoinMapper(), new SimpleExecMapper());
 
         return Arrays.asList(conversion);
     }
@@ -126,11 +124,10 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         }
 
         private PhysicalPlan join(Join join) {
-            //TODO: pick up on nested/parent-child docs
+            // TODO: pick up on nested/parent-child docs
             // 2. Hash?
             // 3. Cartesian
             // 3. Fallback to nested loop
-
 
             throw new UnsupportedOperationException("Don't know how to handle join " + join.nodeString());
         }
@@ -142,7 +139,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, UnplannedExec.class);
+            return plan.transformUp(UnplannedExec.class, this::rule);
         }
 
         @SuppressWarnings("unchecked")

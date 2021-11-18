@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
@@ -20,7 +22,7 @@ import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -31,24 +33,20 @@ public class HttpRequestTemplateTests extends ESTestCase {
     public void testBodyWithXContent() throws Exception {
         XContentType type = randomFrom(XContentType.JSON, XContentType.YAML);
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
-                .body(XContentBuilder.builder(type.xContent()).startObject().endObject())
-                .build();
+            .body(XContentBuilder.builder(type.xContent()).startObject().endObject())
+            .build();
         HttpRequest request = template.render(new MockTextTemplateEngine(), emptyMap());
         assertThat(request.headers, hasEntry(HttpHeaders.Names.CONTENT_TYPE, type.mediaType()));
     }
 
     public void testBody() throws Exception {
-        HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
-                .body("_body")
-                .build();
+        HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234).body("_body").build();
         HttpRequest request = template.render(new MockTextTemplateEngine(), emptyMap());
         assertThat(request.headers.size(), is(0));
     }
 
     public void testProxy() throws Exception {
-        HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
-                .proxy(new HttpProxy("localhost", 8080))
-                .build();
+        HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234).proxy(new HttpProxy("localhost", 8080)).build();
         HttpRequest request = template.render(new MockTextTemplateEngine(), Collections.emptyMap());
         assertThat(request.proxy().getHost(), is("localhost"));
         assertThat(request.proxy().getPort(), is(8080));
@@ -56,11 +54,11 @@ public class HttpRequestTemplateTests extends ESTestCase {
 
     public void testRender() {
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
-                .body(new TextTemplate("_body"))
-                .path(new TextTemplate("_path"))
-                .putParam("_key1", new TextTemplate("_value1"))
-                .putHeader("_key2", new TextTemplate("_value2"))
-                .build();
+            .body(new TextTemplate("_body"))
+            .path(new TextTemplate("_path"))
+            .putParam("_key1", new TextTemplate("_value1"))
+            .putHeader("_key2", new TextTemplate("_value2"))
+            .build();
 
         HttpRequest result = template.render(new MockTextTemplateEngine(), Collections.emptyMap());
         assertThat(result.body(), equalTo("_body"));
@@ -162,14 +160,18 @@ public class HttpRequestTemplateTests extends ESTestCase {
     }
 
     public void testInvalidUrlsWithMissingScheme() throws Exception {
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> HttpRequestTemplate.builder().fromUrl("www.test.de"));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> HttpRequestTemplate.builder().fromUrl("www.test.de")
+        );
         assertThat(e.getMessage(), containsString("URL [www.test.de] does not contain a scheme"));
     }
 
     public void testInvalidUrlsWithHost() throws Exception {
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> HttpRequestTemplate.builder().fromUrl("https://"));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> HttpRequestTemplate.builder().fromUrl("https://")
+        );
         assertThat(e.getMessage(), containsString("Malformed URL [https://]"));
     }
 

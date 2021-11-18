@@ -1,20 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -22,6 +18,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -89,8 +90,10 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final RestRequest restRequest = createRestRequest(MonitoredSystem.UNKNOWN.getSystem(), systemApiVersion, "30s");
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> prepareRequest(restRequest));
-        assertThat(exception.getMessage(),
-                   containsString("system_api_version [" + systemApiVersion + "] is not supported by system_id [unknown]"));
+        assertThat(
+            exception.getMessage(),
+            containsString("system_api_version [" + systemApiVersion + "] is not supported by system_id [unknown]")
+        );
     }
 
     public void testUnknownSystemVersion() {
@@ -98,8 +101,10 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final RestRequest restRequest = createRestRequest(system.getSystem(), "0", "30s");
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> prepareRequest(restRequest));
-        assertThat(exception.getMessage(),
-                   containsString("system_api_version [0] is not supported by system_id [" + system.getSystem() + "]"));
+        assertThat(
+            exception.getMessage(),
+            containsString("system_api_version [0] is not supported by system_id [" + system.getSystem() + "]")
+        );
     }
 
     public void testNoErrors() throws Exception {
@@ -107,8 +112,10 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         assertThat(restResponse.status(), is(RestStatus.OK));
-        assertThat(restResponse.content().utf8ToString(),
-                   is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":false}"));
+        assertThat(
+            restResponse.content().utf8ToString(),
+            is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":false}")
+        );
     }
 
     public void testNoErrorsButIgnored() throws Exception {
@@ -116,8 +123,10 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         assertThat(restResponse.status(), is(RestStatus.OK));
-        assertThat(restResponse.content().utf8ToString(),
-                is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":true,\"errors\":false}"));
+        assertThat(
+            restResponse.content().utf8ToString(),
+            is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":true,\"errors\":false}")
+        );
     }
 
     public void testWithErrors() throws Exception {
@@ -134,8 +143,10 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         }
 
         assertThat(restResponse.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(restResponse.content().utf8ToString(),
-                   is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":true,\"error\":" + errorJson + "}"));
+        assertThat(
+            restResponse.content().utf8ToString(),
+            is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":true,\"error\":" + errorJson + "}")
+        );
     }
 
     /**
@@ -164,10 +175,12 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         return createRestRequest(randomIntBetween(1, 10), systemId, systemApiVersion, interval);
     }
 
-    private static FakeRestRequest createRestRequest(final int nbDocs,
-                                                     final String systemId,
-                                                     final String systemApiVersion,
-                                                     final String interval) {
+    private static FakeRestRequest createRestRequest(
+        final int nbDocs,
+        final String systemId,
+        final String systemApiVersion,
+        final String interval
+    ) {
         final FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
         if (nbDocs > 0) {
             final StringBuilder requestBody = new StringBuilder();

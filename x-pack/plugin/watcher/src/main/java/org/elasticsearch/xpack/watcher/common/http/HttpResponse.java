@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -62,8 +65,8 @@ public class HttpResponse implements ToXContentObject {
         this.status = status;
         this.body = body;
         this.headers = headers.entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), Map.Entry::getValue));
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), Map.Entry::getValue));
     }
 
     public int status() {
@@ -84,8 +87,8 @@ public class HttpResponse implements ToXContentObject {
      */
     public Map<String, List<String>> headers() {
         return headers.entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), e -> Arrays.asList(e.getValue())));
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toLowerCase(Locale.ROOT), e -> Arrays.asList(e.getValue())));
     }
 
     public String[] header(String header) {
@@ -108,7 +111,7 @@ public class HttpResponse implements ToXContentObject {
         try {
             return XContentType.fromMediaType(values[0]);
         } catch (IllegalArgumentException e) {
-            //HttpInputTests - content-type being unrecognized_content_type
+            // HttpInputTests - content-type being unrecognized_content_type
             return null;
         }
     }
@@ -121,8 +124,8 @@ public class HttpResponse implements ToXContentObject {
         HttpResponse that = (HttpResponse) o;
 
         if (status != that.status) return false;
-        if (!headers.equals(that.headers)) return false;
-        return !(body != null ? !body.equals(that.body) : that.body != null);
+        if (headers.equals(that.headers) == false) return false;
+        return Objects.equals(body, that.body);
     }
 
     @Override
@@ -137,11 +140,11 @@ public class HttpResponse implements ToXContentObject {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("status=[").append(status).append("]");
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             sb.append(", headers=[");
             boolean first = true;
             for (Map.Entry<String, String[]> header : headers.entrySet()) {
-                if (!first) {
+                if (first == false) {
                     sb.append(", ");
                 }
                 sb.append("[").append(header.getKey()).append(": ").append(Arrays.toString(header.getValue())).append("]");
@@ -158,7 +161,7 @@ public class HttpResponse implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder = builder.startObject().field(Field.STATUS.getPreferredName(), status);
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             builder.startObject(Field.HEADERS.getPreferredName());
             for (Map.Entry<String, String[]> header : headers.entrySet()) {
                 // in order to prevent dots in field names, that might occur in headers, we simply de_dot those header names
@@ -205,17 +208,22 @@ public class HttpResponse implements ToXContentObject {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         headerName = parser.currentName();
-                    } else if (headerName == null){
-                        throw new ElasticsearchParseException("could not parse http response. expected a header name but found [{}] " +
-                                "instead", token);
+                    } else if (headerName == null) {
+                        throw new ElasticsearchParseException(
+                            "could not parse http response. expected a header name but found [{}] " + "instead",
+                            token
+                        );
                     } else if (token.isValue()) {
                         headers.put(headerName, new String[] { String.valueOf(parser.objectText()) });
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         List<String> values = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (!token.isValue()) {
-                                throw new ElasticsearchParseException("could not parse http response. expected a header value for header " +
-                                        "[{}] but found [{}] instead", headerName, token);
+                            if (token.isValue() == false) {
+                                throw new ElasticsearchParseException(
+                                    "could not parse http response. expected a header value for header " + "[{}] but found [{}] instead",
+                                    headerName,
+                                    token
+                                );
                             } else {
                                 values.add(String.valueOf(parser.objectText()));
                             }
@@ -229,8 +237,10 @@ public class HttpResponse implements ToXContentObject {
         }
 
         if (status < 0) {
-            throw new ElasticsearchParseException("could not parse http response. missing required numeric [{}] field holding the " +
-                    "response's http status code", Field.STATUS.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse http response. missing required numeric [{}] field holding the " + "response's http status code",
+                Field.STATUS.getPreferredName()
+            );
         }
         return new HttpResponse(status, body, unmodifiableMap(headers));
     }

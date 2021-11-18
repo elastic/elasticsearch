@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,7 +20,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 public class GetComponentTemplatesResponse {
 
     public static final ParseField NAME = new ParseField("name");
@@ -39,14 +27,18 @@ public class GetComponentTemplatesResponse {
     public static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Map<String, ComponentTemplate>, Void> PARSER =
-        new ConstructingObjectParser<>("component_templates", false,
-            a -> ((List<NamedComponentTemplate>) a[0]).stream().collect(Collectors.toMap(n -> n.name, n -> n.componentTemplate,
-                (n1, n2) -> n1, LinkedHashMap::new)));
+    private static final ConstructingObjectParser<Map<String, ComponentTemplate>, Void> PARSER = new ConstructingObjectParser<>(
+        "component_templates",
+        false,
+        a -> ((List<NamedComponentTemplate>) a[0]).stream()
+            .collect(Collectors.toMap(n -> n.name, n -> n.componentTemplate, (n1, n2) -> n1, LinkedHashMap::new))
+    );
 
-    private static final ConstructingObjectParser<NamedComponentTemplate, Void> INNER_PARSER =
-        new ConstructingObjectParser<>("named_component_template", false,
-            a -> new NamedComponentTemplate((String) a[0], (ComponentTemplate) a[1]));
+    private static final ConstructingObjectParser<NamedComponentTemplate, Void> INNER_PARSER = new ConstructingObjectParser<>(
+        "named_component_template",
+        false,
+        a -> new NamedComponentTemplate((String) a[0], (ComponentTemplate) a[1])
+    );
 
     static {
         INNER_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
@@ -79,7 +71,6 @@ public class GetComponentTemplatesResponse {
         return componentTemplates;
     }
 
-
     public static GetComponentTemplatesResponse fromXContent(XContentParser parser) throws IOException {
         return new GetComponentTemplatesResponse(PARSER.apply(parser, null));
     }
@@ -103,6 +94,5 @@ public class GetComponentTemplatesResponse {
         GetComponentTemplatesResponse other = (GetComponentTemplatesResponse) obj;
         return Objects.equals(componentTemplates, other.componentTemplates);
     }
-
 
 }

@@ -1,7 +1,7 @@
 [[repository-azure]]
 === Azure Repository Plugin
 
-The Azure Repository plugin adds support for using Azure as a repository for
+The Azure Repository plugin adds support for using https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
 :plugin_name: repository-azure

@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,16 +83,22 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<AnomalyRecord, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<AnomalyRecord, Void> LENIENT_PARSER = createParser(true);
 
-
     private static ConstructingObjectParser<AnomalyRecord, Void> createParser(boolean ignoreUnknownFields) {
         // As a record contains fields named after the data fields, the parser for the record should always ignore unknown fields.
         // However, it makes sense to offer strict/lenient parsing for other members, e.g. influences, anomaly causes, etc.
-        ConstructingObjectParser<AnomalyRecord, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true,
-                a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2]));
+        ConstructingObjectParser<AnomalyRecord, Void> parser = new ConstructingObjectParser<>(
+            RESULT_TYPE_VALUE,
+            true,
+            a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
+            p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         parser.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
@@ -112,13 +119,21 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         parser.declareString(AnomalyRecord::setFieldName, FIELD_NAME);
         parser.declareString(AnomalyRecord::setOverFieldName, OVER_FIELD_NAME);
         parser.declareString(AnomalyRecord::setOverFieldValue, OVER_FIELD_VALUE);
-        parser.declareObjectArray(AnomalyRecord::setCauses, ignoreUnknownFields ? AnomalyCause.LENIENT_PARSER : AnomalyCause.STRICT_PARSER,
-                CAUSES);
-        parser.declareObjectArray(AnomalyRecord::setInfluencers, ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
-                INFLUENCERS);
-        parser.declareObject(AnomalyRecord::setGeoResults,
+        parser.declareObjectArray(
+            AnomalyRecord::setCauses,
+            ignoreUnknownFields ? AnomalyCause.LENIENT_PARSER : AnomalyCause.STRICT_PARSER,
+            CAUSES
+        );
+        parser.declareObjectArray(
+            AnomalyRecord::setInfluencers,
+            ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
+            INFLUENCERS
+        );
+        parser.declareObject(
+            AnomalyRecord::setGeoResults,
             ignoreUnknownFields ? GeoResults.LENIENT_PARSER : GeoResults.STRICT_PARSER,
-            GEO_RESULTS);
+            GEO_RESULTS
+        );
 
         return parser;
     }
@@ -329,7 +344,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     }
 
     private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String fieldName, String fieldValue) {
-        if (!Strings.isNullOrEmpty(fieldName) && fieldValue != null) {
+        if (Strings.isNullOrEmpty(fieldName) == false && fieldValue != null) {
             if (ReservedFieldNames.isValidFieldName(fieldName)) {
                 inputFields.computeIfAbsent(fieldName, k -> new LinkedHashSet<>()).add(fieldValue);
             }
@@ -347,9 +362,23 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         return buildId(jobId, timestamp, bucketSpan, detectorIndex, byFieldValue, overFieldValue, partitionFieldValue);
     }
 
-    static String buildId(String jobId, Date timestamp, long bucketSpan, int detectorIndex,
-                          String byFieldValue, String overFieldValue, String partitionFieldValue) {
-        return jobId + "_record_" + timestamp.getTime() + "_" + bucketSpan + "_" + detectorIndex + "_"
+    static String buildId(
+        String jobId,
+        Date timestamp,
+        long bucketSpan,
+        int detectorIndex,
+        String byFieldValue,
+        String overFieldValue,
+        String partitionFieldValue
+    ) {
+        return jobId
+            + "_record_"
+            + timestamp.getTime()
+            + "_"
+            + bucketSpan
+            + "_"
+            + detectorIndex
+            + "_"
             + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
     }
 
@@ -541,11 +570,33 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, multiBucketImpact, recordScore,
-                initialRecordScore, typical, actual,function, functionDescription, fieldName,
-                byFieldName, byFieldValue, correlatedByFieldValue, partitionFieldName,
-                partitionFieldValue, overFieldName, overFieldValue, timestamp, isInterim,
-                causes, influences, jobId, geoResults);
+        return Objects.hash(
+            jobId,
+            detectorIndex,
+            bucketSpan,
+            probability,
+            multiBucketImpact,
+            recordScore,
+            initialRecordScore,
+            typical,
+            actual,
+            function,
+            functionDescription,
+            fieldName,
+            byFieldName,
+            byFieldValue,
+            correlatedByFieldValue,
+            partitionFieldName,
+            partitionFieldValue,
+            overFieldName,
+            overFieldValue,
+            timestamp,
+            isInterim,
+            causes,
+            influences,
+            jobId,
+            geoResults
+        );
     }
 
     @Override
@@ -561,29 +612,29 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         AnomalyRecord that = (AnomalyRecord) other;
 
         return Objects.equals(this.jobId, that.jobId)
-                && this.detectorIndex == that.detectorIndex
-                && this.bucketSpan == that.bucketSpan
-                && this.probability == that.probability
-                && Objects.equals(this.multiBucketImpact, that.multiBucketImpact)
-                && this.recordScore == that.recordScore
-                && this.initialRecordScore == that.initialRecordScore
-                && Objects.deepEquals(this.typical, that.typical)
-                && Objects.deepEquals(this.actual, that.actual)
-                && Objects.equals(this.function, that.function)
-                && Objects.equals(this.functionDescription, that.functionDescription)
-                && Objects.equals(this.fieldName, that.fieldName)
-                && Objects.equals(this.byFieldName, that.byFieldName)
-                && Objects.equals(this.byFieldValue, that.byFieldValue)
-                && Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue)
-                && Objects.equals(this.partitionFieldName, that.partitionFieldName)
-                && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
-                && Objects.equals(this.overFieldName, that.overFieldName)
-                && Objects.equals(this.overFieldValue, that.overFieldValue)
-                && Objects.equals(this.timestamp, that.timestamp)
-                && Objects.equals(this.isInterim, that.isInterim)
-                && Objects.equals(this.causes, that.causes)
-                && Objects.equals(this.geoResults, that.geoResults)
-                && Objects.equals(this.influences, that.influences);
+            && this.detectorIndex == that.detectorIndex
+            && this.bucketSpan == that.bucketSpan
+            && this.probability == that.probability
+            && Objects.equals(this.multiBucketImpact, that.multiBucketImpact)
+            && this.recordScore == that.recordScore
+            && this.initialRecordScore == that.initialRecordScore
+            && Objects.deepEquals(this.typical, that.typical)
+            && Objects.deepEquals(this.actual, that.actual)
+            && Objects.equals(this.function, that.function)
+            && Objects.equals(this.functionDescription, that.functionDescription)
+            && Objects.equals(this.fieldName, that.fieldName)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.byFieldValue, that.byFieldValue)
+            && Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.overFieldValue, that.overFieldValue)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.isInterim, that.isInterim)
+            && Objects.equals(this.causes, that.causes)
+            && Objects.equals(this.geoResults, that.geoResults)
+            && Objects.equals(this.influences, that.influences);
     }
 
     @Override

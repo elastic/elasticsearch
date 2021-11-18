@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.transport.action;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -32,8 +33,8 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -42,8 +43,13 @@ public class QueryWatchesResponseTests extends AbstractSerializingTestCase<Query
     private static final ConstructingObjectParser<QueryWatchesAction.Response.Item, Void> TEST_ITEM_PARSER = new ConstructingObjectParser<>(
         "query_watches_response_item",
         false,
-        (args, c) -> new QueryWatchesAction.Response.Item((String) args[0], (XContentSource) args[1],
-            (WatchStatus) args[2], (long) args[3], (long) args[4])
+        (args, c) -> new QueryWatchesAction.Response.Item(
+            (String) args[0],
+            (XContentSource) args[1],
+            (WatchStatus) args[2],
+            (long) args[3],
+            (long) args[4]
+        )
     );
 
     static {
@@ -91,12 +97,8 @@ public class QueryWatchesResponseTests extends AbstractSerializingTestCase<Query
         for (int i = 0; i < numWatches; i++) {
             Watch watch = createWatch("_id + " + i);
             try (XContentBuilder builder = jsonBuilder()) {
-                watch.toXContent(builder, WatcherParams.builder()
-                    .hideSecrets(true)
-                    .includeStatus(false)
-                    .build());
-                items.add(new QueryWatchesAction.Response.Item(randomAlphaOfLength(4),
-                    new XContentSource(builder), watch.status(), 1, 0));
+                watch.toXContent(builder, WatcherParams.builder().hideSecrets(true).includeStatus(false).build());
+                items.add(new QueryWatchesAction.Response.Item(randomAlphaOfLength(4), new XContentSource(builder), watch.status(), 1, 0));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -104,13 +106,15 @@ public class QueryWatchesResponseTests extends AbstractSerializingTestCase<Query
         return new QueryWatchesAction.Response(numWatches + randomIntBetween(0, 100), items);
     }
 
-    private Watch createWatch(String watchId)  {
-        return WatcherTestUtils.createTestWatch(watchId,
+    private Watch createWatch(String watchId) {
+        return WatcherTestUtils.createTestWatch(
+            watchId,
             mock(Client.class),
             mock(HttpClient.class),
             new EmailActionTests.NoopEmailService(),
             mock(WatcherSearchTemplateService.class),
-            logger);
+            logger
+        );
     }
 
     @Override

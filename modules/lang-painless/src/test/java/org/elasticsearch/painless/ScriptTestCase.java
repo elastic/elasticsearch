@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -63,8 +53,8 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.test"));
+        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.test"));
         contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
     }
@@ -81,13 +71,13 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars, boolean picky) {
-        Map<String,String> compilerSettings = new HashMap<>();
+        Map<String, String> compilerSettings = new HashMap<>();
         compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
         return exec(script, vars, compilerSettings, picky);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
+    public Object exec(String script, Map<String, Object> vars, Map<String, String> compileParams, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
             CompilerSettings pickySettings = new CompilerSettings();
@@ -107,7 +97,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     public void assertBytecodeExists(String script, String bytecode) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
+        assertTrue("bytecode not found, got: \n" + asm, asm.contains(bytecode));
     }
 
     /**
@@ -116,7 +106,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     public void assertBytecodeHasPattern(String script, String pattern) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found, got: \n" + asm , asm.matches(pattern));
+        assertTrue("bytecode not found, got: \n" + asm, asm.matches(pattern));
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
@@ -125,8 +115,11 @@ public abstract class ScriptTestCase extends ESTestCase {
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
-    public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, boolean shouldHaveScriptStack,
-            ThrowingRunnable runnable) {
+    public static <T extends Throwable> T expectScriptThrows(
+        Class<T> expectedType,
+        boolean shouldHaveScriptStack,
+        ThrowingRunnable runnable
+    ) {
         try {
             runnable.run();
         } catch (Throwable e) {
@@ -154,8 +147,9 @@ public abstract class ScriptTestCase extends ESTestCase {
                 assertion.initCause(e);
                 throw assertion;
             }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected "
-                                                                      + expectedType.getSimpleName());
+            AssertionFailedError assertion = new AssertionFailedError(
+                "Unexpected exception type, expected " + expectedType.getSimpleName()
+            );
             assertion.initCause(e);
             throw assertion;
         }

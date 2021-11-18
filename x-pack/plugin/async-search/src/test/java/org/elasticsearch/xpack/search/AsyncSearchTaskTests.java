@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -16,7 +16,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -71,25 +71,62 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     private AsyncSearchTask createAsyncSearchTask() {
-        return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
-            Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+        return new AsyncSearchTask(
+            0L,
+            "",
+            "",
+            new TaskId("node1", 0),
+            () -> null,
+            TimeValue.timeValueHours(1),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            new AsyncExecutionId("0", new TaskId("node1", 1)),
+            new NoOpClient(threadPool),
+            threadPool,
+            (t) -> () -> null
+        );
     }
 
     public void testTaskDescription() {
         SearchRequest searchRequest = new SearchRequest("index1", "index2").source(
-            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
-        AsyncSearchTask asyncSearchTask = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), searchRequest::buildDescription,
-            TimeValue.timeValueHours(1), Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
-        assertEquals("async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], " +
-            "source[{\"query\":{\"term\":{\"field\":{\"value\":\"value\",\"boost\":1.0}}}}]}", asyncSearchTask.getDescription());
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
+        );
+        AsyncSearchTask asyncSearchTask = new AsyncSearchTask(
+            0L,
+            "",
+            "",
+            new TaskId("node1", 0),
+            searchRequest::buildDescription,
+            TimeValue.timeValueHours(1),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            new AsyncExecutionId("0", new TaskId("node1", 1)),
+            new NoOpClient(threadPool),
+            threadPool,
+            (t) -> () -> null
+        );
+        assertEquals(
+            "async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], "
+                + "source[{\"query\":{\"term\":{\"field\":{\"value\":\"value\",\"boost\":1.0}}}}]}",
+            asyncSearchTask.getDescription()
+        );
     }
 
     public void testWaitForInit() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
-            Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+        AsyncSearchTask task = new AsyncSearchTask(
+            0L,
+            "",
+            "",
+            new TaskId("node1", 0),
+            () -> null,
+            TimeValue.timeValueHours(1),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            new AsyncExecutionId("0", new TaskId("node1", 1)),
+            new NoOpClient(threadPool),
+            threadPool,
+            (t) -> () -> null
+        );
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -121,7 +158,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             }, TimeValue.timeValueMillis(1)));
             thread.start();
         }
-        assertFalse(latch.await(numThreads*2, TimeUnit.MILLISECONDS));
+        assertFalse(latch.await(numThreads * 2, TimeUnit.MILLISECONDS));
         task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
         latch.await();
     }
@@ -147,19 +184,35 @@ public class AsyncSearchTaskTests extends ESTestCase {
             }, TimeValue.timeValueMillis(1)));
             thread.start();
         }
-        assertFalse(latch.await(numThreads*2, TimeUnit.MILLISECONDS));
+        assertFalse(latch.await(numThreads * 2, TimeUnit.MILLISECONDS));
         task.getSearchProgressActionListener().onFailure(new Exception("boom"));
         latch.await();
     }
 
     public void testWithFailureAndGetResponseFailureDuringReduction() throws InterruptedException {
         AsyncSearchTask task = createAsyncSearchTask();
-        task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
-            SearchResponse.Clusters.EMPTY, false);
-        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true),
-            BucketOrder.key(true), 1, 1, Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
-        task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            aggs, 1);
+        task.getSearchProgressActionListener()
+            .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false);
+        InternalAggregations aggs = InternalAggregations.from(
+            Collections.singletonList(
+                new StringTerms(
+                    "name",
+                    BucketOrder.key(true),
+                    BucketOrder.key(true),
+                    1,
+                    1,
+                    Collections.emptyMap(),
+                    DocValueFormat.RAW,
+                    1,
+                    false,
+                    1,
+                    Collections.emptyList(),
+                    0L
+                )
+            )
+        );
+        task.getSearchProgressActionListener()
+            .onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO), aggs, 1);
         task.getSearchProgressActionListener().onFailure(new CircuitBreakingException("boom", CircuitBreaker.Durability.TRANSIENT));
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -206,15 +259,14 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int totalShards = numShards + numSkippedShards;
         task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
         for (int i = 0; i < numShards; i++) {
-            task.getSearchProgressActionListener().onPartialReduce(shards.subList(i, i+1),
-                new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+            task.getSearchProgressActionListener()
+                .onPartialReduce(shards.subList(i, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
             assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false);
         }
-        task.getSearchProgressActionListener().onFinalReduce(shards,
-            new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+        task.getSearchProgressActionListener()
+            .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
-        ((AsyncSearchTask.Listener)task.getProgressListener()).onResponse(
-            newSearchResponse(totalShards, totalShards, numSkippedShards));
+        ((AsyncSearchTask.Listener) task.getProgressListener()).onResponse(newSearchResponse(totalShards, totalShards, numSkippedShards));
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false);
     }
 
@@ -233,25 +285,24 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int totalShards = numShards + numSkippedShards;
         task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
         for (int i = 0; i < numShards; i++) {
-            task.getSearchProgressActionListener().onPartialReduce(shards.subList(i, i+1),
-                new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+            task.getSearchProgressActionListener()
+                .onPartialReduce(shards.subList(i, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
             assertCompletionListeners(task, totalShards, 1 + numSkippedShards, numSkippedShards, 0, true, false);
         }
-        task.getSearchProgressActionListener().onFinalReduce(shards,
-            new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+        task.getSearchProgressActionListener()
+            .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
         int numFetchFailures = randomIntBetween(1, numShards - 1);
         ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFetchFailures];
         for (int i = 0; i < numFetchFailures; i++) {
             IOException failure = new IOException("boum");
-            //fetch failures are currently ignored, they come back with onFailure or onResponse anyways
-            task.getSearchProgressActionListener().onFetchFailure(i,
-                new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
-                failure);
+            // fetch failures are currently ignored, they come back with onFailure or onResponse anyways
+            task.getSearchProgressActionListener().onFetchFailure(i, new SearchShardTarget("0", new ShardId("0", "0", 1), null), failure);
             shardSearchFailures[i] = new ShardSearchFailure(failure);
         }
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
-        ((AsyncSearchTask.Listener)task.getProgressListener()).onResponse(
-            newSearchResponse(totalShards, totalShards - numFetchFailures, numSkippedShards, shardSearchFailures));
+        ((AsyncSearchTask.Listener) task.getProgressListener()).onResponse(
+            newSearchResponse(totalShards, totalShards - numFetchFailures, numSkippedShards, shardSearchFailures)
+        );
         assertCompletionListeners(task, totalShards, totalShards - numFetchFailures, numSkippedShards, numFetchFailures, false, false);
     }
 
@@ -270,20 +321,19 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int totalShards = numShards + numSkippedShards;
         task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
         for (int i = 0; i < numShards; i++) {
-            task.getSearchProgressActionListener().onPartialReduce(shards.subList(0, i+1),
-                new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+            task.getSearchProgressActionListener()
+                .onPartialReduce(shards.subList(0, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
             assertCompletionListeners(task, totalShards, i + 1 + numSkippedShards, numSkippedShards, 0, true, false);
         }
-        task.getSearchProgressActionListener().onFinalReduce(shards,
-            new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+        task.getSearchProgressActionListener()
+            .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
         for (int i = 0; i < numShards; i++) {
-            //fetch failures are currently ignored, they come back with onFailure or onResponse anyways
-            task.getSearchProgressActionListener().onFetchFailure(i,
-                new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
-                new IOException("boum"));
+            // fetch failures are currently ignored, they come back with onFailure or onResponse anyways
+            task.getSearchProgressActionListener()
+                .onFetchFailure(i, new SearchShardTarget("0", new ShardId("0", "0", 1), null), new IOException("boum"));
         }
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);
-        ((AsyncSearchTask.Listener)task.getProgressListener()).onFailure(new IOException("boum"));
+        ((AsyncSearchTask.Listener) task.getProgressListener()).onFailure(new IOException("boum"));
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, true);
     }
 
@@ -312,7 +362,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         AsyncSearchTask asyncSearchTask = createAsyncSearchTask();
         AtomicReference<Exception> failure = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        //onListShards has not been executed, then addCompletionListener has to wait for the
+        // onListShards has not been executed, then addCompletionListener has to wait for the
         // onListShards call and is executed as init listener
         asyncSearchTask.addCompletionListener(new ActionListener<>() {
             @Override
@@ -326,8 +376,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 latch.countDown();
             }
         }, TimeValue.timeValueMillis(500L));
-        asyncSearchTask.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
-            SearchResponse.Clusters.EMPTY, false);
+        asyncSearchTask.getSearchProgressActionListener()
+            .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false);
         assertTrue(latch.await(1000, TimeUnit.SECONDS));
         assertThat(failure.get(), instanceOf(RuntimeException.class));
     }
@@ -335,11 +385,11 @@ public class AsyncSearchTaskTests extends ESTestCase {
     public void testAddCompletionListenerScheduleErrorInitListenerExecutedImmediately() throws InterruptedException {
         throwOnSchedule = true;
         AsyncSearchTask asyncSearchTask = createAsyncSearchTask();
-        asyncSearchTask.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
-            SearchResponse.Clusters.EMPTY, false);
+        asyncSearchTask.getSearchProgressActionListener()
+            .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> failure = new AtomicReference<>();
-        //onListShards has already been executed, then addCompletionListener is executed immediately
+        // onListShards has already been executed, then addCompletionListener is executed immediately
         asyncSearchTask.addCompletionListener(new ActionListener<>() {
             @Override
             public void onResponse(AsyncSearchResponse asyncSearchResponse) {
@@ -356,21 +406,42 @@ public class AsyncSearchTaskTests extends ESTestCase {
         assertThat(failure.get(), instanceOf(RuntimeException.class));
     }
 
-    private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards,
-            ShardSearchFailure... failures) {
-        InternalSearchResponse response = new InternalSearchResponse(SearchHits.empty(),
-            InternalAggregations.EMPTY, null, null, false, null, 1);
-        return new SearchResponse(response, null, totalShards, successfulShards, skippedShards,
-            100, failures, SearchResponse.Clusters.EMPTY);
+    private static SearchResponse newSearchResponse(
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        ShardSearchFailure... failures
+    ) {
+        InternalSearchResponse response = new InternalSearchResponse(
+            SearchHits.empty(),
+            InternalAggregations.EMPTY,
+            null,
+            null,
+            false,
+            null,
+            1
+        );
+        return new SearchResponse(
+            response,
+            null,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            100,
+            failures,
+            SearchResponse.Clusters.EMPTY
+        );
     }
 
-    private static void assertCompletionListeners(AsyncSearchTask task,
-                                           int expectedTotalShards,
-                                           int expectedSuccessfulShards,
-                                           int expectedSkippedShards,
-                                           int expectedShardFailures,
-                                           boolean isPartial,
-                                           boolean totalFailureExpected) throws InterruptedException {
+    private static void assertCompletionListeners(
+        AsyncSearchTask task,
+        int expectedTotalShards,
+        int expectedSuccessfulShards,
+        int expectedSkippedShards,
+        int expectedShardFailures,
+        boolean isPartial,
+        boolean totalFailureExpected
+    ) throws InterruptedException {
         int numThreads = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(numThreads);
         for (int i = 0; i < numThreads; i++) {

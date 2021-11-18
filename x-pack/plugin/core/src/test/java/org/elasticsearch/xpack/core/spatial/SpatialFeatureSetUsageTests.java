@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.spatial;
 
@@ -39,8 +40,7 @@ public class SpatialFeatureSetUsageTests extends AbstractWireSerializingTestCase
     }
 
     private SpatialStatsAction.Response randomStatsResponse() {
-        DiscoveryNode node = new DiscoveryNode("_node_id",
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
         EnumCounters<SpatialStatsAction.Item> counters = new EnumCounters<>(SpatialStatsAction.Item.class);
         SpatialStatsAction.NodeResponse nodeResponse = new SpatialStatsAction.NodeResponse(node, counters);
         return new SpatialStatsAction.Response(new ClusterName("cluster_name"), List.of(nodeResponse), emptyList());

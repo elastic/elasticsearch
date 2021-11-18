@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
@@ -65,7 +54,13 @@ public abstract class AliasAction {
      */
     @FunctionalInterface
     public interface NewAliasValidator {
-        void validate(String alias, @Nullable String indexRouting, @Nullable String filter, @Nullable Boolean writeIndex);
+        void validate(
+            String alias,
+            @Nullable String indexRouting,
+            @Nullable String searchRouting,
+            @Nullable String filter,
+            @Nullable Boolean writeIndex
+        );
     }
 
     /**
@@ -86,13 +81,21 @@ public abstract class AliasAction {
         @Nullable
         private final Boolean writeIndex;
 
-        @Nullable final Boolean isHidden;
+        @Nullable
+        final Boolean isHidden;
 
         /**
          * Build the operation.
          */
-        public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting,
-                   @Nullable Boolean writeIndex, @Nullable Boolean isHidden) {
+        public Add(
+            String index,
+            String alias,
+            @Nullable String filter,
+            @Nullable String indexRouting,
+            @Nullable String searchRouting,
+            @Nullable Boolean writeIndex,
+            @Nullable Boolean isHidden
+        ) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
@@ -128,10 +131,15 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
-            aliasValidator.validate(alias, indexRouting, filter, writeIndex);
+            aliasValidator.validate(alias, indexRouting, searchRouting, filter, writeIndex);
 
-            AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias).filter(filter).indexRouting(indexRouting)
-                    .searchRouting(searchRouting).writeIndex(writeIndex).isHidden(isHidden).build();
+            AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias)
+                .filter(filter)
+                .indexRouting(indexRouting)
+                .searchRouting(searchRouting)
+                .writeIndex(writeIndex)
+                .isHidden(isHidden)
+                .build();
 
             // Check if this alias already exists
             AliasMetadata currentAliasMd = index.getAliases().get(alias);
@@ -181,7 +189,7 @@ public abstract class AliasAction {
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
                 if (mustExist != null && mustExist) {
-                    throw new ResourceNotFoundException("required alias [" + alias  + "] does not exist");
+                    throw new ResourceNotFoundException("required alias [" + alias + "] does not exist");
                 }
                 return false;
             }
@@ -207,6 +215,70 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class AddDataStreamAlias extends AliasAction {
+
+        private final String aliasName;
+        private final String dataStreamName;
+        private final Boolean isWriteDataStream;
+        private final String filter;
+
+        public AddDataStreamAlias(String aliasName, String dataStreamName, Boolean isWriteDataStream, String filter) {
+            super(dataStreamName);
+            this.aliasName = aliasName;
+            this.dataStreamName = dataStreamName;
+            this.isWriteDataStream = isWriteDataStream;
+            this.filter = filter;
+        }
+
+        public String getAliasName() {
+            return aliasName;
+        }
+
+        public String getDataStreamName() {
+            return dataStreamName;
+        }
+
+        public Boolean getWriteDataStream() {
+            return isWriteDataStream;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+            aliasValidator.validate(aliasName, null, null, filter, isWriteDataStream);
+            return metadata.put(aliasName, dataStreamName, isWriteDataStream, filter);
+        }
+    }
+
+    public static class RemoveDataStreamAlias extends AliasAction {
+
+        private final String aliasName;
+        private final Boolean mustExist;
+        private final String dataStreamName;
+
+        public RemoveDataStreamAlias(String aliasName, String dataStreamName, Boolean mustExist) {
+            super(dataStreamName);
+            this.aliasName = aliasName;
+            this.mustExist = mustExist;
+            this.dataStreamName = dataStreamName;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+            boolean mustExist = this.mustExist != null ? this.mustExist : false;
+            return metadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
         }
     }
 }

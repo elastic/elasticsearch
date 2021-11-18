@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -21,15 +22,33 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction<GetTrialStatusRequest, GetTrialStatusResponse> {
 
     @Inject
-    public TransportGetTrialStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetTrialStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetTrialStatusRequest::new, indexNameExpressionResolver, GetTrialStatusResponse::new, ThreadPool.Names.SAME);
+    public TransportGetTrialStatusAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetTrialStatusAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetTrialStatusRequest::new,
+            indexNameExpressionResolver,
+            GetTrialStatusResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, GetTrialStatusRequest request, ClusterState state,
-                                   ActionListener<GetTrialStatusResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        GetTrialStatusRequest request,
+        ClusterState state,
+        ActionListener<GetTrialStatusResponse> listener
+    ) throws Exception {
         LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
         listener.onResponse(new GetTrialStatusResponse(licensesMetadata == null || licensesMetadata.isEligibleForTrial()));
 

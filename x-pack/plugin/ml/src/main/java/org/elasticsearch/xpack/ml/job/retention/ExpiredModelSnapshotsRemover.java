@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -69,9 +70,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
 
-    public ExpiredModelSnapshotsRemover(OriginSettingClient client, Iterator<Job> jobIterator,
-                                        ThreadPool threadPool, TaskId parentTaskId, JobResultsProvider jobResultsProvider,
-                                        AnomalyDetectionAuditor auditor) {
+    public ExpiredModelSnapshotsRemover(
+        OriginSettingClient client,
+        Iterator<Job> jobIterator,
+        ThreadPool threadPool,
+        TaskId parentTaskId,
+        JobResultsProvider jobResultsProvider,
+        AnomalyDetectionAuditor auditor
+    ) {
         super(client, jobIterator, parentTaskId);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.jobResultsProvider = jobResultsProvider;
@@ -92,27 +98,29 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
-                MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
+        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+            LOGGER,
+            threadPool,
+            MachineLearning.UTILITY_THREAD_POOL_NAME,
+            listener,
+            false
+        );
 
-        latestSnapshotTimeStamp(jobId, ActionListener.wrap(
-                latestTime -> {
-                    if (latestTime == null) {
-                        threadedActionListener.onResponse(null);
-                    } else {
-                        long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                        threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
-                    }
-                },
-                listener::onFailure
-        ));
+        latestSnapshotTimeStamp(jobId, ActionListener.wrap(latestTime -> {
+            if (latestTime == null) {
+                threadedActionListener.onResponse(null);
+            } else {
+                long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+                threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
+            }
+        }, listener::onFailure));
     }
 
     private void latestSnapshotTimeStamp(String jobId, ActionListener<Long> listener) {
         SortBuilder<?> sortBuilder = new FieldSortBuilder(ModelSnapshot.TIMESTAMP.getPreferredName()).order(SortOrder.DESC);
         QueryBuilder snapshotQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))
-                .filter(QueryBuilders.existsQuery(ModelSnapshot.TIMESTAMP.getPreferredName()));
+            .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))
+            .filter(QueryBuilders.existsQuery(ModelSnapshot.TIMESTAMP.getPreferredName()));
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.sort(sortBuilder);
@@ -128,25 +136,22 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.setParentTask(getParentTaskId());
 
-        client.search(searchRequest, ActionListener.wrap(
-                response -> {
-                    SearchHit[] hits = response.getHits().getHits();
-                    if (hits.length == 0) {
-                        // no snapshots found
-                        listener.onResponse(null);
-                    } else {
-                        String timestamp = stringFieldValueOrNull(hits[0], ModelSnapshot.TIMESTAMP.getPreferredName());
-                        if (timestamp == null) {
-                            LOGGER.warn("Model snapshot document [{}] has a null timestamp field", hits[0].getId());
-                            listener.onResponse(null);
-                        } else {
-                            long timestampMs = TimeUtils.parseToEpochMs(timestamp);
-                            listener.onResponse(timestampMs);
-                        }
-                    }
-                },
-                listener::onFailure)
-        );
+        client.search(searchRequest, ActionListener.wrap(response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            if (hits.length == 0) {
+                // no snapshots found
+                listener.onResponse(null);
+            } else {
+                String timestamp = stringFieldValueOrNull(hits[0], ModelSnapshot.TIMESTAMP.getPreferredName());
+                if (timestamp == null) {
+                    LOGGER.warn("Model snapshot document [{}] has a null timestamp field", hits[0].getId());
+                    listener.onResponse(null);
+                } else {
+                    long timestampMs = TimeUtils.parseToEpochMs(timestamp);
+                    listener.onResponse(timestampMs);
+                }
+            }
+        }, listener::onFailure));
     }
 
     @Override
@@ -163,15 +168,20 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             listener.onResponse(true);
             return;
         }
-        LOGGER.debug(() -> new ParameterizedMessage(
-            "Considering model snapshots of job [{}] that have a timestamp before [{}] for removal",
-            job.getId(),
-            cutoffEpochMs));
+        LOGGER.debug(
+            () -> new ParameterizedMessage(
+                "Considering model snapshots of job [{}] that have a timestamp before [{}] for removal",
+                job.getId(),
+                cutoffEpochMs
+            )
+        );
 
         long deleteAllBeforeMs = (job.getModelSnapshotRetentionDays() == null)
-            ? 0 : latestTimeMs - TimeValue.timeValueDays(job.getModelSnapshotRetentionDays()).getMillis();
+            ? 0
+            : latestTimeMs - TimeValue.timeValueDays(job.getModelSnapshotRetentionDays()).getMillis();
         ActionListener<QueryPage<ModelSnapshot>> snapshotsListener = expiredSnapshotsListener(job, deleteAllBeforeMs, listener);
-        jobResultsProvider.modelSnapshots(job.getId(),
+        jobResultsProvider.modelSnapshots(
+            job.getId(),
             0,
             MODEL_SNAPSHOT_SEARCH_SIZE,
             null,
@@ -180,19 +190,22 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             false,
             null,
             snapshotsListener::onResponse,
-            snapshotsListener::onFailure);
+            snapshotsListener::onFailure
+        );
     }
 
-    private ActionListener<QueryPage<ModelSnapshot>> expiredSnapshotsListener(Job job,
-                                                                              long deleteAllBeforeMs,
-                                                                              ActionListener<Boolean> listener) {
+    private ActionListener<QueryPage<ModelSnapshot>> expiredSnapshotsListener(
+        Job job,
+        long deleteAllBeforeMs,
+        ActionListener<Boolean> listener
+    ) {
         return new ActionListener<>() {
             @Override
             public void onResponse(QueryPage<ModelSnapshot> searchResponse) {
                 long nextToKeepMs = deleteAllBeforeMs;
                 try {
                     List<ModelSnapshot> snapshots = new ArrayList<>();
-                    for (ModelSnapshot snapshot: searchResponse.results()) {
+                    for (ModelSnapshot snapshot : searchResponse.results()) {
                         // We don't want to delete the currently used snapshot or a snapshot marked to be retained
                         if (snapshot.getSnapshotId().equals(job.getModelSnapshotId()) || snapshot.isRetain()) {
                             continue;
@@ -229,19 +242,18 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             return;
         }
         JobDataDeleter deleter = new JobDataDeleter(client, jobId);
-        deleter.deleteModelSnapshots(modelSnapshots, ActionListener.wrap(
-            bulkResponse -> {
-                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
-                LOGGER.debug(() -> new ParameterizedMessage(
+        deleter.deleteModelSnapshots(modelSnapshots, ActionListener.wrap(bulkResponse -> {
+            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
+            LOGGER.debug(
+                () -> new ParameterizedMessage(
                     "[{}] deleted model snapshots {} with descriptions {}",
                     jobId,
                     modelSnapshots.stream().map(ModelSnapshot::getSnapshotId).collect(Collectors.toList()),
                     modelSnapshots.stream().map(ModelSnapshot::getDescription).collect(Collectors.toList())
-                ));
-                listener.onResponse(true);
-            },
-            listener::onFailure
-        ));
+                )
+            );
+            listener.onResponse(true);
+        }, listener::onFailure));
     }
 
 }

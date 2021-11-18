@@ -1,38 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-
 
 /**
  * Tests for {@link GeoBoundingBox}
@@ -40,10 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoBoundingBoxTests extends ESTestCase {
 
     public void testInvalidParseInvalidWKT() throws IOException {
-        XContentBuilder bboxBuilder = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("wkt", "invalid")
-            .endObject();
+        XContentBuilder bboxBuilder = XContentFactory.jsonBuilder().startObject().field("wkt", "invalid").endObject();
         XContentParser parser = createParser(bboxBuilder);
         parser.nextToken();
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
@@ -51,10 +36,7 @@ public class GeoBoundingBoxTests extends ESTestCase {
     }
 
     public void testInvalidParsePoint() throws IOException {
-        XContentBuilder bboxBuilder = XContentFactory.jsonBuilder()
-            .startObject()
-                .field("wkt", "POINT (100.0 100.0)")
-            .endObject();
+        XContentBuilder bboxBuilder = XContentFactory.jsonBuilder().startObject().field("wkt", "POINT (100.0 100.0)").endObject();
         XContentParser parser = createParser(bboxBuilder);
         parser.nextToken();
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> GeoBoundingBox.parseBoundingBox(parser));
@@ -63,17 +45,13 @@ public class GeoBoundingBoxTests extends ESTestCase {
 
     public void testWKT() throws IOException {
         GeoBoundingBox geoBoundingBox = randomBBox();
-        assertBBox(geoBoundingBox,
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("wkt", geoBoundingBox.toString())
-                .endObject()
-        );
+        assertBBox(geoBoundingBox, XContentFactory.jsonBuilder().startObject().field("wkt", geoBoundingBox.toString()).endObject());
     }
 
     public void testTopBottomLeftRight() throws Exception {
         GeoBoundingBox geoBoundingBox = randomBBox();
-        assertBBox(geoBoundingBox,
+        assertBBox(
+            geoBoundingBox,
             XContentFactory.jsonBuilder()
                 .startObject()
                 .field("top", geoBoundingBox.top())
@@ -86,7 +64,8 @@ public class GeoBoundingBoxTests extends ESTestCase {
 
     public void testTopLeftBottomRight() throws Exception {
         GeoBoundingBox geoBoundingBox = randomBBox();
-        assertBBox(geoBoundingBox,
+        assertBBox(
+            geoBoundingBox,
             XContentFactory.jsonBuilder()
                 .startObject()
                 .field("top_left", geoBoundingBox.topLeft())
@@ -97,7 +76,8 @@ public class GeoBoundingBoxTests extends ESTestCase {
 
     public void testTopRightBottomLeft() throws Exception {
         GeoBoundingBox geoBoundingBox = randomBBox();
-        assertBBox(geoBoundingBox,
+        assertBBox(
+            geoBoundingBox,
             XContentFactory.jsonBuilder()
                 .startObject()
                 .field("top_right", new GeoPoint(geoBoundingBox.top(), geoBoundingBox.right()))
@@ -140,18 +120,20 @@ public class GeoBoundingBoxTests extends ESTestCase {
             GeoBoundingBox geoBoundingBox = randomBBox();
             GeoBoundingBox bbox = new GeoBoundingBox(
                 new GeoPoint(quantizeLat(geoBoundingBox.top()), quantizeLon(geoBoundingBox.left())),
-                    new GeoPoint(quantizeLat(geoBoundingBox.bottom()), quantizeLon(geoBoundingBox.right())));
+                new GeoPoint(quantizeLat(geoBoundingBox.bottom()), quantizeLon(geoBoundingBox.right()))
+            );
             if (bbox.left() > bbox.right()) {
-                double lonWithin = randomBoolean() ?
-                    randomDoubleBetween(bbox.left(), 180.0, true)
+                double lonWithin = randomBoolean()
+                    ? randomDoubleBetween(bbox.left(), 180.0, true)
                     : randomDoubleBetween(-180.0, bbox.right(), true);
                 double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
                 double lonOutside = randomDoubleBetween(bbox.left(), bbox.right(), true);
-                double latOutside = randomBoolean() ? randomDoubleBetween(Math.max(bbox.top(), bbox.bottom()), 90, false)
+                double latOutside = randomBoolean()
+                    ? randomDoubleBetween(Math.max(bbox.top(), bbox.bottom()), 90, false)
                     : randomDoubleBetween(-90, Math.min(bbox.bottom(), bbox.top()), false);
 
                 assertTrue(bbox.pointInBounds(lonWithin, latWithin));
-                    assertFalse(bbox.pointInBounds(lonOutside, latOutside));
+                assertFalse(bbox.pointInBounds(lonOutside, latOutside));
             } else {
                 double lonWithin = randomDoubleBetween(bbox.left(), bbox.right(), true);
                 double latWithin = randomDoubleBetween(bbox.bottom(), bbox.top(), true);
@@ -173,8 +155,10 @@ public class GeoBoundingBoxTests extends ESTestCase {
 
     public static GeoBoundingBox randomBBox() {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
-        return new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
+        return new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
     }
 
     private static double quantizeLat(double lat) {

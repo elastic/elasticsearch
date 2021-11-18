@@ -1,37 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 
-public abstract class TransportMessage implements Writeable {
+import java.net.InetSocketAddress;
 
-    private TransportAddress remoteAddress;
+public abstract class TransportMessage implements Writeable, RefCounted {
 
-    public void remoteAddress(TransportAddress remoteAddress) {
+    @Nullable // set by the transport service on inbound messages; unset on outbound messages
+    private InetSocketAddress remoteAddress;
+
+    public void remoteAddress(InetSocketAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
     }
 
-    public TransportAddress remoteAddress() {
+    @Nullable // set by the transport service on inbound messages; unset on outbound messages
+    public InetSocketAddress remoteAddress() {
         return remoteAddress;
     }
 
@@ -45,4 +39,27 @@ public abstract class TransportMessage implements Writeable {
      * currently a no-op
      */
     public TransportMessage(StreamInput in) {}
+
+    @Override
+    public void incRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return true;
+    }
+
+    @Override
+    public boolean decRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return false;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return true;
+    }
 }

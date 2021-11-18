@@ -37,7 +37,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -46,7 +46,7 @@ setup:
                 scaling_factor: 3
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"
@@ -59,7 +59,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -68,7 +68,7 @@ setup:
                 pivot: 20
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"
@@ -81,7 +81,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -91,7 +91,27 @@ setup:
                 exponent: 0.6
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"
+
+---
+"Positive linear":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: pagerank
+              linear: {}
+
+  - match:
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"
@@ -105,7 +125,7 @@ setup:
   - do:
       catch: bad_request
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -118,7 +138,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -127,7 +147,7 @@ setup:
                 pivot: 20
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"
@@ -140,7 +160,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -150,7 +170,28 @@ setup:
                 exponent: 0.6
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"
+
+---
+"Negative linear":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: url_length
+              linear: {}
+
+  - match:
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"

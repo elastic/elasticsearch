@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,7 +22,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 
@@ -55,60 +56,42 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         return new CleanupSnapshotStep(key, nextKey, instance.getClient());
     }
 
-    public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() {
+    public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() throws Exception {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
 
         {
-            IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5));
 
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+            ClusterState clusterState = ClusterState.builder(emptyClusterState())
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    assertThat(complete, is(true));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("expecting the step to report success if repository information is missing from the ILM execution state as there" +
-                        " is no snapshot to delete");
-                }
-            });
+            PlainActionFuture.<Void, Exception>get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f));
         }
 
         {
-            IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
 
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+            ClusterState clusterState = ClusterState.builder(emptyClusterState())
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
 
             CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    assertThat(complete, is(true));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("expecting the step to report success if the snapshot name is missing from the ILM execution state as there is " +
-                        "no snapshot to delete");
-                }
-            });
+            PlainActionFuture.<Void, Exception>get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f));
         }
     }
 
@@ -118,25 +101,25 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         String snapshotName = indexName + "-" + policyName;
         Map<String, String> ilmCustom = Map.of("snapshot_name", snapshotName);
 
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
 
         try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
             CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(boolean complete) {
-                }
+                public void onResponse(Void complete) {}
 
                 @Override
-                public void onFailure(Exception e) {
-                }
+                public void onFailure(Exception e) {}
             });
         }
     }
@@ -144,9 +127,11 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
     private NoOpClient getDeleteSnapshotRequestAssertingClient(String expectedSnapshotName) {
         return new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                      Request request,
-                                                                                                      ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 assertThat(action.name(), is(DeleteSnapshotAction.NAME));
                 assertTrue(request instanceof DeleteSnapshotRequest);
                 assertThat(((DeleteSnapshotRequest) request).snapshots(), arrayContaining(expectedSnapshotName));

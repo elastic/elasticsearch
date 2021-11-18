@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.tasks;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +24,7 @@ public class CancelTasksRequest implements Validatable {
     private Optional<TaskId> taskId = Optional.empty();
     private Boolean waitForCompletion;
 
-    CancelTasksRequest(){}
+    CancelTasksRequest() {}
 
     void setNodes(List<String> nodes) {
         this.nodes.addAll(nodes);
@@ -88,14 +77,14 @@ public class CancelTasksRequest implements Validatable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof CancelTasksRequest)) return false;
+        if ((o instanceof CancelTasksRequest) == false) return false;
         CancelTasksRequest that = (CancelTasksRequest) o;
-        return Objects.equals(getNodes(), that.getNodes()) &&
-            Objects.equals(getActions(), that.getActions()) &&
-            Objects.equals(getTimeout(), that.getTimeout()) &&
-            Objects.equals(getParentTaskId(), that.getParentTaskId()) &&
-            Objects.equals(getTaskId(), that.getTaskId()) &&
-            Objects.equals(waitForCompletion, that.waitForCompletion);
+        return Objects.equals(getNodes(), that.getNodes())
+            && Objects.equals(getActions(), that.getActions())
+            && Objects.equals(getTimeout(), that.getTimeout())
+            && Objects.equals(getParentTaskId(), that.getParentTaskId())
+            && Objects.equals(getTaskId(), that.getTaskId())
+            && Objects.equals(waitForCompletion, that.waitForCompletion);
     }
 
     @Override
@@ -105,16 +94,23 @@ public class CancelTasksRequest implements Validatable {
 
     @Override
     public String toString() {
-        return "CancelTasksRequest{" +
-            "nodes=" + nodes +
-            ", actions=" + actions +
-            ", timeout=" + timeout +
-            ", parentTaskId=" + parentTaskId +
-            ", taskId=" + taskId +
-            ", waitForCompletion=" + waitForCompletion +
-            '}';
+        return "CancelTasksRequest{"
+            + "nodes="
+            + nodes
+            + ", actions="
+            + actions
+            + ", timeout="
+            + timeout
+            + ", parentTaskId="
+            + parentTaskId
+            + ", taskId="
+            + taskId
+            + ", waitForCompletion="
+            + waitForCompletion
+            + '}';
     }
 
+    @SuppressWarnings("HiddenField")
     public static class Builder {
         private Optional<TimeValue> timeout = Optional.empty();
         private Optional<TaskId> taskId = Optional.empty();
@@ -123,28 +119,28 @@ public class CancelTasksRequest implements Validatable {
         private List<String> nodesFilter = new ArrayList<>();
         private Boolean waitForCompletion;
 
-        public Builder withTimeout(TimeValue timeout){
+        public Builder withTimeout(TimeValue timeout) {
             this.timeout = Optional.of(timeout);
             return this;
         }
 
-        public Builder withTaskId(TaskId taskId){
+        public Builder withTaskId(TaskId taskId) {
             this.taskId = Optional.of(taskId);
             return this;
         }
 
-        public Builder withParentTaskId(TaskId taskId){
+        public Builder withParentTaskId(TaskId taskId) {
             this.parentTaskId = Optional.of(taskId);
             return this;
         }
 
-        public Builder withActionsFiltered(List<String> actions){
+        public Builder withActionsFiltered(List<String> actions) {
             this.actionsFilter.clear();
             this.actionsFilter.addAll(actions);
             return this;
         }
 
-        public Builder withNodesFiltered(List<String> nodes){
+        public Builder withNodesFiltered(List<String> nodes) {
             this.nodesFilter.clear();
             this.nodesFilter.addAll(nodes);
             return this;

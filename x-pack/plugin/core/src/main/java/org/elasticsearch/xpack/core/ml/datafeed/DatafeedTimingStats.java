@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -23,8 +24,8 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DatafeedTimingStats implements ToXContentObject, Writeable {
 
@@ -41,23 +42,20 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<DatafeedTimingStats, Void> PARSER = createParser();
 
     private static ConstructingObjectParser<DatafeedTimingStats, Void> createParser() {
-        ConstructingObjectParser<DatafeedTimingStats, Void> parser =
-            new ConstructingObjectParser<>(
-                TYPE.getPreferredName(),
-                true,
-                args -> {
-                    String jobId = (String) args[0];
-                    Long searchCount = (Long) args[1];
-                    Long bucketCount = (Long) args[2];
-                    Double totalSearchTimeMs = (Double) args[3];
-                    ExponentialAverageCalculationContext exponentialAvgCalculationContext = (ExponentialAverageCalculationContext) args[4];
-                    return new DatafeedTimingStats(
-                        jobId,
-                        getOrDefault(searchCount, 0L),
-                        getOrDefault(bucketCount, 0L),
-                        getOrDefault(totalSearchTimeMs, 0.0),
-                        getOrDefault(exponentialAvgCalculationContext, new ExponentialAverageCalculationContext()));
-                });
+        ConstructingObjectParser<DatafeedTimingStats, Void> parser = new ConstructingObjectParser<>(TYPE.getPreferredName(), true, args -> {
+            String jobId = (String) args[0];
+            Long searchCount = (Long) args[1];
+            Long bucketCount = (Long) args[2];
+            Double totalSearchTimeMs = (Double) args[3];
+            ExponentialAverageCalculationContext exponentialAvgCalculationContext = (ExponentialAverageCalculationContext) args[4];
+            return new DatafeedTimingStats(
+                jobId,
+                getOrDefault(searchCount, 0L),
+                getOrDefault(bucketCount, 0L),
+                getOrDefault(totalSearchTimeMs, 0.0),
+                getOrDefault(exponentialAvgCalculationContext, new ExponentialAverageCalculationContext())
+            );
+        });
         parser.declareString(constructorArg(), JOB_ID);
         parser.declareLong(optionalConstructorArg(), SEARCH_COUNT);
         parser.declareLong(optionalConstructorArg(), BUCKET_COUNT);
@@ -77,11 +75,12 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     private final ExponentialAverageCalculationContext exponentialAvgCalculationContext;
 
     public DatafeedTimingStats(
-            String jobId,
-            long searchCount,
-            long bucketCount,
-            double totalSearchTimeMs,
-            ExponentialAverageCalculationContext exponentialAvgCalculationContext) {
+        String jobId,
+        long searchCount,
+        long bucketCount,
+        double totalSearchTimeMs,
+        ExponentialAverageCalculationContext exponentialAvgCalculationContext
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.searchCount = searchCount;
         this.bucketCount = bucketCount;
@@ -107,7 +106,8 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
             other.searchCount,
             other.bucketCount,
             other.totalSearchTimeMs,
-            new ExponentialAverageCalculationContext(other.exponentialAvgCalculationContext));
+            new ExponentialAverageCalculationContext(other.exponentialAvgCalculationContext)
+        );
     }
 
     public String getJobId() {
@@ -209,12 +209,7 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            jobId,
-            searchCount,
-            bucketCount,
-            totalSearchTimeMs,
-            exponentialAvgCalculationContext);
+        return Objects.hash(jobId, searchCount, bucketCount, totalSearchTimeMs, exponentialAvgCalculationContext);
     }
 
     @Override

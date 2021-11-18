@@ -1,35 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Holds the end result of what a pipeline did to sample document provided via the simulate api.
@@ -38,31 +27,26 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
-    public static final ConstructingObjectParser<SimulateDocumentBaseResult, Void> PARSER =
-        new ConstructingObjectParser<>(
-          "simulate_document_base_result",
-          true,
-          a -> {
+    public static final ConstructingObjectParser<SimulateDocumentBaseResult, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_document_base_result",
+        true,
+        a -> {
             if (a[1] == null) {
                 assert a[0] != null;
-                return new SimulateDocumentBaseResult(((WriteableIngestDocument)a[0]).getIngestDocument());
+                return new SimulateDocumentBaseResult(((WriteableIngestDocument) a[0]).getIngestDocument());
             } else {
                 assert a[0] == null;
-                return new SimulateDocumentBaseResult((ElasticsearchException)a[1]);
+                return new SimulateDocumentBaseResult((ElasticsearchException) a[1]);
             }
-          }
-        );
+        }
+    );
     static {
         PARSER.declareObject(
             optionalConstructorArg(),
             WriteableIngestDocument.INGEST_DOC_PARSER,
             new ParseField(WriteableIngestDocument.DOC_FIELD)
         );
-        PARSER.declareObject(
-            optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p),
-            new ParseField("error")
-        );
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField("error"));
     }
 
     public SimulateDocumentBaseResult(IngestDocument ingestDocument) {

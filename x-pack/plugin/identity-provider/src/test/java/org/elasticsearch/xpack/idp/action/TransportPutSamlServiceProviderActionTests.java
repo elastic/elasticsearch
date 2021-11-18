@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.action;
@@ -35,8 +36,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -59,8 +60,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
         now = Instant.ofEpochMilli(System.currentTimeMillis() + randomLongBetween(-500_000, 500_000));
         final Clock clock = Clock.fixed(now, randomZone());
-        action = new TransportPutSamlServiceProviderAction(
-            mock(TransportService.class), mock(ActionFilters.class), index, idp, clock);
+        action = new TransportPutSamlServiceProviderAction(mock(TransportService.class), mock(ActionFilters.class), index, idp, clock);
     }
 
     public void testRegisterNewServiceProvider() throws Exception {
@@ -139,24 +139,38 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
             final DocWriteResponse docWriteResponse = new IndexResponse(
                 new ShardId(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLength(24), randomIntBetween(1, 10)),
-                doc.docId, randomLong(), randomLong(), randomLong(), created);
+                doc.docId,
+                randomLong(),
+                randomLong(),
+                randomLong(),
+                created
+            );
             writeResponse.set(docWriteResponse);
 
-            ActionListener listener = (ActionListener) args[args.length - 1];
+            @SuppressWarnings("unchecked")
+            ActionListener<DocWriteResponse> listener = (ActionListener<DocWriteResponse>) args[args.length - 1];
             listener.onResponse(docWriteResponse);
 
             return null;
-        }).when(index).writeDocument(any(SamlServiceProviderDocument.class), any(DocWriteRequest.OpType.class),
-            any(WriteRequest.RefreshPolicy.class), any(ActionListener.class));
+        }).when(index)
+            .writeDocument(
+                any(SamlServiceProviderDocument.class),
+                any(DocWriteRequest.OpType.class),
+                any(WriteRequest.RefreshPolicy.class),
+                any()
+            );
 
         return writeResponse;
     }
 
     public void mockExistingDocuments(String expectedEntityId, Set<SamlServiceProviderDocument> documents) {
         final Set<SamlServiceProviderIndex.DocumentSupplier> documentSuppliers = documents.stream()
-            .map(doc -> new SamlServiceProviderIndex.DocumentSupplier(
-                new DocumentVersion(randomAlphaOfLength(24), randomLong(), randomLong()),
-                () -> doc))
+            .map(
+                doc -> new SamlServiceProviderIndex.DocumentSupplier(
+                    new DocumentVersion(randomAlphaOfLength(24), randomLong(), randomLong()),
+                    () -> doc
+                )
+            )
             .collect(Collectors.toUnmodifiableSet());
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
@@ -165,10 +179,12 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
             String entityId = (String) args[0];
             assertThat(entityId, equalTo(expectedEntityId));
 
-            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener) args[args.length - 1];
+            @SuppressWarnings("unchecked")
+            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener<
+                Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
             listener.onResponse(documentSuppliers);
 
             return null;
-        }).when(index).findByEntityId(anyString(), any(ActionListener.class));
+        }).when(index).findByEntityId(anyString(), any());
     }
 }

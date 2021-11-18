@@ -4,7 +4,7 @@
 <titleabbrev>Mapping</titleabbrev>
 ++++
 
-The `mapping` character filter accepts a map of keys and values.  Whenever it
+The `mapping` character filter accepts a map of keys and values. Whenever it
 encounters a string of characters that is the same as a key, it replaces them
 with the value associated with that key.
 

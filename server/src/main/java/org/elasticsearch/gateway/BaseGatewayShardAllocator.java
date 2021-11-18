@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -53,8 +42,11 @@ public abstract class BaseGatewayShardAllocator {
      * @param allocation the allocation state container object
      * @param unassignedAllocationHandler handles the allocation of the current shard
      */
-    public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                                   ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
+    public void allocateUnassigned(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation, logger);
 
         if (allocateUnassignedDecision.isDecisionTaken() == false) {
@@ -63,10 +55,12 @@ public abstract class BaseGatewayShardAllocator {
         }
 
         if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
-            unassignedAllocationHandler.initialize(allocateUnassignedDecision.getTargetNode().getId(),
+            unassignedAllocationHandler.initialize(
+                allocateUnassignedDecision.getTargetNode().getId(),
                 allocateUnassignedDecision.getAllocationId(),
                 getExpectedShardSize(shardRouting, allocation),
-                allocation.changes());
+                allocation.changes()
+            );
         } else {
             unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
         }
@@ -94,9 +88,11 @@ public abstract class BaseGatewayShardAllocator {
      * @param logger           the logger
      * @return an {@link AllocateUnassignedDecision} with the final decision of whether to allocate and details of the decision
      */
-    public abstract AllocateUnassignedDecision makeAllocationDecision(ShardRouting unassignedShard,
-                                                                      RoutingAllocation allocation,
-                                                                      Logger logger);
+    public abstract AllocateUnassignedDecision makeAllocationDecision(
+        ShardRouting unassignedShard,
+        RoutingAllocation allocation,
+        Logger logger
+    );
 
     /**
      * Builds decisions for all nodes in the cluster, so that the explain API can provide information on

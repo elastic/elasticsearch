@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search;
@@ -32,6 +21,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.util.function.Function;
@@ -63,7 +53,7 @@ public final class NestedHelper {
             // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        }  else if (query instanceof TermInSetQuery) {
+        } else if (query instanceof TermInSetQuery) {
             PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
             if (terms.size() > 0) {
                 PrefixCodedTerms.TermIterator it = terms.iterator();
@@ -80,15 +70,17 @@ public final class NestedHelper {
             final BooleanQuery bq = (BooleanQuery) query;
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
-                return bq.clauses().stream()
-                        .filter(BooleanClause::isRequired)
-                        .map(BooleanClause::getQuery)
-                        .allMatch(this::mightMatchNestedDocs);
+                return bq.clauses()
+                    .stream()
+                    .filter(BooleanClause::isRequired)
+                    .map(BooleanClause::getQuery)
+                    .allMatch(this::mightMatchNestedDocs);
             } else {
-                return bq.clauses().stream()
-                        .filter(c -> c.getOccur() == Occur.SHOULD)
-                        .map(BooleanClause::getQuery)
-                        .anyMatch(this::mightMatchNestedDocs);
+                return bq.clauses()
+                    .stream()
+                    .filter(c -> c.getOccur() == Occur.SHOULD)
+                    .map(BooleanClause::getQuery)
+                    .anyMatch(this::mightMatchNestedDocs);
             }
         } else if (query instanceof ESToParentBlockJoinQuery) {
             return ((ESToParentBlockJoinQuery) query).getPath() != null;
@@ -113,7 +105,7 @@ public final class NestedHelper {
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper != null && mapper.nested().isNested()) {
+            if (mapper != null && mapper.isNested()) {
                 return true;
             }
         }
@@ -150,15 +142,17 @@ public final class NestedHelper {
             final BooleanQuery bq = (BooleanQuery) query;
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
             if (hasRequiredClauses) {
-                return bq.clauses().stream()
-                        .filter(BooleanClause::isRequired)
-                        .map(BooleanClause::getQuery)
-                        .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
+                return bq.clauses()
+                    .stream()
+                    .filter(BooleanClause::isRequired)
+                    .map(BooleanClause::getQuery)
+                    .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             } else {
-                return bq.clauses().stream()
-                        .filter(c -> c.getOccur() == Occur.SHOULD)
-                        .map(BooleanClause::getQuery)
-                        .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
+                return bq.clauses()
+                    .stream()
+                    .filter(c -> c.getOccur() == Occur.SHOULD)
+                    .map(BooleanClause::getQuery)
+                    .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             }
         } else {
             return true;
@@ -181,11 +175,12 @@ public final class NestedHelper {
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper!= null && mapper.nested().isNested()) {
+            if (mapper != null && mapper.isNested()) {
+                NestedObjectMapper nestedMapper = (NestedObjectMapper) mapper;
                 if (mapper.fullPath().equals(nestedPath)) {
                     // If the mapper does not include in its parent or in the root object then
                     // the query might only match nested documents with the given path
-                    return mapper.nested().isIncludeInParent() || mapper.nested().isIncludeInRoot();
+                    return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
                 } else {
                     // the first parent nested mapper does not have the expected path
                     // It might be misconfiguration or a sub nested mapper

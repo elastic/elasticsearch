@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -79,8 +69,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Assertions that should run before the cluster is wiped should be called in this method
      */
-    public void beforeIndexDeletion() throws Exception {
-    }
+    public void beforeIndexDeletion() throws Exception {}
 
     /**
      * This method checks all the things that need to be checked after each test
@@ -135,8 +124,12 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             try {
                 // include wiping hidden indices!
-                assertAcked(client().admin().indices().prepareDelete(indices)
-                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
+                assertAcked(
+                    client().admin()
+                        .indices()
+                        .prepareDelete(indices)
+                        .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false))
+                );
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {
@@ -148,7 +141,7 @@ public abstract class TestCluster implements Closeable {
                     for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
-                    if (!concreteIndices.isEmpty()) {
+                    if (concreteIndices.isEmpty() == false) {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
                     }
                 }
@@ -183,7 +176,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (templates.length == 0) {
-                templates = new String[]{"*"};
+                templates = new String[] { "*" };
             }
             for (String template : templates) {
                 try {
@@ -202,7 +195,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (repositories.length == 0) {
-                repositories = new String[]{"*"};
+                repositories = new String[] { "*" };
             }
             for (String repository : repositories) {
                 try {

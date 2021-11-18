@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.document;
@@ -31,11 +20,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -44,7 +33,7 @@ import static org.elasticsearch.client.Requests.clearIndicesCacheRequest;
 import static org.elasticsearch.client.Requests.getRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -67,8 +56,12 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test"))
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        IndexResponse indexResponse = client().prepareIndex()
+            .setIndex("test")
+            .setId("1")
+            .setSource(source("1", "test"))
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .get();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
@@ -81,8 +74,10 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test")
-            .fieldDataCache(true).queryCache(true)).actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
+            .indices()
+            .clearCache(clearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true))
+            .actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
@@ -160,8 +155,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "_doc"))
-                .execute().actionGet();
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
@@ -169,8 +163,11 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
             // count with no query is a match all one
             countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
-            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0
-                : countResponse.getShardFailures().length, equalTo(0));
+            assertThat(
+                "Failures " + countResponse.getShardFailures(),
+                countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
+                equalTo(0)
+            );
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
@@ -184,13 +181,14 @@ public class DocumentActionsIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test")))
-                .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
-                .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
-                .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
-                .add(client().prepareDelete().setIndex("test").setId("1"))
-                .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
-                .execute().actionGet();
+            .add(client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test")))
+            .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
+            .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
+            .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
+            .add(client().prepareDelete().setIndex("test").setId("1"))
+            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+            .execute()
+            .actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
         assertThat(bulkResponse.getItems().length, equalTo(6));
@@ -228,7 +226,6 @@ public class DocumentActionsIT extends ESIntegTestCase {
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
         assertNoFailures(refreshResponse);
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
-
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResult = client().get(getRequest("test").id("1")).actionGet();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -42,9 +43,12 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testInvalidUrl() {
         JdbcSQLException e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://localhost9200/?ssl=#5#"));
-        assertEquals("Invalid URL: Invalid connection configuration: Illegal character in fragment at index 28: "
-            + "http://localhost9200/?ssl=#5#; format should be "
-            + "[jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]", e.getMessage());
+        assertEquals(
+            "Invalid URL: Invalid connection configuration: Illegal character in fragment at index 28: "
+                + "http://localhost9200/?ssl=#5#; format should be "
+                + "[jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]",
+            e.getMessage()
+        );
     }
 
     public void testJustThePrefix() throws Exception {
@@ -178,10 +182,12 @@ public class JdbcConfigurationTests extends ESTestCase {
         e = expectThrows(JdbcSQLException.class, () -> ci(jdbcPrefix() + "test:9200?&validate.properties=true&something=some_value"));
         assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
 
-        Properties properties  = new Properties();
+        Properties properties = new Properties();
         properties.setProperty(PROPERTIES_VALIDATION, "true");
-        e = expectThrows(JdbcSQLException.class,
-            () -> JdbcConfiguration.create(jdbcPrefix() + "test:9200?something=some_value", properties, 0));
+        e = expectThrows(
+            JdbcSQLException.class,
+            () -> JdbcConfiguration.create(jdbcPrefix() + "test:9200?something=some_value", properties, 0)
+        );
         assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
     }
 
@@ -196,9 +202,19 @@ public class JdbcConfigurationTests extends ESTestCase {
         long pageTimeout = randomNonNegativeLong();
         int pageSize = randomIntBetween(0, Integer.MAX_VALUE);
 
-        ci = ci(jdbcPrefix() + "test:9200?validate.properties=false&something=some_value&query.timeout=" + queryTimeout
-                + "&connect.timeout=" + connectTimeout + "&network.timeout=" + networkTimeout + "&page.timeout=" + pageTimeout
-                + "&page.size=" + pageSize);
+        ci = ci(
+            jdbcPrefix()
+                + "test:9200?validate.properties=false&something=some_value&query.timeout="
+                + queryTimeout
+                + "&connect.timeout="
+                + connectTimeout
+                + "&network.timeout="
+                + networkTimeout
+                + "&page.timeout="
+                + pageTimeout
+                + "&page.size="
+                + pageSize
+        );
         assertEquals(false, ci.validateProperties());
         assertEquals(queryTimeout, ci.queryTimeout());
         assertEquals(connectTimeout, ci.connectTimeout());
@@ -207,7 +223,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertEquals(pageSize, ci.pageSize());
 
         // Properties test
-        Properties properties  = new Properties();
+        Properties properties = new Properties();
         properties.setProperty(PROPERTIES_VALIDATION, "false");
         properties.put(QUERY_TIMEOUT, Long.toString(queryTimeout));
         properties.put(PAGE_TIMEOUT, Long.toString(pageTimeout));
@@ -226,7 +242,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testTimoutOverride() throws Exception {
-        Properties properties  = new Properties();
+        Properties properties = new Properties();
         properties.setProperty(CONNECT_TIMEOUT, "3"); // Should be overridden
         properties.setProperty(PAGE_TIMEOUT, "4");
 
@@ -321,7 +337,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         }
     }
 
-    public void testTyposInSslConfigInUrl(){
+    public void testTyposInSslConfigInUrl() {
         assertJdbcSqlExceptionFromUrl("ssl.protocl", "ssl.protocol");
         assertJdbcSqlExceptionFromUrl("sssl", "ssl");
         assertJdbcSqlExceptionFromUrl("ssl.keystore.lction", "ssl.keystore.location");
@@ -379,8 +395,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     private void assertJdbcSqlException(String wrongSetting, String correctSetting, String url, Properties props) {
-        JdbcSQLException ex = expectThrows(JdbcSQLException.class,
-                () -> JdbcConfiguration.create(url, props, 0));
+        JdbcSQLException ex = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create(url, props, 0));
         assertEquals("Unknown parameter [" + wrongSetting + "]; did you mean [" + correctSetting + "]", ex.getMessage());
     }
 }

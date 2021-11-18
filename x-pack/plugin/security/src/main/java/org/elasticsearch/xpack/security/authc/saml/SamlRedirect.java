@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -82,11 +83,12 @@ public class SamlRedirect {
         return URLEncoder.encode(param, StandardCharsets.US_ASCII.name());
     }
 
-    protected String deflateAndBase64Encode(SAMLObject message)
-            throws Exception {
+    protected String deflateAndBase64Encode(SAMLObject message) throws Exception {
         Deflater deflater = new Deflater(Deflater.DEFLATED, true);
-        try (ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-             DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)) {
+        try (
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)
+        ) {
             String messageStr = SamlUtils.toString(XMLObjectSupport.marshall(message));
             deflaterStream.write(messageStr.getBytes(StandardCharsets.UTF_8));
             deflaterStream.finish();

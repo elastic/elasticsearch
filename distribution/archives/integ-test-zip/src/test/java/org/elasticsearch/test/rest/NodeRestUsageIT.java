@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest;
@@ -61,8 +50,9 @@ public class NodeRestUsageIT extends ESRestTestCase {
         beforeCombinedRestUsage.put("nodes_stats_action", 0L);
         beforeCombinedRestUsage.put("delete_index_action", 0L);
         for (Map.Entry<String, Object> nodeEntry : beforeNodesMap.entrySet()) {
-            Map<String, Object> beforeRestActionUsage = (Map<String, Object>) ((Map<String, Object>) nodeEntry.getValue())
-                    .get("rest_actions");
+            Map<String, Object> beforeRestActionUsage = (Map<String, Object>) ((Map<String, Object>) nodeEntry.getValue()).get(
+                "rest_actions"
+            );
             assertThat(beforeRestActionUsage, notNullValue());
             for (Map.Entry<String, Object> restActionEntry : beforeRestActionUsage.entrySet()) {
                 Long currentUsage = beforeCombinedRestUsage.get(restActionEntry.getKey());
@@ -126,11 +116,18 @@ public class NodeRestUsageIT extends ESRestTestCase {
     }
 
     public void testMetricsWithAll() throws IOException {
-        ResponseException exception = expectThrows(ResponseException.class,
-                () -> client().performRequest(new Request("GET", "_nodes/usage/_all,rest_actions")));
+        ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("GET", "_nodes/usage/_all,rest_actions"))
+        );
         assertNotNull(exception);
-        assertThat(exception.getMessage(), containsString("\"type\":\"illegal_argument_exception\","
-                + "\"reason\":\"request [_nodes/usage/_all,rest_actions] contains _all and individual metrics [_all,rest_actions]\""));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "\"type\":\"illegal_argument_exception\","
+                    + "\"reason\":\"request [_nodes/usage/_all,rest_actions] contains _all and individual metrics [_all,rest_actions]\""
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -149,22 +146,22 @@ public class NodeRestUsageIT extends ESRestTestCase {
         Map<String, Map<String, Long>> beforeCombinedAggsUsage = getTotalUsage(beforeNodesMap);
         // Do some requests to get some rest usage stats
         Request create = new Request("PUT", "/test");
-        create.setJsonEntity("{\"mappings\": {\"properties\": { \"str\": {\"type\": \"keyword\"}, " +
-            "\"foo\": {\"type\": \"keyword\"}, \"num\": {\"type\": \"long\"}, \"start\": {\"type\": \"date\"} } }}");
+        create.setJsonEntity(
+            "{\"mappings\": {\"properties\": { \"str\": {\"type\": \"keyword\"}, "
+                + "\"foo\": {\"type\": \"keyword\"}, \"num\": {\"type\": \"long\"}, \"start\": {\"type\": \"date\"} } }}"
+        );
         client().performRequest(create);
 
         Request searchRequest = new Request("GET", "/test/_search");
-        SearchSourceBuilder searchSource = new SearchSourceBuilder()
-            .aggregation(AggregationBuilders.terms("str_terms").field("str.keyword"))
-            .aggregation(AggregationBuilders.terms("num_terms").field("num"))
-            .aggregation(AggregationBuilders.avg("num_avg").field("num"));
+        SearchSourceBuilder searchSource = new SearchSourceBuilder().aggregation(
+            AggregationBuilders.terms("str_terms").field("str.keyword")
+        ).aggregation(AggregationBuilders.terms("num_terms").field("num")).aggregation(AggregationBuilders.avg("num_avg").field("num"));
         searchRequest.setJsonEntity(Strings.toString(searchSource));
         searchRequest.setJsonEntity(Strings.toString(searchSource));
         client().performRequest(searchRequest);
 
         searchRequest = new Request("GET", "/test/_search");
-        searchSource = new SearchSourceBuilder()
-            .aggregation(AggregationBuilders.terms("start").field("start"))
+        searchSource = new SearchSourceBuilder().aggregation(AggregationBuilders.terms("start").field("start"))
             .aggregation(AggregationBuilders.avg("num1").field("num"))
             .aggregation(AggregationBuilders.avg("num2").field("num"))
             .aggregation(AggregationBuilders.terms("foo").field("foo.keyword"));
@@ -185,15 +182,20 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "numeric", 1L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "date", 1L);
-        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "bytes", 2L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "keyword", 2L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "avg", "numeric", 3L);
     }
 
-    private void assertDiff(Map<String, Map<String, Long>> before, Map<String, Map<String, Long>> after, String agg, String vst,
-                            long diff) {
+    private void assertDiff(
+        Map<String, Map<String, Long>> before,
+        Map<String, Map<String, Long>> after,
+        String agg,
+        String vst,
+        long diff
+    ) {
         Long valBefore = before.getOrDefault(agg, Collections.emptyMap()).getOrDefault(vst, 0L);
         Long valAfter = after.getOrDefault(agg, Collections.emptyMap()).getOrDefault(vst, 0L);
-        assertThat(agg + "." + vst, valAfter - valBefore, equalTo(diff) );
+        assertThat(agg + "." + vst, valAfter - valBefore, equalTo(diff));
     }
 
     private Map<String, Map<String, Long>> getTotalUsage(Map<String, Object> nodeUsage) {
@@ -203,11 +205,14 @@ public class NodeRestUsageIT extends ESRestTestCase {
             Map<String, Object> beforeAggsUsage = (Map<String, Object>) ((Map<String, Object>) nodeEntry.getValue()).get("aggregations");
             assertThat(beforeAggsUsage, notNullValue());
             for (Map.Entry<String, Object> aggEntry : beforeAggsUsage.entrySet()) {
-                @SuppressWarnings("unchecked") Map<String, Object> aggMap = (Map<String, Object>) aggEntry.getValue();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> aggMap = (Map<String, Object>) aggEntry.getValue();
                 Map<String, Long> combinedAggMap = combined.computeIfAbsent(aggEntry.getKey(), k -> new HashMap<>());
-                for  (Map.Entry<String, Object> valSourceEntry : aggMap.entrySet()) {
-                    combinedAggMap.put(valSourceEntry.getKey(),
-                        combinedAggMap.getOrDefault(valSourceEntry.getKey(), 0L) + ((Number) valSourceEntry.getValue()).longValue());
+                for (Map.Entry<String, Object> valSourceEntry : aggMap.entrySet()) {
+                    combinedAggMap.put(
+                        valSourceEntry.getKey(),
+                        combinedAggMap.getOrDefault(valSourceEntry.getKey(), 0L) + ((Number) valSourceEntry.getValue()).longValue()
+                    );
                 }
             }
         }
@@ -215,7 +220,8 @@ public class NodeRestUsageIT extends ESRestTestCase {
     }
 
     private int assertSuccess(Map<String, Object> responseBodyMap) {
-        @SuppressWarnings("unchecked") Map<String, Object> nodesResultMap = (Map<String, Object>) responseBodyMap.get("_nodes");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nodesResultMap = (Map<String, Object>) responseBodyMap.get("_nodes");
         assertThat(nodesResultMap, notNullValue());
         Integer total = (Integer) nodesResultMap.get("total");
         Integer successful = (Integer) nodesResultMap.get("successful");

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -23,13 +12,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,9 +82,17 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
-                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         Settings.EMPTY, numOfConnections, address1.toString())) {
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        address1.toString()
+                    )
+                ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -109,9 +107,16 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         }
     }
 
+    // This test has failed once or twice in the past. This is enabled in case it were to fail again.
+    @TestLogging(
+        value = "org.elasticsearch.transport.ClusterConnectionManager:TRACE,org.elasticsearch.transport.ProxyConnectionStrategy:TRACE",
+        reason = "to ensure that connections are logged"
+    )
     public void testProxyStrategyWillOpenNewConnectionsOnDisconnect() throws Exception {
-        try (MockTransportService transport1 = startTransport("node1", Version.CURRENT);
-             MockTransportService transport2 = startTransport("node2", Version.CURRENT)) {
+        try (
+            MockTransportService transport1 = startTransport("node1", Version.CURRENT);
+            MockTransportService transport2 = startTransport("node2", Version.CURRENT)
+        ) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
 
@@ -124,10 +129,19 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
 
-                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         Settings.EMPTY, numOfConnections, address1.toString(),
-                         alternatingResolver(address1, address2, useAddress1), null)) {
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        address1.toString(),
+                        alternatingResolver(address1, address2, useAddress1),
+                        null
+                    )
+                ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
 
@@ -136,7 +150,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     connectFuture.actionGet();
 
                     assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
-                    long initialConnectionsToTransport2 = connectionManager.getAllConnectedNodes().stream()
+                    long initialConnectionsToTransport2 = connectionManager.getAllConnectedNodes()
+                        .stream()
                         .filter(n -> n.getAddress().equals(address2))
                         .count();
                     assertEquals(0, initialConnectionsToTransport2);
@@ -149,7 +164,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertBusy(() -> {
                         assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                         // Connections now pointing to transport2
-                        long finalConnectionsToTransport2 = connectionManager.getAllConnectedNodes().stream()
+                        long finalConnectionsToTransport2 = connectionManager.getAllConnectedNodes()
+                            .stream()
                             .filter(n -> n.getAddress().equals(address2))
                             .count();
                         assertNotEquals(0, finalConnectionsToTransport2);
@@ -172,9 +188,17 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
-                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         Settings.EMPTY, numOfConnections, address1.toString())) {
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        address1.toString()
+                    )
+                ) {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
@@ -191,8 +215,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     public void testClusterNameValidationPreventConnectingToDifferentClusters() throws Exception {
         Settings otherSettings = Settings.builder().put("cluster.name", "otherCluster").build();
 
-        try (MockTransportService transport1 = startTransport("cluster1", Version.CURRENT);
-             MockTransportService transport2 = startTransport("cluster2", Version.CURRENT, otherSettings)) {
+        try (
+            MockTransportService transport1 = startTransport("cluster1", Version.CURRENT);
+            MockTransportService transport2 = startTransport("cluster2", Version.CURRENT, otherSettings)
+        ) {
             TransportAddress address1 = transport1.boundAddress().publishAddress();
             TransportAddress address2 = transport2.boundAddress().publishAddress();
 
@@ -205,10 +231,19 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
 
-                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         Settings.EMPTY, numOfConnections, address1.toString(),
-                         alternatingResolver(address1, address2, useAddress1), null)) {
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        address1.toString(),
+                        alternatingResolver(address1, address2, useAddress1),
+                        null
+                    )
+                ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
 
@@ -226,7 +261,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                         assertTrue(strategy.assertNoRunningConnections());
 
-                        long finalConnectionsToTransport2 = connectionManager.getAllConnectedNodes().stream()
+                        long finalConnectionsToTransport2 = connectionManager.getAllConnectedNodes()
+                            .stream()
                             .filter(n -> n.getAddress().equals(address2))
                             .count();
 
@@ -255,9 +291,19 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
-                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         Settings.EMPTY, numOfConnections, address.toString(), addressSupplier, null)) {
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        address.toString(),
+                        addressSupplier,
+                        null
+                    )
+                ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
@@ -280,9 +326,18 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
-                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         Settings.EMPTY, numOfConnections, remoteAddress.toString(), "server-name")) {
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        remoteAddress.toString(),
+                        "server-name"
+                    )
+                ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
@@ -291,14 +346,14 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertEquals(numOfConnections, connectionManager.size());
                     assertTrue(strategy.assertNoRunningConnections());
 
-                    Setting<?> modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE
-                        .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> addressesSetting = ProxyConnectionStrategy.PROXY_ADDRESS
-                        .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> socketConnections = ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS
-                        .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> serverName = ProxyConnectionStrategy.SERVER_NAME
-                        .getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(
+                        "cluster-alias"
+                    );
+                    Setting<?> addressesSetting = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> socketConnections = ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(
+                        "cluster-alias"
+                    );
+                    Setting<?> serverName = ProxyConnectionStrategy.SERVER_NAME.getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
                         .put(modeSetting.getKey(), "proxy")
@@ -333,7 +388,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
         List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
             new Tuple<>(ProxyConnectionStrategy.PROXY_ADDRESS, "192.168.0.1:8080"),
-            new Tuple<>(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3"));
+            new Tuple<>(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3")
+        );
 
         RemoteConnectionStrategy.ConnectionStrategy sniff = RemoteConnectionStrategy.ConnectionStrategy.SNIFF;
 
@@ -354,8 +410,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
             Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
-            String expected = "Setting \"" + concreteSetting.getKey() + "\" cannot be used with the configured " +
-                "\"cluster.remote.cluster_name.mode\" [required=PROXY, configured=SNIFF]";
+            String expected = "Setting \""
+                + concreteSetting.getKey()
+                + "\" cannot be used with the configured "
+                + "\"cluster.remote.cluster_name.mode\" [required=PROXY, configured=SNIFF]";
             assertEquals(expected, iae.getMessage());
         }
     }
@@ -373,9 +431,18 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                 ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
                 int numOfConnections = randomIntBetween(4, 8);
-                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         Settings.EMPTY, numOfConnections, address, "localhost")) {
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        address,
+                        "localhost"
+                    )
+                ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -392,8 +459,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    private Supplier<TransportAddress> alternatingResolver(TransportAddress address1, TransportAddress address2,
-                                                           AtomicBoolean useAddress1) {
+    private Supplier<TransportAddress> alternatingResolver(
+        TransportAddress address1,
+        TransportAddress address2,
+        AtomicBoolean useAddress1
+    ) {
         return () -> {
             if (useAddress1.get()) {
                 return address1;

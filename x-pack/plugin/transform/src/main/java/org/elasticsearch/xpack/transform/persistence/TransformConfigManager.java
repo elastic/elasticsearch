@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -18,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface TransformConfigManager {
 
@@ -68,9 +70,9 @@ public interface TransformConfigManager {
      * This deletes stored state/stats documents for the given transformId that are contained in old index versions.
      *
      * @param transformId The transform ID referenced by the documents
-     * @param listener listener to alert on completion
+     * @param listener listener to alert on completion, returning the number of deleted docs
      */
-    void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener);
+    void deleteOldTransformStoredDocuments(String transformId, ActionListener<Long> listener);
 
     /**
      * This deletes stored checkpoint documents for the given transformId, based on number and age.
@@ -85,13 +87,35 @@ public interface TransformConfigManager {
     void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener);
 
     /**
+     * This deletes all _old_ internal storages(indices) except the most recent one.
+     *
+     * CAUTION: Deletes data without checks! Special method for upgrades.
+     *
+     * @param listener listener to call on completion
+     */
+    void deleteOldIndices(ActionListener<Boolean> listener);
+
+    /**
      * Get a stored checkpoint, requires the transform id as well as the checkpoint id
      *
      * @param transformId the transform id
      * @param checkpoint the checkpoint
-     * @param resultListener listener to call after request has been made
+     * @param checkpointListener listener to call after request has been made
      */
-    void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<TransformCheckpoint> resultListener);
+    void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<TransformCheckpoint> checkpointListener);
+
+    /**
+     * Get a stored checkpoint, requires the transform id as well as the checkpoint id. This function is only for internal use.
+     *
+     * @param transformId the transform id
+     * @param checkpoint the checkpoint
+     * @param checkpointAndVersionListener listener to call after inner request has returned
+     */
+    void getTransformCheckpointForUpdate(
+        String transformId,
+        long checkpoint,
+        ActionListener<Tuple<TransformCheckpoint, SeqNoPrimaryTermAndIndex>> checkpointAndVersionListener
+    );
 
     /**
      * Get the transform configuration for a given transform id. This function is only for internal use. For transforms returned via GET
@@ -122,14 +146,37 @@ public interface TransformConfigManager {
      *
      * @param transformIdsExpression The id expression. Can be _all, *, or comma delimited list of simple regex strings
      * @param pageParams             The paging params
-     * @param foundIdsListener       The listener on signal on success or failure
+     * @param foundConfigsListener   The listener on signal on success or failure
      */
     void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
         boolean allowNoMatch,
-        ActionListener<Tuple<Long, List<String>>> foundIdsListener
+        ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     );
+
+    /**
+     * Get all transform ids
+     *
+     * @param listener The listener to call with the collected ids
+     */
+    void getAllTransformIds(ActionListener<Set<String>> listener);
+
+    /**
+     * Get all transform ids that aren't using the latest index.
+     *
+     * @param listener The listener to call with total number of transforms and the list of transform ids.
+     */
+    void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener);
+
+    /**
+     * This deletes documents corresponding to the transform id (e.g. checkpoints).
+     * Configuration is left intact.
+     *
+     * @param transformId the transform id
+     * @param listener listener to call after inner request returned
+     */
+    void resetTransform(String transformId, ActionListener<Boolean> listener);
 
     /**
      * This deletes the configuration and all other documents corresponding to the transform id (e.g. checkpoints).
@@ -145,7 +192,11 @@ public interface TransformConfigManager {
         ActionListener<SeqNoPrimaryTermAndIndex> listener
     );
 
-    void getTransformStoredDoc(String transformId, ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener);
+    void getTransformStoredDoc(
+        String transformId,
+        boolean allowNoMatch,
+        ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener
+    );
 
     void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener);
 

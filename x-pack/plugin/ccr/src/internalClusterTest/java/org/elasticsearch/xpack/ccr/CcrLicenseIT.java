@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr;
@@ -51,65 +52,60 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
     public void testThatFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-                ResumeFollowAction.INSTANCE,
-                followRequest,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(final AcknowledgedResponse response) {
-                        latch.countDown();
-                        fail();
-                    }
+        client().execute(ResumeFollowAction.INSTANCE, followRequest, new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(final AcknowledgedResponse response) {
+                latch.countDown();
+                fail();
+            }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        assertNonCompliantLicense(e);
-                        latch.countDown();
-                    }
-                });
+            @Override
+            public void onFailure(final Exception e) {
+                assertNonCompliantLicense(e);
+                latch.countDown();
+            }
+        });
         latch.await();
     }
 
     public void testThatCreateAndFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final PutFollowAction.Request createAndFollowRequest = getPutFollowRequest("leader", "follower");
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-                PutFollowAction.INSTANCE,
-                createAndFollowRequest,
-                new ActionListener<PutFollowAction.Response>() {
-                    @Override
-                    public void onResponse(final PutFollowAction.Response response) {
-                        latch.countDown();
-                        fail();
-                    }
+        client().execute(PutFollowAction.INSTANCE, createAndFollowRequest, new ActionListener<PutFollowAction.Response>() {
+            @Override
+            public void onResponse(final PutFollowAction.Response response) {
+                latch.countDown();
+                fail();
+            }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        assertNonCompliantLicense(e);
-                        latch.countDown();
-                    }
-                });
+            @Override
+            public void onFailure(final Exception e) {
+                assertNonCompliantLicense(e);
+                latch.countDown();
+            }
+        });
         latch.await();
     }
 
     public void testThatFollowStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
-                FollowStatsAction.INSTANCE,
-                new FollowStatsAction.StatsRequest(),
-                new ActionListener<FollowStatsAction.StatsResponses>() {
-                    @Override
-                    public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
-                        latch.countDown();
-                        fail();
-                    }
+            FollowStatsAction.INSTANCE,
+            new FollowStatsAction.StatsRequest(),
+            new ActionListener<FollowStatsAction.StatsResponses>() {
+                @Override
+                public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
+                    latch.countDown();
+                    fail();
+                }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        assertNonCompliantLicense(e);
-                        latch.countDown();
-                    }
-                });
+                @Override
+                public void onFailure(final Exception e) {
+                    assertNonCompliantLicense(e);
+                    latch.countDown();
+                }
+            }
+        );
 
         latch.await();
     }
@@ -120,22 +116,19 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
         request.setName("name");
         request.setRemoteCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));
-        client().execute(
-                PutAutoFollowPatternAction.INSTANCE,
-                request,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(final AcknowledgedResponse response) {
-                        latch.countDown();
-                        fail();
-                    }
+        client().execute(PutAutoFollowPatternAction.INSTANCE, request, new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(final AcknowledgedResponse response) {
+                latch.countDown();
+                fail();
+            }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        assertNonCompliantLicense(e);
-                        latch.countDown();
-                    }
-                });
+            @Override
+            public void onFailure(final Exception e) {
+                assertNonCompliantLicense(e);
+                latch.countDown();
+            }
+        });
         latch.await();
     }
 
@@ -150,7 +143,9 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                 Level.WARN,
                 "skipping auto-follower coordination",
                 ElasticsearchSecurityException.class,
-                "current license is non-compliant for [ccr]"));
+                "current license is non-compliant for [ccr]"
+            )
+        );
 
         try {
             // Need to add mock log appender before submitting CS update, otherwise we miss the expected log:
@@ -167,6 +162,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                     AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
                         "test_alias",
                         Collections.singletonList("logs-*"),
+                        Collections.emptyList(),
                         null,
                         Settings.EMPTY,
                         true,
@@ -179,16 +175,18 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                         null,
                         null,
                         null,
-                        null);
+                        null
+                    );
                     AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
                         Collections.singletonMap("test_alias", autoFollowPattern),
                         Collections.emptyMap(),
-                        Collections.emptyMap());
+                        Collections.emptyMap()
+                    );
 
                     ClusterState.Builder newState = ClusterState.builder(currentState);
-                    newState.metadata(Metadata.builder(currentState.getMetadata())
-                        .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
-                        .build());
+                    newState.metadata(
+                        Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata).build()
+                    );
                     return newState.build();
                 }
 
@@ -210,7 +208,6 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
             appender.stop();
         }
     }
-
 
     private void assertNonCompliantLicense(final Exception e) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));

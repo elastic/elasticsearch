@@ -1,38 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.internal;
-
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -54,6 +42,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +66,8 @@ public abstract class SearchContext implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
+    private Query rewriteQuery;
+
     protected SearchContext() {}
 
     public abstract void setTask(SearchShardTask task);
@@ -94,9 +85,8 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
-     * @param rewrite if the set query should be rewritten against the searcher returned from {@link #searcher()}
      */
-    public abstract void preProcess(boolean rewrite);
+    public abstract void preProcess();
 
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */
@@ -264,9 +254,26 @@ public abstract class SearchContext implements Releasable {
     public abstract ParsedQuery parsedQuery();
 
     /**
-     * The query to execute, might be rewritten.
+     * The query to execute, not rewritten.
      */
     public abstract Query query();
+
+    /**
+     * The query to execute in its rewritten form.
+     */
+    public final Query rewrittenQuery() {
+        if (query() == null) {
+            throw new IllegalStateException("preProcess must be called first");
+        }
+        if (rewriteQuery == null) {
+            try {
+                this.rewriteQuery = searcher().rewrite(query());
+            } catch (IOException exc) {
+                throw new QueryShardException(getSearchExecutionContext(), "rewrite failed", exc);
+            }
+        }
+        return rewriteQuery;
+    }
 
     public abstract int from();
 
@@ -311,8 +318,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract QuerySearchResult queryResult();
 
-    public abstract NestedDocuments getNestedDocuments();
-
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
@@ -321,7 +326,6 @@ public abstract class SearchContext implements Releasable {
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
-
 
     /**
      * Adds a releasable that will be freed when this context is closed.
@@ -334,8 +338,7 @@ public abstract class SearchContext implements Releasable {
      * @return true if the request contains only suggest
      */
     public final boolean hasOnlySuggest() {
-        return request().source() != null
-            && request().source().isSuggestOnly();
+        return request().source() != null && request().source().isSuggestOnly();
     }
 
     /**
@@ -347,7 +350,7 @@ public abstract class SearchContext implements Releasable {
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
 
-    public abstract QueryShardContext getQueryShardContext();
+    public abstract SearchExecutionContext getSearchExecutionContext();
 
     @Override
     public String toString() {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.action;
@@ -13,9 +14,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
             lifecycle = new SnapshotLifecyclePolicy(in);
         }
 
-        public Request() { }
+        public Request() {}
 
         public String getLifecycleId() {
             return this.lifecycleId;
@@ -93,8 +94,7 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
                 return false;
             }
             Request other = (Request) obj;
-            return lifecycleId.equals(other.lifecycleId) &&
-                lifecycle.equals(other.lifecycle);
+            return lifecycleId.equals(other.lifecycleId) && lifecycle.equals(other.lifecycle);
         }
 
         @Override

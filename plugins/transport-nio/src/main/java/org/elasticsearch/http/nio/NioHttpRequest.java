@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
@@ -30,6 +19,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -54,22 +44,44 @@ public class NioHttpRequest implements HttpRequest {
     private final boolean pooled;
 
     NioHttpRequest(FullHttpRequest request) {
-        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
-            ByteBufUtils.toBytesReference(request.content()));
+        this(
+            request,
+            new HttpHeadersMap(request.headers()),
+            new AtomicBoolean(false),
+            true,
+            ByteBufUtils.toBytesReference(request.content())
+        );
     }
 
     NioHttpRequest(FullHttpRequest request, Exception inboundException) {
-        this(request, new HttpHeadersMap(request.headers()), new AtomicBoolean(false), true,
-            ByteBufUtils.toBytesReference(request.content()), inboundException);
+        this(
+            request,
+            new HttpHeadersMap(request.headers()),
+            new AtomicBoolean(false),
+            true,
+            ByteBufUtils.toBytesReference(request.content()),
+            inboundException
+        );
     }
 
-    private NioHttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
-                           BytesReference content) {
+    private NioHttpRequest(
+        FullHttpRequest request,
+        HttpHeadersMap headers,
+        AtomicBoolean released,
+        boolean pooled,
+        BytesReference content
+    ) {
         this(request, headers, released, pooled, content, null);
     }
 
-    private NioHttpRequest(FullHttpRequest request, HttpHeadersMap headers, AtomicBoolean released, boolean pooled,
-                           BytesReference content, Exception inboundException) {
+    private NioHttpRequest(
+        FullHttpRequest request,
+        HttpHeadersMap headers,
+        AtomicBoolean released,
+        boolean pooled,
+        BytesReference content,
+        Exception inboundException
+    ) {
         this.request = request;
         this.headers = headers;
         this.content = content;
@@ -81,17 +93,13 @@ public class NioHttpRequest implements HttpRequest {
     @Override
     public RestRequest.Method method() {
         HttpMethod httpMethod = request.method();
-        if (httpMethod == HttpMethod.GET)
-            return RestRequest.Method.GET;
+        if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
 
-        if (httpMethod == HttpMethod.POST)
-            return RestRequest.Method.POST;
+        if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
 
-        if (httpMethod == HttpMethod.PUT)
-            return RestRequest.Method.PUT;
+        if (httpMethod == HttpMethod.PUT) return RestRequest.Method.PUT;
 
-        if (httpMethod == HttpMethod.DELETE)
-            return RestRequest.Method.DELETE;
+        if (httpMethod == HttpMethod.DELETE) return RestRequest.Method.DELETE;
 
         if (httpMethod == HttpMethod.HEAD) {
             return RestRequest.Method.HEAD;
@@ -143,9 +151,19 @@ public class NioHttpRequest implements HttpRequest {
         try {
             final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
             return new NioHttpRequest(
-                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(), copiedContent, request.headers(),
-                    request.trailingHeaders()),
-                headers, new AtomicBoolean(false), false, ByteBufUtils.toBytesReference(copiedContent));
+                new DefaultFullHttpRequest(
+                    request.protocolVersion(),
+                    request.method(),
+                    request.uri(),
+                    copiedContent,
+                    request.headers(),
+                    request.trailingHeaders()
+                ),
+                headers,
+                new AtomicBoolean(false),
+                false,
+                ByteBufUtils.toBytesReference(copiedContent)
+            );
         } finally {
             release();
         }
@@ -161,7 +179,7 @@ public class NioHttpRequest implements HttpRequest {
         String cookieString = request.headers().get(HttpHeaderNames.COOKIE);
         if (cookieString != null) {
             Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
-            if (!cookies.isEmpty()) {
+            if (cookies.isEmpty() == false) {
                 return ServerCookieEncoder.STRICT.encode(cookies);
             }
         }
@@ -187,8 +205,14 @@ public class NioHttpRequest implements HttpRequest {
         HttpHeaders trailingHeaders = new DefaultHttpHeaders();
         trailingHeaders.add(request.trailingHeaders());
         trailingHeaders.remove(header);
-        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
-            request.content(), headersWithoutContentTypeHeader, trailingHeaders);
+        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(
+            request.protocolVersion(),
+            request.method(),
+            request.uri(),
+            request.content(),
+            headersWithoutContentTypeHeader,
+            trailingHeaders
+        );
         return new NioHttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
     }
 
@@ -279,7 +303,9 @@ public class NioHttpRequest implements HttpRequest {
 
         @Override
         public Set<Entry<String, List<String>>> entrySet() {
-            return httpHeaders.names().stream().map(k -> new AbstractMap.SimpleImmutableEntry<>(k, httpHeaders.getAll(k)))
+            return httpHeaders.names()
+                .stream()
+                .map(k -> new AbstractMap.SimpleImmutableEntry<>(k, httpHeaders.getAll(k)))
                 .collect(Collectors.toSet());
         }
     }

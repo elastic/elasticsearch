@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -120,16 +109,14 @@ public class ActionListenerTests extends ESTestCase {
         List<AtomicReference<Exception>> excList = new ArrayList<>();
         List<ActionListener<Boolean>> listeners = new ArrayList<>();
 
-        final int listenerToFail = randomBoolean() ? -1 : randomIntBetween(0, numListeners-1);
+        final int listenerToFail = randomBoolean() ? -1 : randomIntBetween(0, numListeners - 1);
         for (int i = 0; i < numListeners; i++) {
             AtomicReference<Boolean> reference = new AtomicReference<>();
             AtomicReference<Exception> exReference = new AtomicReference<>();
             refList.add(reference);
             excList.add(exReference);
             boolean fail = i == listenerToFail;
-            CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> {
-                reference.set(o);
-            };
+            CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> { reference.set(o); };
             listeners.add(ActionListener.wrap(handler, (e) -> {
                 exReference.set(e);
                 if (fail) {
@@ -174,15 +161,13 @@ public class ActionListenerTests extends ESTestCase {
     public void testRunBefore() {
         {
             AtomicBoolean afterSuccess = new AtomicBoolean();
-            ActionListener<Object> listener =
-                ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterSuccess.set(true));
+            ActionListener<Object> listener = ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterSuccess.set(true));
             listener.onResponse(null);
             assertThat(afterSuccess.get(), equalTo(true));
         }
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
-            ActionListener<Object> listener =
-                ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterFailure.set(true));
+            ActionListener<Object> listener = ActionListener.runBefore(ActionListener.wrap(r -> {}, e -> {}), () -> afterFailure.set(true));
             listener.onFailure(null);
             assertThat(afterFailure.get(), equalTo(true));
         }
@@ -196,6 +181,7 @@ public class ActionListenerTests extends ESTestCase {
             public void onResponse(Object o) {
                 onResponseTimes.getAndIncrement();
             }
+
             @Override
             public void onFailure(Exception e) {
                 onFailureTimes.getAndIncrement();
@@ -256,8 +242,10 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
 
-        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener,
-            () -> { throw new IllegalArgumentException(); }));
+        assertionError = expectThrows(
+            AssertionError.class,
+            () -> ActionListener.completeWith(listener, () -> { throw new IllegalArgumentException(); })
+        );
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.tree;
 
@@ -55,9 +56,17 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
  */
 public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(Percentile.class, Percentiles.class, PercentileRanks.class,
-            Iif.class, IfConditional.class, IfNull.class, In.class, InPipe.class,
-            org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(
+        Percentile.class,
+        Percentiles.class,
+        PercentileRanks.class,
+        Iif.class,
+        IfConditional.class,
+        IfNull.class,
+        In.class,
+        InPipe.class,
+        org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In.class
+    );
 
     public SqlNodeSubclassTests(Class<T> subclass) {
         super(subclass);

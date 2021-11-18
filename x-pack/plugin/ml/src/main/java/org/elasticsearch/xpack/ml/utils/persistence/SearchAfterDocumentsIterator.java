@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.utils.persistence;
@@ -102,7 +103,7 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
      */
     @Override
     public Deque<T> next() {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -113,11 +114,10 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
         return mapHits(searchResponse);
     }
 
-    private SearchResponse doSearch(Object [] searchAfterValues) {
+    private SearchResponse doSearch(Object[] searchAfterValues) {
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
-            .size(batchSize)
+        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder().size(batchSize)
             .query(getQuery())
             .fetchSource(shouldFetchSource())
             .sort(sortField()));

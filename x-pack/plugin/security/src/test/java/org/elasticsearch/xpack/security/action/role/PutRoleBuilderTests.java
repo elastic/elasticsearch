@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 
 import java.nio.charset.Charset;
@@ -26,10 +27,17 @@ public class PutRoleBuilderTests extends ESTestCase {
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
         try (Client client = new NoOpClient("testBWCFieldPermissions")) {
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                    () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON));
-            assertThat(e.getDetailedMessage(), containsString("\"fields\": [...]] format has changed for field permissions in role " +
-                    "[role1], use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON)
+            );
+            assertThat(
+                e.getDetailedMessage(),
+                containsString(
+                    "\"fields\": [...]] format has changed for field permissions in role "
+                        + "[role1], use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"
+                )
+            );
         }
     }
 }

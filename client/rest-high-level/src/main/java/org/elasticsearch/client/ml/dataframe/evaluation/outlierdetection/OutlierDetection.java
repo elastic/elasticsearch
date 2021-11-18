@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,8 +23,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Evaluation of outlier detection results.
@@ -49,17 +38,20 @@ public class OutlierDetection implements Evaluation {
     private static final ParseField METRICS = new ParseField("metrics");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<OutlierDetection, Void> PARSER =
-        new ConstructingObjectParser<>(
-            NAME,
-            true,
-            args -> new OutlierDetection((String) args[0], (String) args[1], (List<EvaluationMetric>) args[2]));
+    public static final ConstructingObjectParser<OutlierDetection, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new OutlierDetection((String) args[0], (String) args[1], (List<EvaluationMetric>) args[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(constructorArg(), PREDICTED_PROBABILITY_FIELD);
         PARSER.declareNamedObjects(
-            optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), null), METRICS);
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), null),
+            METRICS
+        );
     }
 
     public static OutlierDetection fromXContent(XContentParser parser) {
@@ -83,15 +75,14 @@ public class OutlierDetection implements Evaluation {
     private final List<EvaluationMetric> metrics;
 
     public OutlierDetection(String actualField, String predictedField) {
-        this(actualField, predictedField, (List<EvaluationMetric>)null);
+        this(actualField, predictedField, (List<EvaluationMetric>) null);
     }
 
     public OutlierDetection(String actualField, String predictedProbabilityField, EvaluationMetric... metric) {
         this(actualField, predictedProbabilityField, Arrays.asList(metric));
     }
 
-    public OutlierDetection(String actualField, String predictedProbabilityField,
-                            @Nullable List<EvaluationMetric> metrics) {
+    public OutlierDetection(String actualField, String predictedProbabilityField, @Nullable List<EvaluationMetric> metrics) {
         this.actualField = Objects.requireNonNull(actualField);
         this.predictedProbabilityField = Objects.requireNonNull(predictedProbabilityField);
         if (metrics != null) {

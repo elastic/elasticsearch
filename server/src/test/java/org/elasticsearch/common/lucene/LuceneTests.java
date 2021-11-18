@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.lucene;
 
@@ -43,6 +32,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -59,8 +49,8 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -294,7 +284,6 @@ public class LuceneTests extends ESTestCase {
         }
         assertTrue(files.toString(), files.contains("_0.si"));
 
-
         if (simpleTextCFS) {
             assertFalse(files.toString(), files.contains("_1.cfs"));
             assertFalse(files.toString(), files.contains("_1.cfe"));
@@ -404,7 +393,6 @@ public class LuceneTests extends ESTestCase {
         doc.add(new StringField("foo", "bar", Store.NO));
         w.addDocument(doc);
 
-
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             IndexSearcher searcher = newSearcher(reader);
             Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
@@ -446,17 +434,17 @@ public class LuceneTests extends ESTestCase {
         }
 
         @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new Weight(this) {
 
                 @Override
                 public boolean isCacheable(LeafReaderContext ctx) {
                     return true;
-                }
-
-                @Override
-                public void extractTerms(Set<Term> terms) {
-                    throw new UnsupportedOperationException();
                 }
 
                 @Override
@@ -504,8 +492,7 @@ public class LuceneTests extends ESTestCase {
                 try (IndexReader reader = DirectoryReader.open(w)) {
                     IndexSearcher searcher = newSearcher(reader);
                     searcher.setQueryCache(null);
-                    Query query = new IndexOrDocValuesQuery(
-                            new UnsupportedQuery(), NumericDocValuesField.newSlowRangeQuery("foo", 3L, 5L));
+                    Query query = new IndexOrDocValuesQuery(new UnsupportedQuery(), NumericDocValuesField.newSlowRangeQuery("foo", 3L, 5L));
                     Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
 
                     // Random access by default
@@ -516,8 +503,10 @@ public class LuceneTests extends ESTestCase {
 
                     // Moves to sequential access if Bits#get is called more than the number of matches
                     ScorerSupplier scorerSupplier2 = weight.scorerSupplier(reader.leaves().get(0));
-                    expectThrows(UnsupportedOperationException.class,
-                            () -> Lucene.asSequentialAccessBits(reader.maxDoc(), scorerSupplier2, reader.maxDoc()));
+                    expectThrows(
+                        UnsupportedOperationException.class,
+                        () -> Lucene.asSequentialAccessBits(reader.maxDoc(), scorerSupplier2, reader.maxDoc())
+                    );
                 }
             }
         }
@@ -602,7 +591,7 @@ public class LuceneTests extends ESTestCase {
                 reader.close(); // mark the indexing hit non-aborting error
                 writer.addDocument(doc);
                 fail("index should have failed");
-            } catch (Exception ignored) { }
+            } catch (Exception ignored) {}
         }
         try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
@@ -621,20 +610,30 @@ public class LuceneTests extends ESTestCase {
 
     public void testSortFieldSerialization() throws IOException {
         Tuple<SortField, SortField> sortFieldTuple = randomSortField();
-        SortField deserialized = copyInstance(sortFieldTuple.v1(), EMPTY_REGISTRY, Lucene::writeSortField, Lucene::readSortField,
-            VersionUtils.randomVersion(random()));
+        SortField deserialized = copyInstance(
+            sortFieldTuple.v1(),
+            EMPTY_REGISTRY,
+            Lucene::writeSortField,
+            Lucene::readSortField,
+            VersionUtils.randomVersion(random())
+        );
         assertEquals(sortFieldTuple.v2(), deserialized);
     }
 
     public void testSortValueSerialization() throws IOException {
         Object sortValue = randomSortValue();
-        Object deserialized = copyInstance(sortValue, EMPTY_REGISTRY, Lucene::writeSortValue, Lucene::readSortValue,
-            VersionUtils.randomVersion(random()));
+        Object deserialized = copyInstance(
+            sortValue,
+            EMPTY_REGISTRY,
+            Lucene::writeSortValue,
+            Lucene::readSortValue,
+            VersionUtils.randomVersion(random())
+        );
         assertEquals(sortValue, deserialized);
     }
 
     public static Object randomSortValue() {
-        switch(randomIntBetween(0, 9)) {
+        switch (randomIntBetween(0, 9)) {
             case 0:
                 return null;
             case 1:
@@ -661,7 +660,7 @@ public class LuceneTests extends ESTestCase {
     }
 
     public static Tuple<SortField, SortField> randomSortField() {
-        switch(randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 2)) {
             case 0:
                 return randomSortFieldCustomComparatorSource();
             case 1:
@@ -688,22 +687,39 @@ public class LuceneTests extends ESTestCase {
         IndexFieldData.XFieldComparatorSource comparatorSource;
         boolean reverse = randomBoolean();
         Object missingValue = null;
-        switch(randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 3)) {
             case 0:
-                comparatorSource = new LongValuesComparatorSource(null, randomBoolean() ? randomLong() : null,
-                    randomFrom(MultiValueMode.values()), null);
+                comparatorSource = new LongValuesComparatorSource(
+                    null,
+                    randomBoolean() ? randomLong() : null,
+                    randomFrom(MultiValueMode.values()),
+                    null,
+                    null
+                );
                 break;
             case 1:
-                comparatorSource = new DoubleValuesComparatorSource(null, randomBoolean() ? randomDouble() : null,
-                    randomFrom(MultiValueMode.values()), null);
+                comparatorSource = new DoubleValuesComparatorSource(
+                    null,
+                    randomBoolean() ? randomDouble() : null,
+                    randomFrom(MultiValueMode.values()),
+                    null
+                );
                 break;
             case 2:
-                comparatorSource = new FloatValuesComparatorSource(null, randomBoolean() ? randomFloat() : null,
-                    randomFrom(MultiValueMode.values()), null);
+                comparatorSource = new FloatValuesComparatorSource(
+                    null,
+                    randomBoolean() ? randomFloat() : null,
+                    randomFrom(MultiValueMode.values()),
+                    null
+                );
                 break;
             case 3:
-                comparatorSource = new BytesRefFieldComparatorSource(null,
-                    randomBoolean() ? "_first" : "_last", randomFrom(MultiValueMode.values()), null);
+                comparatorSource = new BytesRefFieldComparatorSource(
+                    null,
+                    randomBoolean() ? "_first" : "_last",
+                    randomFrom(MultiValueMode.values()),
+                    null
+                );
                 missingValue = comparatorSource.missingValue(reverse);
                 break;
             default:
@@ -717,7 +733,7 @@ public class LuceneTests extends ESTestCase {
 
     private static Tuple<SortField, SortField> randomCustomSortField() {
         String field = randomAlphaOfLengthBetween(3, 10);
-        switch(randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 3)) {
             case 0: {
                 SortField sortField = LatLonDocValuesField.newDistanceSort(field, 0, 0);
                 SortField expected = new SortField(field, SortField.Type.DOUBLE);
@@ -754,7 +770,7 @@ public class LuceneTests extends ESTestCase {
     }
 
     private static Object randomMissingValue(SortField.Type type) {
-        switch(type) {
+        switch (type) {
             case INT:
                 return randomInt();
             case FLOAT:

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -87,8 +88,11 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * @param password password for user
      * @param enableDebugLogs if {@code true} enables kerberos debug logs
      */
-    public SpnegoHttpClientConfigCallbackHandler(final String userPrincipalName, final SecureString password,
-            final boolean enableDebugLogs) {
+    public SpnegoHttpClientConfigCallbackHandler(
+        final String userPrincipalName,
+        final SecureString password,
+        final boolean enableDebugLogs
+    ) {
         this.userPrincipalName = userPrincipalName;
         this.password = password;
         this.keytabPath = null;
@@ -118,22 +122,30 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
 
     private void setupSpnegoAuthSchemeSupport(HttpAsyncClientBuilder httpClientBuilder) {
         final Lookup<AuthSchemeProvider> authSchemeRegistry = RegistryBuilder.<AuthSchemeProvider>create()
-                .register(AuthSchemes.SPNEGO, new SPNegoSchemeFactory()).build();
+            .register(AuthSchemes.SPNEGO, new SPNegoSchemeFactory())
+            .build();
 
         final GSSManager gssManager = GSSManager.getInstance();
         try {
             final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
             login();
             final AccessControlContext acc = AccessController.getContext();
-            final GSSCredential credential = doAsPrivilegedWrapper(loginContext.getSubject(),
-                    (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(gssUserPrincipalName,
-                            GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY),
-                    acc);
+            final GSSCredential credential = doAsPrivilegedWrapper(
+                loginContext.getSubject(),
+                (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
+                    gssUserPrincipalName,
+                    GSSCredential.DEFAULT_LIFETIME,
+                    SPNEGO_OID,
+                    GSSCredential.INITIATE_ONLY
+                ),
+                acc
+            );
 
             final KerberosCredentialsProvider credentialsProvider = new KerberosCredentialsProvider();
             credentialsProvider.setCredentials(
-                    new AuthScope(AuthScope.ANY_HOST, AuthScope.ANY_PORT, AuthScope.ANY_REALM, AuthSchemes.SPNEGO),
-                    new KerberosCredentials(credential));
+                new AuthScope(AuthScope.ANY_HOST, AuthScope.ANY_PORT, AuthScope.ANY_REALM, AuthSchemes.SPNEGO),
+                new KerberosCredentials(credential)
+            );
             httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
         } catch (GSSException e) {
             throw new RuntimeException(e);
@@ -153,8 +165,12 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
     public synchronized LoginContext login() throws PrivilegedActionException {
         if (this.loginContext == null) {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                final Subject subject = new Subject(false, Collections.singleton(new KerberosPrincipal(userPrincipalName)),
-                        Collections.emptySet(), Collections.emptySet());
+                final Subject subject = new Subject(
+                    false,
+                    Collections.singleton(new KerberosPrincipal(userPrincipalName)),
+                    Collections.emptySet(),
+                    Collections.emptySet()
+                );
                 Configuration conf = null;
                 final CallbackHandler callback;
                 if (password != null) {
@@ -186,7 +202,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * @throws PrivilegedActionException if the specified action's run method threw a checked exception
      */
     static <T> T doAsPrivilegedWrapper(final Subject subject, final PrivilegedExceptionAction<T> action, final AccessControlContext acc)
-            throws PrivilegedActionException {
+        throws PrivilegedActionException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAsPrivileged(subject, action, acc));
         } catch (PrivilegedActionException pae) {
@@ -314,8 +330,12 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
             options.put("storeKey", Boolean.TRUE.toString());
             options.put("debug", Boolean.toString(enableDebugLogs));
             addOptions(options);
-            return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
-                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };
+            return new AppConfigurationEntry[] {
+                new AppConfigurationEntry(
+                    SUN_KRB5_LOGIN_MODULE,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED,
+                    Collections.unmodifiableMap(options)
+                ) };
         }
 
         abstract void addOptions(Map<String, String> options);
@@ -331,18 +351,29 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      */
     String getBase64EncodedTokenForSpnegoHeader(final String serviceHost) throws PrivilegedActionException, GSSException {
         final GSSManager gssManager = GSSManager.getInstance();
-        final GSSName gssServicePrincipalName = AccessController
-                .doPrivileged((PrivilegedExceptionAction<GSSName>) () -> gssManager.createName("HTTP/" + serviceHost, null));
+        final GSSName gssServicePrincipalName = AccessController.doPrivileged(
+            (PrivilegedExceptionAction<GSSName>) () -> gssManager.createName("HTTP/" + serviceHost, null)
+        );
         final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
-        loginContext = AccessController
-                .doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password));
-        final GSSCredential userCreds = doAsWrapper(loginContext.getSubject(), (PrivilegedExceptionAction<GSSCredential>) () -> gssManager
-                .createCredential(gssUserPrincipalName, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY));
+        loginContext = AccessController.doPrivileged(
+            (PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password)
+        );
+        final GSSCredential userCreds = doAsWrapper(
+            loginContext.getSubject(),
+            (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
+                gssUserPrincipalName,
+                GSSCredential.DEFAULT_LIFETIME,
+                SPNEGO_OID,
+                GSSCredential.INITIATE_ONLY
+            )
+        );
         gssContext = gssManager.createContext(gssServicePrincipalName, SPNEGO_OID, userCreds, GSSCredential.DEFAULT_LIFETIME);
         gssContext.requestMutualAuth(true);
 
-        final byte[] outToken = doAsWrapper(loginContext.getSubject(),
-                (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0));
+        final byte[] outToken = doAsWrapper(
+            loginContext.getSubject(),
+            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0)
+        );
         return Base64.getEncoder().encodeToString(outToken);
     }
 
@@ -372,8 +403,10 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
             throw new IllegalStateException("GSS Context has already been established");
         }
         final byte[] token = Base64.getDecoder().decode(base64Token);
-        final byte[] outToken = doAsWrapper(loginContext.getSubject(),
-                (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(token, 0, token.length));
+        final byte[] outToken = doAsWrapper(
+            loginContext.getSubject(),
+            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(token, 0, token.length)
+        );
         if (outToken == null || outToken.length == 0) {
             return null;
         }

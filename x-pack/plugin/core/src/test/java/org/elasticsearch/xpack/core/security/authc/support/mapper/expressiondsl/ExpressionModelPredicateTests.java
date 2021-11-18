@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
@@ -27,7 +28,7 @@ public class ExpressionModelPredicateTests extends ESTestCase {
         final boolean matchValue = randomBoolean();
         final Predicate<FieldValue> predicate = ExpressionModel.buildPredicate(matchValue);
         assertThat(predicate.test(new FieldValue(matchValue)), is(true));
-        Object value = !matchValue;
+        Object value = matchValue == false;
         assertThat(predicate.test(new FieldValue(value)), is(false));
         assertThat(predicate.test(new FieldValue(String.valueOf(matchValue))), is(false));
         assertThat(predicate.test(new FieldValue("")), is(false));
@@ -84,8 +85,11 @@ public class ExpressionModelPredicateTests extends ESTestCase {
         final FieldValue fieldValue = new FieldValue("/.*" + substring + ".*/");
 
         assertThat(ExpressionModel.buildPredicate(substring).test(fieldValue), is(true));
-        assertThat(ExpressionModel.buildPredicate(randomAlphaOfLengthBetween(2, 4) + substring + randomAlphaOfLengthBetween(1, 5))
-                        .test(fieldValue), is(true));
+        assertThat(
+            ExpressionModel.buildPredicate(randomAlphaOfLengthBetween(2, 4) + substring + randomAlphaOfLengthBetween(1, 5))
+                .test(fieldValue),
+            is(true)
+        );
 
         assertThat(ExpressionModel.buildPredicate(substring.substring(1, 3)).test(fieldValue), is(false));
 

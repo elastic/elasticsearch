@@ -70,7 +70,7 @@ always returns `true`.
 ==== Stored scripts
 
 Stored scripts refer to scripts that were
-<<modules-scripting-stored-scripts,stored>> in Elasticsearch. The following
+<<modules-scripting-using,stored>> in Elasticsearch. The following
 snippet shows how to refer to a script by its `id`:
 
 [source,js]
@@ -136,11 +136,11 @@ When you're using a scripted condition to evaluate an Elasticsearch response,
 keep in mind that the fields in the response are no longer in their native data
 types. For example, the `@timestamp` in the response is a string, rather than a
 `DateTime`. To compare the response `@timestamp` against the `ctx.execution_time`,
-you need to parse the `@timestamp` string into a `DateTime`. For example:
+you need to parse the `@timestamp` string into a `ZonedDateTime`. For example:
 
 [source,js]
 --------------------------------------------------
-org.elasticsearch.common.joda.time.DateTime.parse(@timestamp)
+java.time.ZonedDateTime.parse(@timestamp)
 --------------------------------------------------
 // NOTCONSOLE
 

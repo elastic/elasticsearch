@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Date;
@@ -26,8 +27,11 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
     static class TestAuditMessage extends AbstractAuditMessage {
 
         private static final ParseField TEST_ID = new ParseField("test_id");
-        public static final ConstructingObjectParser<TestAuditMessage, Void> PARSER =
-            createParser("test_audit_message", TestAuditMessage::new, TEST_ID);
+        public static final ConstructingObjectParser<TestAuditMessage, Void> PARSER = createParser(
+            "test_audit_message",
+            TestAuditMessage::new,
+            TEST_ID
+        );
 
         TestAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
             super(resourceId, message, level, timestamp, nodeName);

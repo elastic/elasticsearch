@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -45,17 +34,17 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test";
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        //Have very low pool and queue sizes to overwhelm internal pools easily
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // Have very low pool and queue sizes to overwhelm internal pools easily
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                // don't mess with this one! It's quite sensitive to a low queue size
-                // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
-                //.put("thread_pool.listener.queue_size", 1)
-                .put("thread_pool.get.queue_size", 1)
-                // default is 200
-                .put("thread_pool.write.queue_size", 30)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // don't mess with this one! It's quite sensitive to a low queue size
+            // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
+            // .put("thread_pool.listener.queue_size", 1)
+            .put("thread_pool.get.queue_size", 1)
+            // default is 200
+            .put("thread_pool.write.queue_size", 30)
+            .build();
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Throwable {
@@ -96,11 +85,12 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 responses.add(failure);
                 latch.countDown();
             }
-        }).setBulkActions(1)
-                 // zero means that we're in the sync case, more means that we're in the async case
-                .setConcurrentRequests(randomIntBetween(0, 100))
-                .setBackoffPolicy(internalPolicy)
-                .build();
+        }, "BulkProcssorRetryIT")
+            .setBulkActions(1)
+            // zero means that we're in the sync case, more means that we're in the async case
+            .setConcurrentRequests(randomIntBetween(0, 100))
+            .setBackoffPolicy(internalPolicy)
+            .build();
         indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
         bulkProcessor.close();
@@ -126,8 +116,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                     }
                 }
             } else {
-                if (response instanceof RemoteTransportException
-                    && ((RemoteTransportException) response).status() == RestStatus.TOO_MANY_REQUESTS) {
+                if (ExceptionsHelper.status((Throwable) response) == RestStatus.TOO_MANY_REQUESTS) {
                     if (rejectedExecutionExpected == false) {
                         assertRetriedCorrectly(internalPolicy, response, ((Throwable) response).getCause());
                         rejectedAfterAllRetries = true;
@@ -143,11 +132,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
 
         client().admin().indices().refresh(new RefreshRequest()).get();
 
-        SearchResponse results = client()
-                .prepareSearch(INDEX_NAME)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(0)
-                .get();
+        SearchResponse results = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
 
         if (rejectedExecutionExpected) {
             assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
@@ -171,12 +156,13 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
 
     private static void indexDocs(BulkProcessor processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(client()
-                    .prepareIndex()
+            processor.add(
+                client().prepareIndex()
                     .setIndex(INDEX_NAME)
                     .setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
-                    .request());
+                    .request()
+            );
         }
     }
 

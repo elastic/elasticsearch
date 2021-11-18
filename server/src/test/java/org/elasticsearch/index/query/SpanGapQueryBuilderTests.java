@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanBoostQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -49,7 +37,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
             SpanTermQueryBuilder termQB = spanTermQueries[i];
             queryBuilder.addClause(termQB);
             if (i % 2 == 1) {
-                SpanGapQueryBuilder gapQB = new SpanGapQueryBuilder(termQB.fieldName(), randomIntBetween(1,2));
+                SpanGapQueryBuilder gapQB = new SpanGapQueryBuilder(termQB.fieldName(), randomIntBetween(1, 2));
                 queryBuilder.addClause(gapQB);
             }
         }
@@ -58,11 +46,11 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, either(instanceOf(SpanNearQuery.class))
-            .or(instanceOf(SpanTermQuery.class))
-            .or(instanceOf(SpanBoostQuery.class))
-            .or(instanceOf(MatchAllQueryBuilder.class)));
+    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        assertThat(
+            query,
+            either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class)).or(instanceOf(MatchAllQueryBuilder.class))
+        );
         if (query instanceof SpanNearQuery) {
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
@@ -74,45 +62,44 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
                 if (spanQB instanceof SpanGapQueryBuilder) continue;
                 assertThat(spanQuery, equalTo(spanQB.toQuery(context)));
             }
-        } else if (query instanceof SpanTermQuery || query instanceof SpanBoostQuery) {
+        } else if (query instanceof SpanTermQuery) {
             assertThat(queryBuilder.clauses().size(), equalTo(1));
             assertThat(query, equalTo(queryBuilder.clauses().get(0).toQuery(context)));
         }
     }
 
     public void testIllegalArguments() {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanGapQueryBuilder(null, 1));
-            assertEquals("[span_gap] field name is null or empty", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanGapQueryBuilder(null, 1));
+        assertEquals("[span_gap] field name is null or empty", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"span_near\" : {\n" +
-                "    \"clauses\" : [ {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value1\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_gap\" : {\n" +
-                "        \"field\" : 2" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value3\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    } ],\n" +
-                "    \"slop\" : 12,\n" +
-                "    \"in_order\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"span_near\" : {\n"
+            + "    \"clauses\" : [ {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"field\" : {\n"
+            + "          \"value\" : \"value1\",\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }, {\n"
+            + "      \"span_gap\" : {\n"
+            + "        \"field\" : 2"
+            + "      }\n"
+            + "    }, {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"field\" : {\n"
+            + "          \"value\" : \"value3\",\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    } ],\n"
+            + "    \"slop\" : 12,\n"
+            + "    \"in_order\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
         SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

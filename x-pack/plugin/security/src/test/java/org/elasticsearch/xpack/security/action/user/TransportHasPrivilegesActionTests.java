@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -48,13 +49,22 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         final ThreadContext threadContext = threadPool.getThreadContext();
         final SecurityContext context = mock(SecurityContext.class);
         final User user = new User("user-1", "superuser");
-        final Authentication authentication = new Authentication(user,
-            new Authentication.RealmRef("native", "default_native", "node1"), null);
+        final Authentication authentication = new Authentication(
+            user,
+            new Authentication.RealmRef("native", "default_native", "node1"),
+            null
+        );
         when(context.getAuthentication()).thenReturn(authentication);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(threadPool,
-            mock(TransportService.class), mock(ActionFilters.class), mock(AuthorizationService.class), mock(NativePrivilegeStore.class),
-            context, xContentRegistry());
+        final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
+            threadPool,
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(AuthorizationService.class),
+            mock(NativePrivilegeStore.class),
+            context,
+            xContentRegistry()
+        );
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(1, 5)];

@@ -1,21 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
@@ -24,7 +15,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 publishing {
   publications {
-    nebula {
+    elastic {
       artifactId 'elasticsearch'
     }
   }
@@ -38,12 +29,13 @@ dependencies {
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
+  api project(":libs:elasticsearch-lz4")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
   api "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
@@ -53,7 +45,6 @@ dependencies {
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
@@ -61,25 +52,16 @@ dependencies {
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
 
-  // time handling, remove with java 8 time
-  api "joda-time:joda-time:${versions.joda}"
-
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
-  // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  api "org.locationtech.jts:jts-core:${versions.jts}", optional
-
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
-  // repackaged jna with native bits linked against all elastic supported platforms
-  api "org.elasticsearch:jna:${versions.jna}"
-
+  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -92,26 +74,6 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-}
-
-// Until this project is always being formatted with spotless, we need to
-// guard against `spotless()` not existing.
-try {
-  spotless {
-    java {
-      // Contains large data tables that do not format well.
-      targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
-    }
-  }
-}
-catch (Exception e) {
-  if (e.getMessage().contains("Could not find method spotless") == false) {
-    throw e;
-  }
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -166,6 +128,12 @@ tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+    tasks.named("test").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
+}
+
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
@@ -194,7 +162,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.BlockingWaitStrategy',
@@ -262,20 +229,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
-
-            // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-            'org.noggit.JSONParser',
-
-            // from lucene-spatial
-            'com.fasterxml.jackson.databind.JsonSerializer',
-            'com.fasterxml.jackson.databind.JsonDeserializer',
-            'com.fasterxml.jackson.databind.node.ArrayNode',
-            'com.google.common.geometry.S2Cell',
-            'com.google.common.geometry.S2CellId',
-            'com.google.common.geometry.S2Projections',
-            'com.google.common.geometry.S2Point',
-            'com.google.common.geometry.S2$Metric',
-            'com.google.common.geometry.S2LatLng'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
@@ -296,4 +249,24 @@ tasks.named("licenseHeaders").configure {
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
+}
+
+tasks.named('splitPackagesAudit').configure {
+    // Lucene packages should be owned by Lucene!
+  ignoreClasses 'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
+    'org.apache.lucene.queries.BlendedTermQuery',
+    'org.apache.lucene.queries.SpanMatchNoDocsQuery',
+    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
+
+    // These are tricky because Lucene itself splits the index package,
+    // but this should be fixed in Lucene 9
+    'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
+
+    // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
+    'org.elasticsearch.cli.CommandLoggingConfigurator',
+    'org.elasticsearch.cli.EnvironmentAwareCommand',
+    'org.elasticsearch.cli.KeyStoreAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareMultiCommand'
+
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -25,12 +26,16 @@ public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCa
         final String index = "index-" + getTestName();
         {
             final Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipeline);
-            putPipeline.setJsonEntity("{" +
-                " \"description\": \"Test pipeline (" + getTestName() + ")\"," +
-                " \"processors\":[{" +
-                "  \"set_security_user\":{ \"field\": \"user\" }" +
-                " }]" +
-                "}");
+            putPipeline.setJsonEntity(
+                "{"
+                    + " \"description\": \"Test pipeline ("
+                    + getTestName()
+                    + ")\","
+                    + " \"processors\":[{"
+                    + "  \"set_security_user\":{ \"field\": \"user\" }"
+                    + " }]"
+                    + "}"
+            );
             final Response response = client().performRequest(putPipeline);
             assertOK(response);
         }
@@ -40,8 +45,10 @@ public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCa
             ingest.setJsonEntity("{\"field\":\"value\"}");
             final ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(ingest));
             final Response response = ex.getResponse();
-            assertThat(EntityUtils.toString(response.getEntity()),
-                containsString("Security (authentication) is not enabled on this cluster"));
+            assertThat(
+                EntityUtils.toString(response.getEntity()),
+                containsString("Security (authentication) is not enabled on this cluster")
+            );
         }
     }
 

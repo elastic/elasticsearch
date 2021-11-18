@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -25,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,20 +37,33 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
 
     @Inject
     public TransportPauseFollowAction(
-            final TransportService transportService,
-            final ActionFilters actionFilters,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final PersistentTasksService persistentTasksService) {
-        super(PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PauseFollowAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+        final TransportService transportService,
+        final ActionFilters actionFilters,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final PersistentTasksService persistentTasksService
+    ) {
+        super(
+            PauseFollowAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PauseFollowAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
-    protected void masterOperation(Task task, PauseFollowAction.Request request,
-                                   ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        PauseFollowAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final IndexMetadata followerIMD = state.metadata().index(request.getFollowIndex());
         if (followerIMD == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
@@ -64,7 +79,8 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             return;
         }
 
-        List<String> shardFollowTaskIds = persistentTasksMetadata.tasks().stream()
+        List<String> shardFollowTaskIds = persistentTasksMetadata.tasks()
+            .stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();

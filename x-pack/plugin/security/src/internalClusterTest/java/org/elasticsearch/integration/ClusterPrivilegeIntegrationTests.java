@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -10,43 +11,40 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase {
 
-    private static final String ROLES =
-                    "role_a:\n" +
-                    "  cluster: [ all ]\n" +
-                    "\n" +
-                    "role_b:\n" +
-                    "  cluster: [ monitor ]\n" +
-                    "\n" +
-                    "role_c:\n" +
-                    "  indices:\n" +
-                    "    - names: 'someindex'\n" +
-                    "      privileges: [ all ]\n" +
-                    "role_d:\n" +
-                    "  cluster: [ create_snapshot ]\n" +
-                    "\n" +
-                    "role_e:\n" +
-                    "  cluster: [ monitor_snapshot]\n";
+    private static final String ROLES = "role_a:\n"
+        + "  cluster: [ all ]\n"
+        + "\n"
+        + "role_b:\n"
+        + "  cluster: [ monitor ]\n"
+        + "\n"
+        + "role_c:\n"
+        + "  indices:\n"
+        + "    - names: 'someindex'\n"
+        + "      privileges: [ all ]\n"
+        + "role_d:\n"
+        + "  cluster: [ create_snapshot ]\n"
+        + "\n"
+        + "role_e:\n"
+        + "  cluster: [ monitor_snapshot]\n";
 
-    private static final String USERS_ROLES =
-                    "role_a:user_a\n" +
-                    "role_b:user_b\n" +
-                    "role_c:user_c\n" +
-                    "role_d:user_d\n" +
-                    "role_e:user_e\n";
+    private static final String USERS_ROLES = "role_a:user_a\n"
+        + "role_b:user_b\n"
+        + "role_c:user_c\n"
+        + "role_d:user_d\n"
+        + "role_e:user_e\n";
 
     private static Path repositoryLocation;
 
@@ -67,9 +65,7 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings())
-                .put("path.repo", repositoryLocation)
-                .build();
+        return Settings.builder().put(super.nodeSettings()).put("path.repo", repositoryLocation).build();
     }
 
     @Override
@@ -79,14 +75,24 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(
-            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
-        return super.configUsers() +
-            "user_a:" + usersPasswdHashed + "\n" +
-            "user_b:" + usersPasswdHashed + "\n" +
-            "user_c:" + usersPasswdHashed + "\n" +
-            "user_d:" + usersPasswdHashed + "\n" +
-            "user_e:" + usersPasswdHashed + "\n";
+        final Hasher passwdHasher = getFastStoredHashAlgoForTests();
+        final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        return super.configUsers()
+            + "user_a:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_b:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_c:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_d:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_e:"
+            + usersPasswdHashed
+            + "\n";
     }
 
     @Override
@@ -160,8 +166,14 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
     }
 
     public void testThatSnapshotAndRestore() throws Exception {
-        String repoJson = Strings.toString(jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",
-                repositoryLocation.toString()).endObject().endObject());
+        String repoJson = Strings.toString(
+            jsonBuilder().startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("location", repositoryLocation.toString())
+                .endObject()
+                .endObject()
+        );
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_d", "PUT", "/_snapshot/my-repo", repoJson);
@@ -233,9 +245,13 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress =
-                client().admin().cluster().state(new ClusterStateRequest()).get().getState().custom(SnapshotsInProgress.TYPE);
-            assertThat(snapshotsInProgress.entries(), Matchers.empty());
+            SnapshotsInProgress snapshotsInProgress = client().admin()
+                .cluster()
+                .state(new ClusterStateRequest())
+                .get()
+                .getState()
+                .custom(SnapshotsInProgress.TYPE);
+            assertTrue(snapshotsInProgress.isEmpty());
         });
     }
 }

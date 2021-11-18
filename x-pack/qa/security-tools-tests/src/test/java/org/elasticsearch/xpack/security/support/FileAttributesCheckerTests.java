@@ -1,9 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.support;
+
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
@@ -14,11 +21,6 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.HashSet;
 import java.util.Set;
-
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.test.ESTestCase;
 
 public class FileAttributesCheckerTests extends ESTestCase {
 

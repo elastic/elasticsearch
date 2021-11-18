@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils;
 
@@ -56,16 +57,16 @@ public class VoidChainTaskExecutorTests extends ESTestCase {
 
     public void testExecute_GivenSingleFailureAndShortCircuit() throws InterruptedException {
         final List<String> strings = new ArrayList<>();
-        ActionListener<List<Void>> finalListener = createBlockingListener(() -> fail(),
-                e -> assertThat(e.getMessage(), equalTo("some error")));
+        ActionListener<List<Void>> finalListener = createBlockingListener(
+            () -> fail(),
+            e -> assertThat(e.getMessage(), equalTo("some error"))
+        );
         VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.generic(), true);
         voidChainTaskExecutor.add(listener -> {
             strings.add("before");
             listener.onResponse(null);
         });
-        voidChainTaskExecutor.add(listener -> {
-            throw new RuntimeException("some error");
-        });
+        voidChainTaskExecutor.add(listener -> { throw new RuntimeException("some error"); });
         voidChainTaskExecutor.add(listener -> {
             strings.add("after");
             listener.onResponse(null);
@@ -80,19 +81,17 @@ public class VoidChainTaskExecutorTests extends ESTestCase {
 
     public void testExecute_GivenMultipleFailuresAndShortCircuit() throws InterruptedException {
         final List<String> strings = new ArrayList<>();
-        ActionListener<List<Void>> finalListener = createBlockingListener(() -> fail(),
-                e -> assertThat(e.getMessage(), equalTo("some error 1")));
+        ActionListener<List<Void>> finalListener = createBlockingListener(
+            () -> fail(),
+            e -> assertThat(e.getMessage(), equalTo("some error 1"))
+        );
         VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(threadPool.generic(), true);
         voidChainTaskExecutor.add(listener -> {
             strings.add("before");
             listener.onResponse(null);
         });
-        voidChainTaskExecutor.add(listener -> {
-            throw new RuntimeException("some error 1");
-        });
-        voidChainTaskExecutor.add(listener -> {
-            throw new RuntimeException("some error 2");
-        });
+        voidChainTaskExecutor.add(listener -> { throw new RuntimeException("some error 1"); });
+        voidChainTaskExecutor.add(listener -> { throw new RuntimeException("some error 2"); });
 
         voidChainTaskExecutor.execute(finalListener);
 
@@ -109,9 +108,7 @@ public class VoidChainTaskExecutorTests extends ESTestCase {
             strings.add("before");
             listener.onResponse(null);
         });
-        voidChainTaskExecutor.add(listener -> {
-            throw new RuntimeException("some error");
-        });
+        voidChainTaskExecutor.add(listener -> { throw new RuntimeException("some error"); });
         voidChainTaskExecutor.add(listener -> {
             strings.add("after");
             listener.onResponse(null);

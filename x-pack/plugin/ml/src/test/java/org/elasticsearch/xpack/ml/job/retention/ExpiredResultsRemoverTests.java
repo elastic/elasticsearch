@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -36,9 +37,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -71,10 +72,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
 
     public void testRemove_GivenJobsWithoutRetentionPolicy() {
         givenDBQRequestsSucceed();
-        List<Job> jobs = Arrays.asList(
-                JobTests.buildJobBuilder("foo").build(),
-                JobTests.buildJobBuilder("bar").build()
-        );
+        List<Job> jobs = Arrays.asList(JobTests.buildJobBuilder("foo").build(), JobTests.buildJobBuilder("bar").build());
 
         createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
@@ -88,15 +86,16 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         List<Job> jobs = Arrays.asList(
             JobTests.buildJobBuilder("none").build(),
             JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build());
+            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
+        );
 
         createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
-        assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-1")}));
+        assertThat(dbqRequest.indices(), equalTo(new String[] { AnomalyDetectorsIndex.jobResultsAliasedName("results-1") }));
         dbqRequest = capturedDeleteByQueryRequests.get(1);
-        assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-2")}));
+        assertThat(dbqRequest.indices(), equalTo(new String[] { AnomalyDetectorsIndex.jobResultsAliasedName("results-2") }));
         verify(listener).onResponse(true);
     }
 
@@ -125,12 +124,13 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         List<Job> jobs = Arrays.asList(
             JobTests.buildJobBuilder("none").build(),
             JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build());
+            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
+        );
         createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
-        assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-1")}));
+        assertThat(dbqRequest.indices(), equalTo(new String[] { AnomalyDetectorsIndex.jobResultsAliasedName("results-1") }));
         verify(listener).onFailure(any());
     }
 
@@ -161,19 +161,17 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void givenDBQRequest(boolean shouldSucceed) {
         doAnswer(invocationOnMock -> {
-                capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
-                ActionListener<BulkByScrollResponse> listener =
-                        (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
-                if (shouldSucceed) {
-                    BulkByScrollResponse bulkByScrollResponse = mock(BulkByScrollResponse.class);
-                    when(bulkByScrollResponse.getDeleted()).thenReturn(42L);
-                    listener.onResponse(bulkByScrollResponse);
-                } else {
-                    listener.onFailure(new RuntimeException("failed"));
-                }
-                return null;
+            capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
+            ActionListener<BulkByScrollResponse> listener = (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
+            if (shouldSucceed) {
+                BulkByScrollResponse bulkByScrollResponse = mock(BulkByScrollResponse.class);
+                when(bulkByScrollResponse.getDeleted()).thenReturn(42L);
+                listener.onResponse(bulkByScrollResponse);
+            } else {
+                listener.onFailure(new RuntimeException("failed"));
             }
-        ).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
+            return null;
+        }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -192,13 +190,17 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         when(threadPool.executor(eq(MachineLearning.UTILITY_THREAD_POOL_NAME))).thenReturn(executor);
 
         doAnswer(invocationOnMock -> {
-                Runnable run = (Runnable) invocationOnMock.getArguments()[0];
-                run.run();
-                return null;
-            }
-        ).when(executor).execute(any());
+            Runnable run = (Runnable) invocationOnMock.getArguments()[0];
+            run.run();
+            return null;
+        }).when(executor).execute(any());
 
-        return new ExpiredResultsRemover(originSettingClient, jobIterator, new TaskId("test", 0L),
-            mock(AnomalyDetectionAuditor.class), threadPool);
+        return new ExpiredResultsRemover(
+            originSettingClient,
+            jobIterator,
+            new TaskId("test", 0L),
+            mock(AnomalyDetectionAuditor.class),
+            threadPool
+        );
     }
 }

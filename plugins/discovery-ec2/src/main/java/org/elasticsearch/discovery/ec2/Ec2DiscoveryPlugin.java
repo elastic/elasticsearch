@@ -1,33 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.EC2MetadataUtils;
 import com.amazonaws.util.json.Jackson;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -96,33 +86,33 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     }
 
     @Override
-    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
-                                                                         NetworkService networkService) {
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService, NetworkService networkService) {
         return Collections.singletonMap(EC2, () -> new AwsEc2SeedHostsProvider(settings, transportService, ec2Service));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-        // Register EC2 discovery settings: discovery.ec2
-        Ec2ClientSettings.ACCESS_KEY_SETTING,
-        Ec2ClientSettings.SECRET_KEY_SETTING,
-        Ec2ClientSettings.SESSION_TOKEN_SETTING,
-        Ec2ClientSettings.ENDPOINT_SETTING,
-        Ec2ClientSettings.PROTOCOL_SETTING,
-        Ec2ClientSettings.PROXY_HOST_SETTING,
-        Ec2ClientSettings.PROXY_PORT_SETTING,
-        Ec2ClientSettings.PROXY_USERNAME_SETTING,
-        Ec2ClientSettings.PROXY_PASSWORD_SETTING,
-        Ec2ClientSettings.READ_TIMEOUT_SETTING,
-        AwsEc2Service.HOST_TYPE_SETTING,
-        AwsEc2Service.ANY_GROUP_SETTING,
-        AwsEc2Service.GROUPS_SETTING,
-        AwsEc2Service.AVAILABILITY_ZONES_SETTING,
-        AwsEc2Service.NODE_CACHE_TIME_SETTING,
-        AwsEc2Service.TAG_SETTING,
-        // Register cloud node settings: cloud.node
-        AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
+            // Register EC2 discovery settings: discovery.ec2
+            Ec2ClientSettings.ACCESS_KEY_SETTING,
+            Ec2ClientSettings.SECRET_KEY_SETTING,
+            Ec2ClientSettings.SESSION_TOKEN_SETTING,
+            Ec2ClientSettings.ENDPOINT_SETTING,
+            Ec2ClientSettings.PROTOCOL_SETTING,
+            Ec2ClientSettings.PROXY_HOST_SETTING,
+            Ec2ClientSettings.PROXY_PORT_SETTING,
+            Ec2ClientSettings.PROXY_USERNAME_SETTING,
+            Ec2ClientSettings.PROXY_PASSWORD_SETTING,
+            Ec2ClientSettings.READ_TIMEOUT_SETTING,
+            AwsEc2Service.HOST_TYPE_SETTING,
+            AwsEc2Service.ANY_GROUP_SETTING,
+            AwsEc2Service.GROUPS_SETTING,
+            AwsEc2Service.AVAILABILITY_ZONES_SETTING,
+            AwsEc2Service.NODE_CACHE_TIME_SETTING,
+            AwsEc2Service.TAG_SETTING,
+            // Register cloud node settings: cloud.node
+            AwsEc2Service.AUTO_ATTRIBUTE_SETTING
+        );
     }
 
     @Override
@@ -156,8 +146,10 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             throw new UncheckedIOException(e);
         }
 
-        try (InputStream in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
-             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+        try (
+            InputStream in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
+            BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
+        ) {
 
             final String metadataResult = urlReader.readLine();
             if ((metadataResult == null) || (metadataResult.length() == 0)) {

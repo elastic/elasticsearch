@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
@@ -32,6 +33,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Set;
 import java.util.zip.Deflater;
@@ -39,7 +41,6 @@ import java.util.zip.DeflaterOutputStream;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.joda.time.DateTime.now;
 import static org.mockito.Mockito.when;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.PERSISTENT;
@@ -75,8 +76,12 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
 
     public void testValidAuthnRequest() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp1.kibana.org", new URL("https://sp1.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp1.kibana.org",
+            new URL("https://sp1.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
         SamlValidateAuthnRequestResponse response = future.actionGet();
@@ -89,11 +94,14 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
 
     public void testValidSignedAuthnRequest() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp2.kibana.org", new URL("https://sp2.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), PERSISTENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp2.kibana.org",
+            new URL("https://sp2.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            PERSISTENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
-        validator.processQueryString(getQueryString(authnRequest, relayState, true,
-            readCredentials("RSA", 4096)), future);
+        validator.processQueryString(getQueryString(authnRequest, relayState, true, readCredentials("RSA", 4096)), future);
         SamlValidateAuthnRequestResponse response = future.actionGet();
         assertThat(response.isForceAuthn(), equalTo(false));
         assertThat(response.getSpEntityId(), equalTo("https://sp2.kibana.org"));
@@ -103,11 +111,14 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
     }
 
     public void testValidSignedAuthnRequestWithoutRelayState() throws Exception {
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp2.kibana.org", new URL("https://sp2.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), PERSISTENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp2.kibana.org",
+            new URL("https://sp2.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            PERSISTENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
-        validator.processQueryString(getQueryString(authnRequest, null, true,
-            readCredentials("RSA", 4096)), future);
+        validator.processQueryString(getQueryString(authnRequest, null, true, readCredentials("RSA", 4096)), future);
         SamlValidateAuthnRequestResponse response = future.actionGet();
         assertThat(response.isForceAuthn(), equalTo(false));
         assertThat(response.getSpEntityId(), equalTo("https://sp2.kibana.org"));
@@ -118,8 +129,12 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
 
     public void testValidSignedAuthnRequestWhenServiceProviderShouldNotSign() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp1.kibana.org", new URL("https://sp1.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp1.kibana.org",
+            new URL("https://sp1.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState, true, readCredentials("RSA", 4096)), future);
         SamlValidateAuthnRequestResponse response = future.actionGet();
@@ -132,65 +147,84 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
 
     public void testValidUnSignedAuthnRequestWhenServiceProviderShouldSign() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp2.kibana.org", new URL("https://sp2.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp2.kibana.org",
+            new URL("https://sp2.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("must sign authentication requests but no signature was found"));
     }
 
     public void testSignedAuthnRequestWithWrongKey() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp2.kibana.org", new URL("https://sp2.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp2.kibana.org",
+            new URL("https://sp2.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState, true, readCredentials("RSA2", 4096)), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("Unable to validate signature of authentication request"));
     }
 
     public void testSignedAuthnRequestWithWrongSizeKey() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp2.kibana.org", new URL("https://sp2.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp2.kibana.org",
+            new URL("https://sp2.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState, true, readCredentials("RSA", 2048)), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("Unable to validate signature of authentication request"));
     }
 
     public void testWrongDestination() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp1.kibana.org", new URL("https://sp1.kibana.org/saml/acs"),
-            new URL("https://wrong.destination.org"), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp1.kibana.org",
+            new URL("https://sp1.kibana.org/saml/acs"),
+            new URL("https://wrong.destination.org"),
+            TRANSIENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("but the SSO endpoint of this Identity Provider is"));
         assertThat(e.getMessage(), containsString("wrong.destination.org"));
     }
 
     public void testUnregisteredAcsForSp() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp1.kibana.org", new URL("https://malicious.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp1.kibana.org",
+            new URL("https://malicious.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("The registered ACS URL for this Service Provider is"));
         assertThat(e.getMessage(), containsString("https://malicious.kibana.org/saml/acs"));
     }
 
-    public void testUnregisteredSp()throws Exception {
+    public void testUnregisteredSp() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://unknown.kibana.org", new URL("https://unknown.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://unknown.kibana.org",
+            new URL("https://unknown.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         mockRegisteredServiceProvider(idp, "https://unknown.kibana.org", null);
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
@@ -199,10 +233,14 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         assertThat(e.getMessage(), containsString("https://unknown.kibana.org"));
     }
 
-    public void testAuthnRequestWithoutAcsUrl() throws Exception{
+    public void testAuthnRequestWithoutAcsUrl() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp1.kibana.org", new URL("https://sp1.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp1.kibana.org",
+            new URL("https://sp1.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         // remove ACS
         authnRequest.setAssertionConsumerServiceURL(null);
         final boolean containsIndex = randomBoolean();
@@ -211,8 +249,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         }
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("SAML authentication does not contain an AssertionConsumerService URL"));
         if (containsIndex) {
             assertThat(e.getMessage(), containsString("It contains an Assertion Consumer Service Index "));
@@ -221,25 +258,31 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
 
     public void testAuthnRequestWithoutIssuer() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp1.kibana.org", new URL("https://sp1.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), TRANSIENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp1.kibana.org",
+            new URL("https://sp1.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            TRANSIENT
+        );
         // remove issuer
         authnRequest.setIssuer(null);
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("SAML authentication request has no issuer"));
     }
 
     public void testInvalidNameIDPolicy() throws Exception {
         final String relayState = randomAlphaOfLength(6);
-        final AuthnRequest authnRequest = buildAuthnRequest("https://sp1.kibana.org", new URL("https://sp1.kibana.org/saml/acs"),
-            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI), PERSISTENT);
+        final AuthnRequest authnRequest = buildAuthnRequest(
+            "https://sp1.kibana.org",
+            new URL("https://sp1.kibana.org/saml/acs"),
+            idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI),
+            PERSISTENT
+        );
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            future::actionGet);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("doesn't match the allowed NameID format"));
     }
 
@@ -251,7 +294,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         final AuthnRequest authnRequest = samlFactory.buildObject(AuthnRequest.class, AuthnRequest.DEFAULT_ELEMENT_NAME);
         authnRequest.setID(samlFactory.secureIdentifier());
         authnRequest.setIssuer(issuer);
-        authnRequest.setIssueInstant(now());
+        authnRequest.setIssueInstant(Instant.now());
         authnRequest.setAssertionConsumerServiceURL(acs.toString());
         authnRequest.setDestination(destination.toString());
         authnRequest.setNameIDPolicy(nameIDPolicy);
@@ -289,11 +332,12 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         return URLEncoder.encode(param, StandardCharsets.UTF_8.name());
     }
 
-    private String deflateAndBase64Encode(SAMLObject message)
-        throws Exception {
+    private String deflateAndBase64Encode(SAMLObject message) throws Exception {
         Deflater deflater = new Deflater(Deflater.DEFLATED, true);
-        try (ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-             DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)) {
+        try (
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)
+        ) {
             String messageStr = samlFactory.toString(XMLObjectSupport.marshall(message), false);
             deflaterStream.write(messageStr.getBytes(StandardCharsets.UTF_8));
             deflaterStream.finish();

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.tasks;
@@ -32,13 +21,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -61,11 +49,10 @@ import static java.util.Collections.emptyList;
  * The base class for transport actions that are interacting with currently running tasks.
  */
 public abstract class TransportTasksAction<
-        OperationTask extends Task,
-        TasksRequest extends BaseTasksRequest<TasksRequest>,
-        TasksResponse extends BaseTasksResponse,
-        TaskResponse extends Writeable
-    > extends HandledTransportAction<TasksRequest, TasksResponse> {
+    OperationTask extends Task,
+    TasksRequest extends BaseTasksRequest<TasksRequest>,
+    TasksResponse extends BaseTasksResponse,
+    TaskResponse extends Writeable> extends HandledTransportAction<TasksRequest, TasksResponse> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -75,10 +62,16 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
-    protected TransportTasksAction(String actionName, ClusterService clusterService, TransportService transportService,
-                                   ActionFilters actionFilters, Writeable.Reader<TasksRequest> requestReader,
-                                   Writeable.Reader<TasksResponse> responsesReader, Writeable.Reader<TaskResponse> responseReader,
-                                   String nodeExecutor) {
+    protected TransportTasksAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<TasksRequest> requestReader,
+        Writeable.Reader<TasksResponse> responsesReader,
+        Writeable.Reader<TaskResponse> responseReader,
+        String nodeExecutor
+    ) {
         super(actionName, transportService, actionFilters, requestReader);
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -129,8 +122,9 @@ public abstract class TransportTasksAction<
                     for (Tuple<TaskResponse, Exception> response : responses.asList()) {
                         if (response.v1() == null) {
                             assert response.v2() != null;
-                            exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), tasks.get(taskIndex).getId(),
-                                    response.v2()));
+                            exceptions.add(
+                                new TaskOperationFailure(clusterService.localNode().getId(), tasks.get(taskIndex).getId(), response.v2())
+                            );
                         } else {
                             assert response.v2() == null;
                             results.add(response.v1());
@@ -153,12 +147,13 @@ public abstract class TransportTasksAction<
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
         if (request.getTaskId().isSet()) {
-            return new String[]{request.getTaskId().getNodeId()};
+            return new String[] { request.getTaskId().getNodeId() };
         } else {
             return clusterState.nodes().resolveNodes(request.getNodes());
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
         if (request.getTaskId().isSet()) {
             // we are only checking one task, we can optimize it
@@ -181,11 +176,15 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected abstract TasksResponse newResponse(TasksRequest request, List<TaskResponse> tasks, List<TaskOperationFailure>
-        taskOperationFailures, List<FailedNodeException> failedNodeExceptions);
+    protected abstract TasksResponse newResponse(
+        TasksRequest request,
+        List<TaskResponse> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    );
 
     @SuppressWarnings("unchecked")
-    protected TasksResponse newResponse(TasksRequest request, AtomicReferenceArray responses) {
+    protected TasksResponse newResponse(TasksRequest request, AtomicReferenceArray<?> responses) {
         List<TaskResponse> tasks = new ArrayList<>();
         List<FailedNodeException> failedNodeExceptions = new ArrayList<>();
         List<TaskOperationFailure> taskOperationFailures = new ArrayList<>();
@@ -257,7 +256,11 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions,
+                            transportService.sendRequest(
+                                node,
+                                transportNodeAction,
+                                nodeRequest,
+                                transportRequestOptions,
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {
@@ -273,7 +276,8 @@ public abstract class TransportTasksAction<
                                     public void handleException(TransportException exp) {
                                         onFailure(idx, node.getId(), exp);
                                     }
-                                });
+                                }
+                            );
                         }
                     } catch (Exception e) {
                         onFailure(idx, nodeId, e);
@@ -290,9 +294,7 @@ public abstract class TransportTasksAction<
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
-            }
+            logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
 
             responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
 
@@ -318,16 +320,14 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, ActionListener.wrap(channel::sendResponse,
-                e -> {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException e1) {
-                        e1.addSuppressed(e);
-                        logger.warn("Failed to send failure", e1);
-                    }
+            nodeOperation(request, ActionListener.wrap(channel::sendResponse, e -> {
+                try {
+                    channel.sendResponse(e);
+                } catch (IOException e1) {
+                    e1.addSuppressed(e);
+                    logger.warn("Failed to send failure", e1);
                 }
-            ));
+            }));
         }
     }
 
@@ -377,9 +377,7 @@ public abstract class TransportTasksAction<
             }
         }
 
-        NodeTasksResponse(String nodeId,
-                                 List<TaskResponse> results,
-                                 List<TaskOperationFailure> exceptions) {
+        NodeTasksResponse(String nodeId, List<TaskResponse> results, List<TaskOperationFailure> exceptions) {
             this.nodeId = nodeId;
             this.results = results;
             this.exceptions = exceptions;

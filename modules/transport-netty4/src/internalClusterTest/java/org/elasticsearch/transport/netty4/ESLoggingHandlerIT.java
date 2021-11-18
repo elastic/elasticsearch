@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport.netty4;
@@ -56,34 +45,43 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
     }
 
     @TestLogging(
-            value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace",
-            reason = "to ensure we log network events on TRACE level")
+        value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace",
+        reason = "to ensure we log network events on TRACE level"
+    )
     public void testLoggingHandler() {
-        final String writePattern =
-                ".*\\[length: \\d+" +
-                        ", request id: \\d+" +
-                        ", type: request" +
-                        ", version: .*" +
-                        ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
-                        " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                        "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
+        final String writePattern = ".*\\[length: \\d+"
+            + ", request id: \\d+"
+            + ", type: request"
+            + ", version: .*"
+            + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
+            + " WRITE: \\d+B";
+        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+            "hot threads request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            writePattern
+        );
 
-        final MockLogAppender.LoggingExpectation flushExpectation =
-                new MockLogAppender.SeenEventExpectation("flush", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, "*FLUSH*");
+        final MockLogAppender.LoggingExpectation flushExpectation = new MockLogAppender.SeenEventExpectation(
+            "flush",
+            ESLoggingHandler.class.getCanonicalName(),
+            Level.TRACE,
+            "*FLUSH*"
+        );
 
-        final String readPattern =
-                ".*\\[length: \\d+" +
-                        ", request id: \\d+" +
-                        ", type: request" +
-                        ", version: .*" +
-                        ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
-                        " READ: \\d+B";
+        final String readPattern = ".*\\[length: \\d+"
+            + ", request id: \\d+"
+            + ", type: request"
+            + ", version: .*"
+            + ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]"
+            + " READ: \\d+B";
 
-        final MockLogAppender.LoggingExpectation readExpectation =
-                new MockLogAppender.PatternSeenEventExpectation(
-                        "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
+        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
+            "hot threads request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            readPattern
+        );
 
         appender.addExpectation(writeExpectation);
         appender.addExpectation(flushExpectation);
@@ -94,12 +92,22 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     @TestLogging(value = "org.elasticsearch.transport.TcpTransport:DEBUG", reason = "to ensure we log connection events on DEBUG level")
     public void testConnectionLogging() throws IOException {
-        appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation("open connection log",
-                TcpTransport.class.getCanonicalName(), Level.DEBUG,
-                ".*opened transport connection \\[[1-9][0-9]*\\] to .*"));
-        appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation("close connection log",
-                TcpTransport.class.getCanonicalName(), Level.DEBUG,
-                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"));
+        appender.addExpectation(
+            new MockLogAppender.PatternSeenEventExpectation(
+                "open connection log",
+                TcpTransport.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*opened transport connection \\[[1-9][0-9]*\\] to .*"
+            )
+        );
+        appender.addExpectation(
+            new MockLogAppender.PatternSeenEventExpectation(
+                "close connection log",
+                TcpTransport.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"
+            )
+        );
 
         final String nodeName = internalCluster().startNode();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeName));

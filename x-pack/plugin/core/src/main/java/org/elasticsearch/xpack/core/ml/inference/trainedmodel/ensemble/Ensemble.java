@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
@@ -9,13 +10,13 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -32,7 +33,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
 
-
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ensemble.class);
@@ -40,8 +40,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     public static final ParseField NAME = new ParseField("ensemble");
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TRAINED_MODELS = new ParseField("trained_models");
-    public static final ParseField AGGREGATE_OUTPUT  = new ParseField("aggregate_output");
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
+    public static final ParseField AGGREGATE_OUTPUT = new ParseField("aggregate_output");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
     public static final ParseField CLASSIFICATION_WEIGHTS = new ParseField("classification_weights");
 
@@ -52,20 +51,25 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         ObjectParser<Ensemble.Builder, Void> parser = new ObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            Ensemble.Builder::builderForParser);
+            Ensemble.Builder::builderForParser
+        );
         parser.declareStringArray(Ensemble.Builder::setFeatureNames, FEATURE_NAMES);
-        parser.declareNamedObjects(Ensemble.Builder::setTrainedModels,
-            (p, c, n) ->
-                lenient ? p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
-                    p.namedObject(StrictlyParsedTrainedModel.class, n, null),
+        parser.declareNamedObjects(
+            Ensemble.Builder::setTrainedModels,
+            (p, c, n) -> lenient
+                ? p.namedObject(LenientlyParsedTrainedModel.class, n, null)
+                : p.namedObject(StrictlyParsedTrainedModel.class, n, null),
             (ensembleBuilder) -> ensembleBuilder.setModelsAreOrdered(true),
-            TRAINED_MODELS);
-        parser.declareNamedObject(Ensemble.Builder::setOutputAggregator,
-            (p, c, n) ->
-                lenient ? p.namedObject(LenientlyParsedOutputAggregator.class, n, null) :
-                    p.namedObject(StrictlyParsedOutputAggregator.class, n, null),
-            AGGREGATE_OUTPUT);
-        parser.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
+            TRAINED_MODELS
+        );
+        parser.declareNamedObject(
+            Ensemble.Builder::setOutputAggregator,
+            (p, c, n) -> lenient
+                ? p.namedObject(LenientlyParsedOutputAggregator.class, n, null)
+                : p.namedObject(StrictlyParsedOutputAggregator.class, n, null),
+            AGGREGATE_OUTPUT
+        );
+        parser.declareString(Ensemble.Builder::setTargetType, TargetType.TARGET_TYPE);
         parser.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         parser.declareDoubleArray(Ensemble.Builder::setClassificationWeights, CLASSIFICATION_WEIGHTS);
         return parser;
@@ -86,20 +90,22 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
 
-    Ensemble(List<String> featureNames,
-             List<TrainedModel> models,
-             OutputAggregator outputAggregator,
-             TargetType targetType,
-             @Nullable List<String> classificationLabels,
-             @Nullable double[] classificationWeights) {
+    Ensemble(
+        List<String> featureNames,
+        List<TrainedModel> models,
+        OutputAggregator outputAggregator,
+        TargetType targetType,
+        @Nullable List<String> classificationLabels,
+        @Nullable double[] classificationWeights
+    ) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
         this.models = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(models, TRAINED_MODELS));
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
-        this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
+        this.targetType = ExceptionsHelper.requireNonNull(targetType, TargetType.TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
-        this.classificationWeights = classificationWeights == null ?
-            null :
-            Arrays.copyOf(classificationWeights, classificationWeights.length);
+        this.classificationWeights = classificationWeights == null
+            ? null
+            : Arrays.copyOf(classificationWeights, classificationWeights.length);
     }
 
     public Ensemble(StreamInput in) throws IOException {
@@ -157,12 +163,14 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
         }
         NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
-        NamedXContentObjectHelper.writeNamedObjects(builder,
+        NamedXContentObjectHelper.writeNamedObjects(
+            builder,
             params,
             false,
             AGGREGATE_OUTPUT.getPreferredName(),
-            Collections.singletonList(outputAggregator));
-        builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
+            Collections.singletonList(outputAggregator)
+        );
+        builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType.toString());
         if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
@@ -188,12 +196,14 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public int hashCode() {
-        return Objects.hash(featureNames,
+        return Objects.hash(
+            featureNames,
             models,
             outputAggregator,
             targetType,
             classificationLabels,
-            Arrays.hashCode(classificationWeights));
+            Arrays.hashCode(classificationWeights)
+        );
     }
 
     @Override
@@ -209,21 +219,20 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 outputAggregator.getName()
             );
         }
-        if (outputAggregator.expectedValueSize() != null &&
-            outputAggregator.expectedValueSize() != models.size()) {
+        if (outputAggregator.expectedValueSize() != null && outputAggregator.expectedValueSize() != models.size()) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] expects value array of size [{}] but number of models is [{}]",
                 AGGREGATE_OUTPUT.getPreferredName(),
                 outputAggregator.expectedValueSize(),
-                models.size());
+                models.size()
+            );
         }
         if ((this.classificationLabels != null || this.classificationWeights != null) && (this.targetType != TargetType.CLASSIFICATION)) {
             throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_labels] or [classification_weights] are provided");
+                "[target_type] should be [classification] if [classification_labels] or [classification_weights] are provided"
+            );
         }
-        if (classificationWeights != null &&
-            classificationLabels != null &&
-            classificationWeights.length != classificationLabels.size()) {
+        if (classificationWeights != null && classificationLabels != null && classificationWeights.length != classificationLabels.size()) {
             throw ExceptionsHelper.badRequestException(
                 "[classification_weights] and [classification_labels] should be the same length if both are provided"
             );
@@ -236,7 +245,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         OptionalDouble avg = models.stream().mapToLong(TrainedModel::estimatedNumOperations).average();
         assert avg.isPresent() : "unexpected null when calculating number of operations";
         // Average operations for each model and the operations required for processing and aggregating with the outputAggregator
-        return (long)Math.ceil(avg.getAsDouble()) + 2 * (models.size() - 1);
+        return (long) Math.ceil(avg.getAsDouble()) + 2 * (models.size() - 1);
     }
 
     public static Builder builder() {

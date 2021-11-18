@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.systemd;
@@ -27,8 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -38,6 +26,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
@@ -98,7 +87,8 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        final Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         if (enabled == false) {
             extender.set(null);
             return List.of();
@@ -110,15 +100,12 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
          * Therefore, every fifteen seconds we send systemd a message via sd_notify to extend the timeout by thirty seconds. We will cancel
          * this scheduled task after we successfully notify systemd that we are ready.
          */
-        extender.set(threadPool.scheduleWithFixedDelay(
-            () -> {
-                final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
-                if (rc < 0) {
-                    logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
-                }
-            },
-            TimeValue.timeValueSeconds(15),
-            ThreadPool.Names.SAME));
+        extender.set(threadPool.scheduleWithFixedDelay(() -> {
+            final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
+            if (rc < 0) {
+                logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
+            }
+        }, TimeValue.timeValueSeconds(15), ThreadPool.Names.SAME));
         return List.of();
     }
 

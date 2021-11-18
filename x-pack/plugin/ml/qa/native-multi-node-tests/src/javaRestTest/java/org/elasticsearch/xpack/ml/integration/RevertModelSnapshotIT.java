@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
@@ -83,8 +84,13 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         long startTime = 1491004800000L;
 
-        String data = generateData(startTime, bucketSpan, 20, Arrays.asList("foo"),
-            (bucketIndex, series) -> bucketIndex == 19 ? 100.0 : 10.0).stream().collect(Collectors.joining());
+        String data = generateData(
+            startTime,
+            bucketSpan,
+            20,
+            Arrays.asList("foo"),
+            (bucketIndex, series) -> bucketIndex == 19 ? 100.0 : 10.0
+        ).stream().collect(Collectors.joining());
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
         openJob(job.getId());
@@ -124,8 +130,11 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime, bucketSpan, 10, Arrays.asList("foo"),
-                (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream()
+                .collect(Collectors.joining())
+        );
         flushJob(job.getId(), true);
         closeJob(job.getId());
 
@@ -140,8 +149,16 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo", "bar"),
-                (bucketIndex, series) -> 10.0).stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(
+                startTime + 10 * bucketSpan.getMillis(),
+                bucketSpan,
+                10,
+                Arrays.asList("foo", "bar"),
+                (bucketIndex, series) -> 10.0
+            ).stream().collect(Collectors.joining())
+        );
         closeJob(job.getId());
 
         ModelSizeStats modelSizeStats2 = getJobStats(job.getId()).get(0).getModelSizeStats();
@@ -181,7 +198,8 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
         assertThat(
             revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults).status(),
-            equalTo(RestStatus.OK));
+            equalTo(RestStatus.OK)
+        );
 
         GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
 
@@ -204,8 +222,16 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
         // Re-run 2nd half of data
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo", "bar"),
-                (bucketIndex, series) -> 10.0).stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(
+                startTime + 10 * bucketSpan.getMillis(),
+                bucketSpan,
+                10,
+                Arrays.asList("foo", "bar"),
+                (bucketIndex, series) -> 10.0
+            ).stream().collect(Collectors.joining())
+        );
         closeJob(job.getId());
 
         List<Bucket> finalPostRevertBuckets = getBuckets(job.getId());
@@ -224,13 +250,17 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);
-        registerJob(job);
         putJob(job);
         return job;
     }
 
-    private static List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount, List<String> series,
-                              BiFunction<Integer, String, Double> timeAndSeriesToValueFunction) throws IOException {
+    private static List<String> generateData(
+        long timestamp,
+        TimeValue bucketSpan,
+        int bucketCount,
+        List<String> series,
+        BiFunction<Integer, String, Double> timeAndSeriesToValueFunction
+    ) throws IOException {
         List<String> data = new ArrayList<>();
         long now = timestamp;
         for (int i = 0; i < bucketCount; i++) {
@@ -254,14 +284,17 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
     private Quantiles getQuantiles(String jobId) {
         SearchResponse response = client().prepareSearch(".ml-state*")
-                .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
-                .setSize(1)
-                .get();
+            .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
+            .setSize(1)
+            .get();
         SearchHits hits = response.getHits();
         assertThat(hits.getTotalHits().value, equalTo(1L));
         try {
-            XContentParser parser = JsonXContent.jsonXContent
-                    .createParser(null, LoggingDeprecationHandler.INSTANCE, hits.getAt(0).getSourceAsString());
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                null,
+                LoggingDeprecationHandler.INSTANCE,
+                hits.getAt(0).getSourceAsString()
+            );
             return Quantiles.LENIENT_PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -269,14 +302,12 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, Event event) throws IOException {
-        Annotation annotation = new Annotation.Builder(randomAnnotation(jobId))
-            .setTimestamp(Date.from(timestamp))
+        Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setTimestamp(Date.from(timestamp))
             .setCreateUsername(XPackUser.NAME)
             .setEvent(event)
             .build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
-                .source(xContentBuilder)
+            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }

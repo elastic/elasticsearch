@@ -35,7 +35,7 @@ filters during <<analysis-index-search-time,index and search analysis>>.
 
 Algorithmic stemmers apply a series of rules to each word to reduce it to its
 root form. For example, an algorithmic stemmer for English may remove the `-s`
-and `-es` prefixes from the end of plural words.
+and `-es` suffixes from the end of plural words.
 
 Algorithmic stemmers have a few advantages:
 

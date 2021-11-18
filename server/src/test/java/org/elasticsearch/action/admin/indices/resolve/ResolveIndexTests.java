@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -30,12 +19,11 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -51,7 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -62,23 +50,20 @@ public class ResolveIndexTests extends ESTestCase {
 
     private final Object[][] indices = new Object[][] {
         // name, isClosed, isHidden, isFrozen, dataStream, aliases
-        {"logs-pgsql-prod-20200101", false, false, true, null, new String[]{"logs-pgsql-prod"}},
-        {"logs-pgsql-prod-20200102", false, false, true, null, new String[]{"logs-pgsql-prod", "one-off-alias"}},
-        {"logs-pgsql-prod-20200103", false, false, false, null, new String[]{"logs-pgsql-prod"}},
-        {"logs-pgsql-test-20200101", true, false, false, null, new String[]{"logs-pgsql-test"}},
-        {"logs-pgsql-test-20200102", false, false, false, null, new String[]{"logs-pgsql-test"}},
-        {"logs-pgsql-test-20200103", false, false, false, null, new String[]{"logs-pgsql-test"}}
-    };
+        { "logs-pgsql-prod-20200101", false, false, true, null, new String[] { "logs-pgsql-prod" } },
+        { "logs-pgsql-prod-20200102", false, false, true, null, new String[] { "logs-pgsql-prod", "one-off-alias" } },
+        { "logs-pgsql-prod-20200103", false, false, false, null, new String[] { "logs-pgsql-prod" } },
+        { "logs-pgsql-test-20200101", true, false, false, null, new String[] { "logs-pgsql-test" } },
+        { "logs-pgsql-test-20200102", false, false, false, null, new String[] { "logs-pgsql-test" } },
+        { "logs-pgsql-test-20200103", false, false, false, null, new String[] { "logs-pgsql-test" } } };
 
-    private final Object[][] dataStreams = new Object[][]{
+    private final Object[][] dataStreams = new Object[][] {
         // name, timestampField, numBackingIndices
-        {"logs-mysql-prod", "@timestamp", 4},
-        {"logs-mysql-test", "@timestamp", 2}
-    };
+        { "logs-mysql-prod", "@timestamp", 4 },
+        { "logs-mysql-test", "@timestamp", 2 } };
 
     private Metadata metadata;
-    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(
-        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+    private final IndexAbstractionResolver resolver = new IndexAbstractionResolver(TestIndexNameExpressionResolver.newInstance());
 
     private long epochMillis;
     private String dateString;
@@ -91,7 +76,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     public void testResolveStarWithDefaultOptions() {
-        String[] names = new String[] {"*"};
+        String[] names = new String[] { "*" };
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -99,33 +84,30 @@ public class ResolveIndexTests extends ESTestCase {
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
-        validateIndices(indices,
+        validateIndices(
+            indices,
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
             "logs-pgsql-test-20200102",
-            "logs-pgsql-test-20200103");
+            "logs-pgsql-test-20200103"
+        );
 
-        validateAliases(aliases,
-            "logs-pgsql-prod",
-            "logs-pgsql-test",
-            "one-off-alias"
-            );
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test", "one-off-alias");
 
-        validateDataStreams(dataStreams,
-            "logs-mysql-prod",
-            "logs-mysql-test");
+        validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
     }
 
     public void testResolveStarWithAllOptions() {
-        String[] names = new String[]{"*"};
+        String[] names = new String[] { "*" };
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
-        validateIndices(indices,
+        validateIndices(
+            indices,
             ".ds-logs-mysql-prod-" + dateString + "-000001",
             ".ds-logs-mysql-prod-" + dateString + "-000002",
             ".ds-logs-mysql-prod-" + dateString + "-000003",
@@ -137,20 +119,16 @@ public class ResolveIndexTests extends ESTestCase {
             "logs-pgsql-prod-20200103",
             "logs-pgsql-test-20200101",
             "logs-pgsql-test-20200102",
-            "logs-pgsql-test-20200103");
+            "logs-pgsql-test-20200103"
+        );
 
-        validateAliases(aliases,
-            "logs-pgsql-prod",
-            "logs-pgsql-test",
-            "one-off-alias");
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test", "one-off-alias");
 
-        validateDataStreams(dataStreams,
-            "logs-mysql-prod",
-            "logs-mysql-test");
+        validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
     }
 
     public void testResolveWithPattern() {
-        String[] names = new String[] {"logs-pgsql*"};
+        String[] names = new String[] { "logs-pgsql*" };
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -158,24 +136,26 @@ public class ResolveIndexTests extends ESTestCase {
 
         TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
-        validateIndices(indices,
+        validateIndices(
+            indices,
             "logs-pgsql-prod-20200101",
             "logs-pgsql-prod-20200102",
             "logs-pgsql-prod-20200103",
             "logs-pgsql-test-20200102",
-            "logs-pgsql-test-20200103");
-
-        validateAliases(aliases,
-            "logs-pgsql-prod",
-            "logs-pgsql-test"
+            "logs-pgsql-test-20200103"
         );
+
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test");
 
         validateDataStreams(dataStreams, Strings.EMPTY_ARRAY);
     }
 
     public void testResolveWithMultipleNames() {
-        String[] names = new String[]{".ds-logs-mysql-prod-" + dateString + "-000003", "logs-pgsql-test-20200102", "one-off-alias",
-            "logs-mysql-test"};
+        String[] names = new String[] {
+            ".ds-logs-mysql-prod-" + dateString + "-000003",
+            "logs-pgsql-test-20200102",
+            "one-off-alias",
+            "logs-mysql-test" };
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
@@ -190,21 +170,33 @@ public class ResolveIndexTests extends ESTestCase {
     public void testResolvePreservesBackingIndexOrdering() {
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = "my-data-stream";
-        String[] names = {"not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3, epochMillis)};
+        String[] names = { "not-in-order-2", "not-in-order-1", DataStream.getDefaultBackingIndexName(dataStreamName, 3, epochMillis) };
         List<IndexMetadata> backingIndices = Arrays.stream(names).map(n -> createIndexMetadata(n, true)).collect(Collectors.toList());
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
         }
 
-        DataStream ds = new DataStream(dataStreamName, createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        DataStream ds = new DataStream(
+            dataStreamName,
+            createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        );
         builder.put(ds);
 
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
         List<ResolvedIndex> indices = new ArrayList<>();
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
-        TransportAction.resolveIndices(new String[]{"*"}, indicesOptions, builder.build(), resolver, indices, aliases, dataStreams, true);
+        TransportAction.resolveIndices(
+            new String[] { "*" },
+            indicesOptions,
+            builder.build(),
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            true
+        );
 
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getBackingIndices(), arrayContaining(names));
@@ -218,14 +210,19 @@ public class ResolveIndexTests extends ESTestCase {
         String tomorrowSuffix = dateFormatter.format(now.plus(Duration.ofDays(1L)));
         Object[][] indices = new Object[][] {
             // name, isClosed, isHidden, isFrozen, dataStream, aliases
-            {"logs-pgsql-prod-" + todaySuffix, false, true, false, null, Strings.EMPTY_ARRAY},
-            {"logs-pgsql-prod-" + tomorrowSuffix, false, true, false, null, Strings.EMPTY_ARRAY}
-        };
+            { "logs-pgsql-prod-" + todaySuffix, false, true, false, null, Strings.EMPTY_ARRAY },
+            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, null, Strings.EMPTY_ARRAY } };
         Metadata metadata = buildMetadata(new Object[][] {}, indices);
 
         String requestedIndex = "<logs-pgsql-prod-{now/d}>";
-        List<String> resolvedIndices = resolver.resolveIndexAbstractions(List.of(requestedIndex), IndicesOptions.LENIENT_EXPAND_OPEN,
-            metadata, List.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix), randomBoolean(), randomBoolean());
+        List<String> resolvedIndices = resolver.resolveIndexAbstractions(
+            List.of(requestedIndex),
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            metadata,
+            List.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix),
+            randomBoolean(),
+            randomBoolean()
+        );
         assertThat(resolvedIndices.size(), is(1));
         assertThat(resolvedIndices.get(0), oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix));
     }
@@ -300,12 +297,16 @@ public class ResolveIndexTests extends ESTestCase {
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
                 backingIndices.add(
-                    createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber, epochMillis), true));
+                    createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber, epochMillis), true)
+                );
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dataStreamName, createTimestampField(timestampField),
-                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+            DataStream ds = new DataStream(
+                dataStreamName,
+                createTimestampField(timestampField),
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            );
             builder.put(ds);
         }
 
@@ -365,8 +366,11 @@ public class ResolveIndexTests extends ESTestCase {
                 if (DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis).equals(indexName)) {
                     return new Object[] {
                         DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis),
-                        false, true, false, dataStreamName, Strings.EMPTY_ARRAY
-                    };
+                        false,
+                        true,
+                        false,
+                        dataStreamName,
+                        Strings.EMPTY_ARRAY };
                 }
             }
         }

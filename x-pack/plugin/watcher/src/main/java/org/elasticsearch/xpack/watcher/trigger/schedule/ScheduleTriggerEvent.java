@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 
@@ -29,8 +29,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
     public ScheduleTriggerEvent(String jobName, ZonedDateTime triggeredTime, ZonedDateTime scheduledTime) {
         super(jobName, triggeredTime);
         this.scheduledTime = scheduledTime;
-        data.put(Field.SCHEDULED_TIME.getPreferredName(),
-            new JodaCompatibleZonedDateTime(scheduledTime.toInstant(), ZoneOffset.UTC));
+        data.put(Field.SCHEDULED_TIME.getPreferredName(), ZonedDateTime.ofInstant(scheduledTime.toInstant(), ZoneOffset.UTC));
     }
 
     @Override
@@ -70,20 +69,36 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                 try {
                     triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, ZoneOffset.UTC, clock);
                 } catch (ElasticsearchParseException pe) {
-                    //Failed to parse as a date try datemath parsing
-                    throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " +
-                            "date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
+                    // Failed to parse as a date try datemath parsing
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " + "date field [{}]",
+                        pe,
+                        ScheduleTriggerEngine.TYPE,
+                        context,
+                        watchId,
+                        currentFieldName
+                    );
                 }
-            }  else if (Field.SCHEDULED_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+            } else if (Field.SCHEDULED_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, ZoneOffset.UTC, clock);
                 } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " +
-                            "date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " + "date field [{}]",
+                        pe,
+                        ScheduleTriggerEngine.TYPE,
+                        context,
+                        watchId,
+                        currentFieldName
+                    );
                 }
-            }else {
-                throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. unexpected token [{}]",
-                        context, watchId, token);
+            } else {
+                throw new ElasticsearchParseException(
+                    "could not parse trigger event for [{}] for watch [{}]. unexpected token [{}]",
+                    context,
+                    watchId,
+                    token
+                );
             }
         }
 

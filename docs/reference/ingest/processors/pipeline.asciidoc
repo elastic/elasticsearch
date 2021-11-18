@@ -11,7 +11,7 @@ Executes another pipeline.
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<accessing-template-fields,template snippets>>.
+| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<template-snippets,template snippets>>.
 include::common-options.asciidoc[]
 |======
 
@@ -98,7 +98,7 @@ Response from the index request:
     "failed": 0
   },
   "_seq_no": 66,
-  "_primary_term": 1,
+  "_primary_term": 1
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]

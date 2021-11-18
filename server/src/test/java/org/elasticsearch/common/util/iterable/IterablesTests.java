@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.iterable;
@@ -38,26 +27,25 @@ public class IterablesTests extends ESTestCase {
     }
 
     public void testGetOverIterable() {
-        Iterable<String> iterable = () ->
-                new Iterator<String>() {
-                    private int position = 0;
+        Iterable<String> iterable = () -> new Iterator<String>() {
+            private int position = 0;
 
-                    @Override
-                    public boolean hasNext() {
-                        return position < 3;
-                    }
+            @Override
+            public boolean hasNext() {
+                return position < 3;
+            }
 
-                    @Override
-                    public String next() {
-                        if (position < 3) {
-                            String s = position == 0 ? "a" : position == 1 ? "b" : "c";
-                            position++;
-                            return s;
-                        } else {
-                            throw new NoSuchElementException();
-                        }
-                    }
-                };
+            @Override
+            public String next() {
+                if (position < 3) {
+                    String s = position == 0 ? "a" : position == 1 ? "b" : "c";
+                    position++;
+                    return s;
+                } else {
+                    throw new NoSuchElementException();
+                }
+            }
+        };
         test(iterable);
     }
 
@@ -67,7 +55,8 @@ public class IterablesTests extends ESTestCase {
 
         Iterable<Integer> allInts = Iterables.flatten(list);
         int count = 0;
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(0, count);
@@ -76,14 +65,16 @@ public class IterablesTests extends ESTestCase {
 
         // changes to the outer list are not seen since flatten pre-caches outer list on init:
         count = 0;
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(0, count);
 
         // but changes to the original inner lists are seen:
         list.get(0).add(0);
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(1, count);

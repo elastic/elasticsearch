@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.shards;
 
@@ -37,24 +26,32 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope= Scope.SUITE, numDataNodes = 2)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
 public class ClusterSearchShardsIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        switch(nodeOrdinal % 2) {
-        case 1:
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("node.attr.tag", "B").build();
-        case 0:
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("node.attr.tag", "A").build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        switch (nodeOrdinal % 2) {
+            case 1:
+                return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "B").build();
+            case 0:
+                return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "A").build();
         }
-        return super.nodeSettings(nodeOrdinal);
+        return super.nodeSettings(nodeOrdinal, otherSettings);
     }
 
     public void testSingleShardAllocation() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put("index.number_of_shards", "1").put("index.number_of_replicas", 0)
-            .put("index.routing.allocation.include.tag", "A")).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", "1")
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.include.tag", "A")
+            )
+            .execute()
+            .actionGet();
         ensureGreen();
         ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
@@ -75,9 +72,17 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testMultipleShardsSingleNodeAllocation() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put("index.number_of_shards", "4").put("index.number_of_replicas", 0)
-            .put("index.routing.allocation.include.tag", "A")).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", "4")
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.include.tag", "A")
+            )
+            .execute()
+            .actionGet();
         ensureGreen();
 
         ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
@@ -95,14 +100,24 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testMultipleIndicesAllocation() throws Exception {
-        client().admin().indices().prepareCreate("test1").setSettings(Settings.builder()
-                .put("index.number_of_shards", "4").put("index.number_of_replicas", 1)).execute().actionGet();
-        client().admin().indices().prepareCreate("test2").setSettings(Settings.builder()
-                .put("index.number_of_shards", "4").put("index.number_of_replicas", 1)).execute().actionGet();
-        client().admin().indices().prepareAliases()
-                .addAliasAction(AliasActions.add().index("test1").alias("routing_alias").routing("ABC"))
-                .addAliasAction(AliasActions.add().index("test2").alias("routing_alias").routing("EFG"))
-                .get();
+        client().admin()
+            .indices()
+            .prepareCreate("test1")
+            .setSettings(Settings.builder().put("index.number_of_shards", "4").put("index.number_of_replicas", 1))
+            .execute()
+            .actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test2")
+            .setSettings(Settings.builder().put("index.number_of_shards", "4").put("index.number_of_replicas", 1))
+            .execute()
+            .actionGet();
+        client().admin()
+            .indices()
+            .prepareAliases()
+            .addAliasAction(AliasActions.add().index("test1").alias("routing_alias").routing("ABC"))
+            .addAliasAction(AliasActions.add().index("test2").alias("routing_alias").routing("EFG"))
+            .get();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("routing_alias").execute().actionGet();
@@ -139,8 +154,12 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         ensureGreen("test-blocks");
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY,
-            SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
                 ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test-blocks").execute().actionGet();

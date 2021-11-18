@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -16,20 +17,19 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.contains;
-
 
 public class NGramTests extends PreProcessingTests<NGram> {
 
     @Override
     protected NGram doParseInstance(XContentParser parser) throws IOException {
-        return lenient ?
-            NGram.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
-            NGram.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
+        return lenient
+            ? NGram.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT)
+            : NGram.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
@@ -49,7 +49,8 @@ public class NGramTests extends PreProcessingTests<NGram> {
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean() ? null : possibleLength,
             isCustom,
-            randomBoolean() ? null : randomAlphaOfLength(10));
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
     }
 
     @Override
@@ -60,7 +61,7 @@ public class NGramTests extends PreProcessingTests<NGram> {
     public void testProcessNGramPrefix() {
         String field = "text";
         String fieldValue = "this is the value";
-        NGram encoding = new NGram(field, "f", new int[]{1, 4}, 0, 5, false);
+        NGram encoding = new NGram(field, "f", new int[] { 1, 4 }, 0, 5, false);
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
 
         Map<String, Matcher<? super Object>> matchers = new HashMap<>();
@@ -78,7 +79,7 @@ public class NGramTests extends PreProcessingTests<NGram> {
         String field = "text";
         String fieldValue = "this is the value";
 
-        NGram encoding = new NGram(field, "f", new int[]{1, 3}, -3, 3, false);
+        NGram encoding = new NGram(field, "f", new int[] { 1, 3 }, -3, 3, false);
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
         Map<String, Matcher<? super Object>> matchers = new HashMap<>();
         matchers.put("f.10", equalTo("l"));
@@ -93,7 +94,7 @@ public class NGramTests extends PreProcessingTests<NGram> {
         String field = "text";
         String fieldValue = "this is the value";
 
-        NGram encoding = new NGram(field, "f", new int[]{1, 3}, 3, 3, false);
+        NGram encoding = new NGram(field, "f", new int[] { 1, 3 }, 3, 3, false);
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
         Map<String, Matcher<? super Object>> matchers = new HashMap<>();
         matchers.put("f.10", equalTo("s"));
@@ -108,7 +109,7 @@ public class NGramTests extends PreProcessingTests<NGram> {
         String field = "text";
         String fieldValue = "this is the value";
 
-        NGram encoding = new NGram(field, "f", new int[]{1, 3}, 12, 10, false);
+        NGram encoding = new NGram(field, "f", new int[] { 1, 3 }, 12, 10, false);
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
         Map<String, Matcher<? super Object>> matchers = new HashMap<>();
         matchers.put("f.10", equalTo("v"));
@@ -124,22 +125,16 @@ public class NGramTests extends PreProcessingTests<NGram> {
 
     public void testInputOutputFields() {
         String field = randomAlphaOfLength(10);
-        NGram encoding = new NGram(field, "f", new int[]{1, 4}, 0, 5, false);
+        NGram encoding = new NGram(field, "f", new int[] { 1, 4 }, 0, 5, false);
         assertThat(encoding.inputFields(), containsInAnyOrder(field));
-        assertThat(encoding.outputFields(),
-            contains("f.10", "f.11","f.12","f.13","f.14","f.40", "f.41"));
+        assertThat(encoding.outputFields(), contains("f.10", "f.11", "f.12", "f.13", "f.14", "f.40", "f.41"));
 
         encoding = new NGram(field, Arrays.asList(1, 4), 0, 5, false, null);
         assertThat(encoding.inputFields(), containsInAnyOrder(field));
-        assertThat(encoding.outputFields(),
-            contains(
-                "ngram_0_5.10",
-                "ngram_0_5.11",
-                "ngram_0_5.12",
-                "ngram_0_5.13",
-                "ngram_0_5.14",
-                "ngram_0_5.40",
-                "ngram_0_5.41"));
+        assertThat(
+            encoding.outputFields(),
+            contains("ngram_0_5.10", "ngram_0_5.11", "ngram_0_5.12", "ngram_0_5.13", "ngram_0_5.14", "ngram_0_5.40", "ngram_0_5.41")
+        );
     }
 
 }

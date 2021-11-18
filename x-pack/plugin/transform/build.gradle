@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'transform'
@@ -9,11 +9,14 @@ esplugin {
 
 dependencies {
   compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
 
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
   testImplementation project(path: ':modules:aggs-matrix-stats')
+  testImplementation project(path: xpackModule('spatial'))
+
+  internalClusterTestImplementation project(":modules:reindex")
 }
 
 addQaCheckDependencies()

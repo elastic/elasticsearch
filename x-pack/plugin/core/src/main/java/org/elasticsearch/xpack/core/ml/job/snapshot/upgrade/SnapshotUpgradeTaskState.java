@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -32,9 +33,11 @@ public class SnapshotUpgradeTaskState implements PersistentTaskState {
     private final long allocationId;
     private final String reason;
 
-    private static final ConstructingObjectParser<SnapshotUpgradeTaskState, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true,
-            a -> new SnapshotUpgradeTaskState((SnapshotUpgradeState) a[0], (long) a[1], (String) a[2]));
+    private static final ConstructingObjectParser<SnapshotUpgradeTaskState, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        a -> new SnapshotUpgradeTaskState((SnapshotUpgradeState) a[0], (long) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SnapshotUpgradeState::fromString, STATE);
@@ -100,9 +103,7 @@ public class SnapshotUpgradeTaskState implements PersistentTaskState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotUpgradeTaskState that = (SnapshotUpgradeTaskState) o;
-        return allocationId == that.allocationId &&
-            state == that.state &&
-            Objects.equals(reason, that.reason);
+        return allocationId == that.allocationId && state == that.state && Objects.equals(reason, that.reason);
     }
 
     @Override

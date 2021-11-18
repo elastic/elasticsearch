@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -38,8 +39,7 @@ public final class GrantApiKeyRequest extends ActionRequest {
         private SecureString password;
         private SecureString accessToken;
 
-        public Grant() {
-        }
+        public Grant() {}
 
         public Grant(StreamInput in) throws IOException {
             this.type = in.readString();
@@ -148,16 +148,22 @@ public final class GrantApiKeyRequest extends ActionRequest {
         return validationException;
     }
 
-    private ActionRequestValidationException validateRequiredField(String fieldName, CharSequence fieldValue,
-                                                                   ActionRequestValidationException validationException) {
+    private ActionRequestValidationException validateRequiredField(
+        String fieldName,
+        CharSequence fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue == null || fieldValue.length() == 0) {
             return addValidationError("[" + fieldName + "] is required for grant_type [" + grant.type + "]", validationException);
         }
         return validationException;
     }
 
-    private ActionRequestValidationException validateUnsupportedField(String fieldName, CharSequence fieldValue,
-                                                                      ActionRequestValidationException validationException) {
+    private ActionRequestValidationException validateUnsupportedField(
+        String fieldName,
+        CharSequence fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue != null && fieldValue.length() > 0) {
             return addValidationError("[" + fieldName + "] is not supported for grant_type [" + grant.type + "]", validationException);
         }

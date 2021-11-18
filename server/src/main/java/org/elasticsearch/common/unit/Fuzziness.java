@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -65,11 +54,14 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
      */
     public static Fuzziness fromEdits(int edits) {
         switch (edits) {
-        case 0: return Fuzziness.ZERO;
-        case 1: return Fuzziness.ONE;
-        case 2: return Fuzziness.TWO;
-        default:
-            throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + edits + "]");
+            case 0:
+                return Fuzziness.ZERO;
+            case 1:
+                return Fuzziness.ONE;
+            case 2:
+                return Fuzziness.TWO;
+            default:
+                throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + edits + "]");
         }
     }
 
@@ -142,8 +134,10 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
                 int highLimit = Integer.parseInt(fuzzinessLimit[1]);
                 if (lowerLimit < 0 || highLimit < 0 || lowerLimit > highLimit) {
-                    throw new ElasticsearchParseException("fuzziness wrongly configured [{}]. Must be 0 < lower value <= higher value.",
-                            fuzzinessString);
+                    throw new ElasticsearchParseException(
+                        "fuzziness wrongly configured [{}]. Must be 0 < lower value <= higher value.",
+                        fuzzinessString
+                    );
                 }
                 Fuzziness fuzziness = new Fuzziness("AUTO");
                 fuzziness.lowDistance = lowerLimit;
@@ -180,7 +174,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     public int asDistance(String text) {
-        if (this.equals(AUTO) || isAutoWithCustomValues()) { //AUTO
+        if (this.equals(AUTO) || isAutoWithCustomValues()) { // AUTO
             final int len = termLen(text);
             if (len < lowDistance) {
                 return 0;
@@ -212,8 +206,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     private boolean isAutoWithCustomValues() {
-        return fuzziness.equals("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE ||
-            highDistance != DEFAULT_HIGH_DISTANCE);
+        return fuzziness.equals("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE || highDistance != DEFAULT_HIGH_DISTANCE);
     }
 
     @Override
@@ -225,9 +218,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
             return false;
         }
         Fuzziness other = (Fuzziness) obj;
-        return Objects.equals(fuzziness, other.fuzziness) &&
-                lowDistance == other.lowDistance &&
-                highDistance == other.highDistance;
+        return Objects.equals(fuzziness, other.fuzziness) && lowDistance == other.lowDistance && highDistance == other.highDistance;
     }
 
     @Override

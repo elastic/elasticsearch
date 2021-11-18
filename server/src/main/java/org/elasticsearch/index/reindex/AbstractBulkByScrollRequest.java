@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -26,7 +15,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -37,8 +26,8 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
 
@@ -161,9 +150,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
         if (false == (maxDocs == -1 || maxDocs > 0)) {
             e = addValidationError(
-                    "maxDocs should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was ["
-                            + maxDocs + "]",
-                    e);
+                "maxDocs should be greater than 0 if the request is limited to some number of documents or -1 if it isn't but it was ["
+                    + maxDocs
+                    + "]",
+                e
+            );
         }
         if (searchRequest.source().slice() != null && slices != DEFAULT_SLICES) {
             e = addValidationError("can't specify both manual and automatic slicing at the same time", e);
@@ -214,14 +205,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     public void setConflicts(String conflicts) {
         switch (conflicts) {
-        case "proceed":
-            setAbortOnVersionConflict(false);
-            return;
-        case "abort":
-            setAbortOnVersionConflict(true);
-            return;
-        default:
-            throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
+            case "proceed":
+                setAbortOnVersionConflict(false);
+                return;
+            case "abort":
+                setAbortOnVersionConflict(true);
+                return;
+            default:
+                throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
         }
     }
 
@@ -342,7 +333,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public Self setRequestsPerSecond(float requestsPerSecond) {
         if (requestsPerSecond <= 0) {
             throw new IllegalArgumentException(
-                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+                "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling."
+            );
         }
         this.requestsPerSecond = requestsPerSecond;
         return self();
@@ -408,14 +400,18 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             throw new IllegalArgumentException("Number of total slices must be at least 1 but was [" + totalSlices + "]");
         }
 
-        request.setAbortOnVersionConflict(abortOnVersionConflict).setRefresh(refresh).setTimeout(timeout)
-                .setWaitForActiveShards(activeShardCount).setRetryBackoffInitialTime(retryBackoffInitialTime).setMaxRetries(maxRetries)
-                // Parent task will store result
-                .setShouldStoreResult(false)
-                // Split requests per second between all slices
-                .setRequestsPerSecond(requestsPerSecond / totalSlices)
-                // Sub requests don't have workers
-                .setSlices(1);
+        request.setAbortOnVersionConflict(abortOnVersionConflict)
+            .setRefresh(refresh)
+            .setTimeout(timeout)
+            .setWaitForActiveShards(activeShardCount)
+            .setRetryBackoffInitialTime(retryBackoffInitialTime)
+            .setMaxRetries(maxRetries)
+            // Parent task will store result
+            .setShouldStoreResult(false)
+            // Split requests per second between all slices
+            .setRequestsPerSecond(requestsPerSecond / totalSlices)
+            // Sub requests don't have workers
+            .setSlices(1);
         if (maxDocs != MAX_DOCS_ALL_MATCHES) {
             // maxDocs is split between workers. This means the maxDocs might round
             // down!

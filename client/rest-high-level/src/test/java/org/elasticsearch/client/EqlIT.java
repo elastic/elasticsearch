@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -43,11 +32,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@SuppressWarnings("removal")
 public class EqlIT extends ESRestHighLevelClientTestCase {
 
     private static final String INDEX_NAME = "index";
@@ -65,8 +55,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < RECORD_COUNT; i++) {
             final IndexRequest indexRequest = new IndexRequest(INDEX_NAME);
-            indexRequest.source(jsonBuilder()
-                    .startObject()
+            indexRequest.source(
+                jsonBuilder().startObject()
                     .field("event_subtype_full", "already_running")
                     .startObject("event")
                     .field("category", "process")
@@ -80,7 +70,8 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
                     .field("subtype", "create")
                     .field("@timestamp", String.format(Locale.ROOT, "2018-01-01T00:00:%02dZ", i))
                     .field("unique_pid", ((i % DIVIDER) == 0) ? 101 : 0)
-                    .endObject());
+                    .endObject()
+            );
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -139,8 +130,10 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
     public void testEqualsInFilterConditionSearch() throws Exception {
         EqlClient eql = highLevelClient().eql();
 
-        EqlSearchRequest request = new EqlSearchRequest("index",
-                "process where event_type_full == \"process_event\" and serial_event_id in (1,3,5)");
+        EqlSearchRequest request = new EqlSearchRequest(
+            "index",
+            "process where event_type_full == \"process_event\" and serial_event_id in (1,3,5)"
+        );
 
         EqlSearchResponse response = execute(request, eql::search, eql::searchAsync);
         assertResponse(response, 3);
@@ -177,7 +170,6 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
 
         client().performRequest(doc1);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
-
 
         EqlClient eql = highLevelClient().eql();
         EqlSearchRequest request = new EqlSearchRequest(index, "process where true");

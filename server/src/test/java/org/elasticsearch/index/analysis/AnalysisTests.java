@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
@@ -50,7 +39,7 @@ public class AnalysisTests extends ESTestCase {
         assertThat(set.contains("baz"), is(false));
 
         /* Array */
-        settings = Settings.builder().putList("stem_exclusion", "foo","bar").build();
+        settings = Settings.builder().putList("stem_exclusion", "foo", "bar").build();
         set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         assertThat(set.contains("foo"), is(true));
         assertThat(set.contains("bar"), is(true));
@@ -61,41 +50,49 @@ public class AnalysisTests extends ESTestCase {
         Path tempDir = createTempDir();
         Settings nodeSettings = Settings.builder()
             .put("foo.bar_path", tempDir.resolve("foo.dict"))
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .build();
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Analysis.getWordList(env, nodeSettings, "foo.bar"));
-        assertEquals("IOException while reading foo.bar_path: " +  tempDir.resolve("foo.dict").toString(), ex.getMessage());
-        assertTrue(ex.getCause().toString(), ex.getCause() instanceof FileNotFoundException
-            || ex.getCause() instanceof NoSuchFileException);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Analysis.getWordList(env, nodeSettings, "foo.bar")
+        );
+        assertEquals("IOException while reading foo.bar_path: " + tempDir.resolve("foo.dict").toString(), ex.getMessage());
+        assertTrue(
+            ex.getCause().toString(),
+            ex.getCause() instanceof FileNotFoundException || ex.getCause() instanceof NoSuchFileException
+        );
     }
-
 
     public void testParseFalseEncodedFile() throws IOException {
         Path tempDir = createTempDir();
         Path dict = tempDir.resolve("foo.dict");
-        Settings nodeSettings = Settings.builder()
-            .put("foo.bar_path", dict)
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
         try (OutputStream writer = Files.newOutputStream(dict)) {
-            writer.write(new byte[]{(byte) 0xff, 0x00, 0x00}); // some invalid UTF-8
+            writer.write(new byte[] { (byte) 0xff, 0x00, 0x00 }); // some invalid UTF-8
             writer.write('\n');
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Analysis.getWordList(env, nodeSettings, "foo.bar"));
-        assertEquals("Unsupported character encoding detected while reading foo.bar_path: " + tempDir.resolve("foo.dict").toString()
-            + " - files must be UTF-8 encoded" , ex.getMessage());
-        assertTrue(ex.getCause().toString(), ex.getCause() instanceof MalformedInputException
-            || ex.getCause() instanceof CharacterCodingException);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Analysis.getWordList(env, nodeSettings, "foo.bar")
+        );
+        assertEquals(
+            "Unsupported character encoding detected while reading foo.bar_path: "
+                + tempDir.resolve("foo.dict").toString()
+                + " - files must be UTF-8 encoded",
+            ex.getMessage()
+        );
+        assertTrue(
+            ex.getCause().toString(),
+            ex.getCause() instanceof MalformedInputException || ex.getCause() instanceof CharacterCodingException
+        );
     }
 
     public void testParseWordList() throws IOException {
         Path tempDir = createTempDir();
         Path dict = tempDir.resolve("foo.dict");
-        Settings nodeSettings = Settings.builder()
-            .put("foo.bar_path", dict)
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
         try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
             writer.write("hello");
             writer.write('\n');
@@ -105,6 +102,5 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
-
     }
 }

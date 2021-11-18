@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch;
@@ -29,8 +18,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -38,6 +25,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,8 +39,8 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
@@ -64,33 +53,43 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping(
-                        jsonBuilder()
-                                .startObject().startObject("_doc")
-                                .startObject("properties")
-                                .startObject("test")
-                                .field("type", "text").field("term_vector", "yes")
-                                .endObject()
-                                .endObject()
-                                .endObject().endObject()).get();
+            .indices()
+            .prepareCreate("test")
+            .setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("test")
+                    .field("type", "text")
+                    .field("term_vector", "yes")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
 
-        client().index(
-                indexRequest("test").id("1")
-                        .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())).actionGet();
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
+            .actionGet();
 
         client().admin().indices().prepareRefresh().get();
 
-         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder()
-                 .ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))).get();
+        SearchResponse response = client().prepareSearch()
+            .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
+            .get();
         assertSearchResponse(response);
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
-                equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
-                equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
-                equalTo(1));
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
+            equalTo(2)
+        );
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
+            equalTo(2)
+        );
+        assertThat(
+            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
+            equalTo(1)
+        );
     }
 
     public static class FetchTermVectorsPlugin extends Plugin implements SearchPlugin {
@@ -101,8 +100,9 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         @Override
         public List<SearchExtSpec<?>> getSearchExts() {
-            return Collections.singletonList(new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME,
-                    TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent));
+            return Collections.singletonList(
+                new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME, TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent)
+            );
         }
     }
 
@@ -125,7 +125,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
 
         private void hitExecute(FetchContext context, HitContext hitContext) throws IOException {
-            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
+            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder) context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;
             }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.indices;
 
@@ -24,15 +13,15 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,8 +36,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CloseIndexResponseTests extends
-    AbstractResponseTestCase<org.elasticsearch.action.admin.indices.close.CloseIndexResponse, CloseIndexResponse> {
+public class CloseIndexResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.admin.indices.close.CloseIndexResponse,
+    CloseIndexResponse> {
 
     @Override
     protected org.elasticsearch.action.admin.indices.close.CloseIndexResponse createServerTestInstance(XContentType xContentType) {
@@ -100,15 +90,18 @@ public class CloseIndexResponseTests extends
     }
 
     @Override
-    protected void assertInstances(final org.elasticsearch.action.admin.indices.close.CloseIndexResponse serverInstance,
-                                   final CloseIndexResponse clientInstance) {
+    protected void assertInstances(
+        final org.elasticsearch.action.admin.indices.close.CloseIndexResponse serverInstance,
+        final CloseIndexResponse clientInstance
+    ) {
         assertNotSame(serverInstance, clientInstance);
         assertThat(clientInstance.isAcknowledged(), equalTo(serverInstance.isAcknowledged()));
         assertThat(clientInstance.isShardsAcknowledged(), equalTo(serverInstance.isShardsAcknowledged()));
 
         assertThat(clientInstance.getIndices(), hasSize(serverInstance.getIndices().size()));
         serverInstance.getIndices().forEach(expectedIndexResult -> {
-            List<CloseIndexResponse.IndexResult> actualIndexResults = clientInstance.getIndices().stream()
+            List<CloseIndexResponse.IndexResult> actualIndexResults = clientInstance.getIndices()
+                .stream()
                 .filter(result -> result.getIndex().equals(expectedIndexResult.getIndex().getName()))
                 .collect(Collectors.toList());
             assertThat(actualIndexResults, hasSize(1));
@@ -129,10 +122,11 @@ public class CloseIndexResponseTests extends
             if (expectedIndexResult.getShards() != null) {
                 assertThat(actualIndexResult.getException(), nullValue());
 
-                List<org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult> failedShardResults =
-                    Arrays.stream(expectedIndexResult.getShards())
-                        .filter(org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult::hasFailures)
-                        .collect(Collectors.toList());
+                List<org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult> failedShardResults = Arrays.stream(
+                    expectedIndexResult.getShards()
+                )
+                    .filter(org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult::hasFailures)
+                    .collect(Collectors.toList());
 
                 if (failedShardResults.isEmpty()) {
                     assertThat(actualIndexResult.hasFailures(), is(false));
@@ -180,7 +174,8 @@ public class CloseIndexResponseTests extends
             final XContentParser parser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
-                bytes.streamInput());
+                bytes.streamInput()
+            );
 
             final CloseIndexResponse actual = doParseToClientInstance(parser);
             assertThat(actual, notNullValue());
@@ -199,7 +194,8 @@ public class CloseIndexResponseTests extends
             final XContentParser parser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
-                bytes.streamInput());
+                bytes.streamInput()
+            );
 
             final CloseIndexResponse actual = doParseToClientInstance(parser);
             assertThat(actual, notNullValue());
@@ -209,13 +205,17 @@ public class CloseIndexResponseTests extends
         }
     }
 
-    private org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure newFailure(final String indexName,
-                                                                                                           final int shard,
-                                                                                                           final String nodeId) {
-        Exception exception = randomFrom(new IndexNotFoundException(indexName),
+    private org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure newFailure(
+        final String indexName,
+        final int shard,
+        final String nodeId
+    ) {
+        Exception exception = randomFrom(
+            new IndexNotFoundException(indexName),
             new ActionNotFoundTransportException("test"),
             new IOException("boom", new NullPointerException()),
-            new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS));
+            new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS)
+        );
         return new org.elasticsearch.action.admin.indices.close.CloseIndexResponse.ShardResult.Failure(indexName, shard, exception, nodeId);
     }
 }

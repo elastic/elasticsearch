@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
@@ -42,11 +43,16 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
     protected void doExecute(Task task, DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(Watch.INDEX, request.getId());
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, deleteRequest,
-                ActionListener.<DeleteResponse>wrap(deleteResponse -> {
-                    boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                    DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
-                    listener.onResponse(response);
-                }, listener::onFailure), client::delete);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            WATCHER_ORIGIN,
+            deleteRequest,
+            ActionListener.<DeleteResponse>wrap(deleteResponse -> {
+                boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+                DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
+                listener.onResponse(response);
+            }, listener::onFailure),
+            client::delete
+        );
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
@@ -17,8 +18,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -62,8 +63,10 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         when(client.nextPage("my_cursor2")).thenReturn(fakeResponse("", false, "third"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("     field     \n---------------\nfirst          \nsecond         \nthird          \n<flush/>",
-                testTerminal.toString());
+        assertEquals(
+            "     field     \n---------------\nfirst          \nsecond         \nthird          \n<flush/>",
+            testTerminal.toString()
+        );
         verify(client, times(1)).basicQuery(eq("test query"), eq(10));
         verify(client, times(2)).nextPage(any());
         verifyNoMoreInteractions(client);
@@ -80,8 +83,7 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         when(client.nextPage("my_cursor1")).thenReturn(fakeResponse("", false, "second"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("     field     \n---------------\nfirst          \n-----\nsecond         \n<flush/>",
-                testTerminal.toString());
+        assertEquals("     field     \n---------------\nfirst          \n-----\nsecond         \n<flush/>", testTerminal.toString());
         verify(client, times(1)).basicQuery(eq("test query"), eq(15));
         verify(client, times(1)).nextPage(any());
         verifyNoMoreInteractions(client);
@@ -97,8 +99,10 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         when(client.queryClose("my_cursor1", Mode.CLI)).thenReturn(true);
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("     field     \n---------------\nfirst          \n" +
-                "<b>Bad request [</b><i>test exception</i><b>]</b>\n", testTerminal.toString());
+        assertEquals(
+            "     field     \n---------------\nfirst          \n" + "<b>Bad request [</b><i>test exception</i><b>]</b>\n",
+            testTerminal.toString()
+        );
         verify(client, times(1)).basicQuery(eq("test query"), eq(15));
         verify(client, times(1)).nextPage(any());
         verify(client, times(1)).queryClose(eq("my_cursor1"), eq(Mode.CLI));

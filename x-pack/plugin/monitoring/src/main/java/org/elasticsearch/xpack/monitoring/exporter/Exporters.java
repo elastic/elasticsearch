@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -22,10 +23,10 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
 import java.util.ArrayList;
@@ -52,9 +53,14 @@ public class Exporters extends AbstractLifecycleComponent {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
 
-    public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
-                     ClusterService clusterService, XPackLicenseState licenseState,
-                     ThreadContext threadContext, SSLService sslService) {
+    public Exporters(
+        Settings settings,
+        Map<String, Exporter.Factory> factories,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        ThreadContext threadContext,
+        SSLService sslService
+    ) {
         this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
@@ -63,8 +69,9 @@ public class Exporters extends AbstractLifecycleComponent {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
 
-        final List<Setting.AffixSetting<?>> dynamicSettings =
-            getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
+        final List<Setting.AffixSetting<?>> dynamicSettings = getSettings().stream()
+            .filter(Setting::isDynamic)
+            .collect(Collectors.toList());
         final List<Setting<?>> updateSettings = new ArrayList<Setting<?>>(dynamicSettings);
         updateSettings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, updateSettings);
@@ -107,8 +114,7 @@ public class Exporters extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     public Exporter getExporter(String name) {
         return exporters.get().get(name);
@@ -172,7 +178,7 @@ public class Exporters extends AbstractLifecycleComponent {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
             Exporter.Config config = new Exporter.Config(name, type, settings, clusterService, licenseState);
-            if (!config.enabled()) {
+            if (config.enabled() == false) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
                     logger.debug("exporter [{}/{}] is disabled", type, name);
@@ -185,8 +191,9 @@ public class Exporters extends AbstractLifecycleComponent {
                 // this is a singleton exporter, let's make sure we didn't already create one
                 // (there can only be one instance of a singleton exporter)
                 if (singletons.contains(type)) {
-                    throw new SettingsException("multiple [" + type + "] exporters are configured. there can " +
-                            "only be one [" + type + "] exporter configured");
+                    throw new SettingsException(
+                        "multiple [" + type + "] exporters are configured. there can " + "only be one [" + type + "] exporter configured"
+                    );
                 }
                 singletons.add(type);
             }
@@ -195,12 +202,17 @@ public class Exporters extends AbstractLifecycleComponent {
 
         // no exporters are configured, lets create a default local one.
         //
-        // NOTE:    if there are exporters configured and they're all disabled, we don't
-        //          fallback on the default
+        // NOTE: if there are exporters configured and they're all disabled, we don't
+        // fallback on the default
         //
-        if (exporters.isEmpty() && !hasDisabled) {
-            Exporter.Config config =
-                    new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, clusterService, licenseState);
+        if (exporters.isEmpty() && hasDisabled == false) {
+            Exporter.Config config = new Exporter.Config(
+                "default_" + LocalExporter.TYPE,
+                LocalExporter.TYPE,
+                settings,
+                clusterService,
+                licenseState
+            );
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 
@@ -216,9 +228,9 @@ public class Exporters extends AbstractLifecycleComponent {
         final ClusterState state = clusterService.state();
 
         // wait until we have a usable cluster state
-        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) ||
-            ClusterState.UNKNOWN_UUID.equals(state.metadata().clusterUUID()) ||
-            state.version() == ClusterState.UNKNOWN_VERSION) {
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+            || ClusterState.UNKNOWN_UUID.equals(state.metadata().clusterUUID())
+            || state.version() == ClusterState.UNKNOWN_VERSION) {
             logger.trace("skipping exporters because the cluster state is not loaded");
 
             listener.onResponse(null);
@@ -242,7 +254,8 @@ public class Exporters extends AbstractLifecycleComponent {
         // get every exporter's ExportBulk and, when they've all responded, respond with a wrapped version
         for (final Exporter exporter : exporterMap.values()) {
             exporter.openBulk(
-                new AccumulatingExportBulkActionListener(exporter.name(), i++, accumulatedBulks, countDown, threadContext, listener));
+                new AccumulatingExportBulkActionListener(exporter.name(), i++, accumulatedBulks, countDown, threadContext, listener)
+            );
         }
     }
 
@@ -319,10 +332,14 @@ public class Exporters extends AbstractLifecycleComponent {
         private final ActionListener<ExportBulk> delegate;
         private final ThreadContext threadContext;
 
-        AccumulatingExportBulkActionListener(final String name,
-                                             final int indexPosition, final AtomicArray<ExportBulk> accumulatedBulks,
-                                             final CountDown countDown,
-                                             final ThreadContext threadContext, final ActionListener<ExportBulk> delegate) {
+        AccumulatingExportBulkActionListener(
+            final String name,
+            final int indexPosition,
+            final AtomicArray<ExportBulk> accumulatedBulks,
+            final CountDown countDown,
+            final ThreadContext threadContext,
+            final ActionListener<ExportBulk> delegate
+        ) {
             this.name = name;
             this.indexPosition = indexPosition;
             this.accumulatedBulks = accumulatedBulks;

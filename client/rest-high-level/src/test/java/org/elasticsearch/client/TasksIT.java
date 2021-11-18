@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -32,9 +21,9 @@ import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -80,10 +69,11 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
         createIndex(sourceIndex, settings);
         createIndex(destinationIndex, settings);
-        BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON)
+        )
+            .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
 
         final ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices(sourceIndex).setDestIndex(destinationIndex);
@@ -119,22 +109,18 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
 
     public void testCancelTasks() throws IOException {
         ListTasksRequest listRequest = new ListTasksRequest();
-        ListTasksResponse listResponse = execute(
-            listRequest,
-            highLevelClient().tasks()::list,
-            highLevelClient().tasks()::listAsync
-        );
+        ListTasksResponse listResponse = execute(listRequest, highLevelClient().tasks()::list, highLevelClient().tasks()::listAsync);
         // in this case, probably no task will actually be cancelled.
         // this is ok, that case is covered in TasksIT.testTasksCancellation
         org.elasticsearch.tasks.TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
-        CancelTasksRequest cancelTasksRequest =  new CancelTasksRequest.Builder().withTaskId(
-            new TaskId(node, firstTask.getId())
-        ).build();
-        CancelTasksResponse response = execute(cancelTasksRequest,
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest.Builder().withTaskId(new TaskId(node, firstTask.getId())).build();
+        CancelTasksResponse response = execute(
+            cancelTasksRequest,
             highLevelClient().tasks()::cancel,
-            highLevelClient().tasks()::cancelAsync);
+            highLevelClient().tasks()::cancelAsync
+        );
         // Since the task may or may not have been cancelled, assert that we received a response only
         // The actual testing of task cancellation is covered by TasksIT.testTasksCancellation
         assertThat(response, notNullValue());

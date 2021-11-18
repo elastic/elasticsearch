@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.planner;
@@ -71,15 +72,17 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                     matches.add(map(keyed.child()));
                 }
 
-                return new SequenceExec(p.source(),
-                        keys,
-                        matches,
-                        Expressions.asAttributes(s.until().keys()),
-                        map(s.until().child()),
-                        s.timestamp(),
-                        s.tiebreaker(),
-                        s.direction(), 
-                        s.maxSpan());
+                return new SequenceExec(
+                    p.source(),
+                    keys,
+                    matches,
+                    Expressions.asAttributes(s.until().keys()),
+                    map(s.until().child()),
+                    s.timestamp(),
+                    s.tiebreaker(),
+                    s.direction(),
+                    s.maxSpan()
+                );
             }
 
             if (p instanceof LocalRelation) {
@@ -127,7 +130,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, UnplannedExec.class);
+            return plan.transformUp(UnplannedExec.class, this::rule);
         }
 
         @SuppressWarnings("unchecked")

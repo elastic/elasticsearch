@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -17,8 +18,11 @@ public class GetCategoriesResponseTests extends AbstractWireSerializingTestCase<
     @Override
     protected GetCategoriesAction.Response createTestInstance() {
         CategoryDefinition definition = new CategoryDefinition(randomAlphaOfLength(10));
-        QueryPage<CategoryDefinition> queryPage =
-                new QueryPage<>(Collections.singletonList(definition), 1L, CategoryDefinition.RESULTS_FIELD);
+        QueryPage<CategoryDefinition> queryPage = new QueryPage<>(
+            Collections.singletonList(definition),
+            1L,
+            CategoryDefinition.RESULTS_FIELD
+        );
         return new GetCategoriesAction.Response(queryPage);
     }
 

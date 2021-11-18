@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
@@ -46,7 +47,6 @@ public abstract class ScheduleTriggerEngine implements TriggerEngine<ScheduleTri
         consumers.add(consumer);
     }
 
-
     @Override
     public ScheduleTriggerEvent simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service) {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
@@ -76,8 +76,8 @@ public abstract class ScheduleTriggerEngine implements TriggerEngine<ScheduleTri
     }
 
     @Override
-    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws
-            IOException {
+    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser)
+        throws IOException {
         return ScheduleTriggerEvent.parse(parser, watchId, context, clock);
     }
 }

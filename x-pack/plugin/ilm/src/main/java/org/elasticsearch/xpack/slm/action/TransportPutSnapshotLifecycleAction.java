@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm.action;
@@ -36,23 +37,40 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportPutSnapshotLifecycleAction extends
-    TransportMasterNodeAction<PutSnapshotLifecycleAction.Request, PutSnapshotLifecycleAction.Response> {
+public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeAction<
+    PutSnapshotLifecycleAction.Request,
+    PutSnapshotLifecycleAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
 
     @Inject
-    public TransportPutSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                PutSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, PutSnapshotLifecycleAction.Response::new,
-                ThreadPool.Names.SAME);
+    public TransportPutSnapshotLifecycleAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PutSnapshotLifecycleAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutSnapshotLifecycleAction.Request::new,
+            indexNameExpressionResolver,
+            PutSnapshotLifecycleAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(final Task task, final PutSnapshotLifecycleAction.Request request,
-                                   final ClusterState state,
-                                   final ActionListener<PutSnapshotLifecycleAction.Response> listener) {
+    protected void masterOperation(
+        final Task task,
+        final PutSnapshotLifecycleAction.Request request,
+        final ClusterState state,
+        final ActionListener<PutSnapshotLifecycleAction.Response> listener
+    ) {
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
 
         SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
@@ -63,7 +81,8 @@ public class TransportPutSnapshotLifecycleAction extends
         // same context, and therefore does not have access to the appropriate security headers.
         final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
-        clusterService.submitStateUpdateTask("put-snapshot-lifecycle-" + request.getLifecycleId(),
+        clusterService.submitStateUpdateTask(
+            "put-snapshot-lifecycle-" + request.getLifecycleId(),
             new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -77,8 +96,11 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setHeaders(filteredHeaders)
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta),
-                            OperationMode.RUNNING, new SnapshotLifecycleStats());
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(
+                            Collections.singletonMap(id, meta),
+                            OperationMode.RUNNING,
+                            new SnapshotLifecycleStats()
+                        );
                         logger.info("adding new snapshot lifecycle [{}]", id);
                     } else {
                         Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
@@ -90,8 +112,7 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
                         snapLifecycles.put(id, newLifecycle);
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles,
-                            snapMeta.getOperationMode(), snapMeta.getStats());
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode(), snapMeta.getStats());
                         if (oldLifecycle == null) {
                             logger.info("adding new snapshot lifecycle [{}]", id);
                         } else {
@@ -101,8 +122,7 @@ public class TransportPutSnapshotLifecycleAction extends
 
                     Metadata currentMeta = currentState.metadata();
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentMeta)
-                            .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
+                        .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
                         .build();
                 }
 
@@ -110,7 +130,8 @@ public class TransportPutSnapshotLifecycleAction extends
                 protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
                     return new PutSnapshotLifecycleAction.Response(acknowledged);
                 }
-            });
+            }
+        );
     }
 
     @Override

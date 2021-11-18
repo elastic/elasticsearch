@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -69,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Before
@@ -114,7 +104,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // Pause following and delete follower index, so that we can execute put follow api again:
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("follower");
@@ -154,7 +144,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
         }
     }
@@ -485,12 +475,13 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             new PutAutoFollowPatternRequest(
                 "my_pattern", // <1>
                 "local", // <2>
-                Arrays.asList("logs-*", "metrics-*") // <3>
+                Arrays.asList("logs-*", "metrics-*"), // <3>
+                Arrays.asList("logs-excluded", "metrics-excluded") // <4>
         );
-        request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <4>
+        request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <5>
         Settings settings =
             Settings.builder().put("index.number_of_replicas", 0L).build();
-        request.setSettings(settings); // <5>
+        request.setSettings(settings); // <6>
         // end::ccr-put-auto-follow-pattern-request
 
         // tag::ccr-put-auto-follow-pattern-execute
@@ -548,8 +539,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Put auto follow pattern, so that we can delete it:
         {
-            final PutAutoFollowPatternRequest putRequest =
-                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest(
+                "my_pattern",
+                "local",
+                Collections.singletonList("logs-*")
+            );
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
         }
@@ -570,8 +564,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Put auto follow pattern, so that we can delete it again:
         {
-            final PutAutoFollowPatternRequest putRequest =
-                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest(
+                "my_pattern",
+                "local",
+                Collections.singletonList("logs-*")
+            );
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
         }
@@ -608,8 +605,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Put auto follow pattern, so that we can get it:
         {
-            final PutAutoFollowPatternRequest putRequest =
-                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest(
+                "my_pattern",
+                "local",
+                Collections.singletonList("logs-*")
+            );
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
         }
@@ -895,7 +895,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
         }
     }
@@ -962,7 +962,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
         }
     }

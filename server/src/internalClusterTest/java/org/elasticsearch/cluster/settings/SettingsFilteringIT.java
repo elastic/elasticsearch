@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.settings;
@@ -47,10 +36,17 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public static class SettingsFilteringPlugin extends Plugin {
-        public static final Setting<Boolean> SOME_NODE_SETTING =
-            Setting.boolSetting("some.node.setting", false, Property.NodeScope, Property.Filtered);
-        public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
-            Setting.boolSetting("some.other.node.setting", false, Property.NodeScope);
+        public static final Setting<Boolean> SOME_NODE_SETTING = Setting.boolSetting(
+            "some.node.setting",
+            false,
+            Property.NodeScope,
+            Property.Filtered
+        );
+        public static final Setting<Boolean> SOME_OTHER_NODE_SETTING = Setting.boolSetting(
+            "some.other.node.setting",
+            false,
+            Property.NodeScope
+        );
 
         @Override
         public Settings additionalSettings() {
@@ -59,9 +55,11 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(SOME_NODE_SETTING,
-            SOME_OTHER_NODE_SETTING,
-            Setting.groupSetting("index.filter_test.", Property.IndexScope));
+            return Arrays.asList(
+                SOME_NODE_SETTING,
+                SOME_OTHER_NODE_SETTING,
+                Setting.groupSetting("index.filter_test.", Property.IndexScope)
+            );
         }
 
         @Override
@@ -71,13 +69,21 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public void testSettingsFiltering() {
-        assertAcked(client().admin().indices().prepareCreate("test-idx").setSettings(Settings.builder()
-                .put("filter_test.foo", "test")
-                .put("filter_test.bar1", "test")
-                .put("filter_test.bar2", "test")
-                .put("filter_test.notbar", "test")
-                .put("filter_test.notfoo", "test")
-                .build()).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test-idx")
+                .setSettings(
+                    Settings.builder()
+                        .put("filter_test.foo", "test")
+                        .put("filter_test.bar1", "test")
+                        .put("filter_test.bar2", "test")
+                        .put("filter_test.notbar", "test")
+                        .put("filter_test.notfoo", "test")
+                        .build()
+                )
+                .get()
+        );
         GetSettingsResponse response = client().admin().indices().prepareGetSettings("test-idx").get();
         Settings settings = response.getIndexToSettings().get("test-idx");
 
@@ -90,7 +96,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
     public void testNodeInfoIsFiltered() {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
-        for(NodeInfo info : nodeInfos.getNodes()) {
+        for (NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
             assertNull(settings.get(SettingsFilteringPlugin.SOME_NODE_SETTING.getKey()));

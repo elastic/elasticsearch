@@ -1,45 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -98,9 +87,10 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[3];
 
             if (oldInterval != null) {
-                if  (calendarInterval != null || fixedInterval != null) {
-                    throw new IllegalArgumentException("Cannot use [interval] with [fixed_interval] or [calendar_interval] " +
-                        "configuration options.");
+                if (calendarInterval != null || fixedInterval != null) {
+                    throw new IllegalArgumentException(
+                        "Cannot use [interval] with [fixed_interval] or [calendar_interval] " + "configuration options."
+                    );
                 }
                 return new DateHistogramGroupConfig((String) a[0], oldInterval, (DateHistogramInterval) a[4], (String) a[5]);
             } else if (calendarInterval != null && fixedInterval == null) {
@@ -115,11 +105,19 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
         });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
         PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(CALENDAR_INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
-            new ParseField(FIXED_INTERVAL), ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(),  p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(CALENDAR_INTERVAL),
+            ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> new DateHistogramInterval(p.text()),
+            new ParseField(FIXED_INTERVAL),
+            ValueType.STRING
+        );
+        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
 
@@ -164,8 +162,9 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
         public CalendarInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
             super(field, interval, delay, timeZone);
             if (DATE_FIELD_UNITS.contains(interval.toString()) == false) {
-                throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
-                    "as a calendar interval.");
+                throw new IllegalArgumentException(
+                    "The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval."
+                );
             }
         }
 
@@ -190,7 +189,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
      *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
      *     The {@code delay} is optional and can be set to {@code null}. It defines how long to wait before rolling up new documents.
      *     The {@code timeZone} is optional and can be set to {@code null}. When configured, the time zone value  is resolved using
-     *     ({@link DateTimeZone#forID(String)} and must match a time zone identifier provided by the Joda Time library.
+     *     ({@link ZoneId#of(String)} and must match a time zone identifier provided by the Joda Time library.
      * </p>
      * @param field the name of the date field to use for the date histogram (required)
      * @param interval the interval to use for the date histogram (required)
@@ -203,10 +202,12 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
      * @since 7.2.0
      */
     @Deprecated
-    public DateHistogramGroupConfig(final String field,
-                                    final DateHistogramInterval interval,
-                                    final @Nullable DateHistogramInterval delay,
-                                    final @Nullable String timeZone) {
+    public DateHistogramGroupConfig(
+        final String field,
+        final DateHistogramInterval interval,
+        final @Nullable DateHistogramInterval delay,
+        final @Nullable String timeZone
+    ) {
         this.field = field;
         this.interval = interval;
         this.delay = delay;

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -31,14 +20,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -56,7 +45,8 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
     public void testToString() {
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new ElasticsearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz"))));
+                new ElasticsearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz")))
+            );
             assertThat(exception.toString(), startsWith("[null][-1] failed, reason [org.elasticsearch.ElasticsearchException: foo"));
         }
 
@@ -67,7 +57,8 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(elasticsearchException);
             assertThat(
                 exception.toString(),
-                startsWith("[index1][1] failed, reason [[index1][[index1][1]] org.elasticsearch.ElasticsearchException: foo"));
+                startsWith("[index1][1] failed, reason [[index1][[index1][1]] org.elasticsearch.ElasticsearchException: foo")
+            );
         }
 
         {
@@ -79,27 +70,43 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(new ElasticsearchException("foo"));
-            assertEquals("{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\"," +
-                "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}", Strings.toString(exception));
+            assertEquals(
+                "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\","
+                    + "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}",
+                Strings.toString(exception)
+            );
         }
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new ElasticsearchException("foo", new IllegalArgumentException("bar")));
-            assertEquals("{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\",\"reason\":{\"type\":\"exception\"," +
-                "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}",
-                Strings.toString(exception));
+                new ElasticsearchException("foo", new IllegalArgumentException("bar"))
+            );
+            assertEquals(
+                "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\",\"reason\":{\"type\":\"exception\","
+                    + "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}",
+                Strings.toString(exception)
+            );
         }
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
-                new BroadcastShardOperationFailedException(new ShardId("test", "_uuid", 2), "foo", new IllegalStateException("bar")));
-            assertEquals("{\"shard\":2,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\"," +
-                "\"reason\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}", Strings.toString(exception));
+                new BroadcastShardOperationFailedException(new ShardId("test", "_uuid", 2), "foo", new IllegalStateException("bar"))
+            );
+            assertEquals(
+                "{\"shard\":2,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
+                    + "\"reason\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}",
+                Strings.toString(exception)
+            );
         }
         {
-            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException("test", 1,
-                new IllegalArgumentException("foo"));
-            assertEquals("{\"shard\":1,\"index\":\"test\",\"status\":\"BAD_REQUEST\"," +
-                "\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}", Strings.toString(exception));
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
+                "test",
+                1,
+                new IllegalArgumentException("foo")
+            );
+            assertEquals(
+                "{\"shard\":1,\"index\":\"test\",\"status\":\"BAD_REQUEST\","
+                    + "\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}",
+                Strings.toString(exception)
+            );
         }
     }
 
@@ -111,13 +118,13 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
             .field("index", "test")
             .field("status", "INTERNAL_SERVER_ERROR")
             .startObject("reason")
-                .field("type", "exception")
-                .field("reason", "foo")
+            .field("type", "exception")
+            .field("reason", "foo")
             .endObject()
             .endObject();
         builder = shuffleXContent(builder);
         DefaultShardOperationFailedException parsed;
-        try(XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
+        try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = DefaultShardOperationFailedException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -148,9 +155,7 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
                 List<String> expectedReasonLines = exception.reason().lines().collect(Collectors.toList());
                 List<String> actualReasonLines = deserializedException.reason().lines().collect(Collectors.toList());
                 assertThat(actualReasonLines.get(0), equalTo(expectedReasonLines.get(0)));
-                assertThat("Exceptions have a different number of lines",
-                    actualReasonLines,
-                    hasSize(expectedReasonLines.size()));
+                assertThat("Exceptions have a different number of lines", actualReasonLines, hasSize(expectedReasonLines.size()));
 
                 assertThat(deserializedException.getCause().getMessage(), equalTo(exception.getCause().getMessage()));
                 assertThat(deserializedException.getCause().getClass(), equalTo(exception.getCause().getClass()));

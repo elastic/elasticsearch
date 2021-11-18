@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -33,17 +34,23 @@ public class InferenceDefinition {
     private final List<PreProcessor> preProcessors;
     private Map<String, String> decoderMap;
 
-    private static final ObjectParser<InferenceDefinition.Builder, Void> PARSER = new ObjectParser<>(NAME,
+    private static final ObjectParser<InferenceDefinition.Builder, Void> PARSER = new ObjectParser<>(
+        NAME,
         true,
-        InferenceDefinition.Builder::new);
+        InferenceDefinition.Builder::new
+    );
     static {
-        PARSER.declareNamedObject(InferenceDefinition.Builder::setTrainedModel,
+        PARSER.declareNamedObject(
+            InferenceDefinition.Builder::setTrainedModel,
             (p, c, n) -> p.namedObject(InferenceModel.class, n, null),
-            TRAINED_MODEL);
-        PARSER.declareNamedObjects(InferenceDefinition.Builder::setPreProcessors,
+            TRAINED_MODEL
+        );
+        PARSER.declareNamedObjects(
+            InferenceDefinition.Builder::setPreProcessors,
             (p, c, n) -> p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
             (trainedModelDefBuilder) -> {},
-            PREPROCESSORS);
+            PREPROCESSORS
+        );
     }
 
     public static InferenceDefinition fromXContent(XContentParser parser) {
@@ -75,11 +82,10 @@ public class InferenceDefinition {
         if (config.requestingImportance() && trainedModel.supportsFeatureImportance() == false) {
             throw ExceptionsHelper.badRequestException(
                 "Feature importance is not supported for the configured model of type [{}]",
-                trainedModel.getName());
+                trainedModel.getName()
+            );
         }
-        return trainedModel.infer(fields,
-            config,
-            config.requestingImportance() ? getDecoderMap() : Collections.emptyMap());
+        return trainedModel.infer(fields, config, config.requestingImportance() ? getDecoderMap() : Collections.emptyMap());
     }
 
     public TargetType getTargetType() {
@@ -104,11 +110,14 @@ public class InferenceDefinition {
 
     @Override
     public String toString() {
-        return "InferenceDefinition{" +
-            "trainedModel=" + trainedModel +
-            ", preProcessors=" + preProcessors +
-            ", decoderMap=" + decoderMap +
-            '}';
+        return "InferenceDefinition{"
+            + "trainedModel="
+            + trainedModel
+            + ", preProcessors="
+            + preProcessors
+            + ", decoderMap="
+            + decoderMap
+            + '}';
     }
 
     public static Builder builder() {

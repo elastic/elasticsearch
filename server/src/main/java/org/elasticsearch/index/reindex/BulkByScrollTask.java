@@ -1,44 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,9 +42,9 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
@@ -102,7 +91,8 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         List<BulkByScrollTask.StatusOrException> sliceStatuses = Arrays.asList(
-            new BulkByScrollTask.StatusOrException[leaderState.getSlices()]);
+            new BulkByScrollTask.StatusOrException[leaderState.getSlices()]
+        );
         for (TaskInfo t : sliceInfo) {
             BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.getStatus();
             sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
@@ -141,7 +131,7 @@ public class BulkByScrollTask extends CancellableTask {
      * a leader task.
      */
     public LeaderBulkByScrollTaskState getLeaderState() {
-        if (!isLeader()) {
+        if (isLeader() == false) {
             throw new IllegalStateException("This task is not set to be a leader for other slice subtasks");
         }
         return leaderState;
@@ -178,7 +168,7 @@ public class BulkByScrollTask extends CancellableTask {
      * worker task.
      */
     public WorkerBulkByScrollTaskState getWorkerState() {
-        if (!isWorker()) {
+        if (isWorker() == false) {
             throw new IllegalStateException("This task is not set to be a worker");
         }
         return workerState;
@@ -195,11 +185,6 @@ public class BulkByScrollTask extends CancellableTask {
         if (isWorker()) {
             workerState.handleCancel();
         }
-    }
-
-    @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
     }
 
     /**
@@ -308,8 +293,20 @@ public class BulkByScrollTask extends CancellableTask {
             if (sliceStatuses.isEmpty()) {
                 try {
                     return new Status(
-                        sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
-                        searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil
+                        sliceId,
+                        total,
+                        updated,
+                        created,
+                        deleted,
+                        batches,
+                        versionConflicts,
+                        noops,
+                        bulkRetries,
+                        searchRetries,
+                        throttled,
+                        requestsPerSecond,
+                        reasonCancelled,
+                        throttledUntil
                     );
                 } catch (NullPointerException npe) {
                     throw new IllegalArgumentException("a required field is null when building Status");
@@ -383,11 +380,10 @@ public class BulkByScrollTask extends CancellableTask {
             FIELDS_SET.add(SLICES_FIELD);
         }
 
-        @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
             "bulk_by_scroll_task_status_retries",
             true,
-            a -> new Tuple(a[0], a[1])
+            a -> new Tuple<>(((Long) a[0]), (Long) a[1])
         );
         static {
             RETRIES_PARSER.declareLong(constructorArg(), new ParseField(RETRIES_BULK_FIELD));
@@ -409,7 +405,9 @@ public class BulkByScrollTask extends CancellableTask {
             parser.declareString(StatusBuilder::setReasonCancelled, new ParseField(CANCELED_FIELD));
             parser.declareLong(StatusBuilder::setThrottledUntil, new ParseField(THROTTLED_UNTIL_RAW_FIELD));
             parser.declareObjectArray(
-                StatusBuilder::setSliceStatuses, (p, c) -> StatusOrException.fromXContent(p), new ParseField(SLICES_FIELD)
+                StatusBuilder::setSliceStatuses,
+                (p, c) -> StatusOrException.fromXContent(p),
+                new ParseField(SLICES_FIELD)
             );
         }
 
@@ -429,9 +427,22 @@ public class BulkByScrollTask extends CancellableTask {
         private final TimeValue throttledUntil;
         private final List<StatusOrException> sliceStatuses;
 
-        public Status(Integer sliceId, long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops,
-                long bulkRetries, long searchRetries, TimeValue throttled, float requestsPerSecond, @Nullable String reasonCancelled,
-                TimeValue throttledUntil) {
+        public Status(
+            Integer sliceId,
+            long total,
+            long updated,
+            long created,
+            long deleted,
+            int batches,
+            long versionConflicts,
+            long noops,
+            long bulkRetries,
+            long searchRetries,
+            TimeValue throttled,
+            float requestsPerSecond,
+            @Nullable String reasonCancelled,
+            TimeValue throttledUntil
+        ) {
             this.sliceId = sliceId == null ? null : checkPositive(sliceId, "sliceId");
             this.total = checkPositive(total, "total");
             this.updated = checkPositive(updated, "updated");
@@ -568,8 +579,7 @@ public class BulkByScrollTask extends CancellableTask {
          * {@link StatusOrException#fromXContent(XContentParser)} tries to peek at a field first before deciding
          * what needs to be it cannot use an {@link ObjectParser}.
          */
-        public XContentBuilder innerXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             if (sliceId != null) {
                 builder.field(SLICE_ID_FIELD, sliceId);
             }
@@ -584,7 +594,8 @@ public class BulkByScrollTask extends CancellableTask {
             builder.field(BATCHES_FIELD, batches);
             builder.field(VERSION_CONFLICTS_FIELD, versionConflicts);
             builder.field(NOOPS_FIELD, noops);
-            builder.startObject(RETRIES_FIELD); {
+            builder.startObject(RETRIES_FIELD);
+            {
                 builder.field(RETRIES_BULK_FIELD, bulkRetries);
                 builder.field(RETRIES_SEARCH_FIELD, searchRetries);
             }
@@ -612,7 +623,7 @@ public class BulkByScrollTask extends CancellableTask {
         public static Status fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             if (parser.currentToken() == Token.START_OBJECT) {
-                 token = parser.nextToken();
+                token = parser.nextToken();
             } else {
                 token = parser.nextToken();
             }
@@ -819,8 +830,21 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public int hashCode() {
             return Objects.hash(
-                sliceId, total, updated, created, deleted, batches, versionConflicts, noops, searchRetries,
-                bulkRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil, sliceStatuses
+                sliceId,
+                total,
+                updated,
+                created,
+                deleted,
+                batches,
+                versionConflicts,
+                noops,
+                searchRetries,
+                bulkRetries,
+                throttled,
+                requestsPerSecond,
+                reasonCancelled,
+                throttledUntil,
+                sliceStatuses
             );
         }
 
@@ -828,21 +852,20 @@ public class BulkByScrollTask extends CancellableTask {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status other = (Status) o;
-            return
-                Objects.equals(sliceId, other.sliceId) &&
-                    total == other.total &&
-                    (!includeUpdated || updated == other.updated) &&
-                    (!includeCreated || created == other.created) &&
-                    deleted == other.deleted &&
-                    batches == other.batches &&
-                    versionConflicts == other.versionConflicts &&
-                    noops == other.noops &&
-                    searchRetries == other.searchRetries &&
-                    bulkRetries == other.bulkRetries &&
-                    Objects.equals(throttled, other.throttled) &&
-                    requestsPerSecond == other.requestsPerSecond &&
-                    Objects.equals(reasonCancelled, other.reasonCancelled) &&
-                    Objects.equals(throttledUntil, other.throttledUntil);
+            return Objects.equals(sliceId, other.sliceId)
+                && total == other.total
+                && (includeUpdated == false || updated == other.updated)
+                && (includeCreated == false || created == other.created)
+                && deleted == other.deleted
+                && batches == other.batches
+                && versionConflicts == other.versionConflicts
+                && noops == other.noops
+                && searchRetries == other.searchRetries
+                && bulkRetries == other.bulkRetries
+                && Objects.equals(throttled, other.throttled)
+                && requestsPerSecond == other.requestsPerSecond
+                && Objects.equals(reasonCancelled, other.reasonCancelled)
+                && Objects.equals(throttledUntil, other.throttledUntil);
         }
 
         @Override
@@ -888,7 +911,6 @@ public class BulkByScrollTask extends CancellableTask {
             EXPECTED_EXCEPTION_FIELDS.add("error");
             EXPECTED_EXCEPTION_FIELDS.add("root_cause");
         }
-
 
         public StatusOrException(Status status) {
             this.status = status;
@@ -968,10 +990,8 @@ public class BulkByScrollTask extends CancellableTask {
                     String fieldName = parser.currentName();
                     // weird way to ignore unknown tokens
                     if (Status.FIELDS_SET.contains(fieldName)) {
-                        return new StatusOrException(
-                            Status.innerFromXContent(parser)
-                        );
-                    } else if (EXPECTED_EXCEPTION_FIELDS.contains(fieldName)){
+                        return new StatusOrException(Status.innerFromXContent(parser));
+                    } else if (EXPECTED_EXCEPTION_FIELDS.contains(fieldName)) {
                         return new StatusOrException(ElasticsearchException.innerFromXContent(parser, false));
                     } else {
                         // Ignore unknown tokens
@@ -1004,8 +1024,7 @@ public class BulkByScrollTask extends CancellableTask {
                 return false;
             }
             BulkByScrollTask.StatusOrException other = (StatusOrException) obj;
-            return Objects.equals(status, other.status)
-                    && Objects.equals(exception, other.exception);
+            return Objects.equals(status, other.status) && Objects.equals(exception, other.exception);
         }
 
         @Override

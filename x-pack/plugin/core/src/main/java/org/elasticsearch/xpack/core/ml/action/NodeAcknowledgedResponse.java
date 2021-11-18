@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.action;
@@ -9,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -54,8 +55,7 @@ public class NodeAcknowledgedResponse extends AcknowledgedResponse {
             return false;
         }
         NodeAcknowledgedResponse that = (NodeAcknowledgedResponse) o;
-        return isAcknowledged() == that.isAcknowledged()
-            && Objects.equals(node, that.node);
+        return isAcknowledged() == that.isAcknowledged() && Objects.equals(node, that.node);
     }
 
     @Override

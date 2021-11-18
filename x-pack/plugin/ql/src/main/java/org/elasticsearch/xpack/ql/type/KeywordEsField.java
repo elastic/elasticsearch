@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.type;
 
@@ -26,14 +27,27 @@ public class KeywordEsField extends EsField {
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision, boolean normalized) {
         this(name, properties, hasDocValues, precision, normalized, false);
     }
-    
-    public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
-            boolean normalized, boolean isAlias) {
+
+    public KeywordEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        int precision,
+        boolean normalized,
+        boolean isAlias
+    ) {
         this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
     }
 
-    protected KeywordEsField(String name, DataType esDataType, Map<String, EsField> properties, boolean hasDocValues, int precision,
-            boolean normalized, boolean isAlias) {
+    protected KeywordEsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        int precision,
+        boolean normalized,
+        boolean isAlias
+    ) {
         super(name, esDataType, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
@@ -56,12 +70,11 @@ public class KeywordEsField extends EsField {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         KeywordEsField that = (KeywordEsField) o;
-        return precision == that.precision &&
-                normalized == that.normalized;
+        return precision == that.precision && normalized == that.normalized;
     }
 
     @Override

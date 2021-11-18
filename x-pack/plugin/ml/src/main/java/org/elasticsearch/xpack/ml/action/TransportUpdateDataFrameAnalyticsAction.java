@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
@@ -34,8 +36,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
-public class TransportUpdateDataFrameAnalyticsAction
-    extends TransportMasterNodeAction<UpdateDataFrameAnalyticsAction.Request, PutDataFrameAnalyticsAction.Response> {
+public class TransportUpdateDataFrameAnalyticsAction extends TransportMasterNodeAction<
+    UpdateDataFrameAnalyticsAction.Request,
+    PutDataFrameAnalyticsAction.Response> {
 
     private final XPackLicenseState licenseState;
     private final DataFrameAnalyticsConfigProvider configProvider;
@@ -43,13 +46,28 @@ public class TransportUpdateDataFrameAnalyticsAction
     private final Client client;
 
     @Inject
-    public TransportUpdateDataFrameAnalyticsAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                                   XPackLicenseState licenseState, ThreadPool threadPool, Client client,
-                                                   ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   DataFrameAnalyticsConfigProvider configProvider) {
-        super(UpdateDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                UpdateDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, PutDataFrameAnalyticsAction.Response::new,
-                ThreadPool.Names.SAME);
+    public TransportUpdateDataFrameAnalyticsAction(
+        Settings settings,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        Client client,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DataFrameAnalyticsConfigProvider configProvider
+    ) {
+        super(
+            UpdateDataFrameAnalyticsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            UpdateDataFrameAnalyticsAction.Request::new,
+            indexNameExpressionResolver,
+            PutDataFrameAnalyticsAction.Response::new,
+            ThreadPool.Names.SAME
+        );
         this.licenseState = licenseState;
         this.configProvider = configProvider;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -64,32 +82,45 @@ public class TransportUpdateDataFrameAnalyticsAction
     }
 
     @Override
-    protected void masterOperation(Task task, UpdateDataFrameAnalyticsAction.Request request, ClusterState state,
-                                   ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        UpdateDataFrameAnalyticsAction.Request request,
+        ClusterState state,
+        ActionListener<PutDataFrameAnalyticsAction.Response> listener
+    ) {
 
-        Runnable doUpdate = () ->
-            useSecondaryAuthIfAvailable(securityContext, () -> {
-                Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-                configProvider.update(
-                    request.getUpdate(),
-                    headers,
-                    state,
-                    ActionListener.wrap(
-                        updatedConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(updatedConfig)),
-                        listener::onFailure));
-            });
+        Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
+            Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+            configProvider.update(
+                request.getUpdate(),
+                headers,
+                state,
+                ActionListener.wrap(
+                    updatedConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(updatedConfig)),
+                    listener::onFailure
+                )
+            );
+        });
 
         // Obviously if we're updating a job it's impossible that the config index has no mappings at
         // all, but if we rewrite the job config we may add new fields that require the latest mappings
         ElasticsearchMappings.addDocMappingIfMissing(
-            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state,
-            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
+            MlConfigIndex.indexName(),
+            MlConfigIndex::mapping,
+            client,
+            state,
+            request.masterNodeTimeout(),
+            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure)
+        );
     }
 
     @Override
-    protected void doExecute(Task task, UpdateDataFrameAnalyticsAction.Request request,
-                             ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+    protected void doExecute(
+        Task task,
+        UpdateDataFrameAnalyticsAction.Request request,
+        ActionListener<PutDataFrameAnalyticsAction.Response> listener
+    ) {
+        if (MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

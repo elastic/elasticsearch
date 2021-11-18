@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,6 +29,7 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
         EXECUTE,
         GETTER,
         OTHER;
+
         static NameType fromName(String name) {
             if (name.equals(ScriptMethodInfoSerializingTests.EXECUTE)) {
                 return EXECUTE;
@@ -61,7 +51,9 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
     }
 
     @Override
-    protected Writeable.Reader<ScriptMethodInfo> instanceReader() { return ScriptMethodInfo::new; }
+    protected Writeable.Reader<ScriptMethodInfo> instanceReader() {
+        return ScriptMethodInfo::new;
+    }
 
     @Override
     protected ScriptMethodInfo mutateInstance(ScriptMethodInfo instance) throws IOException {
@@ -153,11 +145,13 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
         for (int i = 0; i < numGetters; i++) {
             String suffix = randomValueOtherThanMany(suffixes::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             suffixes.add(suffix);
-            getters.add(new ScriptMethodInfo(
-                GET_PREFIX + suffix,
-                randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                Collections.unmodifiableList(new ArrayList<>())
-            ));
+            getters.add(
+                new ScriptMethodInfo(
+                    GET_PREFIX + suffix,
+                    randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                    Collections.unmodifiableList(new ArrayList<>())
+                )
+            );
         }
         return Collections.unmodifiableSet(getters);
     }

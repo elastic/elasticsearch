@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -77,8 +78,14 @@ public final class UriUtils {
         if (hasAnHttpPrefix == false) {
             if (uri.getHost() != null) { // URI is valid and with a host, so there's a scheme (otherwise host==null), but just not HTTP(S)
                 throw new IllegalArgumentException(
-                    "Invalid connection scheme [" + uri.getScheme() + "] configuration: only " + HTTP_SCHEME + " and " + HTTPS_SCHEME
-                        + " protocols are supported");
+                    "Invalid connection scheme ["
+                        + uri.getScheme()
+                        + "] configuration: only "
+                        + HTTP_SCHEME
+                        + " and "
+                        + HTTPS_SCHEME
+                        + " protocols are supported"
+                );
             }
             // no host and either (1) no scheme (like for input 'host') or (2) invalid scheme (produced by parsing 'user:pass@host' or
             // 'host:9200' or just erroneous: 'ftp:/?foo' etc.): try with a HTTP scheme
@@ -107,8 +114,12 @@ public final class UriUtils {
             return string;
         }
 
-        private static void redactValueForSimilarKey(String key, List<String> options, List<Map.Entry<String, String>> attrs,
-                                                     Character replacement) {
+        private static void redactValueForSimilarKey(
+            String key,
+            List<String> options,
+            List<Map.Entry<String, String>> attrs,
+            Character replacement
+        ) {
             List<String> similar = StringUtils.findSimilar(key, options);
             for (String k : similar) {
                 for (Map.Entry<String, String> e : attrs) {
@@ -203,8 +214,10 @@ public final class UriUtils {
                 if (idx >= sb.length()) {
                     sb.append(e.getValue());
                 } else {
-                    sb.insert(idx,
-                        (sb.charAt(idx) == '\0' && (idx + 1 >= sb.length() || sb.charAt(idx + 1) == '\0')) ? '\0' : e.getValue());
+                    sb.insert(
+                        idx,
+                        (sb.charAt(idx) == '\0' && (idx + 1 >= sb.length() || sb.charAt(idx + 1) == '\0')) ? '\0' : e.getValue()
+                    );
                 }
             }
 
@@ -218,7 +231,7 @@ public final class UriUtils {
             List<Map.Entry<Integer, Character>> faults = new ArrayList<>();
 
             boolean hasPort = false;
-            for (StringBuilder sb = new StringBuilder(urlString); sb.length() > 0; ) {
+            for (StringBuilder sb = new StringBuilder(urlString); sb.length() > 0;) {
                 try {
                     // parse as URL; ex. `http://ho~st` parses as URI, but with unparsable authority
                     URI uri = new URI(sb.toString()).parseServerAuthority();
@@ -283,11 +296,11 @@ public final class UriUtils {
         if (segment == null || segment.isEmpty() || "/".equals(segment)) {
             return uri;
         }
-        
+
         String path = uri.getPath();
         String concatenatedPath = "";
         String cleanSegment = segment.startsWith("/") ? segment.substring(1) : segment;
-        
+
         if (path == null || path.isEmpty()) {
             path = "/";
         }
@@ -298,8 +311,15 @@ public final class UriUtils {
             concatenatedPath = path + "/" + cleanSegment;
         }
         try {
-            return new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), concatenatedPath,
-                    uri.getQuery(), uri.getFragment());
+            return new URI(
+                uri.getScheme(),
+                uri.getUserInfo(),
+                uri.getHost(),
+                uri.getPort(),
+                concatenatedPath,
+                uri.getQuery(),
+                uri.getFragment()
+            );
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid segment [" + segment + "] for URI [" + uri + "]: " + e.getMessage(), e);
         }

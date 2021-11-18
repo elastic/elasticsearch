@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.core.BroadcastResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DataStreamsStatsResponse extends BroadcastResponse {
 
@@ -41,8 +30,13 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
     private final ByteSizeValue totalStoreSize;
     private final Map<String, DataStreamStats> dataStreams;
 
-    protected DataStreamsStatsResponse(Shards shards, int dataStreamCount, int backingIndices, ByteSizeValue totalStoreSize,
-                                       Map<String, DataStreamStats> dataStreams) {
+    protected DataStreamsStatsResponse(
+        Shards shards,
+        int dataStreamCount,
+        int backingIndices,
+        ByteSizeValue totalStoreSize,
+        Map<String, DataStreamStats> dataStreams
+    ) {
         super(shards);
         this.dataStreamCount = dataStreamCount;
         this.backingIndices = backingIndices;
@@ -60,38 +54,52 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStreamsStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "data_streams_stats", true, arg -> {
-        Shards shards = (Shards) arg[0];
-        Integer dataStreamCount = ((Integer) arg[1]);
-        Integer backingIndices = ((Integer) arg[2]);
-        ByteSizeValue totalStoreSize = ((ByteSizeValue) arg[3]);
-        Map<String, DataStreamStats> dataStreams = new HashMap<>();
-        for (DataStreamStats dataStreamStats : ((List<DataStreamStats>) arg[4])) {
-            dataStreams.put(dataStreamStats.dataStream, dataStreamStats);
+        "data_streams_stats",
+        true,
+        arg -> {
+            Shards shards = (Shards) arg[0];
+            Integer dataStreamCount = ((Integer) arg[1]);
+            Integer backingIndices = ((Integer) arg[2]);
+            ByteSizeValue totalStoreSize = ((ByteSizeValue) arg[3]);
+            Map<String, DataStreamStats> dataStreams = new HashMap<>();
+            for (DataStreamStats dataStreamStats : ((List<DataStreamStats>) arg[4])) {
+                dataStreams.put(dataStreamStats.dataStream, dataStreamStats);
+            }
+            return new DataStreamsStatsResponse(shards, dataStreamCount, backingIndices, totalStoreSize, dataStreams);
         }
-        return new DataStreamsStatsResponse(shards, dataStreamCount, backingIndices, totalStoreSize, dataStreams);
-    });
+    );
 
     private static final ConstructingObjectParser<DataStreamStats, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
-        "data_streams_stats.entry", true, arg -> {
-        String dataStream = ((String) arg[0]);
-        Integer backingIndices = ((Integer) arg[1]);
-        ByteSizeValue storeSize = ((ByteSizeValue) arg[2]);
-        Long maximumTimestamp = ((Long) arg[3]);
-        return new DataStreamStats(dataStream, backingIndices, storeSize, maximumTimestamp);
-    });
+        "data_streams_stats.entry",
+        true,
+        arg -> {
+            String dataStream = ((String) arg[0]);
+            Integer backingIndices = ((Integer) arg[1]);
+            ByteSizeValue storeSize = ((ByteSizeValue) arg[2]);
+            Long maximumTimestamp = ((Long) arg[3]);
+            return new DataStreamStats(dataStream, backingIndices, storeSize, maximumTimestamp);
+        }
+    );
 
     static {
         declareShardsField(PARSER);
         PARSER.declareInt(constructorArg(), DATA_STREAM_COUNT);
         PARSER.declareInt(constructorArg(), BACKING_INDICES);
-        PARSER.declareField(constructorArg(), (p, c) -> new ByteSizeValue(p.longValue()), TOTAL_STORE_SIZE_BYTES,
-            ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> new ByteSizeValue(p.longValue()),
+            TOTAL_STORE_SIZE_BYTES,
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, DATA_STREAMS);
         ENTRY_PARSER.declareString(constructorArg(), DATA_STREAM);
         ENTRY_PARSER.declareInt(constructorArg(), BACKING_INDICES);
-        ENTRY_PARSER.declareField(constructorArg(), (p, c) -> new ByteSizeValue(p.longValue()), STORE_SIZE_BYTES,
-            ObjectParser.ValueType.VALUE);
+        ENTRY_PARSER.declareField(
+            constructorArg(),
+            (p, c) -> new ByteSizeValue(p.longValue()),
+            STORE_SIZE_BYTES,
+            ObjectParser.ValueType.VALUE
+        );
         ENTRY_PARSER.declareLong(constructorArg(), MAXIMUM_TIMESTAMP);
     }
 
@@ -124,10 +132,10 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
             return false;
         }
         DataStreamsStatsResponse that = (DataStreamsStatsResponse) obj;
-        return dataStreamCount == that.dataStreamCount &&
-            backingIndices == that.backingIndices &&
-            Objects.equals(totalStoreSize, that.totalStoreSize) &&
-            Objects.equals(dataStreams, that.dataStreams);
+        return dataStreamCount == that.dataStreamCount
+            && backingIndices == that.backingIndices
+            && Objects.equals(totalStoreSize, that.totalStoreSize)
+            && Objects.equals(dataStreams, that.dataStreams);
     }
 
     @Override
@@ -137,12 +145,16 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
 
     @Override
     public String toString() {
-        return "DataStreamsStatsResponse{" +
-            "dataStreamCount=" + dataStreamCount +
-            ", backingIndices=" + backingIndices +
-            ", totalStoreSize=" + totalStoreSize +
-            ", dataStreams=" + dataStreams +
-            '}';
+        return "DataStreamsStatsResponse{"
+            + "dataStreamCount="
+            + dataStreamCount
+            + ", backingIndices="
+            + backingIndices
+            + ", totalStoreSize="
+            + totalStoreSize
+            + ", dataStreams="
+            + dataStreams
+            + '}';
     }
 
     public static class DataStreamStats {
@@ -184,10 +196,10 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
                 return false;
             }
             DataStreamStats that = (DataStreamStats) obj;
-            return backingIndices == that.backingIndices &&
-                maximumTimestamp == that.maximumTimestamp &&
-                Objects.equals(dataStream, that.dataStream) &&
-                Objects.equals(storeSize, that.storeSize);
+            return backingIndices == that.backingIndices
+                && maximumTimestamp == that.maximumTimestamp
+                && Objects.equals(dataStream, that.dataStream)
+                && Objects.equals(storeSize, that.storeSize);
         }
 
         @Override
@@ -197,12 +209,17 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
 
         @Override
         public String toString() {
-            return "DataStreamStats{" +
-                "dataStream='" + dataStream + '\'' +
-                ", backingIndices=" + backingIndices +
-                ", storeSize=" + storeSize +
-                ", maximumTimestamp=" + maximumTimestamp +
-                '}';
+            return "DataStreamStats{"
+                + "dataStream='"
+                + dataStream
+                + '\''
+                + ", backingIndices="
+                + backingIndices
+                + ", storeSize="
+                + storeSize
+                + ", maximumTimestamp="
+                + maximumTimestamp
+                + '}';
         }
     }
 }

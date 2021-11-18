@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.aggregatemetric;
@@ -24,7 +25,8 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
         super(XPackField.AGGREGATE_METRIC, available, enabled);
     }
 
-    @Override public Version getMinimalSupportedVersion() {
+    @Override
+    public Version getMinimalSupportedVersion() {
         return Version.V_7_11_0;
     }
 
@@ -37,8 +39,7 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         AggregateMetricFeatureSetUsage other = (AggregateMetricFeatureSetUsage) obj;
-        return Objects.equals(available, other.available) &&
-            Objects.equals(enabled, other.enabled);
+        return Objects.equals(available, other.available) && Objects.equals(enabled, other.enabled);
     }
 
     @Override

@@ -1,30 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
 
-
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-
 
 /**
  * A hash table from native longs to objects. This implementation resolves collisions
@@ -59,7 +46,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
      * was not present in the hash table.
      */
     public T get(long key) {
-        for (long i = slot(hash(key), mask); ; i = nextSlot(i, mask)) {
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
             final T value = values.get(i);
             if (value == null) {
                 return null;
@@ -88,7 +75,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
      * associated value or null if there was no entry associated with this key.
      */
     public T remove(long key) {
-        for (long i = slot(hash(key), mask); ; i = nextSlot(i, mask)) {
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
             final T previous = values.set(i, null);
             if (previous == null) {
                 return null;
@@ -109,7 +96,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
         if (value == null) {
             throw new IllegalArgumentException("Null values are not supported");
         }
-        for (long i = slot(hash(key), mask); ; i = nextSlot(i, mask)) {
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
             final T previous = values.set(i, value);
             if (previous == null) {
                 // slot was free
@@ -140,7 +127,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public boolean hasNext() {
-                if (!cached) {
+                if (cached == false) {
                     while (true) {
                         ++cursor.index;
                         if (cursor.index >= capacity()) {
@@ -158,7 +145,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public Cursor<T> next() {
-                if (!hasNext()) {
+                if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
                 cached = false;

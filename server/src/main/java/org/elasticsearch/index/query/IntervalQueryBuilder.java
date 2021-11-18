@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -25,9 +14,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -94,8 +83,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         String providerName = null;
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
+                throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
             }
             switch (parser.currentName()) {
                 case "_name":
@@ -108,8 +96,10 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                     break;
                 default:
                     if (providerName != null) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Only one interval rule can be specified, found [" + providerName + "] and [" + parser.currentName() + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Only one interval rule can be specified, found [" + providerName + "] and [" + parser.currentName() + "]"
+                        );
                     }
                     providerName = parser.currentName();
                     provider = IntervalsSourceProvider.fromXContent(parser);
@@ -117,8 +107,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
             }
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
+            throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
         }
         if (provider == null) {
             throw new ParsingException(parser.getTokenLocation(), "Missing intervals from interval query definition");
@@ -131,7 +120,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
             // Be lenient with unmapped fields so that cross-index search will work nicely

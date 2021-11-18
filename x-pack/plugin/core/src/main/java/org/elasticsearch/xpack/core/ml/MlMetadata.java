@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml;
 
@@ -12,95 +13,53 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.groups.GroupOrJobLookup;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.NameResolver;
-import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.SortedMap;
-import java.util.TreeMap;
-
-import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 public class MlMetadata implements Metadata.Custom {
 
     public static final String TYPE = "ml";
-    private static final ParseField JOBS_FIELD = new ParseField("jobs");
-    private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
+    public static final ParseField RESET_MODE = new ParseField("reset_mode");
 
-    public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(), false);
+    public static final MlMetadata EMPTY_METADATA = new MlMetadata(false, false);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
 
     static {
-        LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
-        LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
-                (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
         LENIENT_PARSER.declareBoolean(Builder::isUpgradeMode, UPGRADE_MODE);
-
+        LENIENT_PARSER.declareBoolean(Builder::isResetMode, RESET_MODE);
     }
 
-    private final SortedMap<String, Job> jobs;
-    private final SortedMap<String, DatafeedConfig> datafeeds;
     private final boolean upgradeMode;
-    private final GroupOrJobLookup groupOrJobLookup;
+    private final boolean resetMode;
 
-    private MlMetadata(SortedMap<String, Job> jobs, SortedMap<String, DatafeedConfig> datafeeds, boolean upgradeMode) {
-        this.jobs = Collections.unmodifiableSortedMap(jobs);
-        this.datafeeds = Collections.unmodifiableSortedMap(datafeeds);
-        this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
+    private MlMetadata(boolean upgradeMode, boolean resetMode) {
         this.upgradeMode = upgradeMode;
-    }
-
-    public Map<String, Job> getJobs() {
-        return jobs;
-    }
-
-    public Set<String> expandJobIds(String expression, boolean allowNoMatch) {
-        return groupOrJobLookup.expandJobIds(expression, allowNoMatch);
-    }
-
-    public SortedMap<String, DatafeedConfig> getDatafeeds() {
-        return datafeeds;
-    }
-
-    public DatafeedConfig getDatafeed(String datafeedId) {
-        return datafeeds.get(datafeedId);
-    }
-
-    public Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
-        return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
-    }
-
-    public Set<String> expandDatafeedIds(String expression, boolean allowNoMatch) {
-        return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException)
-                .expand(expression, allowNoMatch);
+        this.resetMode = resetMode;
     }
 
     public boolean isUpgradeMode() {
         return upgradeMode;
+    }
+
+    public boolean isResetMode() {
+        return resetMode;
     }
 
     @Override
@@ -124,27 +83,30 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     public MlMetadata(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        TreeMap<String, Job> jobs = new TreeMap<>();
-        for (int i = 0; i < size; i++) {
-            jobs.put(in.readString(), new Job(in));
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                in.readString();
+                new Job(in);
+            }
+            size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                in.readString();
+                new DatafeedConfig(in);
+            }
         }
-        this.jobs = jobs;
-        size = in.readVInt();
-        TreeMap<String, DatafeedConfig> datafeeds = new TreeMap<>();
-        for (int i = 0; i < size; i++) {
-            datafeeds.put(in.readString(), new DatafeedConfig(in));
-        }
-        this.datafeeds = datafeeds;
-        this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
         this.upgradeMode = in.readBoolean();
+        this.resetMode = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeMap(jobs, out);
-        writeMap(datafeeds, out);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            writeMap(Collections.emptySortedMap(), out);
+            writeMap(Collections.emptySortedMap(), out);
+        }
         out.writeBoolean(upgradeMode);
+        out.writeBoolean(resetMode);
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -157,45 +119,33 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        DelegatingMapParams extendedParams =
-                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
-        mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
-        mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
         builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode);
+        builder.field(RESET_MODE.getPreferredName(), resetMode);
         return builder;
-    }
-
-    private static <T extends ToXContent> void mapValuesToXContent(ParseField field, Map<String, T> map, XContentBuilder builder,
-                                                                   Params params) throws IOException {
-        if (map.isEmpty()) {
-            return;
-        }
-
-        builder.startArray(field.getPreferredName());
-        for (Map.Entry<String, T> entry : map.entrySet()) {
-            entry.getValue().toXContent(builder, params);
-        }
-        builder.endArray();
     }
 
     public static class MlMetadataDiff implements NamedDiff<Metadata.Custom> {
 
-        final Diff<Map<String, Job>> jobs;
-        final Diff<Map<String, DatafeedConfig>> datafeeds;
         final boolean upgradeMode;
+        final boolean resetMode;
 
         MlMetadataDiff(MlMetadata before, MlMetadata after) {
-            this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
-            this.datafeeds = DiffableUtils.diff(before.datafeeds, after.datafeeds, DiffableUtils.getStringKeySerializer());
             this.upgradeMode = after.upgradeMode;
+            this.resetMode = after.resetMode;
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
-            this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
-                    MlMetadataDiff::readJobDiffFrom);
-            this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
-                    MlMetadataDiff::readDatafeedDiffFrom);
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new, MlMetadataDiff::readJobDiffFrom);
+                DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    DatafeedConfig::new,
+                    MlMetadataDiff::readDatafeedDiffFrom
+                );
+            }
             upgradeMode = in.readBoolean();
+            resetMode = in.readBoolean();
         }
 
         /**
@@ -205,16 +155,19 @@ public class MlMetadata implements Metadata.Custom {
          */
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((MlMetadata) part).jobs));
-            TreeMap<String, DatafeedConfig> newDatafeeds = new TreeMap<>(datafeeds.apply(((MlMetadata) part).datafeeds));
-            return new MlMetadata(newJobs, newDatafeeds, upgradeMode);
+            return new MlMetadata(upgradeMode, resetMode);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            jobs.writeTo(out);
-            datafeeds.writeTo(out);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                SortedMap<String, Job> jobs = Collections.emptySortedMap();
+                DiffableUtils.diff(jobs, jobs, DiffableUtils.getStringKeySerializer()).writeTo(out);
+                SortedMap<String, DatafeedConfig> datafeeds = Collections.emptySortedMap();
+                DiffableUtils.diff(datafeeds, datafeeds, DiffableUtils.getStringKeySerializer()).writeTo(out);
+            }
             out.writeBoolean(upgradeMode);
+            out.writeBoolean(resetMode);
         }
 
         @Override
@@ -233,14 +186,10 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         MlMetadata that = (MlMetadata) o;
-        return Objects.equals(jobs, that.jobs) &&
-                Objects.equals(datafeeds, that.datafeeds) &&
-                Objects.equals(upgradeMode, that.upgradeMode);
+        return upgradeMode == that.upgradeMode && resetMode == that.resetMode;
     }
 
     @Override
@@ -250,88 +199,25 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs, datafeeds, upgradeMode);
+        return Objects.hash(upgradeMode, resetMode);
     }
 
     public static class Builder {
 
-        private TreeMap<String, Job> jobs;
-        private TreeMap<String, DatafeedConfig> datafeeds;
         private boolean upgradeMode;
+        private boolean resetMode;
 
-        public Builder() {
-            jobs = new TreeMap<>();
-            datafeeds = new TreeMap<>();
+        public static Builder from(@Nullable MlMetadata previous) {
+            return new Builder(previous);
         }
+
+        public Builder() {}
 
         public Builder(@Nullable MlMetadata previous) {
-            if (previous == null) {
-                jobs = new TreeMap<>();
-                datafeeds = new TreeMap<>();
-            } else {
-                jobs = new TreeMap<>(previous.jobs);
-                datafeeds = new TreeMap<>(previous.datafeeds);
+            if (previous != null) {
                 upgradeMode = previous.upgradeMode;
+                resetMode = previous.resetMode;
             }
-        }
-
-        public Builder putJob(Job job, boolean overwrite) {
-            if (jobs.containsKey(job.getId()) && overwrite == false) {
-                throw ExceptionsHelper.jobAlreadyExists(job.getId());
-            }
-            this.jobs.put(job.getId(), job);
-            return this;
-        }
-
-        public Builder putJobs(Collection<Job> jobs) {
-            for (Job job : jobs) {
-                putJob(job, true);
-            }
-            return this;
-        }
-
-        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers, NamedXContentRegistry xContentRegistry) {
-            if (datafeeds.containsKey(datafeedConfig.getId())) {
-                throw ExceptionsHelper.datafeedAlreadyExists(datafeedConfig.getId());
-            }
-
-            String jobId = datafeedConfig.getJobId();
-            checkJobIsAvailableForDatafeed(jobId);
-            Job job = jobs.get(jobId);
-            DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
-
-            if (headers.isEmpty() == false) {
-                // Adjust the request, adding security headers from the current thread context
-                datafeedConfig = new DatafeedConfig.Builder(datafeedConfig)
-                    .setHeaders(filterSecurityHeaders(headers))
-                    .build();
-            }
-
-            datafeeds.put(datafeedConfig.getId(), datafeedConfig);
-            return this;
-        }
-
-        private void checkJobIsAvailableForDatafeed(String jobId) {
-            Job job = jobs.get(jobId);
-            if (job == null || job.isDeleting()) {
-                throw ExceptionsHelper.missingJobException(jobId);
-            }
-            Optional<DatafeedConfig> existingDatafeed = getDatafeedByJobId(jobId);
-            if (existingDatafeed.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("A datafeed [" + existingDatafeed.get().getId()
-                        + "] already exists for job [" + jobId + "]");
-            }
-        }
-
-        private Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
-            return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
-        }
-
-        public Builder putDatafeeds(Collection<DatafeedConfig> datafeeds) {
-            for (DatafeedConfig datafeed : datafeeds) {
-                this.datafeeds.put(datafeed.getId(), datafeed);
-            }
-            return this;
         }
 
         public Builder isUpgradeMode(boolean upgradeMode) {
@@ -339,8 +225,13 @@ public class MlMetadata implements Metadata.Custom {
             return this;
         }
 
+        public Builder isResetMode(boolean resetMode) {
+            this.resetMode = resetMode;
+            return this;
+        }
+
         public MlMetadata build() {
-            return new MlMetadata(jobs, datafeeds, upgradeMode);
+            return new MlMetadata(upgradeMode, resetMode);
         }
     }
 

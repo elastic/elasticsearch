@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -18,6 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -41,12 +41,20 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         refresh();
 
         SearchResponse response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate").field("@timestamp")
-                        .dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
-                .get();
+            .addAggregation(
+                AggregationBuilders.dateHistogram("rate")
+                    .field("@timestamp")
+                    .fixedInterval(DateHistogramInterval.HOUR)
+                    .order(BucketOrder.count(false))
+            )
+            .get();
 
-        CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
-                Clock.systemUTC());
+        CompareCondition condition = new CompareCondition(
+            "ctx.payload.aggregations.rate.buckets.0.doc_count",
+            CompareCondition.Op.GTE,
+            5,
+            Clock.systemUTC()
+        );
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
@@ -59,9 +67,13 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         refresh();
 
         response = client().prepareSearch("my-index")
-                .addAggregation(AggregationBuilders.dateHistogram("rate")
-                        .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
-                .get();
+            .addAggregation(
+                AggregationBuilders.dateHistogram("rate")
+                    .field("@timestamp")
+                    .fixedInterval(DateHistogramInterval.HOUR)
+                    .order(BucketOrder.count(false))
+            )
+            .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);
@@ -73,17 +85,30 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
     }
 
     public void testExecuteAccessHits() throws Exception {
-        CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1,
-                Clock.systemUTC());
+        CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1, Clock.systemUTC());
         SearchHit hit = new SearchHit(0, "1", null, null);
         hit.score(1f);
-        hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null, OriginalIndices.NONE));
+        hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                new SearchHits(new SearchHit[]{hit}, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
-            null, null, null, false, false, 1);
-        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0,
-            500L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            new SearchHits(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
+            null,
+            null,
+            null,
+            false,
+            false,
+            1
+        );
+        SearchResponse response = new SearchResponse(
+            internalSearchResponse,
+            "",
+            3,
+            3,
+            0,
+            500L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
 
         WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         assertThat(condition.execute(ctx).met(), is(true));

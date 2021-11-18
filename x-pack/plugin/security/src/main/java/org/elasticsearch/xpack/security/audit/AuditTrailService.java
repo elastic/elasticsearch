@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -41,8 +42,8 @@ public class AuditTrailService {
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.isEmpty() == false && licenseState.isSecurityEnabled()) {
-            if (licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
+        if (compositeAuditTrail.isEmpty() == false) {
+            if (Security.AUDITING_FEATURE.check(licenseState)) {
                 return compositeAuditTrail;
             } else {
                 maybeLogAuditingDisabled();
@@ -64,8 +65,11 @@ public class AuditTrailService {
         Instant nextLogInstant = nextLogInstantAtomic.get();
         if (nextLogInstant.isBefore(nowInstant)) {
             if (nextLogInstantAtomic.compareAndSet(nextLogInstant, nowInstant.plus(minLogPeriod))) {
-                logger.warn("Auditing logging is DISABLED because the currently active license [" +
-                        licenseState.getOperationMode() + "] does not permit it");
+                logger.warn(
+                    "Auditing logging is DISABLED because the currently active license ["
+                        + licenseState.getOperationMode()
+                        + "] does not permit it"
+                );
             }
         }
     }
@@ -81,8 +85,12 @@ public class AuditTrailService {
         public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {}
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, String action,
-                                          TransportRequest transportRequest) {}
+        public void authenticationSuccess(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest
+        ) {}
 
         @Override
         public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {}
@@ -103,19 +111,34 @@ public class AuditTrailService {
         public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {}
 
         @Override
-        public void authenticationFailed(String requestId, String realm, AuthenticationToken token,
-                                         String action, TransportRequest transportRequest) {}
+        public void authenticationFailed(
+            String requestId,
+            String realm,
+            AuthenticationToken token,
+            String action,
+            TransportRequest transportRequest
+        ) {}
 
         @Override
         public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {}
 
         @Override
-        public void accessGranted(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                  AuthorizationInfo authorizationInfo) {}
+        public void accessGranted(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            AuthorizationInfo authorizationInfo
+        ) {}
 
         @Override
-        public void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                 AuthorizationInfo authorizationInfo) {}
+        public void accessDenied(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            AuthorizationInfo authorizationInfo
+        ) {}
 
         @Override
         public void tamperedRequest(String requestId, RestRequest request) {}
@@ -133,26 +156,51 @@ public class AuditTrailService {
         public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {}
 
         @Override
-        public void runAsGranted(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                 AuthorizationInfo authorizationInfo) {}
+        public void runAsGranted(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            AuthorizationInfo authorizationInfo
+        ) {}
 
         @Override
-        public void runAsDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                AuthorizationInfo authorizationInfo) {}
+        public void runAsDenied(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            AuthorizationInfo authorizationInfo
+        ) {}
 
         @Override
-        public void runAsDenied(String requestId, Authentication authentication, RestRequest request,
-                                AuthorizationInfo authorizationInfo) {}
+        public void runAsDenied(
+            String requestId,
+            Authentication authentication,
+            RestRequest request,
+            AuthorizationInfo authorizationInfo
+        ) {}
 
         @Override
-        public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication,
-                                             String action, String indices, String requestName, TransportAddress remoteAddress,
-                                             AuthorizationInfo authorizationInfo) {}
+        public void explicitIndexAccessEvent(
+            String requestId,
+            AuditLevel eventType,
+            Authentication authentication,
+            String action,
+            String indices,
+            String requestName,
+            InetSocketAddress remoteAddress,
+            AuthorizationInfo authorizationInfo
+        ) {}
 
         @Override
-        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
-                                               TransportRequest transportRequest,
-                                               TransportResponse transportResponse) { }
+        public void coordinatingActionResponse(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            TransportResponse transportResponse
+        ) {}
     }
 
     private static class CompositeAuditTrail implements AuditTrail {
@@ -180,8 +228,12 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, String action,
-                                          TransportRequest transportRequest) {
+        public void authenticationSuccess(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
             }
@@ -223,8 +275,13 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action,
-                                         TransportRequest transportRequest) {
+        public void authenticationFailed(
+            String requestId,
+            String realm,
+            AuthenticationToken token,
+            String action,
+            TransportRequest transportRequest
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.authenticationFailed(requestId, realm, token, action, transportRequest);
             }
@@ -245,25 +302,39 @@ public class AuditTrailService {
         }
 
         @Override
-        public void accessGranted(String requestId, Authentication authentication, String action, TransportRequest msg,
-                                  AuthorizationInfo authorizationInfo) {
+        public void accessGranted(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest msg,
+            AuthorizationInfo authorizationInfo
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.accessGranted(requestId, authentication, action, msg, authorizationInfo);
             }
         }
 
         @Override
-        public void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                 AuthorizationInfo authorizationInfo) {
+        public void accessDenied(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            AuthorizationInfo authorizationInfo
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.accessDenied(requestId, authentication, action, transportRequest, authorizationInfo);
             }
         }
 
         @Override
-        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
-                                               TransportRequest transportRequest,
-                                               TransportResponse transportResponse) {
+        public void coordinatingActionResponse(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            TransportResponse transportResponse
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.coordinatingActionResponse(requestId, authentication, action, transportRequest, transportResponse);
             }
@@ -305,36 +376,60 @@ public class AuditTrailService {
         }
 
         @Override
-        public void runAsGranted(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                 AuthorizationInfo authorizationInfo) {
+        public void runAsGranted(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            AuthorizationInfo authorizationInfo
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.runAsGranted(requestId, authentication, action, transportRequest, authorizationInfo);
             }
         }
 
         @Override
-        public void runAsDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                AuthorizationInfo authorizationInfo) {
+        public void runAsDenied(
+            String requestId,
+            Authentication authentication,
+            String action,
+            TransportRequest transportRequest,
+            AuthorizationInfo authorizationInfo
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.runAsDenied(requestId, authentication, action, transportRequest, authorizationInfo);
             }
         }
 
         @Override
-        public void runAsDenied(String requestId, Authentication authentication, RestRequest request,
-                                AuthorizationInfo authorizationInfo) {
+        public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.runAsDenied(requestId, authentication, request, authorizationInfo);
             }
         }
 
         @Override
-        public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action,
-                                             String indices, String requestName, TransportAddress remoteAddress,
-                                             AuthorizationInfo authorizationInfo) {
+        public void explicitIndexAccessEvent(
+            String requestId,
+            AuditLevel eventType,
+            Authentication authentication,
+            String action,
+            String indices,
+            String requestName,
+            InetSocketAddress remoteAddress,
+            AuthorizationInfo authorizationInfo
+        ) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.explicitIndexAccessEvent(requestId, eventType, authentication, action, indices, requestName, remoteAddress,
-                    authorizationInfo);
+                auditTrail.explicitIndexAccessEvent(
+                    requestId,
+                    eventType,
+                    authentication,
+                    action,
+                    indices,
+                    requestName,
+                    remoteAddress,
+                    authorizationInfo
+                );
             }
         }
     }

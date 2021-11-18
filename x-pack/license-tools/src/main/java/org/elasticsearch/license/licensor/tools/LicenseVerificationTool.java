@@ -1,26 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license.licensor.tools;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseVerifier;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -34,14 +36,11 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
 
     public LicenseVerificationTool() {
         super("Generates signed elasticsearch license(s) for a given license spec(s)");
-        publicKeyPathOption = parser.accepts("publicKeyPath", "path to public key file")
-            .withRequiredArg().required();
+        publicKeyPathOption = parser.accepts("publicKeyPath", "path to public key file").withRequiredArg().required();
         // TODO: with jopt-simple 5.0, we can make these requiredUnless each other
         // which is effectively "one must be present"
-        licenseOption = parser.accepts("license", "license json spec")
-            .withRequiredArg();
-        licenseFileOption = parser.accepts("licenseFile", "license json spec file")
-            .withRequiredArg();
+        licenseOption = parser.accepts("license", "license json spec").withRequiredArg();
+        licenseFileOption = parser.accepts("licenseFile", "license json spec file").withRequiredArg();
     }
 
     public static void main(String[] args) throws Exception {
@@ -57,10 +56,8 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
 
         final License licenseSpec;
         if (options.has(licenseOption)) {
-            final BytesArray bytes =
-                    new BytesArray(licenseOption.value(options).getBytes(StandardCharsets.UTF_8));
-            licenseSpec =
-                    License.fromSource(bytes, XContentType.JSON);
+            final BytesArray bytes = new BytesArray(licenseOption.value(options).getBytes(StandardCharsets.UTF_8));
+            licenseSpec = License.fromSource(bytes, XContentType.JSON);
         } else if (options.has(licenseFileOption)) {
             Path licenseSpecPath = parsePath(licenseFileOption.value(options));
             if (Files.exists(licenseSpecPath) == false) {
@@ -69,13 +66,11 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
             final BytesArray bytes = new BytesArray(Files.readAllBytes(licenseSpecPath));
             licenseSpec = License.fromSource(bytes, XContentType.JSON);
         } else {
-            throw new UserException(
-                    ExitCodes.USAGE,
-                    "Must specify either --license or --licenseFile");
+            throw new UserException(ExitCodes.USAGE, "Must specify either --license or --licenseFile");
         }
 
         // verify
-        if (!LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath))) {
+        if (LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath)) == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid License!");
         }
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

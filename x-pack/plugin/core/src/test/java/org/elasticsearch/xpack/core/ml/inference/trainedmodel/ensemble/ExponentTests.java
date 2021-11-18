@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
@@ -40,19 +41,18 @@ public class ExponentTests extends WeightedAggregatorTests<Exponent> {
     }
 
     public void testAggregate() {
-        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        double[][] values = new double[][]{
-            new double[] {.01},
-            new double[] {.2},
-            new double[] {.002},
-            new double[] {-.01},
-            new double[] {.1}
-        };
+        double[] ones = new double[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        double[][] values = new double[][] {
+            new double[] { .01 },
+            new double[] { .2 },
+            new double[] { .002 },
+            new double[] { -.01 },
+            new double[] { .1 } };
 
         Exponent exponent = new Exponent(ones);
         assertThat(exponent.aggregate(exponent.processValues(values)), closeTo(1.35256, 0.00001));
 
-        double[] variedWeights = new double[]{.01, -1.0, .1, 0.0, 0.0};
+        double[] variedWeights = new double[] { .01, -1.0, .1, 0.0, 0.0 };
 
         exponent = new Exponent(variedWeights);
         assertThat(exponent.aggregate(exponent.processValues(values)), closeTo(0.81897, 0.00001));

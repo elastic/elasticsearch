@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
 
@@ -54,14 +55,14 @@ public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
         int size = instance.getSize();
         int amountToAdd = between(1, 20);
         switch (between(0, 1)) {
-        case 0:
-            from += amountToAdd;
-            break;
-        case 1:
-            size += amountToAdd;
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                from += amountToAdd;
+                break;
+            case 1:
+                size += amountToAdd;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new PageParams(from, size);
     }

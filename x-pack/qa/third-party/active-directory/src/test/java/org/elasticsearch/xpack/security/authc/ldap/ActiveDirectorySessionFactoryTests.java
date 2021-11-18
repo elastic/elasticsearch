@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.ResultCode;
+
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -26,7 +29,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
@@ -80,7 +82,9 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
-                assertThat(groups, containsInAnyOrder(
+                assertThat(
+                    groups,
+                    containsInAnyOrder(
                         containsString("Geniuses"),
                         containsString("Billionaire"),
                         containsString("Playboy"),
@@ -89,7 +93,9 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                         containsString("SHIELD"),
                         containsString("CN=Users,CN=Builtin"),
                         containsString("Domain Users"),
-                        containsString("Supers")));
+                        containsString("Supers")
+                    )
+                );
             }
         }
     }
@@ -116,7 +122,9 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
-                assertThat(groups, containsInAnyOrder(
+                assertThat(
+                    groups,
+                    containsInAnyOrder(
                         containsString("Geniuses"),
                         containsString("Billionaire"),
                         containsString("Playboy"),
@@ -125,7 +133,9 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                         containsString("SHIELD"),
                         containsString("CN=Users,CN=Builtin"),
                         containsString("Domain Users"),
-                        containsString("Supers")));
+                        containsString("Supers")
+                    )
+                );
             }
         }
     }
@@ -134,7 +144,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
-            String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow"};
+            String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow" };
             for (String user : users) {
                 try (LdapSession ldap = session(sessionFactory, user, SECURED_PASSWORD)) {
                     assertConnectionCanReconnect(ldap.getConnection());
@@ -145,8 +155,14 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testAuthenticate() throws Exception {
-        Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
-                LdapSearchScope.ONE_LEVEL, false);
+        Settings settings = buildAdSettings(
+            REALM_ID,
+            AD_LDAP_URL,
+            AD_DOMAIN,
+            "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+            LdapSearchScope.ONE_LEVEL,
+            false
+        );
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
@@ -155,21 +171,31 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
-                assertThat(groups, containsInAnyOrder(
+                assertThat(
+                    groups,
+                    containsInAnyOrder(
                         containsString("Avengers"),
                         containsString("SHIELD"),
                         containsString("Geniuses"),
                         containsString("Philanthropists"),
                         containsString("CN=Users,CN=Builtin"),
                         containsString("Domain Users"),
-                        containsString("Supers")));
+                        containsString("Supers")
+                    )
+                );
             }
         }
     }
 
     public void testAuthenticateBaseUserSearch() throws Exception {
-        Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN,
-                "CN=Bruce Banner, CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.BASE, false);
+        Settings settings = buildAdSettings(
+            REALM_ID,
+            AD_LDAP_URL,
+            AD_DOMAIN,
+            "CN=Bruce Banner, CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+            LdapSearchScope.BASE,
+            false
+        );
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
@@ -178,26 +204,40 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
-                assertThat(groups, containsInAnyOrder(
+                assertThat(
+                    groups,
+                    containsInAnyOrder(
                         containsString("Avengers"),
                         containsString("SHIELD"),
                         containsString("Geniuses"),
                         containsString("Philanthropists"),
                         containsString("CN=Users,CN=Builtin"),
                         containsString("Domain Users"),
-                        containsString("Supers")));
+                        containsString("Supers")
+                    )
+                );
             }
         }
     }
 
     public void testAuthenticateBaseGroupSearch() throws Exception {
         Settings settings = Settings.builder()
-                .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
-                        LdapSearchScope.ONE_LEVEL, false))
-                .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_BASEDN_SETTING,
-                        "CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_SCOPE_SETTING, LdapSearchScope.BASE)
-                .build();
+            .put(
+                buildAdSettings(
+                    REALM_ID,
+                    AD_LDAP_URL,
+                    AD_DOMAIN,
+                    "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+                    LdapSearchScope.ONE_LEVEL,
+                    false
+                )
+            )
+            .put(
+                ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_BASEDN_SETTING,
+                "CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+            )
+            .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_SCOPE_SETTING, LdapSearchScope.BASE)
+            .build();
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
@@ -212,76 +252,110 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     public void testAuthenticateWithUserPrincipalName() throws Exception {
-        Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
-                LdapSearchScope.ONE_LEVEL, false);
+        Settings settings = buildAdSettings(
+            REALM_ID,
+            AD_LDAP_URL,
+            AD_DOMAIN,
+            "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+            LdapSearchScope.ONE_LEVEL,
+            false
+        );
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
-            //Login with the UserPrincipalName
+            // Login with the UserPrincipalName
             String userDN = "CN=Erik Selvig,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
             try (LdapSession ldap = session(sessionFactory, "erik.selvig", SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
                 assertThat(ldap.userDn(), is(userDN));
-                assertThat(groups, containsInAnyOrder(
-                        containsString("Geniuses"),
-                        containsString("CN=Users,CN=Builtin"),
-                        containsString("Domain Users")));
+                assertThat(
+                    groups,
+                    containsInAnyOrder(containsString("Geniuses"), containsString("CN=Users,CN=Builtin"), containsString("Domain Users"))
+                );
             }
         }
     }
 
     public void testAuthenticateWithSAMAccountName() throws Exception {
-        Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
-                LdapSearchScope.ONE_LEVEL, false);
+        Settings settings = buildAdSettings(
+            REALM_ID,
+            AD_LDAP_URL,
+            AD_DOMAIN,
+            "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+            LdapSearchScope.ONE_LEVEL,
+            false
+        );
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
-            //login with sAMAccountName
+            // login with sAMAccountName
             String userDN = "CN=Erik Selvig,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
             try (LdapSession ldap = session(sessionFactory, "selvig", SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 assertThat(ldap.userDn(), is(userDN));
 
                 List<String> groups = groups(ldap);
-                assertThat(groups, containsInAnyOrder(
-                        containsString("Geniuses"),
-                        containsString("CN=Users,CN=Builtin"),
-                        containsString("Domain Users")));
+                assertThat(
+                    groups,
+                    containsInAnyOrder(containsString("Geniuses"), containsString("CN=Users,CN=Builtin"), containsString("Domain Users"))
+                );
             }
         }
     }
 
     public void testCustomUserFilter() throws Exception {
         Settings settings = Settings.builder()
-                .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
-                        LdapSearchScope.SUB_TREE, false))
-                .put(getFullSettingKey(REALM_ID.getName(), ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING),
-                        "(&(objectclass=user)(userPrincipalName={0}@ad.test.elasticsearch.com))")
-                .build();
+            .put(
+                buildAdSettings(
+                    REALM_ID,
+                    AD_LDAP_URL,
+                    AD_DOMAIN,
+                    "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+                    LdapSearchScope.SUB_TREE,
+                    false
+                )
+            )
+            .put(
+                getFullSettingKey(REALM_ID.getName(), ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING),
+                "(&(objectclass=user)(userPrincipalName={0}@ad.test.elasticsearch.com))"
+            )
+            .build();
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
-            //Login with the UserPrincipalName
+            // Login with the UserPrincipalName
             try (LdapSession ldap = session(sessionFactory, "erik.selvig", SECURED_PASSWORD)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
-                assertThat(groups, containsInAnyOrder(
+                assertThat(
+                    groups,
+                    containsInAnyOrder(
                         containsString("CN=Geniuses"),
                         containsString("CN=Domain Users"),
-                        containsString("CN=Users,CN=Builtin")));
+                        containsString("CN=Users,CN=Builtin")
+                    )
+                );
             }
         }
     }
-
 
     public void testStandardLdapConnection() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "ad-as-ldap-test");
         final Settings settings = Settings.builder()
-            .put(LdapTestCase.buildLdapSettings(realmId, new String[]{AD_LDAP_URL}, new String[]{userTemplate}, groupSearchBase,
-                LdapSearchScope.SUB_TREE, null, false))
+            .put(
+                LdapTestCase.buildLdapSettings(
+                    realmId,
+                    new String[] { AD_LDAP_URL },
+                    new String[] { userTemplate },
+                    groupSearchBase,
+                    LdapSearchScope.SUB_TREE,
+                    null,
+                    false
+                )
+            )
             .putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths)
             .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS)
             .build();
@@ -293,11 +367,15 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             assertConnectionCanReconnect(ldap.getConnection());
             List<String> groups = groups(ldap);
 
-            assertThat(groups, containsInAnyOrder(
+            assertThat(
+                groups,
+                containsInAnyOrder(
                     containsString("Avengers"),
                     containsString("SHIELD"),
                     containsString("Geniuses"),
-                    containsString("Philanthropists")));
+                    containsString("Philanthropists")
+                )
+            );
         }
     }
 
@@ -307,8 +385,17 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "ad-as-ldap-test");
         Settings settings = Settings.builder()
-            .put(LdapTestCase.buildLdapSettings(realmId, new String[]{AD_LDAP_URL}, new String[]{userTemplate}, groupSearchBase,
-                LdapSearchScope.SUB_TREE, null, false))
+            .put(
+                LdapTestCase.buildLdapSettings(
+                    realmId,
+                    new String[] { AD_LDAP_URL },
+                    new String[] { userTemplate },
+                    groupSearchBase,
+                    LdapSearchScope.SUB_TREE,
+                    null,
+                    false
+                )
+            )
             .putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths)
             .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS)
             .build();
@@ -318,10 +405,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
 
         String user = "Bruce Banner";
         try (LdapSession ldap = session(sessionFactory, user, SECURED_PASSWORD)) {
-            final UncategorizedExecutionException exception = expectThrows(
-                    UncategorizedExecutionException.class,
-                    () -> groups(ldap)
-            );
+            final UncategorizedExecutionException exception = expectThrows(UncategorizedExecutionException.class, () -> groups(ldap));
             final Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(ExecutionException.class));
             assertThat(cause.getCause(), instanceOf(LDAPException.class));
@@ -335,8 +419,17 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "ad-as-ldap-test");
         Settings settings = Settings.builder()
-            .put(LdapTestCase.buildLdapSettings(realmId, new String[]{AD_LDAP_URL}, new String[]{userTemplate}, groupSearchBase,
-                LdapSearchScope.SUB_TREE, null, false))
+            .put(
+                LdapTestCase.buildLdapSettings(
+                    realmId,
+                    new String[] { AD_LDAP_URL },
+                    new String[] { userTemplate },
+                    groupSearchBase,
+                    LdapSearchScope.SUB_TREE,
+                    null,
+                    false
+                )
+            )
             .putList("ssl.certificate_authorities", certificatePaths)
             .putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths)
             .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS)
@@ -349,11 +442,15 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             assertConnectionCanReconnect(ldap.getConnection());
             List<String> groups = groups(ldap);
 
-            assertThat(groups, containsInAnyOrder(
+            assertThat(
+                groups,
+                containsInAnyOrder(
                     containsString("Avengers"),
                     containsString("SHIELD"),
                     containsString("Geniuses"),
-                    containsString("Philanthropists")));
+                    containsString("Philanthropists")
+                )
+            );
         }
     }
 
@@ -361,10 +458,28 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false, true));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
-            List<String> users = randomSubsetOf(Arrays.asList("cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow",
-                    "cap@ad.test.elasticsearch.com", "hawkeye@ad.test.elasticsearch.com", "hulk@ad.test.elasticsearch.com",
-                    "ironman@ad.test.elasticsearch.com", "thor@ad.test.elasticsearch.com", "blackwidow@ad.test.elasticsearch.com",
-                    "ADES\\cap", "ADES\\hawkeye", "ADES\\hulk", "ADES\\ironman", "ADES\\thor", "ADES\\blackwidow"));
+            List<String> users = randomSubsetOf(
+                Arrays.asList(
+                    "cap",
+                    "hawkeye",
+                    "hulk",
+                    "ironman",
+                    "thor",
+                    "blackwidow",
+                    "cap@ad.test.elasticsearch.com",
+                    "hawkeye@ad.test.elasticsearch.com",
+                    "hulk@ad.test.elasticsearch.com",
+                    "ironman@ad.test.elasticsearch.com",
+                    "thor@ad.test.elasticsearch.com",
+                    "blackwidow@ad.test.elasticsearch.com",
+                    "ADES\\cap",
+                    "ADES\\hawkeye",
+                    "ADES\\hulk",
+                    "ADES\\ironman",
+                    "ADES\\thor",
+                    "ADES\\blackwidow"
+                )
+            );
             for (String user : users) {
                 try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
                     assertConnectionCanReconnect(ldap.getConnection());
@@ -380,8 +495,16 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put(RealmSettings.getFullSettingKey(REALM_ID, RealmSettings.ORDER_SETTING), 0)
-            .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
-                LdapSearchScope.SUB_TREE, false))
+            .put(
+                buildAdSettings(
+                    REALM_ID,
+                    AD_LDAP_URL,
+                    AD_DOMAIN,
+                    "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+                    LdapSearchScope.SUB_TREE,
+                    false
+                )
+            )
             .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_BASEDN_SETTING, "DC=ad,DC=test,DC=elasticsearch,DC=com")
             .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_SCOPE_SETTING, LdapSearchScope.SUB_TREE)
             .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
@@ -410,16 +533,18 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
 
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification, boolean useBindUser) {
         Settings.Builder builder = Settings.builder()
-                .put(getFullSettingKey(REALM_ID, SessionFactorySettings.URLS_SETTING), ldapUrl)
-                .put(getFullSettingKey(REALM_ID, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
-                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
-                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
-                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
-                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
-                .put(getFullSettingKey(REALM_ID, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
+            .put(getFullSettingKey(REALM_ID, SessionFactorySettings.URLS_SETTING), ldapUrl)
+            .put(getFullSettingKey(REALM_ID, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
+            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
+            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
+            .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
+            .put(getFullSettingKey(REALM_ID, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
         if (randomBoolean()) {
-            builder.put(getFullSettingKey(REALM_ID, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+            builder.put(
+                getFullSettingKey(REALM_ID, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
+                hostnameVerification ? SslVerificationMode.FULL : SslVerificationMode.CERTIFICATE
+            );
         } else {
             builder.put(getFullSettingKey(REALM_ID, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
@@ -427,14 +552,29 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         builder.putList(getFullSettingKey(REALM_ID, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
 
         if (useBindUser) {
-            final String user = randomFrom("cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow", "cap@ad.test.elasticsearch.com",
-                    "hawkeye@ad.test.elasticsearch.com", "hulk@ad.test.elasticsearch.com", "ironman@ad.test.elasticsearch.com",
-                    "thor@ad.test.elasticsearch.com", "blackwidow@ad.test.elasticsearch.com", "ADES\\cap", "ADES\\hawkeye", "ADES\\hulk",
-                    "ADES\\ironman", "ADES\\thor", "ADES\\blackwidow", "CN=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com");
+            final String user = randomFrom(
+                "cap",
+                "hawkeye",
+                "hulk",
+                "ironman",
+                "thor",
+                "blackwidow",
+                "cap@ad.test.elasticsearch.com",
+                "hawkeye@ad.test.elasticsearch.com",
+                "hulk@ad.test.elasticsearch.com",
+                "ironman@ad.test.elasticsearch.com",
+                "thor@ad.test.elasticsearch.com",
+                "blackwidow@ad.test.elasticsearch.com",
+                "ADES\\cap",
+                "ADES\\hawkeye",
+                "ADES\\hulk",
+                "ADES\\ironman",
+                "ADES\\thor",
+                "ADES\\blackwidow",
+                "CN=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+            );
             final boolean poolingEnabled = randomBoolean();
-            builder.put("bind_dn", user)
-                    .put("bind_password", PASSWORD)
-                    .put("user_search.pool.enabled", poolingEnabled);
+            builder.put("bind_dn", user).put("bind_password", PASSWORD).put("user_search.pool.enabled", poolingEnabled);
             logger.info("using bind user [{}] with pooling enabled [{}]", user, poolingEnabled);
         }
         return builder.build();
@@ -459,7 +599,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     static ActiveDirectorySessionFactory getActiveDirectorySessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool)
-            throws LDAPException {
+        throws LDAPException {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         if (sessionFactory.getConnectionPool() != null) {
             // don't use this in production

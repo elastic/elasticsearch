@@ -1,23 +1,12 @@
-package org.elasticsearch.script.expression;
-
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
+package org.elasticsearch.script.expression;
 
 import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -31,20 +20,20 @@ final class NumericField {
     private NumericField() {}
 
     // supported variables
-    static final String VALUE_VARIABLE          = "value";
-    static final String EMPTY_VARIABLE          = "empty";
-    static final String LENGTH_VARIABLE         = "length";
+    static final String VALUE_VARIABLE = "value";
+    static final String EMPTY_VARIABLE = "empty";
+    static final String LENGTH_VARIABLE = "length";
 
     // supported methods
-    static final String GETVALUE_METHOD         = "getValue";
-    static final String ISEMPTY_METHOD          = "isEmpty";
-    static final String SIZE_METHOD             = "size";
-    static final String MINIMUM_METHOD          = "min";
-    static final String MAXIMUM_METHOD          = "max";
-    static final String AVERAGE_METHOD          = "avg";
-    static final String MEDIAN_METHOD           = "median";
-    static final String SUM_METHOD              = "sum";
-    static final String COUNT_METHOD            = "count";
+    static final String GETVALUE_METHOD = "getValue";
+    static final String ISEMPTY_METHOD = "isEmpty";
+    static final String SIZE_METHOD = "size";
+    static final String MINIMUM_METHOD = "min";
+    static final String MAXIMUM_METHOD = "max";
+    static final String AVERAGE_METHOD = "avg";
+    static final String MEDIAN_METHOD = "median";
+    static final String SUM_METHOD = "sum";
+    static final String COUNT_METHOD = "count";
 
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
@@ -55,8 +44,9 @@ final class NumericField {
             case LENGTH_VARIABLE:
                 return new CountMethodValueSource(fieldData);
             default:
-                throw new IllegalArgumentException("Member variable [" + variable + "] does not exist for " +
-                                                   "numeric field [" + fieldName + "].");
+                throw new IllegalArgumentException(
+                    "Member variable [" + variable + "] does not exist for " + "numeric field [" + fieldName + "]."
+                );
         }
     }
 

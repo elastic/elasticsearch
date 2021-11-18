@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
@@ -11,13 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
@@ -53,9 +54,9 @@ class AggProvider implements Writeable, ToXContentObject {
                 throw new Exception("aggs cannot be empty");
             }
             parsedAggs = XContentObjectTransformer.aggregatorTransformer(parser.getXContentRegistry()).fromMap(aggs);
-        } catch(Exception ex) {
+        } catch (Exception ex) {
             if (ex.getCause() instanceof IllegalArgumentException) {
-                ex = (Exception)ex.getCause();
+                ex = (Exception) ex.getCause();
             }
             exception = ex;
             if (lenient) {
@@ -76,20 +77,24 @@ class AggProvider implements Writeable, ToXContentObject {
                 aggs.put("calendar_interval", currentInterval.toString());
                 didRewrite = true;
             } else if (currentInterval instanceof Number) {
-                aggs.put("fixed_interval", ((Number)currentInterval).longValue() + "ms");
+                aggs.put("fixed_interval", ((Number) currentInterval).longValue() + "ms");
                 didRewrite = true;
             } else if (currentInterval instanceof String) {
                 aggs.put("fixed_interval", currentInterval.toString());
                 didRewrite = true;
             } else {
-                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
-                    new IllegalArgumentException("unable to parse date_histogram interval parameter"));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT,
+                    new IllegalArgumentException("unable to parse date_histogram interval parameter")
+                );
             }
         }
-        for(Map.Entry<String, Object> entry : aggs.entrySet()) {
+        for (Map.Entry<String, Object> entry : aggs.entrySet()) {
             if (entry.getValue() instanceof Map<?, ?>) {
-                boolean rewrite = rewriteDateHistogramInterval((Map<String, Object>)entry.getValue(),
-                    entry.getKey().equals(DateHistogramAggregationBuilder.NAME));
+                boolean rewrite = rewriteDateHistogramInterval(
+                    (Map<String, Object>) entry.getValue(),
+                    entry.getKey().equals(DateHistogramAggregationBuilder.NAME)
+                );
                 didRewrite = didRewrite || rewrite;
             }
         }
@@ -97,13 +102,14 @@ class AggProvider implements Writeable, ToXContentObject {
     }
 
     static AggProvider fromParsedAggs(AggregatorFactories.Builder parsedAggs) throws IOException {
-        return parsedAggs == null ?
-            null :
-            new AggProvider(
+        return parsedAggs == null
+            ? null
+            : new AggProvider(
                 XContentObjectTransformer.aggregatorTransformer(NamedXContentRegistry.EMPTY).toMap(parsedAggs),
                 parsedAggs,
                 null,
-                false);
+                false
+            );
     }
 
     static AggProvider fromStream(StreamInput in) throws IOException {
@@ -111,7 +117,8 @@ class AggProvider implements Writeable, ToXContentObject {
             in.readMap(),
             in.readOptionalWriteable(AggregatorFactories.Builder::new),
             in.readException(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false);
+            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false
+        );
     }
 
     AggProvider(Map<String, Object> aggs, AggregatorFactories.Builder parsedAggs, Exception parsingException, boolean rewroteAggs) {
@@ -195,11 +202,15 @@ class AggProvider implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "AggProvider{" +
-            "parsingException=" + parsingException +
-            ", parsedAggs=" + parsedAggs +
-            ", aggs=" + aggs +
-            ", rewroteAggs=" + rewroteAggs +
-            '}';
+        return "AggProvider{"
+            + "parsingException="
+            + parsingException
+            + ", parsedAggs="
+            + parsedAggs
+            + ", aggs="
+            + aggs
+            + ", rewroteAggs="
+            + rewroteAggs
+            + '}';
     }
 }

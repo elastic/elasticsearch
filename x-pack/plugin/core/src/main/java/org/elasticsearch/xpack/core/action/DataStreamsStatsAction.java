@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
@@ -15,9 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,8 +52,16 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final ByteSizeValue totalStoreSize;
         private final DataStreamStats[] dataStreams;
 
-        public Response(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures,
-                        int dataStreamCount, int backingIndices, ByteSizeValue totalStoreSize, DataStreamStats[] dataStreams) {
+        public Response(
+            int totalShards,
+            int successfulShards,
+            int failedShards,
+            List<DefaultShardOperationFailedException> shardFailures,
+            int dataStreamCount,
+            int backingIndices,
+            ByteSizeValue totalStoreSize,
+            DataStreamStats[] dataStreams
+        ) {
             super(totalShards, successfulShards, failedShards, shardFailures);
             this.dataStreamCount = dataStreamCount;
             this.backingIndices = backingIndices;
@@ -82,7 +91,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             builder.field("data_stream_count", dataStreamCount);
             builder.field("backing_indices", backingIndices);
             builder.humanReadableField("total_store_size_bytes", "total_store_size", totalStoreSize);
-            builder.array("data_streams", (Object[]) dataStreams);
+            builder.xContentList("data_streams", dataStreams);
         }
 
         public int getDataStreamCount() {
@@ -110,10 +119,10 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 return false;
             }
             Response response = (Response) obj;
-            return dataStreamCount == response.dataStreamCount &&
-                backingIndices == response.backingIndices &&
-                Objects.equals(totalStoreSize, response.totalStoreSize) &&
-                Arrays.equals(dataStreams, response.dataStreams);
+            return dataStreamCount == response.dataStreamCount
+                && backingIndices == response.backingIndices
+                && Objects.equals(totalStoreSize, response.totalStoreSize)
+                && Arrays.equals(dataStreams, response.dataStreams);
         }
 
         @Override
@@ -125,12 +134,16 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
         @Override
         public String toString() {
-            return "Response{" +
-                "dataStreamCount=" + dataStreamCount +
-                ", backingIndices=" + backingIndices +
-                ", totalStoreSize=" + totalStoreSize +
-                ", dataStreams=" + Arrays.toString(dataStreams) +
-                '}';
+            return "Response{"
+                + "dataStreamCount="
+                + dataStreamCount
+                + ", backingIndices="
+                + backingIndices
+                + ", totalStoreSize="
+                + totalStoreSize
+                + ", dataStreams="
+                + Arrays.toString(dataStreams)
+                + '}';
         }
     }
 
@@ -198,10 +211,10 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 return false;
             }
             DataStreamStats that = (DataStreamStats) obj;
-            return backingIndices == that.backingIndices &&
-                maximumTimestamp == that.maximumTimestamp &&
-                Objects.equals(dataStream, that.dataStream) &&
-                Objects.equals(storeSize, that.storeSize);
+            return backingIndices == that.backingIndices
+                && maximumTimestamp == that.maximumTimestamp
+                && Objects.equals(dataStream, that.dataStream)
+                && Objects.equals(storeSize, that.storeSize);
         }
 
         @Override
@@ -211,12 +224,17 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
         @Override
         public String toString() {
-            return "DataStreamStats{" +
-                "dataStream='" + dataStream + '\'' +
-                ", backingIndices=" + backingIndices +
-                ", storeSize=" + storeSize +
-                ", maximumTimestamp=" + maximumTimestamp +
-                '}';
+            return "DataStreamStats{"
+                + "dataStream='"
+                + dataStream
+                + '\''
+                + ", backingIndices="
+                + backingIndices
+                + ", storeSize="
+                + storeSize
+                + ", maximumTimestamp="
+                + maximumTimestamp
+                + '}';
         }
     }
 

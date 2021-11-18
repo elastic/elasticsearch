@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.upgrades;
@@ -29,9 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -46,6 +33,8 @@ import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -56,7 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * An integration test that tests whether percolator queries stored in older supported ES version can still be read by the
@@ -97,14 +86,18 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         );
         addCandidate("\"range\": { \"long_field\": {\"gte\": 1, \"lte\": 9}}", new RangeQueryBuilder("long_field").from(1).to(9));
         addCandidate(
-            "\"bool\": { \"must_not\": [{\"match_all\": {}}], \"must\": [{\"match_all\": {}}], " +
-                "\"filter\": [{\"match_all\": {}}], \"should\": [{\"match_all\": {}}]}",
-            new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder()).must(new MatchAllQueryBuilder())
-                .filter(new MatchAllQueryBuilder()).should(new MatchAllQueryBuilder())
+            "\"bool\": { \"must_not\": [{\"match_all\": {}}], \"must\": [{\"match_all\": {}}], "
+                + "\"filter\": [{\"match_all\": {}}], \"should\": [{\"match_all\": {}}]}",
+            new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder())
+                .must(new MatchAllQueryBuilder())
+                .filter(new MatchAllQueryBuilder())
+                .should(new MatchAllQueryBuilder())
         );
         addCandidate(
             "\"dis_max\": {\"queries\": [{\"match_all\": {}},{\"match_all\": {}},{\"match_all\": {}}], \"tie_breaker\": 0.01}",
-            new DisMaxQueryBuilder().add(new MatchAllQueryBuilder()).add(new MatchAllQueryBuilder()).add(new MatchAllQueryBuilder())
+            new DisMaxQueryBuilder().add(new MatchAllQueryBuilder())
+                .add(new MatchAllQueryBuilder())
+                .add(new MatchAllQueryBuilder())
                 .tieBreaker(0.01f)
         );
         addCandidate(
@@ -112,34 +105,42 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             new ConstantScoreQueryBuilder(new MatchAllQueryBuilder()).boost(0.1f)
         );
         addCandidate(
-            "\"function_score\": {\"query\": {\"match_all\": {}}," +
-                "\"functions\": [{\"random_score\": {}, \"filter\": {\"match_all\": {}}, \"weight\": 0.2}]}",
-            new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                new FunctionScoreQueryBuilder.FilterFunctionBuilder(new MatchAllQueryBuilder(),
-                    new RandomScoreFunctionBuilder().setWeight(0.2f))})
+            "\"function_score\": {\"query\": {\"match_all\": {}},"
+                + "\"functions\": [{\"random_score\": {}, \"filter\": {\"match_all\": {}}, \"weight\": 0.2}]}",
+            new FunctionScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(
+                        new MatchAllQueryBuilder(),
+                        new RandomScoreFunctionBuilder().setWeight(0.2f)
+                    ) }
+            )
         );
         addCandidate(
-            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, " +
-                "{ \"span_term\": { \"keyword_field\": \"value2\" }}]}",
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0)
-                .addClause(new SpanTermQueryBuilder("keyword_field", "value2"))
+            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, "
+                + "{ \"span_term\": { \"keyword_field\": \"value2\" }}]}",
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0).addClause(
+                new SpanTermQueryBuilder("keyword_field", "value2")
+            )
         );
         addCandidate(
-            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, " +
-                "{ \"span_term\": { \"keyword_field\": \"value2\" }}], \"slop\": 2}",
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2)
-                .addClause(new SpanTermQueryBuilder("keyword_field", "value2"))
+            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, "
+                + "{ \"span_term\": { \"keyword_field\": \"value2\" }}], \"slop\": 2}",
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("keyword_field", "value2")
+            )
         );
         addCandidate(
-            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, " +
-                "{ \"span_term\": { \"keyword_field\": \"value2\" }}], \"slop\": 2, \"in_order\": false}",
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2)
-                .addClause(new SpanTermQueryBuilder("keyword_field", "value2")).inOrder(false)
+            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, "
+                + "{ \"span_term\": { \"keyword_field\": \"value2\" }}], \"slop\": 2, \"in_order\": false}",
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("keyword_field", "value2")
+            ).inOrder(false)
         );
     }
 
     private static void addCandidate(String querySource, QueryBuilder expectedQb) {
-        CANDIDATES.add(new Object[]{"{\"query\": {" + querySource + "}}", expectedQb});
+        CANDIDATES.add(new Object[] { "{\"query\": {" + querySource + "}}", expectedQb });
     }
 
     public void testQueryBuilderBWC() throws Exception {
@@ -187,17 +188,22 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
-                Collections.emptyList()).getNamedWriteables());
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(
+                new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+            );
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
                 Request request = new Request("GET", "/" + index + "/_search");
-                request.setJsonEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
-                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\"}]}");
+                request.setJsonEntity(
+                    "{\"query\": {\"ids\": {\"values\": [\""
+                        + Integer.toString(i)
+                        + "\"]}}, "
+                        + "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\"}]}"
+                );
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
-                Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>)toMap(rsp).get("hits")).get("hits")).get(0);
+                Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) toMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {

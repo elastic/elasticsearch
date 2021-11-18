@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.upgrades;
 
@@ -27,11 +16,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
@@ -153,7 +142,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
             case MIXED:
-                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
@@ -164,7 +153,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
             case UPGRADED:
-                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
                 asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
@@ -189,8 +178,19 @@ public class RecoveryIT extends AbstractRollingTestCase {
         } catch (ResponseException e) {
             try {
                 final Response recoveryStateResponse = client().performRequest(new Request("GET", index + "/_recovery"));
-                fail("failed to get doc count for index [" + index + "] with preference [" + preference + "]" + " response [" + e + "]"
-                    + " recovery [" + EntityUtils.toString(recoveryStateResponse.getEntity()) + "]");
+                fail(
+                    "failed to get doc count for index ["
+                        + index
+                        + "] with preference ["
+                        + preference
+                        + "]"
+                        + " response ["
+                        + e
+                        + "]"
+                        + " recovery ["
+                        + EntityUtils.toString(recoveryStateResponse.getEntity())
+                        + "]"
+                );
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
@@ -237,11 +237,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
-                updateIndexSettings(index, Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                    .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
-                    .put("index.routing.allocation.include._id", oldNode)
-                    .putNull("index.routing.allocation.include._tier_preference")
+                updateIndexSettings(
+                    index,
+                    Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                        .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null)
+                        .put("index.routing.allocation.include._id", oldNode)
+                        .putNull("index.routing.allocation.include._tier_preference")
                 );
                 ensureGreen(index); // wait for the primary to be assigned
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
@@ -252,7 +254,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 assertBusy(() -> {
                     Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
                     String xpath = "routing_table.indices." + index + ".shards.0.node";
-                    @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
+                    @SuppressWarnings("unchecked")
+                    List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
                     assertNotNull(state.toString(), assignedNodes);
                     assertThat(state.toString(), newNode, in(assignedNodes));
                 }, 60, TimeUnit.SECONDS);
@@ -261,10 +264,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 assertCount(index, "_only_nodes:" + newNode, 60);
                 break;
             case UPGRADED:
-                updateIndexSettings(index, Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-                    .put("index.routing.allocation.include._id", (String)null)
-                    .putNull("index.routing.allocation.include._tier_preference")
+                updateIndexSettings(
+                    index,
+                    Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                        .put("index.routing.allocation.include._id", (String) null)
+                        .putNull("index.routing.allocation.include._tier_preference")
                 );
                 asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
@@ -282,7 +287,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            flush(index, randomBoolean());
         }
     }
 
@@ -320,7 +325,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            flush(index, randomBoolean());
         }
         ensureGreen(index);
     }
@@ -370,8 +375,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
             case MIXED:
                 // trigger a primary relocation by excluding the last old node with a shard filter
-                final Map<?, ?> nodesMap
-                    = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes"))).evaluate("nodes");
+                final Map<?, ?> nodesMap = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")))
+                    .evaluate("nodes");
                 final List<String> oldNodeNames = new ArrayList<>();
                 for (Object nodeDetails : nodesMap.values()) {
                     final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
@@ -407,16 +412,19 @@ public class RecoveryIT extends AbstractRollingTestCase {
     public void testRecoveryClosedIndex() throws Exception {
         final String indexName = "closed_index_created_on_old";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createIndex(indexName, Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                // if the node with the replica is the first to be restarted, while a replica is still recovering
-                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
-                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
-                // before timing out
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
-                .build());
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    // if the node with the replica is the first to be restarted, while a replica is still recovering
+                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                    // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                    // before timing out
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
+                    .build()
+            );
             ensureGreen(indexName);
             closeIndex(indexName);
         }
@@ -439,14 +447,17 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     public void testCloseIndexDuringRollingUpgrade() throws Exception {
         final Version minimumNodeVersion = minimumNodeVersion();
-        final String indexName =
-            String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id)).toLowerCase(Locale.ROOT);
+        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id))
+            .toLowerCase(Locale.ROOT);
 
         if (indexExists(indexName) == false) {
-            createIndex(indexName, Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                .build());
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .build()
+            );
             ensureGreen(indexName);
             closeIndex(indexName);
         }
@@ -467,19 +478,22 @@ public class RecoveryIT extends AbstractRollingTestCase {
     public void testClosedIndexNoopRecovery() throws Exception {
         final String indexName = "closed_index_replica_allocation";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createIndex(indexName, Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
-                .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
-                .build());
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
+                    .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
+                    .build()
+            );
             indexDocs(indexName, 0, randomInt(10));
             // allocate replica to node-2
-            updateIndexSettings(indexName,
-                Settings.builder().put(
-                    "index.routing.allocation.include._name",
-                    CLUSTER_NAME + "-0," + CLUSTER_NAME + "-2," + CLUSTER_NAME + "-*")
+            updateIndexSettings(
+                indexName,
+                Settings.builder()
+                    .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0," + CLUSTER_NAME + "-2," + CLUSTER_NAME + "-*")
             );
             ensureGreen(indexName);
             closeIndex(indexName);
@@ -493,7 +507,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertClosedIndex(indexName, true);
             if (minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
                 switch (CLUSTER_TYPE) {
-                    case OLD: break;
+                    case OLD:
+                        break;
                     case MIXED:
                         assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
                         break;
@@ -507,6 +522,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
     }
+
     /**
      * Returns the version in which the given index has been created
      */
@@ -547,14 +563,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.verified_before_close", settings)), is(true));
 
             for (int i = 0; i < numberOfShards; i++) {
-                final Collection<Map<String, ?>> shards =
-                    (Collection<Map<String, ?>>) XContentMapValues.extractValue("shards." + i, routingTable);
+                final Collection<Map<String, ?>> shards = (Collection<Map<String, ?>>) XContentMapValues.extractValue(
+                    "shards." + i,
+                    routingTable
+                );
                 assertThat(shards, notNullValue());
                 assertThat(shards.size(), equalTo(numberOfReplicas + 1));
                 for (Map<String, ?> shard : shards) {
                     assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
-                    assertThat((String) XContentMapValues.extractValue("state", shard),
-                        oneOf("STARTED", "RELOCATING", "RELOCATED"));
+                    assertThat((String) XContentMapValues.extractValue("state", shard), oneOf("STARTED", "RELOCATING", "RELOCATED"));
                     assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
                 }
             }
@@ -595,21 +612,19 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            flush(index, randomBoolean());
         }
     }
 
     private void assertNoopRecoveries(String indexName, Predicate<String> targetNode) throws IOException {
-        Map<String, Object> recoveries = entityAsMap(client()
-            .performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
+        Map<String, Object> recoveries = entityAsMap(client().performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
 
         @SuppressWarnings("unchecked")
-        List<Map<String, ?>> shards = (List<Map<String,?>>) XContentMapValues.extractValue(indexName + ".shards", recoveries);
+        List<Map<String, ?>> shards = (List<Map<String, ?>>) XContentMapValues.extractValue(indexName + ".shards", recoveries);
         assertNotNull(shards);
         boolean foundReplica = false;
         for (Map<String, ?> shard : shards) {
-            if (shard.get("primary") == Boolean.FALSE
-                && targetNode.test((String) XContentMapValues.extractValue("target.name", shard))) {
+            if (shard.get("primary") == Boolean.FALSE && targetNode.test((String) XContentMapValues.extractValue("target.name", shard))) {
                 List<?> details = (List<?>) XContentMapValues.extractValue("index.files.details", shard);
                 // once detailed recoveries works, remove this if.
                 if (details == null) {
@@ -656,10 +671,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
         } else {
             ensureGreen(index);
-            assertNoFileBasedRecovery(index, nodeName ->
-                   CLUSTER_TYPE == ClusterType.UPGRADED
-                || nodeName.startsWith(CLUSTER_NAME + "-0")
-                || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
+            assertNoFileBasedRecovery(
+                index,
+                nodeName -> CLUSTER_TYPE == ClusterType.UPGRADED
+                    || nodeName.startsWith(CLUSTER_NAME + "-0")
+                    || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false)
+            );
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
             ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
@@ -671,10 +688,14 @@ public class RecoveryIT extends AbstractRollingTestCase {
     public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
         final String index = "turn_off_translog_retention";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createIndex(index, Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 2))
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+            createIndex(
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 2))
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
+            );
             ensureGreen(index);
             indexDocs(index, 0, randomIntBetween(100, 200));
             flush(index, randomBoolean());
@@ -697,20 +718,26 @@ public class RecoveryIT extends AbstractRollingTestCase {
         List<String> nodes = new ArrayList<>(nodeMap.keySet());
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createIndex(indexName, Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                .build());
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                    .build()
+            );
             ensureGreen(indexName);
-            updateIndexSettings(indexName,
-                Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
+            updateIndexSettings(
+                indexName,
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2)))
+            );
         }
 
         ensureGreen(indexName);
 
         final int numberOfReplicas = Integer.parseInt(
-            getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString());
+            getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString()
+        );
         if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
             assertEquals(nodes.size() - 2, numberOfReplicas);
         } else {

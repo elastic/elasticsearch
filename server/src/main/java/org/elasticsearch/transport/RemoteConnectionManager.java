@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -22,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,11 +43,30 @@ public class RemoteConnectionManager implements ConnectionManager {
         });
     }
 
+    /**
+     * Remote cluster connections have a different lifecycle from intra-cluster connections. Use {@link #connectToRemoteClusterNode}
+     * instead of this method.
+     */
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              ConnectionManager.ConnectionValidator connectionValidator,
-                              ActionListener<Void> listener) throws ConnectTransportException {
-        delegate.connectToNode(node, connectionProfile, connectionValidator, listener);
+    public final void connectToNode(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Releasable> listener
+    ) throws ConnectTransportException {
+        // it's a mistake to call this expecting a useful Releasable back, we never release remote cluster connections today.
+        assert false : "use connectToRemoteClusterNode instead";
+        listener.onFailure(new UnsupportedOperationException("use connectToRemoteClusterNode instead"));
+    }
+
+    public void connectToRemoteClusterNode(DiscoveryNode node, ConnectionValidator connectionValidator, ActionListener<Void> listener)
+        throws ConnectTransportException {
+        delegate.connectToNode(node, null, connectionValidator, listener.map(connectionReleasable -> {
+            // We drop the connectionReleasable here but it's not really a leak: we never close individual connections to a remote cluster
+            // ourselves - instead we close the whole connection manager if the remote cluster is removed, which bypasses any refcounting
+            // and just closes the underlying channels.
+            return null;
+        }));
     }
 
     @Override
@@ -102,7 +111,8 @@ public class RemoteConnectionManager implements ConnectionManager {
     public Transport.Connection getAnyRemoteConnection() {
         List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;
-        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE);
+        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE)
+            ;
         if (localConnectedNodes.isEmpty() == false) {
             DiscoveryNode nextNode = localConnectedNodes.get(Math.floorMod(curr, localConnectedNodes.size()));
             try {
@@ -175,18 +185,27 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            connection.sendRequest(requestId, TransportActionProxy.getProxyAction(action),
-                TransportActionProxy.wrapRequest(targetNode, request), options);
+            connection.sendRequest(
+                requestId,
+                TransportActionProxy.getProxyAction(action),
+                TransportActionProxy.wrapRequest(targetNode, request),
+                options
+            );
         }
 
         @Override
         public void close() {
-            assert false: "proxy connections must not be closed";
+            assert false : "proxy connections must not be closed";
         }
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
             connection.addCloseListener(listener);
+        }
+
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
         }
 
         @Override
@@ -207,5 +226,27 @@ public class RemoteConnectionManager implements ConnectionManager {
         Transport.Connection getConnection() {
             return connection;
         }
+
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "proxy connections must not be released";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+
+        @Override
+        public void onRemoved() {}
     }
 }

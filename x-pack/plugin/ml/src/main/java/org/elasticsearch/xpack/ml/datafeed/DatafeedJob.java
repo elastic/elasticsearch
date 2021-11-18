@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -12,14 +13,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
@@ -52,7 +53,6 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
-    static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
@@ -66,6 +66,7 @@ class DatafeedJob {
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
+    private final long delayedDataCheckFreq;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -75,12 +76,26 @@ class DatafeedJob {
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    private volatile long consecutiveDelayedDataBuckets;
 
-    DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
-                DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
-                AnomalyDetectionAuditor auditor, AnnotationPersister annotationPersister, Supplier<Long> currentTimeSupplier,
-                DelayedDataDetector delayedDataDetector, Integer maxEmptySearches, long latestFinalBucketEndTimeMs, long latestRecordTimeMs,
-                boolean haveSeenDataPreviously) {
+    DatafeedJob(
+        String jobId,
+        DataDescription dataDescription,
+        long frequencyMs,
+        long queryDelayMs,
+        DataExtractorFactory dataExtractorFactory,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        Client client,
+        AnomalyDetectionAuditor auditor,
+        AnnotationPersister annotationPersister,
+        Supplier<Long> currentTimeSupplier,
+        DelayedDataDetector delayedDataDetector,
+        Integer maxEmptySearches,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataCheckFreq
+    ) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
@@ -99,6 +114,7 @@ class DatafeedJob {
             lastEndTimeMs = lastEndTime;
         }
         this.haveEverSeenData = haveSeenDataPreviously;
+        this.delayedDataCheckFreq = delayedDataCheckFreq;
     }
 
     void isolate() {
@@ -136,10 +152,12 @@ class DatafeedJob {
             }
         }
 
-        String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STARTED_FROM_TO,
-                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lookbackStartTimeMs),
-                endTime == null ? "real-time" : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lookbackEnd),
-                TimeValue.timeValueMillis(frequencyMs).getStringRep());
+        String msg = Messages.getMessage(
+            Messages.JOB_AUDIT_DATAFEED_STARTED_FROM_TO,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lookbackStartTimeMs),
+            endTime == null ? "real-time" : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lookbackEnd),
+            TimeValue.timeValueMillis(frequencyMs).getStringRep()
+        );
         auditor.info(jobId, msg);
         LOGGER.info("[{}] {}", jobId, msg);
 
@@ -150,7 +168,7 @@ class DatafeedJob {
             sendPersistRequest();
         }
 
-        if (isRunning() && !isIsolated) {
+        if (isRunning() && isIsolated == false) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
             LOGGER.info("[{}] Lookback has finished", jobId);
             if (isLookbackOnly) {
@@ -160,7 +178,7 @@ class DatafeedJob {
                 return nextRealtimeTimestamp();
             }
         }
-        if (!isIsolated) {
+        if (isIsolated == false) {
             LOGGER.debug("[{}] Lookback finished after being stopped", jobId);
         }
         return null;
@@ -196,21 +214,22 @@ class DatafeedJob {
     }
 
     private void checkForMissingDataIfNecessary() {
-        if (isRunning() && !isIsolated && checkForMissingDataTriggered()) {
+        if (isRunning() && isIsolated == false && checkForMissingDataTriggered()) {
 
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<BucketWithMissingData> missingDataBuckets = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
             if (missingDataBuckets.isEmpty() == false) {
-                long totalRecordsMissing = missingDataBuckets.stream()
-                    .mapToLong(BucketWithMissingData::getMissingDocumentCount)
-                    .sum();
+                long totalRecordsMissing = missingDataBuckets.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum();
                 Bucket lastBucket = missingDataBuckets.get(missingDataBuckets.size() - 1).getBucket();
                 // Get the end of the last bucket and make it milliseconds
                 Date endTime = new Date((lastBucket.getEpoch() + lastBucket.getBucketSpan()) * 1000);
 
-                String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucket.getTimestamp().getTime()));
+                String msg = Messages.getMessage(
+                    Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
+                    totalRecordsMissing,
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(lastBucket.getTimestamp().toInstant())
+                );
 
                 Annotation annotation = createDelayedDataAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(), endTime, msg);
 
@@ -222,10 +241,27 @@ class DatafeedJob {
                     && annotation.getEndTimestamp().equals(lastDataCheckAnnotationWithId.v2().getEndTimestamp())) {
                     return;
                 }
-
-                // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
-                // in the job list page.
-                auditor.warning(jobId, msg);
+                if (lastDataCheckAnnotationWithId != null) {
+                    // NOTE: this check takes advantage of the following:
+                    // * Bucket span is constant
+                    // * The endtime has changed since our previous annotation
+                    // * DatafeedJob objects only ever move forward in time
+                    // All that to say, checking if the lastBucket overlaps the previous annotation end-time, that means that this current
+                    // bucket with missing data is consecutive to the previous one.
+                    if (lastBucket.getEpoch() * 1000 <= (lastDataCheckAnnotationWithId.v2().getEndTimestamp().getTime() + 1)) {
+                        consecutiveDelayedDataBuckets++;
+                    } else {
+                        consecutiveDelayedDataBuckets = 0;
+                    }
+                } else {
+                    consecutiveDelayedDataBuckets = 0;
+                }
+                // to prevent audit log spam on many consecutive buckets missing data, we should throttle writing the messages
+                if (shouldWriteDelayedDataAudit()) {
+                    // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
+                    // in the job list page.
+                    auditor.warning(jobId, msg);
+                }
 
                 if (lastDataCheckAnnotationWithId == null) {
                     lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(null, annotation);
@@ -238,25 +274,33 @@ class DatafeedJob {
         }
     }
 
+    private boolean shouldWriteDelayedDataAudit() {
+        if (consecutiveDelayedDataBuckets < 3) {
+            return true;
+        }
+        if (consecutiveDelayedDataBuckets < 100) {
+            return consecutiveDelayedDataBuckets % 10 == 0;
+        }
+        return consecutiveDelayedDataBuckets % 100 == 0;
+    }
+
     private Annotation createDelayedDataAnnotation(Date startTime, Date endTime, String msg) {
-       Date currentTime = new Date(currentTimeSupplier.get());
-       return new Annotation.Builder()
-           .setAnnotation(msg)
-           .setCreateTime(currentTime)
-           .setCreateUsername(XPackUser.NAME)
-           .setTimestamp(startTime)
-           .setEndTimestamp(endTime)
-           .setJobId(jobId)
-           .setModifiedTime(currentTime)
-           .setModifiedUsername(XPackUser.NAME)
-           .setType(Annotation.Type.ANNOTATION)
-           .setEvent(Annotation.Event.DELAYED_DATA)
-           .build();
+        Date currentTime = new Date(currentTimeSupplier.get());
+        return new Annotation.Builder().setAnnotation(msg)
+            .setCreateTime(currentTime)
+            .setCreateUsername(XPackUser.NAME)
+            .setTimestamp(startTime)
+            .setEndTimestamp(endTime)
+            .setJobId(jobId)
+            .setModifiedTime(currentTime)
+            .setModifiedUsername(XPackUser.NAME)
+            .setType(Annotation.Type.ANNOTATION)
+            .setEvent(Annotation.Event.DELAYED_DATA)
+            .build();
     }
 
     private Annotation updateAnnotation(Annotation annotation) {
-        return new Annotation.Builder(lastDataCheckAnnotationWithId.v2())
-            .setAnnotation(annotation.getAnnotation())
+        return new Annotation.Builder(lastDataCheckAnnotationWithId.v2()).setAnnotation(annotation.getAnnotation())
             .setTimestamp(annotation.getTimestamp())
             .setEndTimestamp(annotation.getEndTimestamp())
             .setModifiedTime(new Date(currentTimeSupplier.get()))
@@ -265,7 +309,7 @@ class DatafeedJob {
     }
 
     /**
-     * We wait a static interval of 15 minutes till the next missing data check.
+     * We wait for `delayedDataCheckFreq` interval till the next missing data check.
      *
      * However, if our delayed data window is smaller than that, we will probably want to check at every available window (if freq. allows).
      * This is to help to miss as few buckets in the delayed data check as possible.
@@ -275,8 +319,7 @@ class DatafeedJob {
      * probably not even be noticeable at such a large timescale.
      */
     private boolean checkForMissingDataTriggered() {
-        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs
-            + Math.min(MISSING_DATA_CHECK_INTERVAL_MS, delayedDataDetector.getWindow());
+        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs + Math.min(delayedDataCheckFreq, delayedDataDetector.getWindow());
     }
 
     /**
@@ -286,11 +329,7 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        if (running.compareAndSet(true, false)) {
-            return true;
-        } else {
-            return false;
-        }
+        return running.compareAndSet(true, false);
     }
 
     public boolean isRunning() {
@@ -310,7 +349,7 @@ class DatafeedJob {
         long recordCount = 0;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         while (dataExtractor.hasNext()) {
-            if ((isIsolated || !isRunning()) && !dataExtractor.isCancelled()) {
+            if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
                 dataExtractor.cancel();
             }
             if (isIsolated) {
@@ -331,9 +370,13 @@ class DatafeedJob {
                 // Unfortunately, there are no great ways to identify the issue but search for 'doc values'
                 // deep in the exception.
                 if (e.toString().contains("doc values")) {
-                    throw new ExtractionProblemException(nextRealtimeTimestamp(), new IllegalArgumentException(
-                            "One or more fields do not have doc values; please enable doc values for all analysis fields for datafeeds" +
-                                    " using aggregations"));
+                    throw new ExtractionProblemException(
+                        nextRealtimeTimestamp(),
+                        new IllegalArgumentException(
+                            "One or more fields do not have doc values; please enable doc values for all analysis fields for datafeeds"
+                                + " using aggregations"
+                        )
+                    );
                 }
                 throw new ExtractionProblemException(nextRealtimeTimestamp(), e);
             }
@@ -344,7 +387,14 @@ class DatafeedJob {
                 DataCounts counts;
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
-                    LOGGER.trace("[{}] Processed another {} records", jobId, counts.getProcessedRecordCount());
+                    LOGGER.trace(
+                        () -> new ParameterizedMessage(
+                            "[{}] Processed another {} records with latest timestamp [{}]",
+                            jobId,
+                            counts.getProcessedRecordCount(),
+                            counts.getLatestRecordTimeStamp()
+                        )
+                    );
                     timingStatsReporter.reportDataCounts(counts);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
@@ -353,7 +403,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.
@@ -375,8 +425,15 @@ class DatafeedJob {
         }
 
         lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
-        LOGGER.debug("[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]", jobId, error, recordCount,
-                lastEndTimeMs, isRunning(), dataExtractor.isCancelled());
+        LOGGER.debug(
+            "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
+            jobId,
+            error,
+            recordCount,
+            lastEndTimeMs,
+            isRunning(),
+            dataExtractor.isCancelled()
+        );
 
         // We can now throw any stored error as we have updated time.
         if (error != null) {
@@ -386,7 +443,7 @@ class DatafeedJob {
         // If the datafeed was stopped, then it is possible that by the time
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
-        if (isRunning() && !isIsolated) {
+        if (isRunning() && isIsolated == false) {
             Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
                 this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
@@ -398,8 +455,7 @@ class DatafeedJob {
         }
     }
 
-    private DataCounts postData(InputStream inputStream, XContentType xContentType)
-            throws IOException {
+    private DataCounts postData(InputStream inputStream, XContentType xContentType) throws IOException {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
         request.setDataDescription(dataDescription);
         request.setContent(Streams.readFully(inputStream), xContentType);
@@ -410,8 +466,7 @@ class DatafeedJob {
     }
 
     private boolean isConflictException(Exception e) {
-        return e instanceof ElasticsearchStatusException
-                && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT;
+        return e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT;
     }
 
     private long nextRealtimeTimestamp() {

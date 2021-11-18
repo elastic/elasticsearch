@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
@@ -19,9 +20,9 @@ public class CliCommandsTests extends SqlCliTestCase {
         HttpClient httpClient = mock(HttpClient.class);
         CliSession cliSession = new CliSession(httpClient);
         CliCommands cliCommands = new CliCommands(
-                (terminal, session, line) -> line.equals("foo"),
-                (terminal, session, line) -> line.equals("bar"),
-                (terminal, session, line) -> line.equals("baz")
+            (terminal, session, line) -> line.equals("foo"),
+            (terminal, session, line) -> line.equals("bar"),
+            (terminal, session, line) -> line.equals("baz")
         );
 
         assertTrue(cliCommands.handle(testTerminal, cliSession, "foo"));

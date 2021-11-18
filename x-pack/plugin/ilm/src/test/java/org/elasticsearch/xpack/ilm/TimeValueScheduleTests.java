@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.Before;
@@ -36,9 +37,11 @@ public class TimeValueScheduleTests extends ESTestCase {
 
     public void testHashcodeAndEquals() {
         for (int i = 0; i < 20; i++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                    instance -> new TimeValueSchedule(instance.getInterval()),
-                    instance -> new TimeValueSchedule(randomValueOtherThan(instance.getInterval(), () -> createRandomTimeValue())));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                createRandomInstance(),
+                instance -> new TimeValueSchedule(instance.getInterval()),
+                instance -> new TimeValueSchedule(randomValueOtherThan(instance.getInterval(), () -> createRandomTimeValue()))
+            );
         }
     }
 
@@ -65,8 +68,10 @@ public class TimeValueScheduleTests extends ESTestCase {
     public void testNextScheduledTimeAfterFirstTrigger() {
         long numberIntervalsPassed = randomLongBetween(0, 10000);
         long triggerTime = start + (numberIntervalsPassed + 1) * interval.millis();
-        long now = start
-                + randomLongBetween(numberIntervalsPassed * interval.millis(), (numberIntervalsPassed + 1) * interval.millis() - 1);
+        long now = start + randomLongBetween(
+            numberIntervalsPassed * interval.millis(),
+            (numberIntervalsPassed + 1) * interval.millis() - 1
+        );
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
         assertEquals(triggerTime, schedule.nextScheduledTimeAfter(start, now));
     }

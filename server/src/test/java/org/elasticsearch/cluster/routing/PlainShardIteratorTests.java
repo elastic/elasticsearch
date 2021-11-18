@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -31,27 +20,35 @@ import java.util.List;
 public class PlainShardIteratorTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomPlainShardIterator(),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            randomPlainShardIterator(),
             i -> new PlainShardIterator(i.shardId(), i.getShardRoutings()),
             i -> {
                 ShardId shardId;
-                switch(randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 2)) {
                     case 0:
                         shardId = new ShardId(i.shardId().getIndex(), i.shardId().getId() + randomIntBetween(1, 1000));
                         break;
                     case 1:
-                        shardId = new ShardId(i.shardId().getIndexName(),
-                            i.shardId().getIndex().getUUID() + randomAlphaOfLengthBetween(1, 3), i.shardId().getId());
+                        shardId = new ShardId(
+                            i.shardId().getIndexName(),
+                            i.shardId().getIndex().getUUID() + randomAlphaOfLengthBetween(1, 3),
+                            i.shardId().getId()
+                        );
                         break;
                     case 2:
-                        shardId = new ShardId(i.shardId().getIndexName() + randomAlphaOfLengthBetween(1, 3),
-                            i.shardId().getIndex().getUUID(), i.shardId().getId());
+                        shardId = new ShardId(
+                            i.shardId().getIndexName() + randomAlphaOfLengthBetween(1, 3),
+                            i.shardId().getIndex().getUUID(),
+                            i.shardId().getId()
+                        );
                         break;
                     default:
                         throw new UnsupportedOperationException();
                 }
                 return new PlainShardIterator(shardId, i.getShardRoutings());
-            });
+            }
+        );
     }
 
     public void testCompareTo() {

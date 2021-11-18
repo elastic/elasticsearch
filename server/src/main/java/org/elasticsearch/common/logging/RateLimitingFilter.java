@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -36,10 +25,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
+/**
+ * A filter used for throttling deprecation logs.
+ * A throttling is based on a combined key which consists of `key` from the logged ESMessage and `x-opaque-id`
+ * passed by a user on a HTTP header.
+ * This filter works by using a lruKeyCache - a set of keys which prevents a second message with the same key to be logged.
+ * The lruKeyCache has a size limited to 128, which when breached will remove the oldest entries.
+ *
+ * It is possible to disable use of `x-opaque-id` as a key with {@link RateLimitingFilter#setUseXOpaqueId(boolean) }
+ * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
+ */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter {
+
+    private volatile boolean useXOpaqueId = true;
 
     private final Set<String> lruKeyCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override
@@ -67,14 +69,21 @@ public class RateLimitingFilter extends AbstractFilter {
         if (message instanceof ESLogMessage) {
             final ESLogMessage esLogMessage = (ESLogMessage) message;
 
-            String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
-            final String key = esLogMessage.get("key");
-
-            return lruKeyCache.add(xOpaqueId + key) ? Result.ACCEPT : Result.DENY;
+            final String key = getKey(esLogMessage);
+            return lruKeyCache.add(key) ? Result.ACCEPT : Result.DENY;
 
         } else {
             return Result.NEUTRAL;
         }
+    }
+
+    private String getKey(ESLogMessage esLogMessage) {
+        final String key = esLogMessage.get(KEY_FIELD_NAME);
+        if (useXOpaqueId) {
+            String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
+            return xOpaqueId + key;
+        }
+        return key;
     }
 
     @Override
@@ -93,5 +102,9 @@ public class RateLimitingFilter extends AbstractFilter {
         @PluginAttribute("onMismatch") final Result mismatch
     ) {
         return new RateLimitingFilter(match, mismatch);
+    }
+
+    public void setUseXOpaqueId(boolean useXOpaqueId) {
+        this.useXOpaqueId = useXOpaqueId;
     }
 }

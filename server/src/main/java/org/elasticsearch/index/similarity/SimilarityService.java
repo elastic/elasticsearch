@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.similarity;
@@ -28,17 +17,17 @@ import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
@@ -48,7 +37,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public final class SimilarityService extends AbstractIndexComponent {
+public final class SimilarityService {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
@@ -65,20 +54,19 @@ public final class SimilarityService extends AbstractIndexComponent {
         });
 
         Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> builtIn = new HashMap<>();
-        builtIn.put("BM25",
-                (settings, version, scriptService) -> SimilarityProviders.createBM25Similarity(settings, version));
-        builtIn.put("boolean",
-                (settings, version, scriptService) -> SimilarityProviders.createBooleanSimilarity(settings, version));
-        builtIn.put("DFR",
-                (settings, version, scriptService) -> SimilarityProviders.createDfrSimilarity(settings, version));
-        builtIn.put("IB",
-                (settings, version, scriptService) -> SimilarityProviders.createIBSimilarity(settings, version));
-        builtIn.put("LMDirichlet",
-                (settings, version, scriptService) -> SimilarityProviders.createLMDirichletSimilarity(settings, version));
-        builtIn.put("LMJelinekMercer",
-                (settings, version, scriptService) -> SimilarityProviders.createLMJelinekMercerSimilarity(settings, version));
-        builtIn.put("DFI",
-                (settings, version, scriptService) -> SimilarityProviders.createDfiSimilarity(settings, version));
+        builtIn.put("BM25", (settings, version, scriptService) -> SimilarityProviders.createBM25Similarity(settings, version));
+        builtIn.put("boolean", (settings, version, scriptService) -> SimilarityProviders.createBooleanSimilarity(settings, version));
+        builtIn.put("DFR", (settings, version, scriptService) -> SimilarityProviders.createDfrSimilarity(settings, version));
+        builtIn.put("IB", (settings, version, scriptService) -> SimilarityProviders.createIBSimilarity(settings, version));
+        builtIn.put(
+            "LMDirichlet",
+            (settings, version, scriptService) -> SimilarityProviders.createLMDirichletSimilarity(settings, version)
+        );
+        builtIn.put(
+            "LMJelinekMercer",
+            (settings, version, scriptService) -> SimilarityProviders.createLMJelinekMercerSimilarity(settings, version)
+        );
+        builtIn.put("DFI", (settings, version, scriptService) -> SimilarityProviders.createDfiSimilarity(settings, version));
         builtIn.put("scripted", new ScriptedSimilarityProvider());
         DEFAULTS = Collections.unmodifiableMap(defaults);
         BUILT_IN = Collections.unmodifiableMap(builtIn);
@@ -87,11 +75,13 @@ public final class SimilarityService extends AbstractIndexComponent {
     private final Similarity defaultSimilarity;
     private final Map<String, Supplier<Similarity>> similarities;
 
-    public SimilarityService(IndexSettings indexSettings, ScriptService scriptService,
-                             Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities) {
-        super(indexSettings);
+    public SimilarityService(
+        IndexSettings indexSettings,
+        ScriptService scriptService,
+        Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities
+    ) {
         Map<String, Supplier<Similarity>> providers = new HashMap<>(similarities.size());
-        Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
+        Map<String, Settings> similaritySettings = indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
 
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
@@ -120,19 +110,24 @@ public final class SimilarityService extends AbstractIndexComponent {
             providers.put(entry.getKey(), entry.getValue().apply(indexSettings.getIndexVersionCreated()));
         }
         this.similarities = providers;
-        defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
-                                                              : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
+        defaultSimilarity = (providers.get("default") != null)
+            ? providers.get("default").get()
+            : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecate("base_similarity_ignored",
-                "The [base] similarity is ignored since query normalization and coords have been removed");
+            deprecationLogger.warn(
+                DeprecationCategory.QUERIES,
+                "base_similarity_ignored",
+                "The [base] similarity is ignored since query normalization and coords have been removed"
+            );
         }
     }
 
+    /**
+     * The similarity to use in searches, which takes into account per-field configuration.
+     */
     public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
-        return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) :
-                defaultSimilarity;
+        return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) : defaultSimilarity;
     }
-
 
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
@@ -142,8 +137,10 @@ public final class SimilarityService extends AbstractIndexComponent {
         return new SimilarityProvider(name, sim.get());
     }
 
-    // for testing
-    Similarity getDefaultSimilarity() {
+    /**
+     * The default similarity configured in the index settings.
+     */
+    public Similarity getDefaultSimilarity() {
         return defaultSimilarity;
     }
 
@@ -162,7 +159,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         public Similarity get(String name) {
             MappedFieldType fieldType = fieldTypeLookup.apply(name);
             return (fieldType != null && fieldType.getTextSearchInfo().getSimilarity() != null)
-                ? fieldType.getTextSearchInfo().getSimilarity().get() : defaultSimilarity;
+                ? fieldType.getTextSearchInfo().getSimilarity().get()
+                : defaultSimilarity;
         }
     }
 
@@ -176,14 +174,24 @@ public final class SimilarityService extends AbstractIndexComponent {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
-        FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
-                IndexOptions.DOCS_AND_FREQS, 20, 20, 0, 50, 10, 3); // length = 20, no overlap
+        FieldInvertState state = new FieldInvertState(
+            indexCreatedVersion.luceneVersion.major,
+            "some_field",
+            IndexOptions.DOCS_AND_FREQS,
+            20,
+            20,
+            0,
+            50,
+            10,
+            3
+        ); // length = 20, no overlap
         final long norm = similarity.computeNorm(state);
         for (int freq = 1; freq <= 10; ++freq) {
             float score = scorer.score(freq, norm);
             if (score < 0) {
-                throw new IllegalArgumentException("Similarities should not return negative scores:\n" +
-                    scorer.explain(Explanation.match(freq, "term freq"), norm));
+                throw new IllegalArgumentException(
+                    "Similarities should not return negative scores:\n" + scorer.explain(Explanation.match(freq, "term freq"), norm)
+                );
             }
         }
     }
@@ -192,16 +200,28 @@ public final class SimilarityService extends AbstractIndexComponent {
         CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
-        FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
-                IndexOptions.DOCS_AND_FREQS, 20, 20, 0, 50, 10, 3); // length = 20, no overlap
+        FieldInvertState state = new FieldInvertState(
+            indexCreatedVersion.luceneVersion.major,
+            "some_field",
+            IndexOptions.DOCS_AND_FREQS,
+            20,
+            20,
+            0,
+            50,
+            10,
+            3
+        ); // length = 20, no overlap
         final long norm = similarity.computeNorm(state);
         float previousScore = 0;
         for (int freq = 1; freq <= 10; ++freq) {
             float score = scorer.score(freq, norm);
             if (score < previousScore) {
-                throw new IllegalArgumentException("Similarity scores should not decrease when term frequency increases:\n" +
-                    scorer.explain(Explanation.match(freq - 1, "term freq"), norm) + "\n" +
-                    scorer.explain(Explanation.match(freq, "term freq"), norm));
+                throw new IllegalArgumentException(
+                    "Similarity scores should not decrease when term frequency increases:\n"
+                        + scorer.explain(Explanation.match(freq - 1, "term freq"), norm)
+                        + "\n"
+                        + scorer.explain(Explanation.match(freq, "term freq"), norm)
+                );
             }
             previousScore = score;
         }
@@ -215,8 +235,17 @@ public final class SimilarityService extends AbstractIndexComponent {
         long previousNorm = 0;
         float previousScore = Float.MAX_VALUE;
         for (int length = 1; length <= 10; ++length) {
-            FieldInvertState state = new FieldInvertState(indexCreatedVersion.luceneVersion.major, "some_field",
-                    IndexOptions.DOCS_AND_FREQS, length, length, 0, 50, 10, 3); // length = 20, no overlap
+            FieldInvertState state = new FieldInvertState(
+                indexCreatedVersion.luceneVersion.major,
+                "some_field",
+                IndexOptions.DOCS_AND_FREQS,
+                length,
+                length,
+                0,
+                50,
+                10,
+                3
+            ); // length = 20, no overlap
             final long norm = similarity.computeNorm(state);
             if (Long.compareUnsigned(previousNorm, norm) > 0) {
                 // esoteric similarity, skip this check
@@ -224,9 +253,12 @@ public final class SimilarityService extends AbstractIndexComponent {
             }
             float score = scorer.score(1, norm);
             if (score > previousScore) {
-                throw new IllegalArgumentException("Similarity scores should not increase when norm increases:\n" +
-                    scorer.explain(Explanation.match(1, "term freq"), norm - 1) + "\n" +
-                    scorer.explain(Explanation.match(1, "term freq"), norm));
+                throw new IllegalArgumentException(
+                    "Similarity scores should not increase when norm increases:\n"
+                        + scorer.explain(Explanation.match(1, "term freq"), norm - 1)
+                        + "\n"
+                        + scorer.explain(Explanation.match(1, "term freq"), norm)
+                );
             }
             previousScore = score;
             previousNorm = norm;

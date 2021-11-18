@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -24,9 +13,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -55,30 +45,34 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHandler() throws IOException {
-        final String writePattern =
-            ".*\\[length: \\d+" +
-                ", request id: \\d+" +
-                ", type: request" +
-                ", version: .*" +
-                ", header size: \\d+B" +
-                ", action: cluster:monitor/stats]" +
-                " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation =
-            new MockLogAppender.PatternSeenEventExpectation(
-                "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
+        final String writePattern = ".*\\[length: \\d+"
+            + ", request id: \\d+"
+            + ", type: request"
+            + ", version: .*"
+            + ", header size: \\d+B"
+            + ", action: cluster:monitor/stats]"
+            + " WRITE: \\d+B";
+        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+            "hot threads request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            writePattern
+        );
 
-        final String readPattern =
-            ".*\\[length: \\d+" +
-                ", request id: \\d+" +
-                ", type: request" +
-                ", version: .*" +
-                ", header size: \\d+B" +
-                ", action: cluster:monitor/stats]" +
-                " READ: \\d+B";
+        final String readPattern = ".*\\[length: \\d+"
+            + ", request id: \\d+"
+            + ", type: request"
+            + ", version: .*"
+            + ", header size: \\d+B"
+            + ", action: cluster:monitor/stats]"
+            + " READ: \\d+B";
 
-        final MockLogAppender.LoggingExpectation readExpectation =
-            new MockLogAppender.PatternSeenEventExpectation(
-                "cluster monitor request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
+        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
+            "cluster monitor request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            readPattern
+        );
 
         appender.addExpectation(writeExpectation);
         appender.addExpectation(readExpectation);
@@ -89,10 +83,18 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     private BytesReference buildRequest() throws IOException {
-        boolean compress = randomBoolean();
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            OutboundMessage.Request request = new OutboundMessage.Request(new ThreadContext(Settings.EMPTY), new ClusterStatsRequest(),
-                Version.CURRENT, ClusterStatsAction.NAME, randomInt(30), false, compress);
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        Compression.Scheme compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
+        try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
+            OutboundMessage.Request request = new OutboundMessage.Request(
+                new ThreadContext(Settings.EMPTY),
+                new ClusterStatsRequest(),
+                Version.CURRENT,
+                ClusterStatsAction.NAME,
+                randomInt(30),
+                false,
+                compress
+            );
             return request.serialize(bytesStreamOutput);
         }
     }

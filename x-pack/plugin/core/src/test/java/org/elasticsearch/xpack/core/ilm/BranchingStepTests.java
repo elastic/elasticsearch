@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -22,9 +23,12 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
 
     public void testPredicateNextStepChange() {
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(0))).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            )
+            .build();
         StepKey stepKey = new StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), BranchingStep.NAME);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(6), randomAlphaOfLength(6), BranchingStep.NAME);
         StepKey nextSkipKey = new StepKey(randomAlphaOfLength(7), randomAlphaOfLength(7), BranchingStep.NAME);
@@ -67,8 +71,11 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
                 nextStepKey = new StepKey(nextStepKey.getPhase(), nextStepKey.getAction(), nextStepKey.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                nextSkipStepKey = new StepKey(nextSkipStepKey.getPhase(), nextSkipStepKey.getAction(),
-                    nextSkipStepKey.getName() + randomAlphaOfLength(5));
+                nextSkipStepKey = new StepKey(
+                    nextSkipStepKey.getPhase(),
+                    nextSkipStepKey.getAction(),
+                    nextSkipStepKey.getName() + randomAlphaOfLength(5)
+                );
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
@@ -79,7 +86,11 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
 
     @Override
     public BranchingStep copyInstance(BranchingStep instance) {
-        return new BranchingStep(instance.getKey(), instance.getNextStepKeyOnFalse(), instance.getNextStepKeyOnTrue(),
-            instance.getPredicate());
+        return new BranchingStep(
+            instance.getKey(),
+            instance.getNextStepKeyOnFalse(),
+            instance.getNextStepKeyOnTrue(),
+            instance.getPredicate()
+        );
     }
 }

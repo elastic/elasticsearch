@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
@@ -20,8 +21,7 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
     private PageParams pageParams = PageParams.defaultParams();
     private boolean allowNoResources = false;
 
-    public AbstractGetResourcesRequest() {
-    }
+    public AbstractGetResourcesRequest() {}
 
     public AbstractGetResourcesRequest(StreamInput in) throws IOException {
         super(in);
@@ -88,9 +88,9 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
             return false;
         }
         AbstractGetResourcesRequest other = (AbstractGetResourcesRequest) obj;
-        return Objects.equals(resourceId, other.resourceId) &&
-            Objects.equals(pageParams, other.pageParams) &&
-            allowNoResources == other.allowNoResources;
+        return Objects.equals(resourceId, other.resourceId)
+            && Objects.equals(pageParams, other.pageParams)
+            && allowNoResources == other.allowNoResources;
     }
 
     public abstract String getResourceIdField();

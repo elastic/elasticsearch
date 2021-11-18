@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
@@ -89,8 +89,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
 
     @Override
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false);
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
         DateHistogramAggregationBuilder bySecond = new DateHistogramAggregationBuilder("second").field(timestampField)
             .fixedInterval(DateHistogramInterval.SECOND)
@@ -103,8 +102,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         searchRequestSource.source(sourceBuilderSource);
         SearchResponse responseSource = search(searchRequestSource);
 
-        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false);
         SearchSourceBuilder sourceBuilderDest = new SearchSourceBuilder().size(100).sort("second");
         searchRequestDest.source(sourceBuilderDest);
         SearchResponse responseDest = search(searchRequestDest);

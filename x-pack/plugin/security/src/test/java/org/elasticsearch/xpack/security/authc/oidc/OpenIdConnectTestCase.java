@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
@@ -12,6 +13,7 @@ import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -60,8 +62,10 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
 
     protected static MockSecureSettings getSecureSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_SECRET),
-            randomAlphaOfLengthBetween(12, 18));
+        secureSettings.setString(
+            getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_SECRET),
+            randomAlphaOfLengthBetween(12, 18)
+        );
         return secureSettings;
     }
 
@@ -71,8 +75,7 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(keySize);
         KeyPair keyPair = gen.generateKeyPair();
-        JWTClaimsSet idTokenClaims = new JWTClaimsSet.Builder()
-            .jwtID(randomAlphaOfLength(8))
+        JWTClaimsSet idTokenClaims = new JWTClaimsSet.Builder().jwtID(randomAlphaOfLength(8))
             .audience(audience)
             .expirationTime(Date.from(now().plusSeconds(3600)))
             .issuer(issuer)
@@ -82,9 +85,7 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
             .subject(subject)
             .build();
 
-        SignedJWT jwt = new SignedJWT(
-            new JWSHeader.Builder(JWSAlgorithm.parse("RS" + hashSize)).build(),
-            idTokenClaims);
+        SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.parse("RS" + hashSize)).build(), idTokenClaims);
         jwt.sign(new RSASSASigner(keyPair.getPrivate()));
         return jwt;
     }
@@ -101,26 +102,29 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
     }
 
     public static void writeJwkSetToFile(Path file) throws IOException {
-        Files.write(file, Arrays.asList(
-            "{\n" +
-                "  \"keys\": [\n" +
-                "    {\n" +
-                "      \"kty\": \"RSA\",\n" +
-                "      \"d\": \"lT2V49RNsu0eTroQDqFCiHY-CkPWdKfKAf66sJrWPNpSX8URa6pTCruFQMsb9ZSqQ8eIvqys9I9rq6Wpaxn1aGRahVzxp7nsBPZYw" +
-                "SY09LRzhvAxJwWdwtF-ogrV5-p99W9mhEa0khot3myzzfWNnGzcf1IudqvkqE9zrlUJg-kvA3icbs6HgaZVAevb_mx-bgbtJdnUxyPGwXLyQ7g6hlntQ" +
-                "R_vpzTnK7XFU6fvkrojh7UPJkanKAH0gf3qPrB-Y2gQML7RSlKo-ZfJNHa83G4NRLHKuWTI6dSKJlqmS9zWGmyC3dx5kGjgqD6YgwtWlip8q-U839zxt" +
-                "z25yeslsQ\",\n" +
-                "      \"e\": \"AQAB\",\n" +
-                "      \"use\": \"sig\",\n" +
-                "      \"kid\": \"testkey\",\n" +
-                "      \"alg\": \"RS256\",\n" +
-                "      \"n\": \"lXBe4UngWJiUfbqbeOvwbH04kYLCpeH4k0o3ngScZDo6ydc_gBDEVwPLQpi8D930aIzr3XHP3RCj0hnpxUun7MNMhWxJZVOd1eg5u" +
-                "uO-nPIhkqr9iGKV5srJk0Dvw0wBaGZuXMBheY2ViNaKTR9EEtjNwU2d2-I5U3YlrnFR6nj-Pn_hWaiCbb_pSFM4w9QpoLDmuwMRanHY_YK7Td2WMICSG" +
-                "P3IRGmbecRZCqgkWVZk396EMoMLNxi8WcErYknyY9r-QeJMruRkr27kgx78L7KZ9uBmu9oKXRQl15ZDYe7Bnt9E5wSdOCV9R9h5VRVUur-_129XkDeAX" +
-                "-6re63_Mw\"\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}"
-        ));
+        Files.write(
+            file,
+            Arrays.asList(
+                "{\n"
+                    + "  \"keys\": [\n"
+                    + "    {\n"
+                    + "      \"kty\": \"RSA\",\n"
+                    + "      \"d\": \"lT2V49RNsu0eTroQDqFCiHY-CkPWdKfKAf66sJrWPNpSX8URa6pTCruFQMsb9ZSqQ8eIvqys9I9rq6Wpaxn1aGRahVzxp7nsBPZYw"
+                    + "SY09LRzhvAxJwWdwtF-ogrV5-p99W9mhEa0khot3myzzfWNnGzcf1IudqvkqE9zrlUJg-kvA3icbs6HgaZVAevb_mx-bgbtJdnUxyPGwXLyQ7g6hlntQ"
+                    + "R_vpzTnK7XFU6fvkrojh7UPJkanKAH0gf3qPrB-Y2gQML7RSlKo-ZfJNHa83G4NRLHKuWTI6dSKJlqmS9zWGmyC3dx5kGjgqD6YgwtWlip8q-U839zxt"
+                    + "z25yeslsQ\",\n"
+                    + "      \"e\": \"AQAB\",\n"
+                    + "      \"use\": \"sig\",\n"
+                    + "      \"kid\": \"testkey\",\n"
+                    + "      \"alg\": \"RS256\",\n"
+                    + "      \"n\": \"lXBe4UngWJiUfbqbeOvwbH04kYLCpeH4k0o3ngScZDo6ydc_gBDEVwPLQpi8D930aIzr3XHP3RCj0hnpxUun7MNMhWxJZVOd1eg5u"
+                    + "uO-nPIhkqr9iGKV5srJk0Dvw0wBaGZuXMBheY2ViNaKTR9EEtjNwU2d2-I5U3YlrnFR6nj-Pn_hWaiCbb_pSFM4w9QpoLDmuwMRanHY_YK7Td2WMICSG"
+                    + "P3IRGmbecRZCqgkWVZk396EMoMLNxi8WcErYknyY9r-QeJMruRkr27kgx78L7KZ9uBmu9oKXRQl15ZDYe7Bnt9E5wSdOCV9R9h5VRVUur-_129XkDeAX"
+                    + "-6re63_Mw\"\n"
+                    + "    }\n"
+                    + "  ]\n"
+                    + "}"
+            )
+        );
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client;
 
@@ -50,7 +39,7 @@ import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -71,7 +60,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -82,13 +71,19 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
+@SuppressWarnings("removal")
 public class RollupIT extends ESRestHighLevelClientTestCase {
 
     double sum = 0.0d;
     int max = Integer.MIN_VALUE;
     int min = Integer.MAX_VALUE;
-    private static final List<String> SUPPORTED_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
-        SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
+    private static final List<String> SUPPORTED_METRICS = Arrays.asList(
+        MaxAggregationBuilder.NAME,
+        MinAggregationBuilder.NAME,
+        SumAggregationBuilder.NAME,
+        AvgAggregationBuilder.NAME,
+        ValueCountAggregationBuilder.NAME
+    );
 
     private String id;
     private String indexPattern;
@@ -115,11 +110,12 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 final int value = randomIntBetween(0, 100);
 
                 final IndexRequest indexRequest = new IndexRequest("docs");
-                indexRequest.source(jsonBuilder()
-                    .startObject()
-                    .field("value", value)
-                    .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
-                    .endObject());
+                indexRequest.source(
+                    jsonBuilder().startObject()
+                        .field("value", value)
+                        .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
+                        .endObject()
+                );
                 bulkRequest.add(indexRequest);
 
                 sum += value;
@@ -132,7 +128,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        final int numDocs = bulkRequest.numberOfActions();
+        final int numberOfDocs = bulkRequest.numberOfActions();
 
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
@@ -147,16 +143,16 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         RefreshResponse refreshResponse = highLevelClient().indices().refresh(new RefreshRequest("docs"), RequestOptions.DEFAULT);
         assertEquals(0, refreshResponse.getFailedShards());
-        return numDocs;
+        return numberOfDocs;
     }
-
 
     public void testDeleteRollupJob() throws Exception {
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
-        PutRollupJobRequest putRollupJobRequest =
-            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+        PutRollupJobRequest putRollupJobRequest = new PutRollupJobRequest(
+            new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout)
+        );
         final RollupClient rollupClient = highLevelClient().rollup();
         execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(id);
@@ -167,8 +163,10 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
     public void testDeleteMissingRollupJob() {
         DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(randomAlphaOfLength(10));
-        ElasticsearchStatusException responseException = expectThrows(ElasticsearchStatusException.class,() -> highLevelClient().rollup()
-            .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT));
+        ElasticsearchStatusException responseException = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> highLevelClient().rollup().deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT)
+        );
         assertThat(responseException.status().getStatus(), is(404));
     }
 
@@ -178,8 +176,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
-        PutRollupJobRequest putRollupJobRequest =
-            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+        PutRollupJobRequest putRollupJobRequest = new PutRollupJobRequest(
+            new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout)
+        );
 
         final RollupClient rollupClient = highLevelClient().rollup();
         AcknowledgedResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
@@ -249,9 +248,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
     public void testSearch() throws Exception {
         testPutStartAndGetRollupJob();
         SearchRequest search = new SearchRequest(rollupIndex);
-        search.source(new SearchSourceBuilder()
-                .size(0)
-                .aggregation(new AvgAggregationBuilder("avg").field("value")));
+        search.source(new SearchSourceBuilder().size(0).aggregation(new AvgAggregationBuilder("avg").field("value")));
         SearchResponse response = highLevelClient().rollup().search(search, RequestOptions.DEFAULT);
         assertEquals(0, response.getFailedShards());
         assertEquals(0, response.getHits().getTotalHits().value);
@@ -266,6 +263,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(getResponse.getJobs(), empty());
     }
 
+    @SuppressWarnings("HiddenField")
     public void testGetRollupCaps() throws Exception {
         final Set<Integer> values = new HashSet<>();
         double sum = 0.0d;
@@ -279,11 +277,12 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 final int value = randomIntBetween(0, 100);
 
                 final IndexRequest indexRequest = new IndexRequest("docs");
-                indexRequest.source(jsonBuilder()
-                    .startObject()
-                    .field("value", value)
-                    .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
-                    .endObject());
+                indexRequest.source(
+                    jsonBuilder().startObject()
+                        .field("value", value)
+                        .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
+                        .endObject()
+                );
                 bulkRequest.add(indexRequest);
 
                 values.add(value);
@@ -297,11 +296,11 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        final int numDocs = bulkRequest.numberOfActions();
+        final int numberOfDocs = bulkRequest.numberOfActions();
 
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
-        if (bulkResponse.hasFailures())     {
+        if (bulkResponse.hasFailures()) {
             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
                 if (itemResponse.isFailed()) {
                     logger.fatal(itemResponse.getFailureMessage());
@@ -317,14 +316,15 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final String indexPattern = randomFrom("docs", "d*", "doc*");
         final String rollupIndex = randomFrom("rollup", "test");
         final String cron = "*/1 * * * * ?";
-        final int pageSize = randomIntBetween(numDocs, numDocs * 10);
+        final int pageSize = randomIntBetween(numberOfDocs, numberOfDocs * 10);
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
-        PutRollupJobRequest putRollupJobRequest =
-            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+        PutRollupJobRequest putRollupJobRequest = new PutRollupJobRequest(
+            new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout)
+        );
 
         final RollupClient rollupClient = highLevelClient().rollup();
         AcknowledgedResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
@@ -334,8 +334,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         highLevelClient().cluster().health(new ClusterHealthRequest(rollupIndex).waitForYellowStatus(), RequestOptions.DEFAULT);
 
         GetRollupCapsRequest getRollupCapsRequest = new GetRollupCapsRequest(indexPattern);
-        GetRollupCapsResponse capsResponse = highLevelClient().rollup()
-            .getRollupCapabilities(getRollupCapsRequest, RequestOptions.DEFAULT);
+        GetRollupCapsResponse capsResponse = highLevelClient().rollup().getRollupCapabilities(getRollupCapsRequest, RequestOptions.DEFAULT);
 
         assertNotNull(capsResponse);
         Map<String, RollableIndexCaps> rolledPatterns = capsResponse.getJobs();
@@ -378,6 +377,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(valueCaps.size(), equalTo(SUPPORTED_METRICS.size()));
     }
 
+    @SuppressWarnings("HiddenField")
     public void testGetRollupIndexCaps() throws Exception {
         final Set<Integer> values = new HashSet<>();
         double sum = 0.0d;
@@ -391,11 +391,12 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 final int value = randomIntBetween(0, 100);
 
                 final IndexRequest indexRequest = new IndexRequest("docs");
-                indexRequest.source(jsonBuilder()
-                    .startObject()
-                    .field("value", value)
-                    .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
-                    .endObject());
+                indexRequest.source(
+                    jsonBuilder().startObject()
+                        .field("value", value)
+                        .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
+                        .endObject()
+                );
                 bulkRequest.add(indexRequest);
 
                 values.add(value);
@@ -413,7 +414,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
-        if (bulkResponse.hasFailures())     {
+        if (bulkResponse.hasFailures()) {
             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
                 if (itemResponse.isFailed()) {
                     logger.fatal(itemResponse.getFailureMessage());
@@ -435,8 +436,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
-        PutRollupJobRequest putRollupJobRequest =
-            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+        PutRollupJobRequest putRollupJobRequest = new PutRollupJobRequest(
+            new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout)
+        );
 
         final RollupClient rollupClient = highLevelClient().rollup();
         AcknowledgedResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);

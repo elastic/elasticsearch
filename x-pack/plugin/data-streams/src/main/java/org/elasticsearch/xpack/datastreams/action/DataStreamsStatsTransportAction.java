@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams.action;
@@ -17,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -117,8 +117,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-                List<IndexMetadata> indices = dataStream.getIndices();
-                return indices.stream().map(idx -> idx.getIndex().getName());
+                List<Index> indices = dataStream.getIndices();
+                return indices.stream().map(Index::getName);
             } else {
                 return Stream.empty();
             }
@@ -132,29 +132,35 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
-    protected DataStreamsStatsAction.DataStreamShardStats shardOperation(DataStreamsStatsAction.Request request, ShardRouting shardRouting)
-        throws IOException {
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-        if (indexShard.routingEntry() == null) {
-            throw new ShardNotFoundException(indexShard.shardId());
-        }
-        StoreStats storeStats = indexShard.storeStats();
-        IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
-        assert indexAbstraction != null;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
-        assert dataStream != null;
-        long maxTimestamp = 0L;
-        try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
-            IndexReader indexReader = searcher.getIndexReader();
-            String fieldName = dataStream.getDataStream().getTimeStampField().getName();
-            byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
-            if (maxPackedValue != null) {
-                maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
+    protected void shardOperation(
+        DataStreamsStatsAction.Request request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
+    ) {
+        ActionListener.completeWith(listener, () -> {
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
+            if (indexShard.routingEntry() == null) {
+                throw new ShardNotFoundException(indexShard.shardId());
             }
-        }
-        return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+            StoreStats storeStats = indexShard.storeStats();
+            IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
+            assert indexAbstraction != null;
+            IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+            assert dataStream != null;
+            long maxTimestamp = 0L;
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
+                IndexReader indexReader = searcher.getIndexReader();
+                String fieldName = dataStream.getDataStream().getTimeStampField().getName();
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
+                if (maxPackedValue != null) {
+                    maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
+                }
+            }
+            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+        });
     }
 
     @Override
@@ -191,11 +197,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                List<String> indices = dataStream.getIndices()
-                    .stream()
-                    .map(IndexMetadata::getIndex)
-                    .map(Index::getName)
-                    .collect(Collectors.toList());
+                List<String> indices = dataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList());
                 stats.backingIndices.addAll(indices);
                 allBackingIndices.addAll(indices);
             }

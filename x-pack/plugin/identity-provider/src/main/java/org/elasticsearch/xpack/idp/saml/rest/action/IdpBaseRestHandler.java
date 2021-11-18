@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
@@ -30,8 +31,9 @@ public abstract class IdpBaseRestHandler extends BaseRestHandler {
         if (isIdpFeatureAllowed()) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(new BytesRestResponse(channel,
-                LicenseUtils.newComplianceException("Identity Provider")));
+            return channel -> channel.sendResponse(
+                new BytesRestResponse(channel, LicenseUtils.newComplianceException("Identity Provider"))
+            );
         }
     }
 
@@ -46,5 +48,3 @@ public abstract class IdpBaseRestHandler extends BaseRestHandler {
      */
     protected abstract RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException;
 }
-
-

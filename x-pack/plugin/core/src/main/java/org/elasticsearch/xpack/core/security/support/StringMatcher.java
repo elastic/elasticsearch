@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.support;
@@ -35,6 +36,8 @@ public class StringMatcher implements Predicate<String> {
 
     private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty)", s -> false);
 
+    protected static final Predicate<String> ALWAYS_TRUE_PREDICATE = s -> true;
+
     private final String description;
     private final Predicate<String> predicate;
     private static final Logger LOGGER = LogManager.getLogger(StringMatcher.class);
@@ -64,6 +67,15 @@ public class StringMatcher implements Predicate<String> {
     @Override
     public boolean test(String s) {
         return predicate.test(s);
+    }
+
+    public boolean isTotal() {
+        return predicate == ALWAYS_TRUE_PREDICATE;
+    }
+
+    // For testing
+    Predicate<String> getPredicate() {
+        return predicate;
     }
 
     @Override
@@ -117,6 +129,9 @@ public class StringMatcher implements Predicate<String> {
             }
 
             final String description = describe(allText);
+            if (nonExactMatch.contains("*")) {
+                return new StringMatcher(description, ALWAYS_TRUE_PREDICATE);
+            }
             if (exactMatch.isEmpty()) {
                 return new StringMatcher(description, buildAutomataPredicate(nonExactMatch));
             }
@@ -162,7 +177,7 @@ public class StringMatcher implements Predicate<String> {
                 if (description.length() > 80) {
                     description = Strings.cleanTruncate(description, 80) + "...";
                 }
-                throw new ElasticsearchSecurityException("The set patterns [{}] is too complex to evaluate", e, description);
+                throw new ElasticsearchSecurityException("The set of patterns [{}] is too complex to evaluate", e, description);
             }
         }
     }

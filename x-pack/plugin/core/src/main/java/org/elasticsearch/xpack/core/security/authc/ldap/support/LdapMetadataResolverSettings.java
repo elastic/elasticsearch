@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.ldap.support;
 
@@ -14,7 +15,9 @@ import java.util.function.Function;
 
 public final class LdapMetadataResolverSettings {
     public static final Function<String, Setting.AffixSetting<List<String>>> ADDITIONAL_METADATA_SETTING = RealmSettings.affixSetting(
-            "metadata", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
+        "metadata",
+        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+    );
 
     private LdapMetadataResolverSettings() {}
 

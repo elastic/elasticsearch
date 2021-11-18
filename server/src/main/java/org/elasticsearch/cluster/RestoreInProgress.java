@@ -1,36 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -95,8 +84,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
         private final ImmutableOpenMap.Builder<String, Entry> entries = ImmutableOpenMap.builder();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(RestoreInProgress restoreInProgress) {
             entries.putAll(restoreInProgress.entries);
@@ -131,8 +119,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          * @param indices    list of indices being restored
          * @param shards     map of shards being restored to their current restore status
          */
-        public Entry(String uuid, Snapshot snapshot, State state, List<String> indices,
-            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
+        public Entry(
+            String uuid,
+            Snapshot snapshot,
+            State state,
+            List<String> indices,
+            ImmutableOpenMap<ShardId, ShardRestoreStatus> shards
+        ) {
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
             this.indices = Objects.requireNonNull(indices);
@@ -197,11 +190,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 return false;
             }
             Entry entry = (Entry) o;
-            return uuid.equals(entry.uuid) &&
-                       snapshot.equals(entry.snapshot) &&
-                       state == entry.state &&
-                       indices.equals(entry.indices) &&
-                       shards.equals(entry.shards);
+            return uuid.equals(entry.uuid)
+                && snapshot.equals(entry.snapshot)
+                && state == entry.state
+                && indices.equals(entry.indices)
+                && shards.equals(entry.shards);
         }
 
         @Override
@@ -218,8 +211,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         private String nodeId;
         private String reason;
 
-        private ShardRestoreStatus() {
-        }
+        private ShardRestoreStatus() {}
 
         /**
          * Constructs a new shard restore status in initializing state on the given node
@@ -325,9 +317,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             }
 
             ShardRestoreStatus status = (ShardRestoreStatus) o;
-            return state == status.state &&
-                       Objects.equals(nodeId, status.nodeId) &&
-                       Objects.equals(reason, status.reason);
+            return state == status.state && Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason);
         }
 
         @Override
@@ -434,8 +424,16 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             List<String> indexBuilder = in.readStringList();
-            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, Collections.unmodifiableList(indexBuilder),
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)));
+            entriesBuilder.put(
+                uuid,
+                new Entry(
+                    uuid,
+                    snapshot,
+                    state,
+                    Collections.unmodifiableList(indexBuilder),
+                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
+                )
+            );
         }
         this.entries = entriesBuilder.build();
     }
@@ -443,8 +441,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(entries.size());
-        for (ObjectCursor<Entry> v : entries.values()) {
-            Entry entry = v.value;
+        for (Entry entry : entries.values()) {
             out.writeString(entry.uuid);
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
@@ -456,8 +453,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray("snapshots");
-        for (ObjectCursor<Entry> entry : entries.values()) {
-            toXContent(entry.value, builder);
+        for (Entry entry : entries.values()) {
+            toXContent(entry, builder);
         }
         builder.endArray();
         return builder;

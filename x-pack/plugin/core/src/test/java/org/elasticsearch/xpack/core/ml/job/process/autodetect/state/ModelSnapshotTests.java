@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -57,8 +58,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     public void testEquals_GivenDifferentTimestamp() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated().setTimestamp(
-                new Date(modelSnapshot1.getTimestamp().getTime() + 1)).build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setTimestamp(new Date(modelSnapshot1.getTimestamp().getTime() + 1)).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -66,8 +66,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     public void testEquals_GivenDifferentDescription() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setDescription(modelSnapshot1.getDescription() + " blah").build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setDescription(modelSnapshot1.getDescription() + " blah").build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -75,8 +74,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     public void testEquals_GivenDifferentId() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setSnapshotId(modelSnapshot1.getSnapshotId() + "_2").build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setSnapshotId(modelSnapshot1.getSnapshotId() + "_2").build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -84,8 +82,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     public void testEquals_GivenDifferentDocCount() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setSnapshotDocCount(modelSnapshot1.getSnapshotDocCount() + 1).build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setSnapshotDocCount(modelSnapshot1.getSnapshotDocCount() + 1).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -103,9 +100,9 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     public void testEquals_GivenDifferentQuantiles() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated()
-                .setQuantiles(new Quantiles("foo", modelSnapshot1.getQuantiles().getTimestamp(),
-                        "different state")).build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setQuantiles(
+            new Quantiles("foo", modelSnapshot1.getQuantiles().getTimestamp(), "different state")
+        ).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -114,7 +111,8 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     public void testEquals_GivenDifferentLatestResultTimestamp() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
         ModelSnapshot modelSnapshot2 = createFullyPopulated().setLatestResultTimeStamp(
-                new Date(modelSnapshot1.getLatestResultTimeStamp().getTime() + 1)).build();
+            new Date(modelSnapshot1.getLatestResultTimeStamp().getTime() + 1)
+        ).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -123,7 +121,8 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     public void testEquals_GivenDifferentLatestRecordTimestamp() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
         ModelSnapshot modelSnapshot2 = createFullyPopulated().setLatestRecordTimeStamp(
-                new Date(modelSnapshot1.getLatestRecordTimeStamp().getTime() + 1)).build();
+            new Date(modelSnapshot1.getLatestRecordTimeStamp().getTime() + 1)
+        ).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
@@ -160,10 +159,8 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         modelSnapshot.setSnapshotId(randomAlphaOfLength(10));
         modelSnapshot.setSnapshotDocCount(randomInt());
         modelSnapshot.setModelSizeStats(ModelSizeStatsTests.createRandomized());
-        modelSnapshot.setLatestResultTimeStamp(
-                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
-        modelSnapshot.setLatestRecordTimeStamp(
-                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setLatestResultTimeStamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setLatestRecordTimeStamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setQuantiles(QuantilesTests.createRandomized());
         modelSnapshot.setRetain(randomBoolean());
         return modelSnapshot.build();
@@ -196,15 +193,19 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     public void testStateDocumentIds_GivenDocCountIsThree() {
         ModelSnapshot snapshot = new ModelSnapshot.Builder("foo").setSnapshotId("123456789").setSnapshotDocCount(3).build();
-        assertThat(snapshot.stateDocumentIds(),
-                equalTo(Arrays.asList("foo_model_state_123456789#1", "foo_model_state_123456789#2", "foo_model_state_123456789#3")));
+        assertThat(
+            snapshot.stateDocumentIds(),
+            equalTo(Arrays.asList("foo_model_state_123456789#1", "foo_model_state_123456789#2", "foo_model_state_123456789#3"))
+        );
     }
 
     public void testStrictParser() throws IOException {
         String json = "{\"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> ModelSnapshot.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ModelSnapshot.STRICT_PARSER.apply(parser, null)
+            );
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }

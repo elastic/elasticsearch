@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -18,16 +21,11 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -38,6 +36,10 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -73,37 +75,47 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     public static void setupCertificates() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, custom TrustManager implementations cannot be used.", inFipsJvm());
         configPath = createTempDir();
-        Path caCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt").toURI());
+        Path caCertPath = PathUtils.get(
+            SSLTrustRestrictionsTests.class.getResource("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt").toURI()
+        );
         X509Certificate caCert = CertParsingUtils.readX509Certificates(Collections.singletonList(caCertPath))[0];
-        Path caKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.key").toURI());
+        Path caKeyPath = PathUtils.get(
+            SSLTrustRestrictionsTests.class.getResource("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.key").toURI()
+        );
         PrivateKey caKey = PemUtils.readPrivateKey(caKeyPath, ""::toCharArray);
         ca = new CertificateInfo(caKey, caKeyPath, caCert, caCertPath);
 
-        Path trustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt").toURI());
+        Path trustedCertPath = PathUtils.get(
+            SSLTrustRestrictionsTests.class.getResource("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt")
+                .toURI()
+        );
         X509Certificate trustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(trustedCertPath))[0];
-        Path trustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.key").toURI());
+        Path trustedKeyPath = PathUtils.get(
+            SSLTrustRestrictionsTests.class.getResource("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.key")
+                .toURI()
+        );
         PrivateKey trustedKey = PemUtils.readPrivateKey(trustedKeyPath, ""::toCharArray);
         trustedCert = new CertificateInfo(trustedKey, trustedKeyPath, trustedX509Certificate, trustedCertPath);
 
-        Path untrustedCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.crt").toURI());
+        Path untrustedCertPath = PathUtils.get(
+            SSLTrustRestrictionsTests.class.getResource("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.crt")
+                .toURI()
+        );
         X509Certificate untrustedX509Certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(untrustedCertPath))[0];
-        Path untrustedKeyPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.key").toURI());
+        Path untrustedKeyPath = PathUtils.get(
+            SSLTrustRestrictionsTests.class.getResource("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/untrusted.key")
+                .toURI()
+        );
         PrivateKey untrustedKey = PemUtils.readPrivateKey(untrustedKeyPath, ""::toCharArray);
         untrustedCert = new CertificateInfo(untrustedKey, untrustedKeyPath, untrustedX509Certificate, untrustedCertPath);
 
         nodeSSL = Settings.builder()
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.security.transport.ssl.verification_mode", "certificate")
-                .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
-                .put("xpack.security.transport.ssl.key", trustedCert.getKeyPath())
-                .put("xpack.security.transport.ssl.certificate", trustedCert.getCertPath())
-                .build();
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
+            .put("xpack.security.transport.ssl.key", trustedCert.getKeyPath())
+            .put("xpack.security.transport.ssl.certificate", trustedCert.getCertPath())
+            .build();
     }
 
     @AfterClass
@@ -116,12 +128,12 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
 
-        Settings parentSettings = super.nodeSettings(nodeOrdinal);
+        Settings parentSettings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
-                .put(nodeSSL);
+            .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
+            .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");
         restrictionsTmpPath = configPath.resolve("trust_restrictions.tmp");
@@ -156,8 +168,14 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
-            logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
-                    trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
+            logger.warn(
+                new ParameterizedMessage(
+                    "unexpected handshake failure with certificate [{}] [{}]",
+                    trustedCert.certificate.getSubjectDN(),
+                    trustedCert.certificate.getSubjectAlternativeNames()
+                ),
+                ex
+            );
             fail("handshake should have been successful, but failed with " + ex);
         }
     }
@@ -212,17 +230,17 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     private void tryConnect(CertificateInfo certificate, boolean shouldFail) throws Exception {
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
-                .put("xpack.security.transport.ssl.certificate", certificate.getCertPath())
-                .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
-                .put("xpack.security.transport.ssl.verification_mode", "certificate")
-                .build();
+            .put("path.home", createTempDir())
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
+            .put("xpack.security.transport.ssl.certificate", certificate.getCertPath())
+            .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .build();
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {

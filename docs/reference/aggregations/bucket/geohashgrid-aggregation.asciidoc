@@ -200,7 +200,7 @@ var bbox = geohash.decode_bbox('u17');
 ==== Requests with additional bounding box filtering
 
 The `geohash_grid` aggregation supports an optional `bounds` parameter
-that restricts the points considered to those that fall within the
+that restricts the cells considered to those that intersects the
 bounds provided. The `bounds` parameter accepts the bounding box in
 all the same <<query-dsl-geo-bounding-box-query-accepted-formats,accepted formats>> of the
 bounds specified in the Geo Bounding Box Query. This bounding box can be used with or

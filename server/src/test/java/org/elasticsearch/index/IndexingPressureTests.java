@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,12 +20,14 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testMemoryBytesAndOpsMarkedAndReleased() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
-             Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(5, 50, false);
-             Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 15, true);
-             Releasable primary2 = indexingPressure.markPrimaryOperationStarted(1, 5, false);
-             Releasable replica = indexingPressure.markReplicaOperationStarted(3, 25, true);
-             Releasable replica2 = indexingPressure.markReplicaOperationStarted(1, 10, false)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
+            Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(5, 50, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 15, true);
+            Releasable primary2 = indexingPressure.markPrimaryOperationStarted(1, 5, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(3, 25, true);
+            Releasable replica2 = indexingPressure.markReplicaOperationStarted(1, 10, false)
+        ) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(60, stats.getCurrentCoordinatingBytes());
             assertEquals(20, stats.getCurrentPrimaryBytes());
@@ -69,8 +60,10 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testAvoidDoubleMemoryAccounting() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
-             Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 15)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
+            Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 15)
+        ) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(10, stats.getCurrentCoordinatingBytes());
             assertEquals(15, stats.getCurrentPrimaryBytes());
@@ -87,12 +80,16 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testCoordinatingPrimaryRejections() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
-             Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
-             Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)
+        ) {
             if (randomBoolean()) {
-                expectThrows(EsRejectedExecutionException.class,
-                    () -> indexingPressure.markCoordinatingOperationStarted(1, 1024 * 2, false));
+                expectThrows(
+                    EsRejectedExecutionException.class,
+                    () -> indexingPressure.markCoordinatingOperationStarted(1, 1024 * 2, false)
+                );
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getCoordinatingRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -123,9 +120,11 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testReplicaRejections() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
-             Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
-             Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)
+        ) {
             // Replica will not be rejected until replica bytes > 15KB
             Releasable replica2 = indexingPressure.markReplicaOperationStarted(1, 1024 * 11, false);
             assertEquals(1024 * 14, indexingPressure.stats().getCurrentReplicaBytes());
@@ -140,9 +139,7 @@ public class IndexingPressureTests extends ESTestCase {
             assertEquals(1, indexingPressure.stats().getReplicaRejections());
             assertEquals(1024 * 14, indexingPressure.stats().getCurrentReplicaBytes());
             forced.close();
-
             replica2.close();
-            forced.close();
         }
 
         assertEquals(1024 * 14, indexingPressure.stats().getTotalReplicaBytes());

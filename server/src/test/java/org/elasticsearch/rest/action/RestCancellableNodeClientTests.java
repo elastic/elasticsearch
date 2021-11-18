@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action;
@@ -28,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpChannel;
@@ -85,7 +74,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 TestHttpChannel channel = new TestHttpChannel();
                 totalSearches += numTasks;
                 for (int j = 0; j < numTasks; j++) {
-                    PlainListenableActionFuture<SearchResponse> actionFuture = PlainListenableActionFuture.newListenableFuture();
+                    ListenableActionFuture<SearchResponse> actionFuture = new ListenableActionFuture<>();
                     RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
                     threadPool.generic().submit(() -> client.execute(SearchAction.INSTANCE, new SearchRequest(), actionFuture));
                     futures.add(actionFuture);
@@ -94,7 +83,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             for (Future<?> future : futures) {
                 future.get();
             }
-            //no channels get closed in this test, hence we expect as many channels as we created in the map
+            // no channels get closed in this test, hence we expect as many channels as we created in the map
             assertEquals(initialHttpChannels + numChannels, RestCancellableNodeClient.getNumChannels());
             assertEquals(0, RestCancellableNodeClient.getNumTasks());
             assertEquals(totalSearches, testClient.searchRequests.get());
@@ -145,13 +134,13 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             int totalSearches = 0;
             for (int i = 0; i < numChannels; i++) {
                 TestHttpChannel channel = new TestHttpChannel();
-                //no need to wait here, there will be no close listener registered, nothing to wait for.
+                // no need to wait here, there will be no close listener registered, nothing to wait for.
                 channel.close();
                 int numTasks = randomIntBetween(1, 5);
                 totalSearches += numTasks;
                 RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
                 for (int j = 0; j < numTasks; j++) {
-                    //here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
+                    // here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
                     client.execute(SearchAction.INSTANCE, new SearchRequest(), null);
                 }
             }
@@ -173,10 +162,12 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(ActionType<Response> action,
-                                                                                                    Request request,
-                                                                                                    ActionListener<Response> listener) {
-            switch(action.name()) {
+        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            switch (action.name()) {
                 case CancelTasksAction.NAME:
                     CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
                     assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTaskId()));
@@ -184,7 +175,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                     if (randomBoolean()) {
                         listener.onResponse(null);
                     } else {
-                        //test that cancel tasks is best effort, failure received are not propagated
+                        // test that cancel tasks is best effort, failure received are not propagated
                         listener.onFailure(new IllegalStateException());
                     }
 
@@ -194,7 +185,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                     Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
                     if (timeout == false) {
                         if (rarely()) {
-                            //make sure that search is sometimes also called from the same thread before the task is returned
+                            // make sure that search is sometimes also called from the same thread before the task is returned
                             listener.onResponse(null);
                         } else {
                             threadPool().generic().submit(() -> listener.onResponse(null));
@@ -219,8 +210,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         private final CountDownLatch closeLatch = new CountDownLatch(1);
 
         @Override
-        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        }
+        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {}
 
         @Override
         public InetSocketAddress getLocalAddress() {
@@ -263,7 +253,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
-            //if the channel is already closed, the listener gets notified immediately, from the same thread.
+            // if the channel is already closed, the listener gets notified immediately, from the same thread.
             if (open.get() == false) {
                 listener.onResponse(null);
             } else {

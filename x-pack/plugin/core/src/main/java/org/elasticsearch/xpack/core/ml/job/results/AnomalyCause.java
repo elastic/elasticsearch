@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,8 +52,11 @@ public class AnomalyCause implements ToXContentObject, Writeable {
     public static final ObjectParser<AnomalyCause, Void> LENIENT_PARSER = createParser(true);
 
     private static ObjectParser<AnomalyCause, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<AnomalyCause, Void> parser = new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(), ignoreUnknownFields,
-                AnomalyCause::new);
+        ObjectParser<AnomalyCause, Void> parser = new ObjectParser<>(
+            ANOMALY_CAUSE.getPreferredName(),
+            ignoreUnknownFields,
+            AnomalyCause::new
+        );
 
         parser.declareDouble(AnomalyCause::setProbability, PROBABILITY);
         parser.declareString(AnomalyCause::setByFieldName, BY_FIELD_NAME);
@@ -67,11 +71,16 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         parser.declareString(AnomalyCause::setFieldName, FIELD_NAME);
         parser.declareString(AnomalyCause::setOverFieldName, OVER_FIELD_NAME);
         parser.declareString(AnomalyCause::setOverFieldValue, OVER_FIELD_VALUE);
-        parser.declareObjectArray(AnomalyCause::setInfluencers, ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
-                INFLUENCERS);
-        parser.declareObject(AnomalyCause::setGeoResults,
+        parser.declareObjectArray(
+            AnomalyCause::setInfluencers,
+            ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
+            INFLUENCERS
+        );
+        parser.declareObject(
+            AnomalyCause::setGeoResults,
             ignoreUnknownFields ? GeoResults.LENIENT_PARSER : GeoResults.STRICT_PARSER,
-            GEO_RESULTS);
+            GEO_RESULTS
+        );
 
         return parser;
     }
@@ -95,8 +104,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
 
     private List<Influence> influencers;
 
-    public AnomalyCause() {
-    }
+    public AnomalyCause() {}
 
     @SuppressWarnings("unchecked")
     public AnomalyCause(StreamInput in) throws IOException {
@@ -212,7 +220,6 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         probability = value;
     }
 
-
     public String getByFieldName() {
         return byFieldName;
     }
@@ -327,21 +334,23 @@ public class AnomalyCause implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(probability,
-                actual,
-                typical,
-                byFieldName,
-                byFieldValue,
-                correlatedByFieldValue,
-                fieldName,
-                function,
-                functionDescription,
-                overFieldName,
-                overFieldValue,
-                partitionFieldName,
-                partitionFieldValue,
-                influencers,
-                geoResults);
+        return Objects.hash(
+            probability,
+            actual,
+            typical,
+            byFieldName,
+            byFieldValue,
+            correlatedByFieldValue,
+            fieldName,
+            function,
+            functionDescription,
+            overFieldName,
+            overFieldValue,
+            partitionFieldName,
+            partitionFieldValue,
+            influencers,
+            geoResults
+        );
     }
 
     @Override
@@ -354,23 +363,23 @@ public class AnomalyCause implements ToXContentObject, Writeable {
             return false;
         }
 
-        AnomalyCause that = (AnomalyCause)other;
+        AnomalyCause that = (AnomalyCause) other;
 
-        return this.probability == that.probability &&
-                Objects.deepEquals(this.typical, that.typical) &&
-                Objects.deepEquals(this.actual, that.actual) &&
-                Objects.equals(this.function, that.function) &&
-                Objects.equals(this.functionDescription, that.functionDescription) &&
-                Objects.equals(this.fieldName, that.fieldName) &&
-                Objects.equals(this.byFieldName, that.byFieldName) &&
-                Objects.equals(this.byFieldValue, that.byFieldValue) &&
-                Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue) &&
-                Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-                Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
-                Objects.equals(this.overFieldName, that.overFieldName) &&
-                Objects.equals(this.overFieldValue, that.overFieldValue) &&
-                Objects.equals(this.geoResults, that.geoResults) &&
-                Objects.equals(this.influencers, that.influencers);
+        return this.probability == that.probability
+            && Objects.deepEquals(this.typical, that.typical)
+            && Objects.deepEquals(this.actual, that.actual)
+            && Objects.equals(this.function, that.function)
+            && Objects.equals(this.functionDescription, that.functionDescription)
+            && Objects.equals(this.fieldName, that.fieldName)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.byFieldValue, that.byFieldValue)
+            && Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.overFieldValue, that.overFieldValue)
+            && Objects.equals(this.geoResults, that.geoResults)
+            && Objects.equals(this.influencers, that.influencers);
     }
 
     @Override

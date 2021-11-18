@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.checkpoint;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -58,6 +60,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -136,12 +139,18 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         if (mockClientForCheckpointing == null) {
             mockClientForCheckpointing = new MockClientForCheckpointing("TransformCheckpointServiceNodeTests");
         }
-
-        transformsConfigManager = new IndexBasedTransformConfigManager(client(), xContentRegistry());
+        ClusterService clusterService = mock(ClusterService.class);
+        transformsConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client(),
+            xContentRegistry()
+        );
 
         // use a mock for the checkpoint service
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
         transformCheckpointService = new TransformCheckpointService(
+            Clock.systemUTC(),
             Settings.EMPTY,
             new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
             transformsConfigManager,
@@ -266,7 +275,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             30L,
-            Instant.ofEpochMilli(timestamp)
+            Instant.ofEpochMilli(timestamp),
+            null
         );
 
         assertAsync(
@@ -281,7 +291,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             63L,
-            Instant.ofEpochMilli(timestamp)
+            Instant.ofEpochMilli(timestamp),
+            null
         );
         assertAsync(
             listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),
@@ -296,7 +307,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             0L,
-            Instant.ofEpochMilli(timestamp)
+            Instant.ofEpochMilli(timestamp),
+            null
         );
         assertAsync(
             listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),

@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -86,12 +75,27 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
+    public OriginalIndices getOriginalIndices(int shardIndex) {
+        return new OriginalIndices(searchRequest.indices(), searchRequest.indicesOptions());
+    }
+
+    @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-        String searchContextId =
-            getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-        searchResponse.set(new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY, searchContextId));
+        String searchContextId = getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
+        searchResponse.set(
+            new SearchResponse(
+                internalSearchResponse,
+                scrollId,
+                numShards,
+                numSuccess.get(),
+                0,
+                0,
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                SearchResponse.Clusters.EMPTY,
+                searchContextId
+            )
+        );
     }
 
     @Override
@@ -127,7 +131,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
         try {
             nextPhase.run();
         } catch (Exception e) {
-           onPhaseFailure(nextPhase, "phase failed", e);
+            onPhaseFailure(nextPhase, "phase failed", e);
         }
     }
 
@@ -149,5 +153,10 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
+    }
+
+    @Override
+    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
+        return false;
     }
 }

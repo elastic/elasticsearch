@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -49,10 +40,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -114,14 +105,17 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String node = internalCluster().startNode();
 
         final String indexName = "index42";
-        assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-            .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true)
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")
-        ));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                    .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true)
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")
+            )
+        );
 
         // index some docs in several segments
         int numDocs = 0;
@@ -147,7 +141,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final Settings nodePathSettings = internalCluster().dataPathSettings(node);
 
         final Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(nodePathSettings).build());
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(nodePathSettings).build()
+        );
         final OptionSet options = parser.parse("-index", indexName, "-shard-id", "0");
 
         // Try running it before the node is stopped (and shard is closed)
@@ -155,9 +150,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             command.execute(terminal, options, environment);
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
-            assertThat(e.getMessage(),
-                allOf(containsString("failed to lock node's directory"),
-                    containsString("is Elasticsearch still running?")));
+            assertThat(
+                e.getMessage(),
+                allOf(containsString("failed to lock node's directory"), containsString("is Elasticsearch still running?"))
+            );
         }
 
         final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
@@ -180,15 +176,21 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // shard should be failed due to a corrupted index
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(0).setPrimary(true)
-                    .get().getExplanation();
+            final ClusterAllocationExplanation explanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation();
 
             final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            assertThat(
+                shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY)
+            );
         });
 
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
@@ -222,26 +224,34 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(0).setPrimary(true)
-                    .get().getExplanation();
+            final ClusterAllocationExplanation explanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation();
 
             final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            assertThat(
+                shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY)
+            );
         });
 
-        client().admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true))
-            .get();
+        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(0).setPrimary(true)
-                    .get().getExplanation();
+            final ClusterAllocationExplanation explanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation();
 
             assertThat(explanation.getCurrentNode(), notNullValue());
             assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
@@ -264,16 +274,24 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String node2 = internalCluster().getNodeNames()[1];
 
         final String indexName = "test";
-        assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-            .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
-            .put("index.routing.allocation.exclude._name", node2)));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                    .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
+                    .put("index.routing.allocation.exclude._name", node2)
+            )
+        );
         ensureYellow();
 
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-            .putNull("index.routing.allocation.exclude._name")));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"))
+        );
         ensureGreen();
 
         // Index some documents
@@ -330,8 +348,15 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // all shards should be failed due to a corrupted translog
         assertBusy(() -> {
-            final UnassignedInfo unassignedInfo = client().admin().cluster().prepareAllocationExplain()
-                .setIndex(indexName).setShard(0).setPrimary(true).get().getExplanation().getUnassignedInfo();
+            final UnassignedInfo unassignedInfo = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation()
+                .getUnassignedInfo();
             assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
             assertThat(ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class), not(nullValue()));
         });
@@ -342,10 +367,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 assertBusy(() -> {
                     logger.info("--> checking that lock has been released for {}", indexDir);
-                    //noinspection EmptyTryBlock since we're just trying to obtain the lock
-                    try (Directory dir = FSDirectory.open(indexDir, NativeFSLockFactory.INSTANCE);
-                         Lock ignored = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-                    } catch (LockObtainFailedException lofe) {
+                    // noinspection EmptyTryBlock since we're just trying to obtain the lock
+                    try (
+                        Directory dir = FSDirectory.open(indexDir, NativeFSLockFactory.INSTANCE);
+                        Lock ignored = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)
+                    ) {} catch (LockObtainFailedException lofe) {
                         logger.info("--> failed acquiring lock for {}", indexDir);
                         throw new AssertionError("still waiting for lock release at [" + indexDir + "]", lofe);
                     } catch (IOException ioe) {
@@ -354,7 +380,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
                 });
 
                 final Environment environment = TestEnvironment.newEnvironment(
-                    Settings.builder().put(internalCluster().getDefaultSettings()).put(node1PathSettings).build());
+                    Settings.builder().put(internalCluster().getDefaultSettings()).put(node1PathSettings).build()
+                );
 
                 terminal.addTextInput("y");
                 OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
@@ -383,26 +410,34 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(0).setPrimary(true)
-                    .get().getExplanation();
+            final ClusterAllocationExplanation explanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation();
 
             final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            assertThat(
+                shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY)
+            );
         });
 
-        client().admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true))
-            .get();
+        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(0).setPrimary(true)
-                    .get().getExplanation();
+            final ClusterAllocationExplanation explanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(indexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation();
 
             assertThat(explanation.getCurrentNode(), notNullValue());
             assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
@@ -421,8 +456,12 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             assertHitCount(q.get(), numDocsToKeep);
         }
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();
-        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get(indexName).stream()
-            .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
+        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
+            .get(indexName)
+            .stream()
+            .filter(recoveryState -> recoveryState.getPrimary() == false)
+            .findFirst()
+            .get();
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
         // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.
         final SeqNoStats seqNoStats = getSeqNoStats(indexName, 0);
@@ -438,18 +477,24 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> nodes name: {}, {}", node1, node2);
 
         final String indexName = "test";
-        assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-            .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
-            .put("index.routing.allocation.exclude._name", node2)
-        ));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                    .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
+                    .put("index.routing.allocation.exclude._name", node2)
+            )
+        );
         ensureYellow();
 
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-            .put("index.routing.allocation.exclude._name", (String)null)
-        ));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", (String) null))
+        );
         ensureGreen();
 
         // Index some documents
@@ -479,8 +524,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final Settings node1PathSettings = internalCluster().dataPathSettings(node1);
         final Settings node2PathSettings = internalCluster().dataPathSettings(node2);
 
-        assertBusy(() -> internalCluster().getInstances(GatewayMetaState.class)
-            .forEach(gw -> assertTrue(gw.allPendingAsyncStatesWritten())));
+        assertBusy(
+            () -> internalCluster().getInstances(GatewayMetaState.class).forEach(gw -> assertTrue(gw.allPendingAsyncStatesWritten()))
+        );
 
         // stop data nodes
         internalCluster().stopRandomDataNode();
@@ -505,7 +551,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final OptionParser parser = command.getParser();
 
         final Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(node2PathSettings).build());
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(node2PathSettings).build()
+        );
         terminal.addTextInput("y");
         OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
         logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
@@ -516,13 +563,19 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         internalCluster().startNode(node2PathSettings);
         ensureGreen(indexName);
         for (String node : internalCluster().nodesInclude(indexName)) {
-            assertHitCount(client().prepareSearch(indexName)
-                .setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(), totalDocs);
+            assertHitCount(
+                client().prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(),
+                totalDocs
+            );
         }
 
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();
-        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get(indexName).stream()
-            .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
+        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
+            .get(indexName)
+            .stream()
+            .filter(recoveryState -> recoveryState.getPrimary() == false)
+            .findFirst()
+            .get();
         // the replica translog was disabled so it doesn't know what hte global checkpoint is and thus can't do ops based recovery
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
         // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.
@@ -536,10 +589,13 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(numOfNodes, Settings.EMPTY);
 
         final String indexName = "test" + randomInt(100);
-        assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfNodes - 1)
-        ));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfNodes - 1)
+            )
+        );
         flush(indexName);
 
         ensureGreen(indexName);
@@ -551,7 +607,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             nodeNameToNodeId.put(cursor.value.getName(), cursor.key);
         }
 
-        final GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{indexName}, false);
+        final GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+            .activePrimaryShardsGrouped(new String[] { indexName }, false);
         final List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         final ShardRouting shardRouting = iterators.iterator().next().nextOrNull();
         assertThat(shardRouting, notNullValue());
@@ -567,7 +624,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             indexPathByNodeName.put(nodeName, getPathToShardData(nodeId, shardId, ShardPath.INDEX_FOLDER_NAME));
 
             final Environment environment = TestEnvironment.newEnvironment(
-                Settings.builder().put(internalCluster().getDefaultSettings()).put(internalCluster().dataPathSettings(nodeName)).build());
+                Settings.builder().put(internalCluster().getDefaultSettings()).put(internalCluster().dataPathSettings(nodeName)).build()
+            );
             environmentByNodeName.put(nodeName, environment);
 
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeName));
@@ -577,14 +635,20 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (String nodeName : nodeNames) {
             final Path indexPath = indexPathByNodeName.get(nodeName);
             final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName), environmentByNodeName.get(nodeName).dataFiles(),
-                state, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+            command.findAndProcessShardPath(
+                options,
+                environmentByNodeName.get(nodeName),
+                environmentByNodeName.get(nodeName).dataFiles(),
+                state,
+                shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath))
+            );
         }
     }
 
     private Path getPathToShardData(String indexName, String dirSuffix) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{indexName}, false);
+        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+            .activePrimaryShardsGrouped(new String[] { indexName }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
@@ -599,11 +663,13 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     public static Path getPathToShardData(String nodeId, ShardId shardId, String shardPathSubdirectory) {
         final NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> paths = StreamSupport.stream(nodeStatsResponse.getNodes().get(0).getFs().spliterator(), false)
-            .map(nodePath -> PathUtils.get(nodePath.getPath())
-                .resolve(NodeEnvironment.INDICES_FOLDER)
-                .resolve(shardId.getIndex().getUUID())
-                .resolve(Integer.toString(shardId.getId()))
-                .resolve(shardPathSubdirectory))
+            .map(
+                nodePath -> PathUtils.get(nodePath.getPath())
+                    .resolve(NodeEnvironment.INDICES_FOLDER)
+                    .resolve(shardId.getIndex().getUUID())
+                    .resolve(Integer.toString(shardId.getId()))
+                    .resolve(shardPathSubdirectory)
+            )
             .filter(Files::isDirectory)
             .collect(Collectors.toSet());
         assertThat(paths, hasSize(1));
@@ -619,9 +685,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     private SeqNoStats getSeqNoStats(String index, int shardId) {
-        final ShardStats[] shardStats = client().admin().indices()
-            .prepareStats(index).get()
-            .getIndices().get(index).getShards();
+        final ShardStats[] shardStats = client().admin().indices().prepareStats(index).get().getIndices().get(index).getShards();
         return shardStats[shardId].getSeqNoStats();
     }
 }

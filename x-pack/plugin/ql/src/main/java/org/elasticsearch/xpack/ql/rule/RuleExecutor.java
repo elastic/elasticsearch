@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.rule;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 
@@ -84,7 +85,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         public boolean hasChanged() {
             if (lazyHasChanged == null) {
-                lazyHasChanged = !before.equals(after);
+                lazyHasChanged = before.equals(after) == false;
             }
             return lazyHasChanged;
         }
@@ -164,33 +165,35 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                         if (log.isTraceEnabled()) {
                             log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
                         }
-                    }
-                    else {
+                    } else {
                         if (log.isTraceEnabled()) {
                             log.trace("Rule {} applied w/o changes", rule);
                         }
                     }
                 }
                 batchDuration = System.currentTimeMillis() - batchStart;
-            } while (hasChanged && !batch.limit.reached(batchRuns));
+            } while (hasChanged && batch.limit.reached(batchRuns) == false);
 
             totalDuration += batchDuration;
 
             if (log.isTraceEnabled()) {
                 TreeType before = plan;
                 TreeType after = plan;
-                if (!tfs.isEmpty()) {
+                if (tfs.isEmpty() == false) {
                     before = tfs.get(0).before;
                     after = tfs.get(tfs.size() - 1).after;
                 }
-                log.trace("Batch {} applied took {}\n{}",
-                    batch.name, TimeValue.timeValueMillis(batchDuration), NodeUtils.diffString(before, after));
+                log.trace(
+                    "Batch {} applied took {}\n{}",
+                    batch.name,
+                    TimeValue.timeValueMillis(batchDuration),
+                    NodeUtils.diffString(before, after)
+                );
             }
         }
 
         if (false == currentPlan.equals(plan) && log.isDebugEnabled()) {
-            log.debug("Tree transformation took {}\n{}",
-                TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
+            log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }
 
         return new ExecutionInfo(plan, currentPlan, transformations);

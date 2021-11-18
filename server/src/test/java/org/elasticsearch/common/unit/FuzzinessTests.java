@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
@@ -142,13 +131,15 @@ public class FuzzinessTests extends ESTestCase {
             {
                 float floatValue = randomFrom(0.0f, 1.0f, 2.0f);
                 XContentBuilder json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(floatValue) : floatValue)
-                        .endObject();
+                    .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(floatValue) : floatValue)
+                    .endObject();
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                    assertThat(parser.nextToken(),
-                            anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
+                    assertThat(
+                        parser.nextToken(),
+                        anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING))
+                    );
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     assertThat(fuzziness.asFloat(), equalTo(floatValue));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
@@ -157,27 +148,29 @@ public class FuzzinessTests extends ESTestCase {
             {
                 int intValue = randomIntBetween(0, 2);
                 XContentBuilder json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(intValue) : intValue)
-                        .endObject();
+                    .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(intValue) : intValue)
+                    .endObject();
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                    assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER),
-                        equalTo(XContentParser.Token.VALUE_STRING)));
+                    assertThat(
+                        parser.nextToken(),
+                        anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING))
+                    );
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                     switch (intValue) {
-                    case 1:
-                        assertThat(fuzziness, sameInstance(Fuzziness.ONE));
-                        break;
-                    case 2:
-                        assertThat(fuzziness, sameInstance(Fuzziness.TWO));
-                        break;
-                    case 0:
-                        assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
-                        break;
-                    default:
-                        break;
+                        case 1:
+                            assertThat(fuzziness, sameInstance(Fuzziness.ONE));
+                            break;
+                        case 2:
+                            assertThat(fuzziness, sameInstance(Fuzziness.TWO));
+                            break;
+                        case 0:
+                            assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
+                            break;
+                        default:
+                            break;
                     }
                 }
             }

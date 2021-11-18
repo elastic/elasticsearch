@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -25,7 +26,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMetadata>
-        implements ToXContentObject, Diffable<LifecyclePolicyMetadata> {
+    implements
+        ToXContentObject,
+        Diffable<LifecyclePolicyMetadata> {
 
     static final ParseField POLICY = new ParseField("policy");
     static final ParseField HEADERS = new ParseField("headers");
@@ -34,11 +37,13 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     static final ParseField MODIFIED_DATE_STRING = new ParseField("modified_date_string");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>("policy_metadata",
-            a -> {
-                LifecyclePolicy policy = (LifecyclePolicy) a[0];
-                return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[1], (long) a[2], (long) a[3]);
-            });
+    public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "policy_metadata",
+        a -> {
+            LifecyclePolicy policy = (LifecyclePolicy) a[0];
+            return new LifecyclePolicyMetadata(policy, (Map<String, String>) a[1], (long) a[2], (long) a[3]);
+        }
+    );
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), XContentParser::mapStrings, HEADERS, ValueType.OBJECT);
@@ -100,7 +105,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(POLICY.getPreferredName(), policy);
-        builder.field(HEADERS.getPreferredName(), headers);
+        builder.stringStringMap(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
         builder.field(MODIFIED_DATE.getPreferredName(), modifiedDate);
         builder.field(MODIFIED_DATE_STRING.getPreferredName(), getModifiedDateString());
@@ -130,10 +135,10 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
             return false;
         }
         LifecyclePolicyMetadata other = (LifecyclePolicyMetadata) obj;
-        return Objects.equals(policy, other.policy) &&
-            Objects.equals(headers, other.headers) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate);
+        return Objects.equals(policy, other.policy)
+            && Objects.equals(headers, other.headers)
+            && Objects.equals(version, other.version)
+            && Objects.equals(modifiedDate, other.modifiedDate);
     }
 
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
@@ -97,22 +98,18 @@ public class Params {
     private static List<Param<?>> flatten(List<Param<?>> params) {
         List<Param<?>> flatten = emptyList();
 
-        if (!params.isEmpty()) {
+        if (params.isEmpty() == false) {
             flatten = new ArrayList<>();
             for (Param<?> p : params) {
                 if (p instanceof Script) {
                     flatten.addAll(flatten(((Script) p).value().params));
-                }
-                else if (p instanceof Agg) {
+                } else if (p instanceof Agg) {
                     flatten.add(p);
-                }
-                else if (p instanceof Grouping) {
+                } else if (p instanceof Grouping) {
                     flatten.add(p);
-                }
-                else if (p instanceof Var) {
+                } else if (p instanceof Var) {
                     flatten.add(p);
-                }
-                else {
+                } else {
                     throw new QlIllegalArgumentException("Unsupported field {}", p);
                 }
             }
@@ -132,9 +129,9 @@ public class Params {
 
     @Override
     public boolean equals(Object obj) {
-        if ((obj instanceof  Params) == false) {
+        if ((obj instanceof Params) == false) {
             return false;
         }
-        return this.params.equals(((Params)obj).params);
+        return this.params.equals(((Params) obj).params);
     }
 }

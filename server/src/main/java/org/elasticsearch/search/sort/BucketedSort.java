@@ -1,28 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
@@ -30,6 +17,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -94,10 +83,12 @@ public abstract class BucketedSort implements Releasable {
          * </p>
          */
         void swap(long lhs, long rhs);
+
         /**
          * Prepare to load extra data from a leaf.
          */
         Loader loader(LeafReaderContext ctx) throws IOException;
+
         @FunctionalInterface
         interface Loader {
             /**
@@ -413,8 +404,8 @@ public abstract class BucketedSort implements Releasable {
                 grow(requiredSize);
             }
             int next = getNextGatherOffset(rootIndex);
-            assert 0 <= next && next < bucketSize :
-                "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
+            assert 0 <= next && next < bucketSize
+                : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
             long index = next + rootIndex;
             setIndexToDocValue(index);
             loader().loadFromDoc(index, doc);
@@ -470,10 +461,14 @@ public abstract class BucketedSort implements Releasable {
         }
 
         @Override
-        public boolean needsScores() { return false; }
+        public boolean needsScores() {
+            return false;
+        }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {
@@ -561,7 +556,9 @@ public abstract class BucketedSort implements Releasable {
         }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {
@@ -637,10 +634,14 @@ public abstract class BucketedSort implements Releasable {
         }
 
         @Override
-        public final boolean needsScores() { return false; }
+        public final boolean needsScores() {
+            return false;
+        }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {

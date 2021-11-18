@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -36,39 +37,57 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
     IndexLifecycleService indexLifecycleService;
 
     @Inject
-    public TransportRetryAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                IndexLifecycleService indexLifecycleService) {
-        super(RetryAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver,
-                AcknowledgedResponse::readFrom, ThreadPool.Names.SAME);
+    public TransportRetryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexLifecycleService indexLifecycleService
+    ) {
+        super(
+            RetryAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            indexNameExpressionResolver,
+            AcknowledgedResponse::readFrom,
+            ThreadPool.Names.SAME
+        );
         this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("ilm-re-run",
-            new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return indexLifecycleService.moveClusterStateToPreviouslyFailedStep(currentState, request.indices());
-                }
+        clusterService.submitStateUpdateTask("ilm-re-run", new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return indexLifecycleService.moveClusterStateToPreviouslyFailedStep(currentState, request.indices());
+            }
 
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    for (String index : request.indices()) {
-                        IndexMetadata idxMeta = newState.metadata().index(index);
-                        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-                        StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
-                        if (idxMeta == null) {
-                            // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
-                            logger.debug("index [" + index + "] has been deleted after moving to step [" +
-                                lifecycleState.getStep() + "], skipping async action check");
-                            return;
-                        }
-                        indexLifecycleService.maybeRunAsyncAction(newState, idxMeta, retryStep);
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                for (String index : request.indices()) {
+                    IndexMetadata idxMeta = newState.metadata().index(index);
+                    LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                    StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
+                    if (idxMeta == null) {
+                        // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
+                        logger.debug(
+                            "index ["
+                                + index
+                                + "] has been deleted after moving to step ["
+                                + lifecycleState.getStep()
+                                + "], skipping async action check"
+                        );
+                        return;
                     }
+                    indexLifecycleService.maybeRunAsyncAction(newState, idxMeta, retryStep);
                 }
-            });
+            }
+        });
     }
 
     @Override

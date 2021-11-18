@@ -1,0 +1,66 @@
+[[indices-template-exists-v1]]
+=== Index template exists API
+++++
+<titleabbrev>Index template exists (legacy)</titleabbrev>
+++++
+
+IMPORTANT: This documentation is about <<indices-templates-v1,legacy index
+templates>>, which are deprecated and will be replaced by the composable
+templates introduced in {es} 7.8. For information about composable templates,
+see <<index-templates>>.
+
+Checks if an <<indices-templates-v1,legacy index template>> exists.
+
+
+
+[source,console]
+-----------------------------------------------
+HEAD /_template/template_1
+-----------------------------------------------
+
+
+[[template-exists-api-request]]
+==== {api-request-title}
+
+`HEAD /_template/<index-template>`
+
+[[template-exists-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
+
+[[template-exists-api-desc]]
+==== {api-description-title}
+
+Use the index template exists API
+to determine whether one or more index templates exist.
+
+Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, 
+and <<aliases,aliases>> that can be applied automatically to new indices. 
+
+[[template-exists-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-template]
+
+
+[[template-exists-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[template-exists-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`::
+Indicates all specified index templates exist.
+
+`404`::
+Indicates one or more specified index templates **do not** exist.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.api;
@@ -22,7 +11,9 @@ package org.elasticsearch.painless.api;
 import org.elasticsearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
@@ -78,7 +69,7 @@ public class Augmentation {
     /** Converts this Iterable to a Collection. Returns the original Iterable if it is already a Collection. */
     public static <T> Collection<T> asCollection(Iterable<T> receiver) {
         if (receiver instanceof Collection) {
-            return (Collection<T>)receiver;
+            return (Collection<T>) receiver;
         }
         List<T> list = new ArrayList<>();
         for (T t : receiver) {
@@ -90,7 +81,7 @@ public class Augmentation {
     /** Converts this Iterable to a List. Returns the original Iterable if it is already a List. */
     public static <T> List<T> asList(Iterable<T> receiver) {
         if (receiver instanceof List) {
-            return (List<T>)receiver;
+            return (List<T>) receiver;
         }
         List<T> list = new ArrayList<>();
         for (T t : receiver) {
@@ -147,13 +138,13 @@ public class Augmentation {
      * Iterates through the Iterable transforming items using the supplied function and
      * collecting any non-null results.
      */
-    public static <T,U> List<U> findResults(Iterable<T> receiver, Function<T,U> filter) {
+    public static <T, U> List<U> findResults(Iterable<T> receiver, Function<T, U> filter) {
         List<U> list = new ArrayList<>();
-        for (T t: receiver) {
-           U result = filter.apply(t);
-           if (result != null) {
-               list.add(result);
-           }
+        for (T t : receiver) {
+            U result = filter.apply(t);
+            if (result != null) {
+                list.add(result);
+            }
         }
         return list;
     }
@@ -161,8 +152,8 @@ public class Augmentation {
     /**
      * Sorts all Iterable members into groups determined by the supplied mapping function.
      */
-    public static <T,U> Map<U,List<T>> groupBy(Iterable<T> receiver, Function<T,U> mapper) {
-        Map<U,List<T>> map = new LinkedHashMap<>();
+    public static <T, U> Map<U, List<T>> groupBy(Iterable<T> receiver, Function<T, U> mapper) {
+        Map<U, List<T>> map = new LinkedHashMap<>();
         for (T t : receiver) {
             U mapped = mapper.apply(t);
             List<T> results = map.get(mapped);
@@ -181,8 +172,11 @@ public class Augmentation {
      */
     public static <T> String join(Iterable<T> receiver, String separator) {
         StringBuilder sb = new StringBuilder();
+        boolean firstToken = true;
         for (T t : receiver) {
-            if (sb.length() > 0) {
+            if (firstToken) {
+                firstToken = false;
+            } else {
                 sb.append(separator);
             }
             sb.append(t);
@@ -219,7 +213,7 @@ public class Augmentation {
      * Iterates through this collection transforming each entry into a new value using
      * the function, returning a list of transformed values.
      */
-    public static <T,U> List<U> collect(Collection<T> receiver, Function<T,U> function) {
+    public static <T, U> List<U> collect(Collection<T> receiver, Function<T, U> function) {
         List<U> list = new ArrayList<>();
         for (T t : receiver) {
             list.add(function.apply(t));
@@ -231,7 +225,7 @@ public class Augmentation {
      * Iterates through this collection transforming each entry into a new value using
      * the function, adding the values to the specified collection.
      */
-    public static <T,U> Object collect(Collection<T> receiver, Collection<U> collection, Function<T,U> function) {
+    public static <T, U> Object collect(Collection<T> receiver, Collection<U> collection, Function<T, U> function) {
         for (T t : receiver) {
             collection.add(function.apply(t));
         }
@@ -268,7 +262,7 @@ public class Augmentation {
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, null is returned.
      */
-    public static <T,U> Object findResult(Collection<T> receiver, Function<T,U> function) {
+    public static <T, U> Object findResult(Collection<T> receiver, Function<T, U> function) {
         return findResult(receiver, null, function);
     }
 
@@ -277,7 +271,7 @@ public class Augmentation {
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, defaultResult is returned.
      */
-    public static <T,U> Object findResult(Collection<T> receiver, Object defaultResult, Function<T,U> function) {
+    public static <T, U> Object findResult(Collection<T> receiver, Object defaultResult, Function<T, U> function) {
         for (T t : receiver) {
             U value = function.apply(t);
             if (value != null) {
@@ -314,9 +308,9 @@ public class Augmentation {
      * Iterates through this map transforming each entry into a new value using
      * the function, returning a list of transformed values.
      */
-    public static <K,V,T> List<T> collect(Map<K,V> receiver, BiFunction<K,V,T> function) {
+    public static <K, V, T> List<T> collect(Map<K, V> receiver, BiFunction<K, V, T> function) {
         List<T> list = new ArrayList<>();
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             list.add(function.apply(kvPair.getKey(), kvPair.getValue()));
         }
         return list;
@@ -326,17 +320,17 @@ public class Augmentation {
      * Iterates through this map transforming each entry into a new value using
      * the function, adding the values to the specified collection.
      */
-    public static <K,V,T> Object collect(Map<K,V> receiver, Collection<T> collection, BiFunction<K,V,T> function) {
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+    public static <K, V, T> Object collect(Map<K, V> receiver, Collection<T> collection, BiFunction<K, V, T> function) {
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             collection.add(function.apply(kvPair.getKey(), kvPair.getValue()));
         }
         return collection;
     }
 
     /** Counts the number of occurrences which satisfy the given predicate from inside this Map */
-    public static <K,V> int count(Map<K,V> receiver, BiPredicate<K,V> predicate) {
+    public static <K, V> int count(Map<K, V> receiver, BiPredicate<K, V> predicate) {
         int count = 0;
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
                 count++;
             }
@@ -345,7 +339,7 @@ public class Augmentation {
     }
 
     /** Iterates through a Map, passing each item to the given consumer. */
-    public static <K,V> Object each(Map<K,V> receiver, BiConsumer<K,V> consumer) {
+    public static <K, V> Object each(Map<K, V> receiver, BiConsumer<K, V> consumer) {
         receiver.forEach(consumer);
         return receiver;
     }
@@ -353,8 +347,8 @@ public class Augmentation {
     /**
      * Used to determine if the given predicate is valid (i.e. returns true for all items in this map).
      */
-    public static <K,V> boolean every(Map<K,V> receiver, BiPredicate<K,V> predicate) {
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+    public static <K, V> boolean every(Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             if (predicate.test(kvPair.getKey(), kvPair.getValue()) == false) {
                 return false;
             }
@@ -365,8 +359,8 @@ public class Augmentation {
     /**
      * Finds the first entry matching the predicate, or returns null.
      */
-    public static <K,V> Map.Entry<K,V> find(Map<K,V> receiver, BiPredicate<K,V> predicate) {
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+    public static <K, V> Map.Entry<K, V> find(Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
                 return kvPair;
             }
@@ -377,15 +371,15 @@ public class Augmentation {
     /**
      * Finds all values matching the predicate, returns as a map.
      */
-    public static <K,V> Map<K,V> findAll(Map<K,V> receiver, BiPredicate<K,V> predicate) {
+    public static <K, V> Map<K, V> findAll(Map<K, V> receiver, BiPredicate<K, V> predicate) {
         // try to preserve some properties of the receiver (see the groovy javadocs)
-        final Map<K,V> map;
+        final Map<K, V> map;
         if (receiver instanceof TreeMap) {
             map = new TreeMap<>();
         } else {
             map = new LinkedHashMap<>();
         }
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
                 map.put(kvPair.getKey(), kvPair.getValue());
             }
@@ -398,7 +392,7 @@ public class Augmentation {
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, null is returned.
      */
-    public static <K,V,T> Object findResult(Map<K,V> receiver, BiFunction<K,V,T> function) {
+    public static <K, V, T> Object findResult(Map<K, V> receiver, BiFunction<K, V, T> function) {
         return findResult(receiver, null, function);
     }
 
@@ -407,8 +401,8 @@ public class Augmentation {
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, defaultResult is returned.
      */
-    public static <K,V,T> Object findResult(Map<K,V> receiver, Object defaultResult, BiFunction<K,V,T> function) {
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+    public static <K, V, T> Object findResult(Map<K, V> receiver, Object defaultResult, BiFunction<K, V, T> function) {
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             T value = function.apply(kvPair.getKey(), kvPair.getValue());
             if (value != null) {
                 return value;
@@ -421,13 +415,13 @@ public class Augmentation {
      * Iterates through the map transforming items using the supplied function and
      * collecting any non-null results.
      */
-    public static <K,V,T> List<T> findResults(Map<K,V> receiver, BiFunction<K,V,T> filter) {
+    public static <K, V, T> List<T> findResults(Map<K, V> receiver, BiFunction<K, V, T> filter) {
         List<T> list = new ArrayList<>();
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
-           T result = filter.apply(kvPair.getKey(), kvPair.getValue());
-           if (result != null) {
-               list.add(result);
-           }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            T result = filter.apply(kvPair.getKey(), kvPair.getValue());
+            if (result != null) {
+                list.add(result);
+            }
         }
         return list;
     }
@@ -435,11 +429,11 @@ public class Augmentation {
     /**
      * Sorts all Map members into groups determined by the supplied mapping function.
      */
-    public static <K,V,T> Map<T,Map<K,V>> groupBy(Map<K,V> receiver, BiFunction<K,V,T> mapper) {
-        Map<T,Map<K,V>> map = new LinkedHashMap<>();
-        for (Map.Entry<K,V> kvPair : receiver.entrySet()) {
+    public static <K, V, T> Map<T, Map<K, V>> groupBy(Map<K, V> receiver, BiFunction<K, V, T> mapper) {
+        Map<T, Map<K, V>> map = new LinkedHashMap<>();
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             T mapped = mapper.apply(kvPair.getKey(), kvPair.getValue());
-            Map<K,V> results = map.get(mapped);
+            Map<K, V> results = map.get(mapped);
             if (results == null) {
                 // try to preserve some properties of the receiver (see the groovy javadocs)
                 if (receiver instanceof TreeMap) {
@@ -538,7 +532,7 @@ public class Augmentation {
         // Loop until we hit the limit or forever if we are passed in less than one (signifying no limit)
         // If Integer.MIN_VALUE is passed in, it will still continue to loop down to 1 from MAX_VALUE
         // This edge case should be fine as we are limited by receiver length (Integer.MAX_VALUE) even if we split at every char
-        for(;limit != 1; limit--) {
+        for (; limit != 1; limit--) {
 
             // Find the next occurrence of token after current pos
             int idx = receiver.indexOf(token, pos);
@@ -579,7 +573,7 @@ public class Augmentation {
     /**
      * Same as {@link #getByPath(List, String)}, but for Map.
      */
-    public static <K,V> Object getByPath(Map<K,V> receiver, String path) {
+    public static <K, V> Object getByPath(Map<K, V> receiver, String path) {
         return getByPathDispatch(receiver, splitPath(path), 0, throwCantFindValue(path));
     }
 
@@ -594,7 +588,7 @@ public class Augmentation {
     /**
      * Same as {@link #getByPath(List, String, Object)}, but for Map.
      */
-    public static <K,V> Object getByPath(Map<K,V> receiver, String path, Object defaultValue) {
+    public static <K, V> Object getByPath(Map<K, V> receiver, String path, Object defaultValue) {
         return getByPathDispatch(receiver, splitPath(path), 0, () -> defaultValue);
     }
 
@@ -603,11 +597,11 @@ public class Augmentation {
     private static Object getByPathDispatch(Object obj, String[] elements, int i, Supplier<Object> defaultSupplier) {
         if (i > elements.length - 1) {
             return obj;
-        } else if (elements[i].length() == 0 ) {
+        } else if (elements[i].length() == 0) {
             String format = "Extra '.' in path [%s] at index [%d]";
             throw new IllegalArgumentException(String.format(Locale.ROOT, format, String.join(".", elements), i));
-        } else if (obj instanceof Map<?,?>) {
-            return getByPathMap((Map<?,?>) obj, elements, i, defaultSupplier);
+        } else if (obj instanceof Map<?, ?>) {
+            return getByPathMap((Map<?, ?>) obj, elements, i, defaultSupplier);
         } else if (obj instanceof List<?>) {
             return getByPathList((List<?>) obj, elements, i, defaultSupplier);
         }
@@ -615,7 +609,7 @@ public class Augmentation {
     }
 
     // lookup existing key in map, call back to dispatch.
-    private static <K,V> Object getByPathMap(Map<K,V> map, String[] elements, int i, Supplier<Object> defaultSupplier) {
+    private static <K, V> Object getByPathMap(Map<K, V> map, String[] elements, int i, Supplier<Object> defaultSupplier) {
         String element = elements[i];
         if (map.containsKey(element)) {
             return getByPathDispatch(map.get(element), elements, i + 1, defaultSupplier);
@@ -623,7 +617,7 @@ public class Augmentation {
         return handleMissing(map, elements, i, defaultSupplier);
     }
 
-    // lookup existing index in list, call back to dispatch.  Throws IllegalArgumentException with NumberFormatException
+    // lookup existing index in list, call back to dispatch. Throws IllegalArgumentException with NumberFormatException
     // if index can't be parsed as an int.
     private static <E> Object getByPathList(List<E> list, String[] elements, int i, Supplier<Object> defaultSupplier) {
         String element = elements[i];
@@ -653,9 +647,7 @@ public class Augmentation {
 
     // A supplier that throws IllegalArgumentException
     private static Supplier<Object> throwCantFindValue(String path) {
-        return () -> {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Could not find value at path [%s]", path));
-        };
+        return () -> { throw new IllegalArgumentException(String.format(Locale.ROOT, "Could not find value at path [%s]", path)); };
     }
 
     // Use defaultSupplier if at last path element, otherwise throw IllegalArgumentException
@@ -669,19 +661,16 @@ public class Augmentation {
         }
         String format = "Non-container [%s] at [%s], index [%d] in path [%s]";
         throw new IllegalArgumentException(
-            String.format(Locale.ROOT, format, obj.getClass().getName(), elements[i], i, String.join(".", elements)));
+            String.format(Locale.ROOT, format, obj.getClass().getName(), elements[i], i, String.join(".", elements))
+        );
     }
 
     public static String sha1(String source) {
-        return MessageDigests.toHexString(
-            MessageDigests.sha1().digest(source.getBytes(StandardCharsets.UTF_8))
-        );
+        return MessageDigests.toHexString(MessageDigests.sha1().digest(source.getBytes(StandardCharsets.UTF_8)));
     }
 
     public static String sha256(String source) {
-        return MessageDigests.toHexString(
-            MessageDigests.sha256().digest(source.getBytes(StandardCharsets.UTF_8))
-        );
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(source.getBytes(StandardCharsets.UTF_8)));
     }
 
     public static final int UNLIMITED_PATTERN_FACTOR = 0;
@@ -695,14 +684,14 @@ public class Augmentation {
         return receiver.split(new LimitedCharSequence(input, receiver, limitFactor));
     }
 
-    public static String[] split​(Pattern receiver, int limitFactor, CharSequence input, int limit) {
+    public static String[] split(Pattern receiver, int limitFactor, CharSequence input, int limit) {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.split(input, limit);
         }
         return receiver.split(new LimitedCharSequence(input, receiver, limitFactor), limit);
     }
 
-    public static Stream<String> splitAsStream​(Pattern receiver, int limitFactor, CharSequence input) {
+    public static Stream<String> splitAsStream(Pattern receiver, int limitFactor, CharSequence input) {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.splitAsStream(input);
         }
@@ -721,5 +710,9 @@ public class Augmentation {
      */
     public static long toEpochMilli(TemporalAccessor v) {
         return v.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + v.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
+    }
+
+    public static DayOfWeek getDayOfWeekEnum(ZonedDateTime receiver) {
+        return receiver.getDayOfWeek();
     }
 }

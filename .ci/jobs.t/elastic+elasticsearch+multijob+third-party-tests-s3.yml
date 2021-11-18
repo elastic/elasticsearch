@@ -1,0 +1,28 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-s3
+    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-s3
+    display-name: "elastic / elasticsearch # %BRANCH% - third party tests s3"
+    description: "Testing of the Elasticsearch %BRANCH% third party tests against S3\n"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            amazon_s3_bucket=elasticsearch-ci.us-west-2
+            amazon_s3_base_path=%BRANCH%
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          set -euo pipefail
+
+          set +x
+          VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
+          export VAULT_TOKEN
+          export data=$(vault read -format=json aws-test/creds/elasticsearch-ci-s3)
+          export amazon_s3_access_key=$(echo $data | jq -r .data.access_key)
+          export amazon_s3_secret_key=$(echo $data | jq -r .data.secret_key)
+          unset VAULT_TOKEN data
+          set -x
+
+          $WORKSPACE/.ci/scripts/run-gradle.sh s3ThirdPartyTest

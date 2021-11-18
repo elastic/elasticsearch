@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.results.Result;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Date;
@@ -67,8 +56,11 @@ public class ModelSizeStats implements ToXContentObject {
     public static final ParseField LOG_TIME_FIELD = new ParseField("log_time");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
 
-    public static final ConstructingObjectParser<Builder, Void> PARSER =
-        new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true, a -> new Builder((String) a[0]));
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
+        RESULT_TYPE_VALUE,
+        true,
+        a -> new Builder((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -81,24 +73,36 @@ public class ModelSizeStats implements ToXContentObject {
         PARSER.declareLong(Builder::setTotalOverFieldCount, TOTAL_OVER_FIELD_COUNT_FIELD);
         PARSER.declareLong(Builder::setTotalPartitionFieldCount, TOTAL_PARTITION_FIELD_COUNT_FIELD);
         PARSER.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
-        PARSER.declareField(Builder::setAssignmentMemoryBasis,
-            p -> AssignmentMemoryBasis.fromString(p.text()), ASSIGNMENT_MEMORY_BASIS_FIELD, ValueType.STRING);
+        PARSER.declareField(
+            Builder::setAssignmentMemoryBasis,
+            p -> AssignmentMemoryBasis.fromString(p.text()),
+            ASSIGNMENT_MEMORY_BASIS_FIELD,
+            ValueType.STRING
+        );
         PARSER.declareLong(Builder::setCategorizedDocCount, CATEGORIZED_DOC_COUNT_FIELD);
         PARSER.declareLong(Builder::setTotalCategoryCount, TOTAL_CATEGORY_COUNT_FIELD);
         PARSER.declareLong(Builder::setFrequentCategoryCount, FREQUENT_CATEGORY_COUNT_FIELD);
         PARSER.declareLong(Builder::setRareCategoryCount, RARE_CATEGORY_COUNT_FIELD);
         PARSER.declareLong(Builder::setDeadCategoryCount, DEAD_CATEGORY_COUNT_FIELD);
         PARSER.declareLong(Builder::setFailedCategoryCount, FAILED_CATEGORY_COUNT_FIELD);
-        PARSER.declareField(Builder::setCategorizationStatus,
-            p -> CategorizationStatus.fromString(p.text()), CATEGORIZATION_STATUS_FIELD, ValueType.STRING);
-        PARSER.declareField(Builder::setLogTime,
+        PARSER.declareField(
+            Builder::setCategorizationStatus,
+            p -> CategorizationStatus.fromString(p.text()),
+            CATEGORIZATION_STATUS_FIELD,
+            ValueType.STRING
+        );
+        PARSER.declareField(
+            Builder::setLogTime,
             (p) -> TimeUtil.parseTimeField(p, LOG_TIME_FIELD.getPreferredName()),
             LOG_TIME_FIELD,
-            ValueType.VALUE);
-        PARSER.declareField(Builder::setTimestamp,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            Builder::setTimestamp,
             (p) -> TimeUtil.parseTimeField(p, TIMESTAMP_FIELD.getPreferredName()),
             TIMESTAMP_FIELD,
-            ValueType.VALUE);
+            ValueType.VALUE
+        );
     }
 
     /**
@@ -108,7 +112,9 @@ public class ModelSizeStats implements ToXContentObject {
      * been dropped
      */
     public enum MemoryStatus {
-        OK, SOFT_LIMIT, HARD_LIMIT;
+        OK,
+        SOFT_LIMIT,
+        HARD_LIMIT;
 
         public static MemoryStatus fromString(String statusName) {
             return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
@@ -131,7 +137,9 @@ public class ModelSizeStats implements ToXContentObject {
      * to 7.11.
      */
     public enum AssignmentMemoryBasis {
-        MODEL_MEMORY_LIMIT, CURRENT_MODEL_BYTES, PEAK_MODEL_BYTES;
+        MODEL_MEMORY_LIMIT,
+        CURRENT_MODEL_BYTES,
+        PEAK_MODEL_BYTES;
 
         public static AssignmentMemoryBasis fromString(String statusName) {
             return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
@@ -148,7 +156,8 @@ public class ModelSizeStats implements ToXContentObject {
      * means that inappropriate numbers of categories are being found
      */
     public enum CategorizationStatus {
-        OK, WARN;
+        OK,
+        WARN;
 
         public static CategorizationStatus fromString(String statusName) {
             return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
@@ -181,12 +190,28 @@ public class ModelSizeStats implements ToXContentObject {
     private final Date timestamp;
     private final Date logTime;
 
-    private ModelSizeStats(String jobId, long modelBytes, Long peakModelBytes, Long modelBytesExceeded, Long modelBytesMemoryLimit,
-                           long totalByFieldCount, long totalOverFieldCount, long totalPartitionFieldCount,
-                           long bucketAllocationFailuresCount, MemoryStatus memoryStatus,
-                           AssignmentMemoryBasis assignmentMemoryBasis, long categorizedDocCount, long totalCategoryCount,
-                           long frequentCategoryCount, long rareCategoryCount, long deadCategoryCount, long failedCategoryCount,
-                           CategorizationStatus categorizationStatus, Date timestamp, Date logTime) {
+    private ModelSizeStats(
+        String jobId,
+        long modelBytes,
+        Long peakModelBytes,
+        Long modelBytesExceeded,
+        Long modelBytesMemoryLimit,
+        long totalByFieldCount,
+        long totalOverFieldCount,
+        long totalPartitionFieldCount,
+        long bucketAllocationFailuresCount,
+        MemoryStatus memoryStatus,
+        AssignmentMemoryBasis assignmentMemoryBasis,
+        long categorizedDocCount,
+        long totalCategoryCount,
+        long frequentCategoryCount,
+        long rareCategoryCount,
+        long deadCategoryCount,
+        long failedCategoryCount,
+        CategorizationStatus categorizationStatus,
+        Date timestamp,
+        Date logTime
+    ) {
         this.jobId = jobId;
         this.modelBytes = modelBytes;
         this.peakModelBytes = peakModelBytes;
@@ -343,10 +368,27 @@ public class ModelSizeStats implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(
-            jobId, modelBytes, peakModelBytes, modelBytesExceeded, modelBytesMemoryLimit, totalByFieldCount, totalOverFieldCount,
-            totalPartitionFieldCount, this.bucketAllocationFailuresCount, memoryStatus, assignmentMemoryBasis, categorizedDocCount,
-            totalCategoryCount, frequentCategoryCount, rareCategoryCount, deadCategoryCount, failedCategoryCount, categorizationStatus,
-            timestamp, logTime);
+            jobId,
+            modelBytes,
+            peakModelBytes,
+            modelBytesExceeded,
+            modelBytesMemoryLimit,
+            totalByFieldCount,
+            totalOverFieldCount,
+            totalPartitionFieldCount,
+            this.bucketAllocationFailuresCount,
+            memoryStatus,
+            assignmentMemoryBasis,
+            categorizedDocCount,
+            totalCategoryCount,
+            frequentCategoryCount,
+            rareCategoryCount,
+            deadCategoryCount,
+            failedCategoryCount,
+            categorizationStatus,
+            timestamp,
+            logTime
+        );
     }
 
     /**
@@ -367,8 +409,10 @@ public class ModelSizeStats implements ToXContentObject {
         return this.modelBytes == that.modelBytes
             && Objects.equals(this.peakModelBytes, that.peakModelBytes)
             && Objects.equals(this.modelBytesExceeded, that.modelBytesExceeded)
-            && Objects.equals(this.modelBytesMemoryLimit, that.modelBytesMemoryLimit) && this.totalByFieldCount == that.totalByFieldCount
-            && this.totalOverFieldCount == that.totalOverFieldCount && this.totalPartitionFieldCount == that.totalPartitionFieldCount
+            && Objects.equals(this.modelBytesMemoryLimit, that.modelBytesMemoryLimit)
+            && this.totalByFieldCount == that.totalByFieldCount
+            && this.totalOverFieldCount == that.totalOverFieldCount
+            && this.totalPartitionFieldCount == that.totalPartitionFieldCount
             && this.bucketAllocationFailuresCount == that.bucketAllocationFailuresCount
             && Objects.equals(this.memoryStatus, that.memoryStatus)
             && Objects.equals(this.assignmentMemoryBasis, that.assignmentMemoryBasis)
@@ -536,10 +580,27 @@ public class ModelSizeStats implements ToXContentObject {
 
         public ModelSizeStats build() {
             return new ModelSizeStats(
-                jobId, modelBytes, peakModelBytes, modelBytesExceeded, modelBytesMemoryLimit, totalByFieldCount, totalOverFieldCount,
-                totalPartitionFieldCount, bucketAllocationFailuresCount, memoryStatus, assignmentMemoryBasis, categorizedDocCount,
-                totalCategoryCount, frequentCategoryCount, rareCategoryCount, deadCategoryCount, failedCategoryCount, categorizationStatus,
-                timestamp, logTime);
+                jobId,
+                modelBytes,
+                peakModelBytes,
+                modelBytesExceeded,
+                modelBytesMemoryLimit,
+                totalByFieldCount,
+                totalOverFieldCount,
+                totalPartitionFieldCount,
+                bucketAllocationFailuresCount,
+                memoryStatus,
+                assignmentMemoryBasis,
+                categorizedDocCount,
+                totalCategoryCount,
+                frequentCategoryCount,
+                rareCategoryCount,
+                deadCategoryCount,
+                failedCategoryCount,
+                categorizationStatus,
+                timestamp,
+                logTime
+            );
         }
     }
 }

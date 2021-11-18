@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.transform.action;
 
@@ -52,30 +53,16 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         TransformServices transformServices,
         Client client
     ) {
-        this(
+        super(
             DeleteTransformAction.NAME,
             transportService,
-            actionFilters,
-            threadPool,
             clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
             indexNameExpressionResolver,
-            transformServices,
-            client
+            ThreadPool.Names.SAME
         );
-    }
-
-    protected TransportDeleteTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformServices transformServices,
-        Client client
-    ) {
-        super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver,
-                ThreadPool.Names.SAME);
         this.transformConfigManager = transformServices.getConfigManager();
         this.auditor = transformServices.getAuditor();
         this.client = client;

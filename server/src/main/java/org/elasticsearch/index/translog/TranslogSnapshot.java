@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.translog;
 
@@ -56,7 +45,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return totalOperations;
     }
 
-    int skippedOperations(){
+    int skippedOperations() {
         return skippedOperations;
     }
 
@@ -95,12 +84,30 @@ final class TranslogSnapshot extends BaseTranslogReader {
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
         try {
             if (position >= length) {
-                throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" +
-                    getGeneration() + "], path: [" + path + "]");
+                throw new EOFException(
+                    "read requested past EOF. pos ["
+                        + position
+                        + "] end: ["
+                        + length
+                        + "], generation: ["
+                        + getGeneration()
+                        + "], path: ["
+                        + path
+                        + "]"
+                );
             }
             if (position < getFirstOperationOffset()) {
-                throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
-                    getFirstOperationOffset() + "], generation: [" + getGeneration() + "], path: [" + path + "]");
+                throw new IOException(
+                    "read requested before position of first ops. pos ["
+                        + position
+                        + "] first op on: ["
+                        + getFirstOperationOffset()
+                        + "], generation: ["
+                        + getGeneration()
+                        + "], path: ["
+                        + path
+                        + "]"
+                );
             }
             Channels.readFromFileChannelWithEofException(channel, position, buffer);
         } catch (EOFException e) {
@@ -110,13 +117,19 @@ final class TranslogSnapshot extends BaseTranslogReader {
 
     @Override
     public String toString() {
-        return "TranslogSnapshot{" +
-                "readOperations=" + readOperations +
-                ", position=" + position +
-                ", estimateTotalOperations=" + totalOperations +
-                ", length=" + length +
-                ", generation=" + generation +
-                ", reusableBuffer=" + reusableBuffer +
-                '}';
+        return "TranslogSnapshot{"
+            + "readOperations="
+            + readOperations
+            + ", position="
+            + position
+            + ", estimateTotalOperations="
+            + totalOperations
+            + ", length="
+            + length
+            + ", generation="
+            + generation
+            + ", reusableBuffer="
+            + reusableBuffer
+            + '}';
     }
 }

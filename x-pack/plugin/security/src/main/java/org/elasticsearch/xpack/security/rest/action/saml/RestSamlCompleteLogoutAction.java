@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.saml;
@@ -10,18 +11,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutRequest;
 
@@ -38,15 +39,17 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * SAMLResponse form parameter, i.e. caller of this API must do the work to extract the SAMLResponse value
  * from body of the HTTP-Post request. The value must also be URL decoded if necessary.
  */
-public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
+public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestSamlCompleteLogoutAction.class);
 
-    static final ObjectParser<SamlCompleteLogoutRequest, Void>
-        PARSER = new ObjectParser<>("saml_complete_logout", SamlCompleteLogoutRequest::new);
+    static final ObjectParser<SamlCompleteLogoutRequest, Void> PARSER = new ObjectParser<>(
+        "saml_complete_logout",
+        SamlCompleteLogoutRequest::new
+    );
 
     static {
-        PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setQueryString, new ParseField("queryString"));
+        PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setQueryString, new ParseField("query_string", "queryString"));
         PARSER.declareStringOrNull(SamlCompleteLogoutRequest::setContent, new ParseField("content"));
         PARSER.declareStringArray(SamlCompleteLogoutRequest::setValidRequestIds, new ParseField("ids"));
         PARSER.declareString(SamlCompleteLogoutRequest::setRealm, new ParseField("realm"));
@@ -70,18 +73,23 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final SamlCompleteLogoutRequest samlCompleteLogoutRequest = PARSER.parse(parser, null);
-            logger.trace("SAML LogoutResponse: [{}...] [{}...] [{}]",
+            logger.trace(
+                "SAML LogoutResponse: [{}...] [{}...] [{}]",
                 Strings.cleanTruncate(samlCompleteLogoutRequest.getQueryString(), 128),
                 Strings.cleanTruncate(samlCompleteLogoutRequest.getContent(), 128),
-                samlCompleteLogoutRequest.getValidRequestIds());
-            return channel -> client.execute(SamlCompleteLogoutAction.INSTANCE, samlCompleteLogoutRequest,
+                samlCompleteLogoutRequest.getValidRequestIds()
+            );
+            return channel -> client.execute(
+                SamlCompleteLogoutAction.INSTANCE,
+                samlCompleteLogoutRequest,
                 new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(ActionResponse.Empty response, XContentBuilder builder) throws Exception {
                         builder.startObject().endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
-                });
+                }
+            );
         }
     }
 }

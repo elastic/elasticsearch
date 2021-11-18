@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 grammar EqlBase;
@@ -31,7 +32,7 @@ sequenceParams
 
 sequence
     : SEQUENCE (by=joinKeys sequenceParams? | sequenceParams disallowed=joinKeys?)?
-      sequenceTerm sequenceTerm+
+      sequenceTerm+
       (UNTIL until=sequenceTerm)?
     ;
 
@@ -55,7 +56,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (by=joinKeys)?
+   : subquery (by=joinKeys)? (WITH key=IDENTIFIER ASGN value=number)?
    ;
 
 subquery
@@ -99,9 +100,9 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/780
 //   https://github.com/antlr/antlr4/issues/781
 predicate
-    : NOT? kind=IN LP expression (COMMA expression)* RP
-    | kind=SEQ constant
-    | kind=SEQ LP constant (COMMA constant)* RP
+    : NOT? kind=(IN | IN_INSENSITIVE) LP expression (COMMA expression)* RP
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) constant
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) LP constant (COMMA constant)* RP
     ;
 
 primaryExpression
@@ -117,6 +118,7 @@ functionExpression
 
 functionName
     : IDENTIFIER
+    | TILDE_IDENTIFIER
     ;
 
 constant
@@ -135,7 +137,7 @@ booleanValue
     ;
 
 qualifiedName
-    : identifier (DOT identifier | LB INTEGER_VALUE+ RB)*
+    : OPTIONAL? identifier (DOT identifier | LB INTEGER_VALUE+ RB)*
     ;
 
 identifier
@@ -161,12 +163,17 @@ ANY: 'any';
 BY: 'by';
 FALSE: 'false';
 IN: 'in';
+IN_INSENSITIVE : 'in~';
 JOIN: 'join';
+LIKE: 'like';
+LIKE_INSENSITIVE: 'like~';
 MAXSPAN: 'maxspan';
 NOT: 'not';
 NULL: 'null';
 OF: 'of';
 OR: 'or';
+REGEX: 'regex';
+REGEX_INSENSITIVE: 'regex~';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';
@@ -197,13 +204,31 @@ RB: ']';
 LP: '(';
 RP: ')';
 PIPE: '|';
+OPTIONAL: '?';
+
+fragment STRING_ESCAPE
+    : '\\' [btnfr"'\\]
+    ;
+
+fragment HEX_DIGIT
+    : [0-9abcdefABCDEF]
+    ;
+
+fragment UNICODE_ESCAPE
+    : '\\u' '{' HEX_DIGIT+  '}' // 2-8 hex
+    ;
+
+fragment UNESCAPED_CHARS
+    : ~[\r\n"\\]
+    ;
 
 STRING
-    : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
-    | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
+    : '"' (STRING_ESCAPE | UNICODE_ESCAPE | UNESCAPED_CHARS)* '"'
+    | '"""' (~[\r\n])*? '"""' '"'? '"'?
+    // Old style quoting of string, handled as errors in AbstractBuilder
+    | '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '?"'  ('\\"' |~["\r\n])* '"'
     | '?\'' ('\\\'' |~['\r\n])* '\''
-    | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
 
 INTEGER_VALUE
@@ -224,6 +249,10 @@ IDENTIFIER
 
 QUOTED_IDENTIFIER
     : '`' ( ~'`' | '``' )* '`'
+    ;
+
+TILDE_IDENTIFIER
+    : LETTER (LETTER | DIGIT | '_')* '~'
     ;
 
 eventValue

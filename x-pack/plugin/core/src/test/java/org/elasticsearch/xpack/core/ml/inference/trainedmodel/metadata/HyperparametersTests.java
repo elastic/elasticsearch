@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-
 
 public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyperparameters> {
 
@@ -27,7 +27,8 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
             // If supplied, the importance values are possibly nullable
             supplied && randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, true),
             supplied && randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, true),
-            supplied);
+            supplied
+        );
     }
 
     @Before

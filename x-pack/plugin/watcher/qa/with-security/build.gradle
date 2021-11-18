@@ -1,5 +1,6 @@
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
@@ -11,14 +12,14 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'watcher', 'security', 'xpack'
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack'
   }
   restTests {
     includeXpack 'watcher'
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.enabled', 'true'

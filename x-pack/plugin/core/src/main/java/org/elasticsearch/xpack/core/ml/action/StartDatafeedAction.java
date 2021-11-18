@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -13,23 +14,24 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -91,9 +93,17 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
             if (params.endTime != null && params.endTime <= params.startTime) {
-                e = ValidateActions.addValidationError(START_TIME.getPreferredName() + " ["
-                        + params.startTime + "] must be earlier than " + END_TIME.getPreferredName()
-                        + " [" + params.endTime + "]", e);
+                e = ValidateActions.addValidationError(
+                    START_TIME.getPreferredName()
+                        + " ["
+                        + params.startTime
+                        + "] must be earlier than "
+                        + END_TIME.getPreferredName()
+                        + " ["
+                        + params.endTime
+                        + "]",
+                    e
+                );
             }
             return e;
         }
@@ -128,7 +138,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         }
     }
 
-    public static class DatafeedParams implements PersistentTaskParams {
+    public static class DatafeedParams implements PersistentTaskParams, MlTaskParams {
 
         public static final ParseField INDICES = new ParseField("indices");
 
@@ -139,16 +149,19 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         );
         static {
             PARSER.declareString((params, datafeedId) -> params.datafeedId = datafeedId, DatafeedConfig.ID);
-            PARSER.declareString((params, startTime) -> params.startTime = parseDateOrThrow(
-                    startTime, START_TIME, System::currentTimeMillis), START_TIME);
+            PARSER.declareString(
+                (params, startTime) -> params.startTime = parseDateOrThrow(startTime, START_TIME, System::currentTimeMillis),
+                START_TIME
+            );
             PARSER.declareString(DatafeedParams::setEndTime, END_TIME);
-            PARSER.declareString((params, val) ->
-                    params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString((params, val) -> params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString(DatafeedParams::setJobId, Job.ID);
             PARSER.declareStringArray(DatafeedParams::setDatafeedIndices, INDICES);
-            PARSER.declareObject(DatafeedParams::setIndicesOptions,
+            PARSER.declareObject(
+                DatafeedParams::setIndicesOptions,
                 (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
-                DatafeedConfig.INDICES_OPTIONS);
+                DatafeedConfig.INDICES_OPTIONS
+            );
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -193,8 +206,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
-        DatafeedParams() {
-        }
+        DatafeedParams() {}
 
         private String datafeedId;
         private long startTime;
@@ -203,7 +215,6 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         private List<String> datafeedIndices = Collections.emptyList();
         private String jobId;
         private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-
 
         public String getDatafeedId() {
             return datafeedId;
@@ -317,13 +328,18 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
                 return false;
             }
             DatafeedParams other = (DatafeedParams) obj;
-            return Objects.equals(datafeedId, other.datafeedId) &&
-                    Objects.equals(startTime, other.startTime) &&
-                    Objects.equals(endTime, other.endTime) &&
-                    Objects.equals(timeout, other.timeout) &&
-                    Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(indicesOptions, other.indicesOptions) &&
-                    Objects.equals(datafeedIndices, other.datafeedIndices);
+            return Objects.equals(datafeedId, other.datafeedId)
+                && Objects.equals(startTime, other.startTime)
+                && Objects.equals(endTime, other.endTime)
+                && Objects.equals(timeout, other.timeout)
+                && Objects.equals(jobId, other.jobId)
+                && Objects.equals(indicesOptions, other.indicesOptions)
+                && Objects.equals(datafeedIndices, other.datafeedIndices);
+        }
+
+        @Override
+        public String getMlId() {
+            return datafeedId;
         }
     }
 

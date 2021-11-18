@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -34,9 +36,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
@@ -50,6 +51,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -99,33 +101,50 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         clusterState = mock(ClusterState.class);
         final License.OperationMode operationMode = randomFrom(License.OperationMode.values());
         license = License.builder()
-                         .uid(randomAlphaOfLength(5))
-                         .type(operationMode.name().toLowerCase(Locale.ROOT))
-                         .issuer(randomAlphaOfLength(5))
-                         .issuedTo(randomAlphaOfLength(5))
-                         .issueDate(timestamp)
-                         .expiryDate(timestamp + randomIntBetween(1, 10) * 1_000L)
-                         .maxNodes(License.OperationMode.ENTERPRISE == operationMode ? -1 : randomIntBetween(1, 5))
-                         .maxResourceUnits(License.OperationMode.ENTERPRISE == operationMode ? randomIntBetween(1, 42) : -1)
-                         .build();
+            .uid(randomAlphaOfLength(5))
+            .type(operationMode.name().toLowerCase(Locale.ROOT))
+            .issuer(randomAlphaOfLength(5))
+            .issuedTo(randomAlphaOfLength(5))
+            .issueDate(timestamp)
+            .expiryDate(timestamp + randomIntBetween(1, 10) * 1_000L)
+            .maxNodes(License.OperationMode.ENTERPRISE == operationMode ? -1 : randomIntBetween(1, 5))
+            .maxResourceUnits(License.OperationMode.ENTERPRISE == operationMode ? randomIntBetween(1, 42) : -1)
+            .build();
 
         final DiscoveryNode masterNode = masterNode();
-        final DiscoveryNodes.Builder builder =
-                DiscoveryNodes.builder()
-                              .masterNodeId(masterNode.getId())
-                              .localNodeId(masterNode.getId())
-                              .add(masterNode);
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder()
+            .masterNodeId(masterNode.getId())
+            .localNodeId(masterNode.getId())
+            .add(masterNode);
 
         when(clusterState.nodes()).thenReturn(builder.build());
     }
 
     @Override
-    protected ClusterStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
-                                                            MonitoredSystem system, String type, String id) {
-        return new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                                             clusterName, version, clusterStatus, license,
-                                             apmIndicesExist, usages, clusterStats, clusterState,
-                                             needToEnableTLS);
+    protected ClusterStatsMonitoringDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
+        return new ClusterStatsMonitoringDoc(
+            cluster,
+            timestamp,
+            interval,
+            node,
+            clusterName,
+            version,
+            clusterStatus,
+            license,
+            apmIndicesExist,
+            usages,
+            clusterStats,
+            clusterState,
+            needToEnableTLS
+        );
     }
 
     @Override
@@ -145,46 +164,88 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     }
 
     public void testConstructorClusterNameMustNotBeNull() {
-        expectThrows(NullPointerException.class,
-                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        null, version, clusterStatus, license, apmIndicesExist, usages, clusterStats, clusterState,
-                        needToEnableTLS));
+        expectThrows(
+            NullPointerException.class,
+            () -> new ClusterStatsMonitoringDoc(
+                cluster,
+                timestamp,
+                interval,
+                node,
+                null,
+                version,
+                clusterStatus,
+                license,
+                apmIndicesExist,
+                usages,
+                clusterStats,
+                clusterState,
+                needToEnableTLS
+            )
+        );
     }
 
     public void testConstructorVersionMustNotBeNull() {
-        expectThrows(NullPointerException.class,
-                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        clusterName, null, clusterStatus, license, apmIndicesExist, usages, clusterStats, clusterState,
-                        needToEnableTLS));
+        expectThrows(
+            NullPointerException.class,
+            () -> new ClusterStatsMonitoringDoc(
+                cluster,
+                timestamp,
+                interval,
+                node,
+                clusterName,
+                null,
+                clusterStatus,
+                license,
+                apmIndicesExist,
+                usages,
+                clusterStats,
+                clusterState,
+                needToEnableTLS
+            )
+        );
     }
 
     public void testConstructorClusterHealthStatusMustNotBeNull() {
-        expectThrows(NullPointerException.class,
-                () -> new ClusterStatsMonitoringDoc(cluster, timestamp, interval, node,
-                        clusterName, version, null, license, apmIndicesExist, usages, clusterStats, clusterState,
-                        needToEnableTLS));
+        expectThrows(
+            NullPointerException.class,
+            () -> new ClusterStatsMonitoringDoc(
+                cluster,
+                timestamp,
+                interval,
+                node,
+                clusterName,
+                version,
+                null,
+                license,
+                apmIndicesExist,
+                usages,
+                clusterStats,
+                clusterState,
+                needToEnableTLS
+            )
+        );
     }
 
     public void testNodesHash() {
         final int nodeCount = randomIntBetween(0, 5);
         final Map<String, String> emptyMap = emptyMap();
         final DiscoveryNode masterNode = masterNode();
-        final DiscoveryNodes.Builder builder =
-                DiscoveryNodes.builder()
-                              .masterNodeId(masterNode.getId())
-                              .localNodeId(masterNode.getId());
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder().masterNodeId(masterNode.getId()).localNodeId(masterNode.getId());
 
         for (int i = 0; i < nodeCount; ++i) {
             builder.add(
-                new DiscoveryNode(randomAlphaOfLength(5),
-                                  randomAlphaOfLength(2 + i),
-                                  randomAlphaOfLength(5),
-                                  randomAlphaOfLength(5),
-                                  randomAlphaOfLength(5),
-                                  new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
-                                  randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNodeRole.BUILT_IN_ROLES)),
-                                  Version.CURRENT));
+                new DiscoveryNode(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(2 + i),
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(5),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
+                    randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
+                    singleton(randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))),
+                    Version.CURRENT
+                )
+            );
         }
 
         final DiscoveryNodes nodes = builder.build();
@@ -202,41 +263,39 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final String clusterUuid = "_cluster";
         final ClusterName clusterName = new ClusterName("_cluster_name");
         final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
-        final DiscoveryNode discoveryNode = new DiscoveryNode("_node_name",
-                                                                "_node_id",
-                                                                "_ephemeral_id",
-                                                                "_host_name",
-                                                                "_host_address",
-                                                                transportAddress,
-                                                                singletonMap("attr", "value"),
-                                                                singleton(DiscoveryNodeRole.MASTER_ROLE),
-                                                                Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_name",
+            "_node_id",
+            "_ephemeral_id",
+            "_host_name",
+            "_host_address",
+            transportAddress,
+            singletonMap("attr", "value"),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
-                                                        .metadata(Metadata.builder()
-                                                            .clusterUUID(clusterUuid)
-                                                            .transientSettings(Settings.builder()
-                                                                .put("cluster.metadata.display_name", "my_prod_cluster")
-                                                                .build())
-                                                            .build())
-                                                        .stateUUID("_state_uuid")
-                                                        .version(12L)
-                                                        .nodes(DiscoveryNodes.builder()
-                                                                             .masterNodeId("_node")
-                                                                             .localNodeId("_node")
-                                                                             .add(discoveryNode)
-                                                                             .build())
-                                                        .build();
+            .metadata(
+                Metadata.builder()
+                    .clusterUUID(clusterUuid)
+                    .transientSettings(Settings.builder().put("cluster.metadata.display_name", "my_prod_cluster").build())
+                    .build()
+            )
+            .stateUUID("_state_uuid")
+            .version(12L)
+            .nodes(DiscoveryNodes.builder().masterNodeId("_node").localNodeId("_node").add(discoveryNode).build())
+            .build();
 
         final License license = License.builder()
-                                        .uid("442ca961-9c00-4bb2-b5c9-dfaacd547403")
-                                        .type("trial")
-                                        .issuer("elasticsearch")
-                                        .issuedTo("customer")
-                                        .issueDate(1451606400000L)
-                                        .expiryDate(1502107402133L)
-                                        .maxNodes(2)
-                                        .build();
+            .uid("442ca961-9c00-4bb2-b5c9-dfaacd547403")
+            .type("trial")
+            .issuer("elasticsearch")
+            .issuedTo("customer")
+            .issueDate(1451606400000L)
+            .expiryDate(1502107402133L)
+            .maxNodes(2)
+            .build();
 
         final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, null));
 
@@ -248,18 +307,31 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);
         when(mockNodeInfo.getInfo(TransportInfo.class)).thenReturn(mockTransportInfo);
 
-        final BoundTransportAddress bound = new BoundTransportAddress(new TransportAddress[]{transportAddress}, transportAddress);
+        final BoundTransportAddress bound = new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress);
         when(mockTransportInfo.address()).thenReturn(bound);
-        when(mockNodeInfo.getSettings()).thenReturn(Settings.builder()
-                                                            .put(NetworkModule.TRANSPORT_TYPE_KEY, "_transport")
-                                                            .put(NetworkModule.HTTP_TYPE_KEY, "_http")
-                                                            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "_disco")
-                                                            .build());
+        when(mockNodeInfo.getSettings()).thenReturn(
+            Settings.builder()
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "_transport")
+                .put(NetworkModule.HTTP_TYPE_KEY, "_http")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "_disco")
+                .build()
+        );
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
-        final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
-            "1.8", "_plugin_class", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        final PluginInfo pluginInfo = new PluginInfo(
+            "_plugin",
+            "_plugin_desc",
+            "_plugin_version",
+            Version.CURRENT,
+            "1.8",
+            "_plugin_class",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
@@ -268,6 +340,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
+        when(mockOsInfo.getArch()).thenReturn("_architecture");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
@@ -288,11 +361,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final FsInfo mockFsInfo = mock(FsInfo.class);
         when(mockNodeStats.getFs()).thenReturn(mockFsInfo);
-        when(mockFsInfo.getTotal()).thenReturn(new FsInfo.Path("_fs_path","_fs_mount", 100L, 49L, 51L));
+        when(mockFsInfo.getTotal()).thenReturn(new FsInfo.Path("_fs_path", "_fs_mount", 100L, 49L, 51L));
 
         final OsStats mockOsStats = mock(OsStats.class);
         when(mockNodeStats.getOs()).thenReturn(mockOsStats);
-        when(mockOsStats.getMem()).thenReturn(new OsStats.Mem(100, 79));
+        when(mockOsStats.getMem()).thenReturn(new OsStats.Mem(100, 99, 79));
 
         final ProcessStats mockProcessStats = mock(ProcessStats.class);
         when(mockNodeStats.getProcess()).thenReturn(mockProcessStats);
@@ -314,8 +387,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final ShardId shardId = new ShardId("_index", "_index_id", 7);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true,
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo);
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            unassignedInfo
+        );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
         when(mockShardStats.getShardRouting()).thenReturn(shardRouting);
@@ -325,32 +402,37 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.clusterStatus()).thenReturn(ClusterHealthStatus.RED);
         when(mockNodeResponse.nodeInfo()).thenReturn(mockNodeInfo);
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
-        when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[]{mockShardStats});
+        when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
 
         final Metadata metadata = clusterState.metadata();
-        final ClusterStatsResponse clusterStats = new ClusterStatsResponse(1451606400000L,
-                                                                            "_cluster",
-                                                                            clusterName,
-                                                                            singletonList(mockNodeResponse),
-                                                                            emptyList(),
-                                                                            MappingStats.of(metadata),
-                                                                            AnalysisStats.of(metadata));
+        final ClusterStatsResponse clusterStats = new ClusterStatsResponse(
+            1451606400000L,
+            "_cluster",
+            clusterName,
+            singletonList(mockNodeResponse),
+            emptyList(),
+            MappingStats.of(metadata, () -> {}),
+            AnalysisStats.of(metadata, () -> {}),
+            VersionStats.of(metadata, singletonList(mockNodeResponse))
+        );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
-        final ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc("_cluster",
-                                                                            1502107402133L,
-                                                                            1506593717631L,
-                                                                            node,
-                                                                            clusterName.value(),
-                                                                            "_version",
-                                                                            ClusterHealthStatus.GREEN,
-                                                                            license,
-                                                                            apmIndicesExist,
-                                                                            usages,
-                                                                            clusterStats,
-                                                                            clusterState,
-                                                                            needToEnableTLS);
+        final ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc(
+            "_cluster",
+            1502107402133L,
+            1506593717631L,
+            node,
+            clusterName.value(),
+            "_version",
+            ClusterHealthStatus.GREEN,
+            license,
+            apmIndicesExist,
+            usages,
+            clusterStats,
+            clusterState,
+            needToEnableTLS
+        );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
         final String expectedJson = String.format(
@@ -418,6 +500,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "      },"
                 + "      \"store\": {"
                 + "        \"size_in_bytes\": 0,"
+                + "        \"total_data_set_size_in_bytes\": 0,"
                 + "        \"reserved_in_bytes\": 0"
                 + "      },"
                 + "      \"fielddata\": {"
@@ -452,7 +535,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"file_sizes\": {}"
                 + "      },"
                 + "      \"mappings\":{"
-                + "        \"field_types\":[]"
+                + "        \"field_types\":[],"
+                + "        \"runtime_field_types\":[]"
                 + "      },"
                 + "      \"analysis\":{"
                 + "        \"char_filter_types\":[],"
@@ -463,16 +547,25 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"built_in_tokenizers\":[],"
                 + "        \"built_in_filters\":[],"
                 + "        \"built_in_analyzers\":[]"
-                + "      }"
+                + "      },"
+                + "      \"versions\":[]"
                 + "    },"
                 + "    \"nodes\": {"
                 + "      \"count\": {"
                 + "        \"total\": 1,"
                 + "        \"coordinating_only\": 0,"
                 + "        \"data\": 0,"
+                + "        \"data_cold\": 0,"
+                + "        \"data_content\": 0,"
+                + "        \"data_frozen\": 0,"
+                + "        \"data_hot\": 0,"
+                + "        \"data_warm\": 0,"
                 + "        \"ingest\": 0,"
                 + "        \"master\": 1,"
-                + "        \"remote_cluster_client\": 0"
+                + "        \"ml\": 0,"
+                + "        \"remote_cluster_client\": 0,"
+                + "        \"transform\": 0,"
+                + "        \"voting_only\": 0"
                 + "      },"
                 + "      \"versions\": ["
                 + "        \"%s\""
@@ -492,8 +585,15 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "            \"count\": 1"
                 + "          }"
                 + "        ],"
+                + "        \"architectures\": ["
+                + "          {"
+                + "            \"arch\": \"_architecture\","
+                + "            \"count\": 1"
+                + "          }"
+                + "        ],"
                 + "        \"mem\": {"
                 + "          \"total_in_bytes\": 100,"
+                + "          \"adjusted_total_in_bytes\": 99,"
                 + "          \"free_in_bytes\": 79,"
                 + "          \"used_in_bytes\": 21,"
                 + "          \"free_percent\": 79,"
@@ -586,7 +686,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"transport_address\": \"0.0.0.0:9300\","
                 + "        \"attributes\": {"
                 + "          \"attr\": \"value\""
-                + "        }"
+                + "        },"
+                + "        \"roles\" : ["
+                + "          \"master\""
+                + "        ]"
                 + "      }"
                 + "    }"
                 + "  },"
@@ -619,15 +722,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     }
 
     private DiscoveryNode masterNode() {
-        return new DiscoveryNode("_node_name",
-                                 "_node_id",
-                                 "_ephemeral_id",
-                                 "_host_name",
-                                 "_host_address",
-                                 new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-                                 singletonMap("attr", "value"),
-                                 singleton(DiscoveryNodeRole.MASTER_ROLE),
-                                 Version.CURRENT);
+        return new DiscoveryNode(
+            "_node_name",
+            "_node_id",
+            "_ephemeral_id",
+            "_host_name",
+            "_host_address",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            singletonMap("attr", "value"),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
     }
 
 }

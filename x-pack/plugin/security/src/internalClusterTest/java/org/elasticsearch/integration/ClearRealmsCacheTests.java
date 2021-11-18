@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -99,8 +100,10 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
-                        Collections.<String, String>emptyMap());
+                executeHttpRequest(
+                    "/_security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
+                    Collections.<String, String>emptyMap()
+                );
             }
         },
 
@@ -149,7 +152,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
                 }
             });
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("waiting for clear realms cache request too long");
             }
 
@@ -164,8 +167,13 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
                 request.addParameter(param.getKey(), param.getValue());
             }
             RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+            options.addHeader(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.TEST_USER_NAME,
+                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+                )
+            );
             request.setOptions(options);
             Response response = getRestClient().performRequest(request);
             assertNotNull(response.getEntity());
@@ -180,16 +188,15 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.CONFIG_ROLE_ALLOW_ALL + "\n" +
-                "r1:\n" +
-                "  cluster: all\n";
+        return SecuritySettingsSource.CONFIG_ROLE_ALLOW_ALL + "\n" + "r1:\n" + "  cluster: all\n";
     }
 
     @Override
     protected String configUsers() {
         StringBuilder builder = new StringBuilder(SecuritySettingsSource.CONFIG_STANDARD_USER);
-        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString
-            ("passwd".toCharArray())));
+        final String usersPasswdHashed = new String(
+            getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
         for (String username : usernames) {
             builder.append(username).append(":").append(usersPasswdHashed).append("\n");
         }
@@ -198,8 +205,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
-                "r1:" + Strings.arrayToCommaDelimitedString(usernames);
+        return SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES + "r1:" + Strings.arrayToCommaDelimitedString(usernames);
     }
 
     public void testEvictAll() throws Exception {
@@ -221,7 +227,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     private void testScenario(Scenario scenario) throws Exception {
         Map<String, UsernamePasswordToken> tokens = new HashMap<>();
         for (String user : usernames) {
-            tokens.put(user, new UsernamePasswordToken(user, new SecureString("passwd")));
+            tokens.put(user, new UsernamePasswordToken(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }
 
         List<Realm> realms = new ArrayList<>();
@@ -233,9 +239,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         Map<String, Map<Realm, User>> users = new HashMap<>();
         for (Realm realm : realms) {
             for (String username : usernames) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, notNullValue());
                 Map<Realm, User> realmToUser = users.get(username);
                 if (realmToUser == null) {
@@ -250,9 +256,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, sameInstance(users.get(username).get(realm)));
             }
         }
@@ -263,9 +269,9 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         // now, user_a should have been evicted, but user_b should still be cached
         for (String username : usernames) {
             for (Realm realm : realms) {
-                PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+                PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
                 realm.authenticate(tokens.get(username), future);
-                User user = future.actionGet().getUser();
+                User user = future.actionGet().getValue();
                 assertThat(user, notNullValue());
                 scenario.assertEviction(users.get(username).get(realm), user);
             }

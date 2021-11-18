@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -39,9 +40,11 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
 
     @Before
     public void setUpData() {
-        client().admin().indices().prepareCreate(DATA_INDEX)
-                .setMapping("time", "type=date,format=epoch_millis", "user", "type=keyword")
-                .get();
+        client().admin()
+            .indices()
+            .prepareCreate(DATA_INDEX)
+            .setMapping("time", "type=date,format=epoch_millis", "user", "type=keyword")
+            .get();
 
         List<String> users = Arrays.asList("user_1", "user_2", "user_3");
 
@@ -58,9 +61,7 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
             }
         }
 
-        BulkResponse bulkResponse = bulkRequestBuilder
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(bulkResponse.hasFailures(), is(false));
     }
 
@@ -73,11 +74,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testPartitionFieldWithoutTerms() throws Exception {
         Job.Builder job = jobWithPartitionUser("model-plots-it-test-partition-field-without-terms");
         job.setModelPlotConfig(new ModelPlotConfig());
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
@@ -95,11 +94,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testPartitionFieldWithTerms() throws Exception {
         Job.Builder job = jobWithPartitionUser("model-plots-it-test-partition-field-with-terms");
         job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
@@ -117,11 +114,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testByFieldWithTerms() throws Exception {
         Job.Builder job = jobWithByUser("model-plots-it-test-by-field-with-terms");
         job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
@@ -169,9 +164,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
 
     private Set<String> modelPlotTerms(String jobId, String fieldName) {
         SearchResponse searchResponse = client().prepareSearch(".ml-anomalies-" + jobId)
-                .setQuery(QueryBuilders.termQuery("result_type", "model_plot"))
-                .addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName))
-                .get();
+            .setQuery(QueryBuilders.termQuery("result_type", "model_plot"))
+            .addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName))
+            .get();
 
         Terms aggregation = searchResponse.getAggregations().get("model_plot_terms");
         return aggregation.getBuckets().stream().map(agg -> agg.getKeyAsString()).collect(Collectors.toSet());

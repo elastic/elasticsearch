@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security;
@@ -21,10 +22,10 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 
@@ -32,31 +33,29 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
+@SuppressWarnings("removal")
 public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase {
     private RestHighLevelClient highLevelAdminClient;
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("security_test_user", new SecureString("security-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {
         final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().putUser(PutUserRequest.withPassword(new User(username, roles), password.getChars(), true,
-            RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
+        client.security()
+            .putUser(
+                PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
+                RequestOptions.DEFAULT
+            );
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
@@ -99,11 +98,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
 
     private RestHighLevelClient getHighLevelAdminClient() {
         if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(
-                adminClient(),
-                ignore -> {
-                },
-                List.of()) {
+            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
             };
         }
         return highLevelAdminClient;

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -30,10 +19,10 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {
@@ -54,7 +43,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
 
         logger.info("--> indexing...");
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
-        //We don't check for failures in the flush response: if we do we might get the following:
+        // We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
         flush();
         client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
@@ -70,16 +59,22 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                 if (numNodes == 1) {
                     assertBusy(() -> {
                         logger.info("--> running cluster_health (wait for the shards to startup)");
-                        ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest()
-                            .waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
+                        ClusterHealthResponse clusterHealth = activeClient.admin()
+                            .cluster()
+                            .health(
+                                clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)
+                            )
+                            .actionGet();
                         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
                         assertFalse(clusterHealth.isTimedOut());
                         assertEquals(ClusterHealthStatus.YELLOW, clusterHealth.getStatus());
                     }, 30, TimeUnit.SECONDS);
 
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
-                    activeClient.prepareIndex("test").setId("3").setSource(jsonBuilder().startObject().field("field", "value3")
-                        .endObject()).get();
+                    activeClient.prepareIndex("test")
+                        .setId("3")
+                        .setSource(jsonBuilder().startObject().field("field", "value3").endObject())
+                        .get();
                     assertNoFailures(activeClient.admin().indices().prepareRefresh().get());
                     for (int i = 0; i < 10; i++) {
                         assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 3L);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  *
  */
 package org.elasticsearch.xpack.core.ilm.action;
@@ -23,8 +24,16 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
             request.indices(generateRandomStringArray(20, 20, false));
         }
         if (randomBoolean()) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
             request.indicesOptions(indicesOptions);
         }
         return request;
@@ -41,12 +50,25 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
             case 0:
-                indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 10, false, true));
+                indices = randomValueOtherThanMany(
+                    i -> Arrays.equals(i, instance.indices()),
+                    () -> generateRandomStringArray(20, 10, false, true)
+                );
                 break;
             case 1:
-                indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                indicesOptions = randomValueOtherThan(
+                    indicesOptions,
+                    () -> IndicesOptions.fromOptions(
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean()
+                    )
+                );
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

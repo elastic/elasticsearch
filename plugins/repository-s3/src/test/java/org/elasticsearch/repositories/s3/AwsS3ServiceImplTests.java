@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.s3;
@@ -107,8 +96,17 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3,
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
+        launchAWSConfigurationTest(
+            Settings.EMPTY,
+            Protocol.HTTPS,
+            null,
+            -1,
+            null,
+            null,
+            3,
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
+            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT
+        );
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -122,16 +120,22 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put("s3.client.default.proxy.port", 8080)
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", 3, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 10000);
+        launchAWSConfigurationTest(
+            settings,
+            Protocol.HTTP,
+            "aws_proxy_host",
+            8080,
+            "aws_proxy_username",
+            "aws_proxy_password",
+            3,
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
+            10000
+        );
     }
 
     public void testRepositoryMaxRetries() {
-        final Settings settings = Settings.builder()
-            .put("s3.client.default.max_retries", 5)
-            .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null,
-            null, 5, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 50000);
+        final Settings settings = Settings.builder().put("s3.client.default.max_retries", 5).build();
+        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null, null, 5, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 50000);
     }
 
     public void testRepositoryThrottleRetries() {
@@ -141,15 +145,17 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null, null, 3, throttling, 50000);
     }
 
-    private void launchAWSConfigurationTest(Settings settings,
-                                            Protocol expectedProtocol,
-                                            String expectedProxyHost,
-                                            int expectedProxyPort,
-                                            String expectedProxyUsername,
-                                            String expectedProxyPassword,
-                                            Integer expectedMaxRetries,
-                                            boolean expectedUseThrottleRetries,
-                                            int expectedReadTimeout) {
+    private void launchAWSConfigurationTest(
+        Settings settings,
+        Protocol expectedProtocol,
+        String expectedProxyHost,
+        int expectedProxyPort,
+        String expectedProxyUsername,
+        String expectedProxyPassword,
+        Integer expectedMaxRetries,
+        boolean expectedUseThrottleRetries,
+        int expectedReadTimeout
+    ) {
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
         final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
@@ -166,9 +172,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testEndpointSetting() {
-        final Settings settings = Settings.builder()
-            .put("s3.client.default.endpoint", "s3.endpoint")
-            .build();
+        final Settings settings = Settings.builder().put("s3.client.default.endpoint", "s3.endpoint").build();
         assertEndpoint(Settings.EMPTY, settings, "s3.endpoint");
     }
 

@@ -1,0 +1,26 @@
+---
+- job:
+    name: "elastic+elasticsearch+%BRANCH%+triggers/{periodic-job}-trigger"
+    display-name: "{periodic-job}-trigger"
+    description: "Scheduled trigger for {periodic-job}"
+    node: master
+    scm: []
+    properties: []
+    parameters: []
+    publishers: []
+    triggers:
+      - timed: "{cron}"
+    builders:
+      - shell: |
+          #!/usr/bin/env bash
+          set -o pipefail
+          echo "Retrieving last good commit for job '{lgc-job}'"
+          echo branch_specifier=$(curl -s "${JENKINS_URL}job/{lgc-job}/lastSuccessfulBuild/api/json" | jq -r -e '.actions | map(select(._class == "hudson.plugins.git.util.BuildData")) | .[] | .lastBuiltRevision.SHA1' || echo "refs/heads/%BRANCH%") > trigger.properties
+          echo "Trigger properties:" $(cat trigger.properties)
+      - trigger-builds:
+        - project: "{periodic-job}"
+          current-parameters: false
+          git-revision: false
+          parameter-factories:
+            - factory: filebuild
+              file-pattern: trigger.properties

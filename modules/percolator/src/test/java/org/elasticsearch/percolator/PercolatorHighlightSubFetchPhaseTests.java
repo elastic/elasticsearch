@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.percolator;
 
@@ -45,8 +34,15 @@ import static org.mockito.Mockito.mock;
 public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
 
     public void testHitsExecutionNeeded() {
-        PercolateQuery percolateQuery = new PercolateQuery("_name", ctx -> null, Collections.singletonList(new BytesArray("{}")),
-            new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), null, new MatchAllDocsQuery());
+        PercolateQuery percolateQuery = new PercolateQuery(
+            "_name",
+            ctx -> null,
+            Collections.singletonList(new BytesArray("{}")),
+            new MatchAllDocsQuery(),
+            Mockito.mock(IndexSearcher.class),
+            null,
+            new MatchAllDocsQuery()
+        );
         PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(emptyMap());
         FetchContext fetchContext = mock(FetchContext.class);
         Mockito.when(fetchContext.highlight()).thenReturn(new SearchHighlightContext(Collections.emptyList()));
@@ -58,8 +54,15 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
     }
 
     public void testLocatePercolatorQuery() {
-        PercolateQuery percolateQuery = new PercolateQuery("_name", ctx -> null, Collections.singletonList(new BytesArray("{}")),
-            new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), null, new MatchAllDocsQuery());
+        PercolateQuery percolateQuery = new PercolateQuery(
+            "_name",
+            ctx -> null,
+            Collections.singletonList(new BytesArray("{}")),
+            new MatchAllDocsQuery(),
+            Mockito.mock(IndexSearcher.class),
+            null,
+            new MatchAllDocsQuery()
+        );
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(new MatchAllDocsQuery()).size(), equalTo(0));
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER);
@@ -92,16 +95,25 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(disjunctionMaxQuery).size(), equalTo(1));
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(disjunctionMaxQuery).get(0), sameInstance(percolateQuery));
 
-        PercolateQuery percolateQuery2 = new PercolateQuery("_name", ctx -> null, Collections.singletonList(new BytesArray("{}")),
-            new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), null, new MatchAllDocsQuery());
+        PercolateQuery percolateQuery2 = new PercolateQuery(
+            "_name",
+            ctx -> null,
+            Collections.singletonList(new BytesArray("{}")),
+            new MatchAllDocsQuery(),
+            Mockito.mock(IndexSearcher.class),
+            null,
+            new MatchAllDocsQuery()
+        );
         bq = new BooleanQuery.Builder();
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER);
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(bq.build()).size(), equalTo(0));
         bq.add(percolateQuery, BooleanClause.Occur.FILTER);
         bq.add(percolateQuery2, BooleanClause.Occur.FILTER);
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(bq.build()).size(), equalTo(2));
-        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(bq.build()),
-            containsInAnyOrder(sameInstance(percolateQuery), sameInstance(percolateQuery2)));
+        assertThat(
+            PercolatorHighlightSubFetchPhase.locatePercolatorQuery(bq.build()),
+            containsInAnyOrder(sameInstance(percolateQuery), sameInstance(percolateQuery2))
+        );
 
         assertNotNull(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(null));
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(null).size(), equalTo(0));

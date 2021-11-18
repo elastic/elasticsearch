@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.mustache;
@@ -33,8 +22,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -53,18 +42,21 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         final int numDocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("msearch").setId(String.valueOf(i))
-                    .setSource("odd", (i % 2 == 0), "group", (i % 3));
+            indexRequestBuilders[i] = client().prepareIndex("msearch")
+                .setId(String.valueOf(i))
+                .setSource("odd", (i % 2 == 0), "group", (i % 3));
         }
         indexRandom(true, indexRequestBuilders);
 
-        final String template = Strings.toString(jsonBuilder().startObject()
-                                                .startObject("query")
-                                                    .startObject("{{query_type}}")
-                                                        .field("{{field_name}}", "{{field_value}}")
-                                                    .endObject()
-                                                .endObject()
-                                            .endObject());
+        final String template = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("query")
+                .startObject("{{query_type}}")
+                .field("{{field_name}}", "{{field_value}}")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
@@ -143,23 +135,23 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         SearchTemplateResponse searchTemplateResponse1 = response1.getResponse();
         assertThat(searchTemplateResponse1.hasResponse(), is(true));
         assertHitCount(searchTemplateResponse1.getResponse(), (numDocs / 2) + (numDocs % 2));
-        assertThat(searchTemplateResponse1.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"match\":{\"odd\":\"true\"}}}"));
+        assertThat(searchTemplateResponse1.getSource().utf8ToString(), equalTo("{\"query\":{\"match\":{\"odd\":\"true\"}}}"));
 
         MultiSearchTemplateResponse.Item response2 = response.getResponses()[1];
         assertThat(response2.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse2 = response2.getResponse();
         assertThat(searchTemplateResponse2.hasResponse(), is(false));
-        assertThat(searchTemplateResponse2.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"match_phrase_prefix\":{\"message\":\"quick brown f\"}}}"));
+        assertThat(
+            searchTemplateResponse2.getSource().utf8ToString(),
+            equalTo("{\"query\":{\"match_phrase_prefix\":{\"message\":\"quick brown f\"}}}")
+        );
 
         MultiSearchTemplateResponse.Item response3 = response.getResponses()[2];
         assertThat(response3.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse3 = response3.getResponse();
         assertThat(searchTemplateResponse3.hasResponse(), is(true));
         assertHitCount(searchTemplateResponse3.getResponse(), (numDocs / 2));
-        assertThat(searchTemplateResponse3.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"term\":{\"odd\":\"false\"}}}"));
+        assertThat(searchTemplateResponse3.getSource().utf8ToString(), equalTo("{\"query\":{\"term\":{\"odd\":\"false\"}}}"));
 
         MultiSearchTemplateResponse.Item response4 = response.getResponses()[3];
         assertThat(response4.isFailure(), is(true));
@@ -170,7 +162,6 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         assertThat(response5.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse5 = response5.getResponse();
         assertThat(searchTemplateResponse5.hasResponse(), is(false));
-        assertThat(searchTemplateResponse5.getSource().utf8ToString(),
-                equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+        assertThat(searchTemplateResponse5.getSource().utf8ToString(), equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
     }
 }

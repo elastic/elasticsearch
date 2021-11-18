@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.network;
@@ -37,31 +26,52 @@ public final class NetworkService {
 
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
-    public static final Setting<Boolean> NETWORK_SERVER =
-        Setting.boolSetting("network.server", true, Property.NodeScope);
-    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING =
-        Setting.listSetting("network.host", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> GLOBAL_NETWORK_BIND_HOST_SETTING =
-        Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISH_HOST_SETTING =
-        Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
+    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
+    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING = Setting.listSetting(
+        "network.host",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<List<String>> GLOBAL_NETWORK_BIND_HOST_SETTING = Setting.listSetting(
+        "network.bind_host",
+        GLOBAL_NETWORK_HOST_SETTING,
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISH_HOST_SETTING = Setting.listSetting(
+        "network.publish_host",
+        GLOBAL_NETWORK_HOST_SETTING,
+        Function.identity(),
+        Property.NodeScope
+    );
 
-    public static final Setting<Boolean> TCP_NO_DELAY =
-        Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
-    public static final Setting<Boolean> TCP_KEEP_ALIVE =
-        Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
-    public static final Setting<Integer> TCP_KEEP_IDLE =
-        Setting.intSetting("network.tcp.keep_idle", -1, -1, 300, Property.NodeScope);
-    public static final Setting<Integer> TCP_KEEP_INTERVAL =
-        Setting.intSetting("network.tcp.keep_interval", -1, -1, 300, Property.NodeScope);
-    public static final Setting<Integer> TCP_KEEP_COUNT =
-        Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
-    public static final Setting<Boolean> TCP_REUSE_ADDRESS =
-        Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
-    public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
-        Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
-    public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
-        Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
+    public static final Setting<Boolean> TCP_NO_DELAY = Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
+    public static final Setting<Boolean> TCP_KEEP_ALIVE = Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_IDLE = Setting.intSetting("network.tcp.keep_idle", -1, -1, 300, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_INTERVAL = Setting.intSetting(
+        "network.tcp.keep_interval",
+        -1,
+        -1,
+        300,
+        Property.NodeScope
+    );
+    public static final Setting<Integer> TCP_KEEP_COUNT = Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
+    public static final Setting<Boolean> TCP_REUSE_ADDRESS = Setting.boolSetting(
+        "network.tcp.reuse_address",
+        NetworkUtils.defaultReuseAddress(),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE = Setting.byteSizeSetting(
+        "network.tcp.send_buffer_size",
+        new ByteSizeValue(-1),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE = Setting.byteSizeSetting(
+        "network.tcp.receive_buffer_size",
+        new ByteSizeValue(-1),
+        Property.NodeScope
+    );
 
     /**
      * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change
@@ -103,7 +113,7 @@ public final class NetworkService {
                 }
             }
             // we know it's not here. get the defaults
-            bindHosts = new String[] {"_local_"};
+            bindHosts = new String[] { "_local_" };
         }
 
         InetAddress addresses[] = resolveInetAddresses(bindHosts);
@@ -116,8 +126,11 @@ public final class NetworkService {
             }
             // check if its a wildcard address: this is only ok if its the only address!
             if (address.isAnyLocalAddress() && addresses.length > 1) {
-                throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) +
-                    "} is wildcard, but multiple addresses specified: this makes no sense");
+                throw new IllegalArgumentException(
+                    "bind address: {"
+                        + NetworkAddress.format(address)
+                        + "} is wildcard, but multiple addresses specified: this makes no sense"
+                );
             }
         }
         return addresses;
@@ -143,7 +156,7 @@ public final class NetworkService {
                 }
             }
             // we know it's not here. get the defaults
-            publishHosts = new String[] {DEFAULT_NETWORK_HOST};
+            publishHosts = new String[] { DEFAULT_NETWORK_HOST };
         }
 
         InetAddress addresses[] = resolveInetAddresses(publishHosts);
@@ -160,14 +173,18 @@ public final class NetworkService {
         for (InetAddress address : addresses) {
             // check if its multicast: flat out mistake
             if (address.isMulticastAddress()) {
-                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) +
-                    "} is invalid: multicast address");
+                throw new IllegalArgumentException(
+                    "publish address: {" + NetworkAddress.format(address) + "} is invalid: multicast address"
+                );
             }
             // check if its a wildcard address: this is only ok if its the only address!
             // (if it was a single wildcard address, it was replaced by step 1 above)
             if (address.isAnyLocalAddress()) {
-                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) +
-                    "} is wildcard, but multiple addresses specified: this makes no sense");
+                throw new IllegalArgumentException(
+                    "publish address: {"
+                        + NetworkAddress.format(address)
+                        + "} is wildcard, but multiple addresses specified: this makes no sense"
+                );
             }
         }
 
@@ -176,7 +193,7 @@ public final class NetworkService {
         if (addresses.length > 1) {
             List<InetAddress> sorted = new ArrayList<>(Arrays.asList(addresses));
             NetworkUtils.sortAddresses(sorted);
-            addresses = new InetAddress[]{sorted.get(0)};
+            addresses = new InetAddress[] { sorted.get(0) };
         }
         return addresses[0];
     }
@@ -230,11 +247,13 @@ public final class NetworkService {
                 default:
                     /* an interface specification */
                     if (interfaceSpec.endsWith(":ipv4")) {
-                        return NetworkUtils.filterIPV4(NetworkUtils.getAddressesForInterface(host, ":ipv4",
-                                interfaceSpec.substring(0, interfaceSpec.length() - 5)));
+                        return NetworkUtils.filterIPV4(
+                            NetworkUtils.getAddressesForInterface(host, ":ipv4", interfaceSpec.substring(0, interfaceSpec.length() - 5))
+                        );
                     } else if (interfaceSpec.endsWith(":ipv6")) {
-                        return NetworkUtils.filterIPV6(NetworkUtils.getAddressesForInterface(host, ":ipv6",
-                                interfaceSpec.substring(0, interfaceSpec.length() - 5)));
+                        return NetworkUtils.filterIPV6(
+                            NetworkUtils.getAddressesForInterface(host, ":ipv6", interfaceSpec.substring(0, interfaceSpec.length() - 5))
+                        );
                     } else {
                         return NetworkUtils.getAddressesForInterface(host, "", interfaceSpec);
                     }

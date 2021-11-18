@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
@@ -16,8 +17,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -27,7 +26,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 
@@ -41,7 +43,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestGetApiKeyActionTests extends ESTestCase {
     private final XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
@@ -51,10 +52,12 @@ public class RestGetApiKeyActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        settings = Settings.builder().put("path.home", createTempDir().toString()).put("node.name", "test-" + getTestName())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        settings = Settings.builder()
+            .put("path.home", createTempDir().toString())
+            .put("node.name", "test-" + getTestName())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
     }
 
     @Override
@@ -64,15 +67,14 @@ public class RestGetApiKeyActionTests extends ESTestCase {
     }
 
     public void testGetApiKey() throws Exception {
-        final Map<String, String> param1 = mapBuilder().put("realm_name", "realm-1").put("username","user-x").map();
+        final Map<String, String> param1 = mapBuilder().put("realm_name", "realm-1").put("username", "user-x").map();
         final Map<String, String> param2 = mapBuilder().put("realm_name", "realm-1").map();
         final Map<String, String> param3 = mapBuilder().put("username", "user-x").map();
         final Map<String, String> param4 = mapBuilder().put("id", "api-key-id-1").map();
         final Map<String, String> param5 = mapBuilder().put("name", "api-key-name-1").map();
         final Map<String, String> params = randomFrom(param1, param2, param3, param4, param5);
         final boolean replyEmptyResponse = rarely();
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                .withParams(params).build();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(params).build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
@@ -83,14 +85,22 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         };
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
-                Collections.singletonList(new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1")));
+            Collections.singletonList(
+                new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)
+            )
+        );
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 ActionRequestValidationException validationException = getApiKeyRequest.validate();
                 if (validationException != null) {
@@ -98,9 +108,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     return;
                 }
                 if (getApiKeyRequest.getApiKeyName() != null && getApiKeyRequest.getApiKeyName().equals("api-key-name-1")
-                        || getApiKeyRequest.getApiKeyId() != null && getApiKeyRequest.getApiKeyId().equals("api-key-id-1")
-                        || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
-                        || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
+                    || getApiKeyRequest.getApiKeyId() != null && getApiKeyRequest.getApiKeyId().equals("api-key-id-1")
+                    || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
+                    || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
                     if (replyEmptyResponse) {
                         listener.onResponse((Response) GetApiKeyResponse.emptyResponse());
                     } else {
@@ -117,15 +127,22 @@ public class RestGetApiKeyActionTests extends ESTestCase {
 
             final RestResponse restResponse = responseSetOnce.get();
             assertNotNull(restResponse);
-            assertThat(restResponse.status(),
-                    (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
-            final GetApiKeyResponse actual = GetApiKeyResponse
-                    .fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+            assertThat(
+                restResponse.status(),
+                (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK)
+            );
+            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
+                createParser(XContentType.JSON.xContent(), restResponse.content())
+            );
             if (replyEmptyResponse) {
                 assertThat(actual.getApiKeyInfos().length, is(0));
             } else {
-                assertThat(actual.getApiKeyInfos(),
-                        arrayContaining(new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1")));
+                assertThat(
+                    actual.getApiKeyInfos(),
+                    arrayContaining(
+                        new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)
+                    )
+                );
             }
         }
 
@@ -140,8 +157,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             param = mapBuilder().put("owner", Boolean.FALSE.toString()).put("realm_name", "realm-1").map();
         }
 
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withParams(param).build();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(param).build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
@@ -153,18 +169,37 @@ public class RestGetApiKeyActionTests extends ESTestCase {
 
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
-        final ApiKey apiKey1 = new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false,
-            "user-x", "realm-1");
-        final ApiKey apiKey2 = new ApiKey("api-key-name-2", "api-key-id-2", creation, expiration, false,
-            "user-y", "realm-1");
+        final ApiKey apiKey1 = new ApiKey(
+            "api-key-name-1",
+            "api-key-id-1",
+            creation,
+            expiration,
+            false,
+            "user-x",
+            "realm-1",
+            ApiKeyTests.randomMetadata()
+        );
+        final ApiKey apiKey2 = new ApiKey(
+            "api-key-name-2",
+            "api-key-id-2",
+            creation,
+            expiration,
+            false,
+            "user-y",
+            "realm-1",
+            ApiKeyTests.randomMetadata()
+        );
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 ActionRequestValidationException validationException = getApiKeyRequest.validate();
                 if (validationException != null) {
@@ -186,16 +221,15 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             final RestResponse restResponse = responseSetOnce.get();
             assertNotNull(restResponse);
             assertThat(restResponse.status(), is(RestStatus.OK));
-            final GetApiKeyResponse actual = GetApiKeyResponse
-                .fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
+                createParser(XContentType.JSON.xContent(), restResponse.content())
+            );
             if (isGetRequestForOwnedKeysOnly) {
                 assertThat(actual.getApiKeyInfos().length, is(1));
-                assertThat(actual.getApiKeyInfos(),
-                    arrayContaining(apiKey1));
+                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
             } else {
                 assertThat(actual.getApiKeyInfos().length, is(2));
-                assertThat(actual.getApiKeyInfos(),
-                    arrayContaining(apiKey1, apiKey2));
+                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
             }
         }
 

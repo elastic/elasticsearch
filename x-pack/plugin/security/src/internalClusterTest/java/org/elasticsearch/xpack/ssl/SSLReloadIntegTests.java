@@ -1,23 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -26,6 +24,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
+
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -41,7 +43,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     private Path updateableCertPath;
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Nodes start trusting testnode.crt and testclient.crt
         Path origKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         Path origCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
@@ -69,15 +71,16 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("failed to copy key or certificate", e);
         }
 
-        Settings settings = super.nodeSettings(nodeOrdinal);
-        Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
+        Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
+        Settings.Builder builder = Settings.builder().put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
         builder.put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.key", nodeKeyPath)
             .put("xpack.security.transport.ssl.key_passphrase", "testnode")
             .put("xpack.security.transport.ssl.certificate", nodeCertPath)
-            .putList("xpack.security.transport.ssl.certificate_authorities",
-                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
+            .putList(
+                "xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString())
+            )
             .put("resource.reload.interval.high", "1s");
 
         builder.put("xpack.security.transport.ssl.enabled", true);
@@ -102,16 +105,17 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
-            .putList("xpack.security.transport.ssl.certificate_authorities",
-                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
+            .putList(
+                "xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString())
+            )
             .setSecureSettings(secureSettings)
             .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
-        TransportAddress address = internalCluster()
-            .getInstance(Transport.class, node).boundAddress().publishAddress();
+        TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         // Fails as our nodes do not trust testnode_updated.crt
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));

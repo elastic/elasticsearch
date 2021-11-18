@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -9,14 +10,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -36,15 +37,11 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         public static final ParseField REQUESTS_PER_SECOND = new ParseField("requests_per_second");
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
-        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(
-            "delete_expired_data_request",
-            false,
-            Request::new);
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("delete_expired_data_request", false, Request::new);
 
         static {
             PARSER.declareFloat(Request::setRequestsPerSecond, REQUESTS_PER_SECOND);
-            PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
-                TIMEOUT);
+            PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareString(Request::setJobId, Job.ID);
         }
 
@@ -59,7 +56,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         private Float requestsPerSecond;
         private TimeValue timeout;
         private String jobId;
-        private String [] expandedJobIds;
+        private String[] expandedJobIds;
 
         public Request() {}
 
@@ -108,11 +105,11 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
          * @return The expanded Ids in the case where {@code jobId} is not `_all`
          * otherwise null.
          */
-        public String [] getExpandedJobIds() {
+        public String[] getExpandedJobIds() {
             return expandedJobIds;
         }
 
-        public void setExpandedJobIds(String [] expandedJobIds) {
+        public void setExpandedJobIds(String[] expandedJobIds) {
             this.expandedJobIds = expandedJobIds;
         }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.template;
 
@@ -33,16 +34,25 @@ public class TemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(source, equalTo("{\n" +
-                "  \"index_patterns\": \".monitoring-data-" + version + "\",\n" +
-                "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
-                "      \"_meta\": {\n" +
-                "        \"template.version\": \"" + version + "\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}\n"));
+        assertTemplate(
+            source,
+            equalTo(
+                "{\n"
+                    + "  \"index_patterns\": \".monitoring-data-"
+                    + version
+                    + "\",\n"
+                    + "  \"mappings\": {\n"
+                    + "    \"doc\": {\n"
+                    + "      \"_meta\": {\n"
+                    + "        \"template.version\": \""
+                    + version
+                    + "\"\n"
+                    + "      }\n"
+                    + "    }\n"
+                    + "  }\n"
+                    + "}\n"
+            )
+        );
     }
 
     public void testLoadTemplate_GivenTemplateWithVariables() {
@@ -51,25 +61,38 @@ public class TemplateUtilsTests extends ESTestCase {
         variables.put("test.template.field_1", "test_field_1");
         variables.put("test.template.field_2", "\"test_field_2\": {\"type\": \"long\"}");
 
-        String source = TemplateUtils.loadTemplate(TEST_TEMPLATE_WITH_VARIABLES, String.valueOf(version),
-            "test.template.version", variables);
+        String source = TemplateUtils.loadTemplate(
+            TEST_TEMPLATE_WITH_VARIABLES,
+            String.valueOf(version),
+            "test.template.version",
+            variables
+        );
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(source, equalTo("{\n" +
-            "  \"index_patterns\": \".test-" + version + "\",\n" +
-            "  \"mappings\": {\n" +
-            "    \"doc\": {\n" +
-            "      \"_meta\": {\n" +
-            "        \"template.version\": \"" + version + "\"\n" +
-            "      },\n" +
-            "      \"properties\": {\n" +
-            "        \"test_field_1\": {\"type\": \"keyword\"},\n" +
-            "        \"test_field_2\": {\"type\": \"long\"}\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}\n"));
+        assertTemplate(
+            source,
+            equalTo(
+                "{\n"
+                    + "  \"index_patterns\": \".test-"
+                    + version
+                    + "\",\n"
+                    + "  \"mappings\": {\n"
+                    + "    \"doc\": {\n"
+                    + "      \"_meta\": {\n"
+                    + "        \"template.version\": \""
+                    + version
+                    + "\"\n"
+                    + "      },\n"
+                    + "      \"properties\": {\n"
+                    + "        \"test_field_1\": {\"type\": \"keyword\"},\n"
+                    + "        \"test_field_2\": {\"type\": \"long\"}\n"
+                    + "      }\n"
+                    + "    }\n"
+                    + "  }\n"
+                    + "}\n"
+            )
+        );
     }
 
     public void testLoad() throws IOException {
@@ -85,14 +108,15 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testValidateEmptySource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                () -> TemplateUtils.validate(""));
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(""));
         assertThat(exception.getMessage(), is("Template must not be empty"));
     }
 
     public void testValidateInvalidSource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                () -> TemplateUtils.validate("{\"foo\": \"bar"));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> TemplateUtils.validate("{\"foo\": \"bar")
+        );
         assertThat(exception.getMessage(), is("Invalid template"));
     }
 
@@ -102,19 +126,33 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testReplaceVariable() {
-        assertTemplate(TemplateUtils.replaceVariable("${monitoring.template.version}",
-            "monitoring.template.version", "0"), equalTo("0"));
-        assertTemplate(TemplateUtils.replaceVariable("{\"template\": \"test-${monitoring.template.version}\"}",
-            "monitoring.template.version", "1"), equalTo("{\"template\": \"test-1\"}"));
-        assertTemplate(TemplateUtils.replaceVariable("{\"template\": \"${monitoring.template.version}-test\"}",
-            "monitoring.template.version", "2"), equalTo("{\"template\": \"2-test\"}"));
-        assertTemplate(TemplateUtils.replaceVariable("{\"template\": \"test-${monitoring.template.version}-test\"}",
-            "monitoring.template.version", "3"), equalTo("{\"template\": \"test-3-test\"}"));
+        assertTemplate(TemplateUtils.replaceVariable("${monitoring.template.version}", "monitoring.template.version", "0"), equalTo("0"));
+        assertTemplate(
+            TemplateUtils.replaceVariable("{\"template\": \"test-${monitoring.template.version}\"}", "monitoring.template.version", "1"),
+            equalTo("{\"template\": \"test-1\"}")
+        );
+        assertTemplate(
+            TemplateUtils.replaceVariable("{\"template\": \"${monitoring.template.version}-test\"}", "monitoring.template.version", "2"),
+            equalTo("{\"template\": \"2-test\"}")
+        );
+        assertTemplate(
+            TemplateUtils.replaceVariable(
+                "{\"template\": \"test-${monitoring.template.version}-test\"}",
+                "monitoring.template.version",
+                "3"
+            ),
+            equalTo("{\"template\": \"test-3-test\"}")
+        );
 
         final int version = randomIntBetween(0, 100);
-        assertTemplate(TemplateUtils.replaceVariable("{\"foo-${monitoring.template.version}\": " +
-                        "\"bar-${monitoring.template.version}\"}", "monitoring.template.version", String.valueOf(version)),
-                equalTo("{\"foo-" + version + "\": \"bar-" + version + "\"}"));
+        assertTemplate(
+            TemplateUtils.replaceVariable(
+                "{\"foo-${monitoring.template.version}\": " + "\"bar-${monitoring.template.version}\"}",
+                "monitoring.template.version",
+                String.valueOf(version)
+            ),
+            equalTo("{\"foo-" + version + "\": \"bar-" + version + "\"}")
+        );
     }
 
     public static void assertTemplate(String actual, Matcher<? super String> matcher) {
@@ -124,6 +162,5 @@ public class TemplateUtilsTests extends ESTestCase {
         }
         assertThat(actual, matcher);
     }
-
 
 }

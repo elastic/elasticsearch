@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.realm;
 
@@ -9,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,32 +21,52 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 
 import java.io.IOException;
 import java.util.List;
 
-public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRealmCacheRequest, ClearRealmCacheResponse,
-        ClearRealmCacheRequest.Node, ClearRealmCacheResponse.Node> {
+public class TransportClearRealmCacheAction extends TransportNodesAction<
+    ClearRealmCacheRequest,
+    ClearRealmCacheResponse,
+    ClearRealmCacheRequest.Node,
+    ClearRealmCacheResponse.Node> {
 
     private final Realms realms;
     private final AuthenticationService authenticationService;
 
     @Inject
-    public TransportClearRealmCacheAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                          ActionFilters actionFilters, Realms realms, AuthenticationService authenticationService) {
-        super(ClearRealmCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            ClearRealmCacheRequest::new, ClearRealmCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT,
-              ClearRealmCacheResponse.Node.class);
+    public TransportClearRealmCacheAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Realms realms,
+        AuthenticationService authenticationService
+    ) {
+        super(
+            ClearRealmCacheAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            ClearRealmCacheRequest::new,
+            ClearRealmCacheRequest.Node::new,
+            ThreadPool.Names.MANAGEMENT,
+            ClearRealmCacheResponse.Node.class
+        );
         this.realms = realms;
         this.authenticationService = authenticationService;
     }
 
     @Override
-    protected ClearRealmCacheResponse newResponse(ClearRealmCacheRequest request,
-                                                  List<ClearRealmCacheResponse.Node> responses, List<FailedNodeException> failures) {
+    protected ClearRealmCacheResponse newResponse(
+        ClearRealmCacheRequest request,
+        List<ClearRealmCacheResponse.Node> responses,
+        List<FailedNodeException> failures
+    ) {
         return new ClearRealmCacheResponse(clusterService.getClusterName(), responses, failures);
     }
 
@@ -54,7 +76,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     @Override
-    protected ClearRealmCacheResponse.Node newNodeResponse(StreamInput in) throws IOException {
+    protected ClearRealmCacheResponse.Node newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new ClearRealmCacheResponse.Node(in);
     }
 
@@ -92,7 +114,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     private void clearCache(Realm realm, String[] usernames) {
-        if (!(realm instanceof CachingRealm)) {
+        if ((realm instanceof CachingRealm) == false) {
             return;
         }
         CachingRealm cachingRealm = (CachingRealm) realm;

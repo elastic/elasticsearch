@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -22,6 +11,7 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -32,10 +22,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -78,12 +68,11 @@ public class BackgroundIndexer implements AutoCloseable {
      * been indexed.
      *
      * @param index     index name to index into
-     * @param type      document type
      * @param client    client to use
      * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
      */
-    public BackgroundIndexer(String index, String type, Client client, int numOfDocs) {
-        this(index, type, client, numOfDocs, RandomizedTest.scaledRandomIntBetween(2, 5));
+    public BackgroundIndexer(String index, Client client, int numOfDocs) {
+        this(index, client, numOfDocs, RandomizedTest.scaledRandomIntBetween(2, 5));
     }
 
     /**
@@ -91,13 +80,12 @@ public class BackgroundIndexer implements AutoCloseable {
      * been indexed.
      *
      * @param index       index name to index into
-     * @param type        document type
      * @param client      client to use
      * @param numOfDocs   number of document to index before pausing. Set to -1 to have no limit.
      * @param writerCount number of indexing threads to use
      */
-    public BackgroundIndexer(String index, String type, Client client, int numOfDocs, final int writerCount) {
-        this(index, type, client, numOfDocs, writerCount, true, null);
+    public BackgroundIndexer(String index, Client client, int numOfDocs, final int writerCount) {
+        this(index, client, numOfDocs, writerCount, true, null);
     }
 
     /**
@@ -105,15 +93,20 @@ public class BackgroundIndexer implements AutoCloseable {
      * been indexed.
      *
      * @param index       index name to index into
-     * @param type        document type
      * @param client      client to use
      * @param numOfDocs   number of document to index before pausing. Set to -1 to have no limit.
      * @param writerCount number of indexing threads to use
      * @param autoStart   set to true to start indexing as soon as all threads have been created.
      * @param random      random instance to use
      */
-    public BackgroundIndexer(final String index, final String type, final Client client, final int numOfDocs, final int writerCount,
-                             boolean autoStart, Random random) {
+    public BackgroundIndexer(
+        final String index,
+        final Client client,
+        final int numOfDocs,
+        final int writerCount,
+        boolean autoStart,
+        Random random
+    ) {
 
         if (random == null) {
             random = RandomizedTest.getRandom();
@@ -134,13 +127,13 @@ public class BackgroundIndexer implements AutoCloseable {
                     try {
                         startLatch.await();
                         logger.info("**** starting indexing thread {}", indexerId);
-                        while (!stop.get()) {
+                        while (stop.get() == false) {
                             if (batch) {
                                 int batchSize = threadRandom.nextInt(20) + 1;
                                 if (hasBudget.get()) {
                                     // always try to get at least one
                                     batchSize = Math.max(Math.min(batchSize, availableBudget.availablePermits()), 1);
-                                    if (!availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS)) {
+                                    if (availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS) == false) {
                                         // time out -> check if we have to stop.
                                         continue;
                                     }
@@ -152,8 +145,9 @@ public class BackgroundIndexer implements AutoCloseable {
                                     if (useAutoGeneratedIDs) {
                                         bulkRequest.add(client.prepareIndex(index).setSource(generateSource(id, threadRandom)));
                                     } else {
-                                        bulkRequest.add(client.prepareIndex(index).setId(Long.toString(id))
-                                                .setSource(generateSource(id, threadRandom)));
+                                        bulkRequest.add(
+                                            client.prepareIndex(index).setId(Long.toString(id)).setSource(generateSource(id, threadRandom))
+                                        );
                                     }
                                 }
                                 try {
@@ -173,7 +167,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                 }
                             } else {
 
-                                if (hasBudget.get() && !availableBudget.tryAcquire(250, TimeUnit.MILLISECONDS)) {
+                                if (hasBudget.get() && availableBudget.tryAcquire(250, TimeUnit.MILLISECONDS) == false) {
                                     // time out -> check if we have to stop.
                                     continue;
                                 }
@@ -181,7 +175,9 @@ public class BackgroundIndexer implements AutoCloseable {
                                 if (useAutoGeneratedIDs) {
                                     try {
                                         IndexResponse indexResponse = client.prepareIndex(index)
-                                            .setTimeout(timeout).setSource(generateSource(id, threadRandom)).get();
+                                            .setTimeout(timeout)
+                                            .setSource(generateSource(id, threadRandom))
+                                            .get();
                                         boolean add = ids.add(indexResponse.getId());
                                         assert add : "ID: " + indexResponse.getId() + " already used";
                                     } catch (Exception e) {
@@ -191,8 +187,11 @@ public class BackgroundIndexer implements AutoCloseable {
                                     }
                                 } else {
                                     try {
-                                        IndexResponse indexResponse = client.prepareIndex(index).setId(Long.toString(id))
-                                            .setTimeout(timeout).setSource(generateSource(id, threadRandom)).get();
+                                        IndexResponse indexResponse = client.prepareIndex(index)
+                                            .setId(Long.toString(id))
+                                            .setTimeout(timeout)
+                                            .setSource(generateSource(id, threadRandom))
+                                            .get();
                                         boolean add = ids.add(indexResponse.getId());
                                         assert add : "ID: " + indexResponse.getId() + " already used";
                                     } catch (Exception e) {
@@ -208,8 +207,9 @@ public class BackgroundIndexer implements AutoCloseable {
                         trackFailure(e);
                         final long docId = id;
                         logger.warn(
-                            (Supplier<?>)
-                                () -> new ParameterizedMessage("**** failed indexing thread {} on doc id {}", indexerId, docId), e);
+                            (Supplier<?>) () -> new ParameterizedMessage("**** failed indexing thread {} on doc id {}", indexerId, docId),
+                            e
+                        );
                     } finally {
                         stopLatch.countDown();
                     }
@@ -241,10 +241,7 @@ public class BackgroundIndexer implements AutoCloseable {
             text.append(" ").append(RandomStrings.randomRealisticUnicodeOfCodepointLength(random, tokenLength));
         }
         XContentBuilder builder = XContentFactory.smileBuilder();
-        builder.startObject().field("test", "value" + id)
-                .field("text", text.toString())
-                .field("id", id)
-                .endObject();
+        builder.startObject().field("test", "value" + id).field("text", text.toString()).field("id", id).endObject();
         return builder;
 
     }
@@ -278,7 +275,7 @@ public class BackgroundIndexer implements AutoCloseable {
      * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
      */
     public void start(int numOfDocs) {
-        assert !stop.get() : "background indexer can not be started after it has stopped";
+        assert stop.get() == false : "background indexer can not be started after it has stopped";
         setBudget(numOfDocs);
         startLatch.countDown();
     }
@@ -351,7 +348,7 @@ public class BackgroundIndexer implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        stop();
+        stopAndAwaitStopped();
     }
 
     public Client getClient() {

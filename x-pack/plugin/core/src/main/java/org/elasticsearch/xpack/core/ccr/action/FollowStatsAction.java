@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -17,9 +18,9 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
@@ -48,9 +49,10 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         }
 
         public StatsResponses(
-                final List<TaskOperationFailure> taskFailures,
-                final List<? extends FailedNodeException> nodeFailures,
-                final List<StatsResponse> statsResponse) {
+            final List<TaskOperationFailure> taskFailures,
+            final List<? extends FailedNodeException> nodeFailures,
+            final List<StatsResponse> statsResponse
+        ) {
             super(taskFailures, nodeFailures);
             this.statsResponse = statsResponse;
         }
@@ -71,9 +73,8 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
             // sort by index name, then shard ID
             final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
             for (final StatsResponse statsResponse : statsResponse) {
-                taskResponsesByIndex.computeIfAbsent(
-                        statsResponse.status().followerIndex(),
-                        k -> new TreeMap<>()).put(statsResponse.status().getShardId(), statsResponse);
+                taskResponsesByIndex.computeIfAbsent(statsResponse.status().followerIndex(), k -> new TreeMap<>())
+                    .put(statsResponse.status().getShardId(), statsResponse);
             }
             builder.startObject();
             {

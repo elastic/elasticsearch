@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
@@ -34,14 +35,14 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.stub;
 import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
 
         LicenseService licenseService = mock(LicenseService.class);
@@ -52,16 +53,19 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         for (XPackInfoFeatureAction infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
-            stub(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).toAnswer(answer -> {
-                @SuppressWarnings("unchecked")
-                var listener = (ActionListener<XPackInfoFeatureResponse>)answer.getArguments()[2];
+            when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
+                var listener = (ActionListener<XPackInfoFeatureResponse>) answer.getArguments()[2];
                 listener.onResponse(new XPackInfoFeatureResponse(featureSet));
                 return null;
             });
         }
 
-        TransportXPackInfoAction action = new TransportXPackInfoAction(mock(TransportService.class), mock(ActionFilters.class),
-            licenseService, client) {
+        TransportXPackInfoAction action = new TransportXPackInfoAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            licenseService,
+            client
+        ) {
             @Override
             protected List<XPackInfoFeatureAction> infoActions() {
                 return new ArrayList<>(featureSets.keySet());
@@ -109,7 +113,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             }
         });
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for ");
         }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
@@ -25,17 +14,17 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Returns the list of tasks currently running on the nodes
@@ -59,8 +48,11 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     private List<TaskGroup> groups;
 
-    public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures,
-            List<? extends ElasticsearchException> nodeFailures) {
+    public ListTasksResponse(
+        List<TaskInfo> tasks,
+        List<TaskOperationFailure> taskFailures,
+        List<? extends ElasticsearchException> nodeFailures
+    ) {
         super(taskFailures, nodeFailures);
         this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
     }
@@ -76,32 +68,34 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         out.writeList(tasks);
     }
 
-    protected static <T> ConstructingObjectParser<T, Void> setupParser(String name,
-                                                                       TriFunction<
-                                                                           List<TaskInfo>,
-                                                                           List<TaskOperationFailure>,
-                                                                           List<ElasticsearchException>,
-                                                                           T> ctor) {
-        ConstructingObjectParser<T, Void> parser = new ConstructingObjectParser<>(name, true,
-            constructingObjects -> {
-                int i = 0;
-                @SuppressWarnings("unchecked")
-                List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
-                @SuppressWarnings("unchecked")
-                List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
-                @SuppressWarnings("unchecked")
-                List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
-                return ctor.apply(tasks,tasksFailures, nodeFailures);
-            });
+    protected static <T> ConstructingObjectParser<T, Void> setupParser(
+        String name,
+        TriFunction<List<TaskInfo>, List<TaskOperationFailure>, List<ElasticsearchException>, T> ctor
+    ) {
+        ConstructingObjectParser<T, Void> parser = new ConstructingObjectParser<>(name, true, constructingObjects -> {
+            int i = 0;
+            @SuppressWarnings("unchecked")
+            List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
+            @SuppressWarnings("unchecked")
+            List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
+            @SuppressWarnings("unchecked")
+            List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
+            return ctor.apply(tasks, tasksFailures, nodeFailures);
+        });
         parser.declareObjectArray(optionalConstructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));
-        parser.declareObjectArray(optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(NODE_FAILURES));
+        parser.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField(NODE_FAILURES)
+        );
         return parser;
     }
 
-    private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER =
-        setupParser("list_tasks_response", ListTasksResponse::new);
+    private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER = setupParser(
+        "list_tasks_response",
+        ListTasksResponse::new
+    );
 
     /**
      * Returns the list of tasks by node
@@ -162,7 +156,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
      * Convert this task response to XContent grouping by executing nodes.
      */
     public XContentBuilder toXContentGroupedByNode(XContentBuilder builder, Params params, DiscoveryNodes discoveryNodes)
-            throws IOException {
+        throws IOException {
         toXContentCommon(builder, params);
         builder.startObject("nodes");
         for (Map.Entry<String, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
@@ -181,7 +175,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 }
                 builder.endArray();
 
-                if (!node.getAttributes().isEmpty()) {
+                if (node.getAttributes().isEmpty() == false) {
                     builder.startObject("attributes");
                     for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
                         builder.field(attrEntry.getKey(), attrEntry.getValue());
@@ -190,7 +184,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 }
             }
             builder.startObject(TASKS);
-            for(TaskInfo task : entry.getValue()) {
+            for (TaskInfo task : entry.getValue()) {
                 builder.startObject(task.getTaskId().toString());
                 task.toXContent(builder, params);
                 builder.endObject();

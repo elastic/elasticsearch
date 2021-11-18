@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -20,10 +21,22 @@ import org.elasticsearch.xpack.ml.job.task.JobTask;
 public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobAction.Request, FlushJobAction.Response> {
 
     @Inject
-    public TransportFlushJobAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
-                                   AutodetectProcessManager processManager) {
-        super(FlushJobAction.NAME, clusterService, transportService, actionFilters,
-            FlushJobAction.Request::new, FlushJobAction.Response::new, ThreadPool.Names.SAME, processManager);
+    public TransportFlushJobAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        AutodetectProcessManager processManager
+    ) {
+        super(
+            FlushJobAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            FlushJobAction.Request::new,
+            FlushJobAction.Response::new,
+            ThreadPool.Names.SAME,
+            processManager
+        );
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
@@ -46,11 +59,10 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
             timeRangeBuilder.endTime(request.getEnd());
         }
         paramsBuilder.forTimeRange(timeRangeBuilder.build());
-        processManager.flushJob(task, paramsBuilder.build(), ActionListener.wrap(
-                flushAcknowledgement -> {
-                    listener.onResponse(new FlushJobAction.Response(true,
-                            flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd()));
-                }, listener::onFailure
-        ));
+        processManager.flushJob(task, paramsBuilder.build(), ActionListener.wrap(flushAcknowledgement -> {
+            listener.onResponse(
+                new FlushJobAction.Response(true, flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd())
+            );
+        }, listener::onFailure));
     }
 }

@@ -1,40 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,7 +57,10 @@ public class DatafeedConfig implements ToXContentObject {
     public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
-        "datafeed_config", true, a -> new Builder((String)a[0], (String)a[1]));
+        "datafeed_config",
+        true,
+        a -> new Builder((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
@@ -76,10 +68,14 @@ public class DatafeedConfig implements ToXContentObject {
 
         PARSER.declareStringArray(Builder::setIndices, INDEXES);
         PARSER.declareStringArray(Builder::setIndices, INDICES);
-        PARSER.declareString((builder, val) ->
-            builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
-        PARSER.declareString((builder, val) ->
-            builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
+        PARSER.declareString(
+            (builder, val) -> builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())),
+            QUERY_DELAY
+        );
+        PARSER.declareString(
+            (builder, val) -> builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())),
+            FREQUENCY
+        );
         PARSER.declareField(Builder::setQuery, DatafeedConfig::parseBytes, QUERY, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(Builder::setAggregations, DatafeedConfig::parseBytes, AGGREGATIONS, ObjectParser.ValueType.OBJECT);
         PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
@@ -93,9 +89,11 @@ public class DatafeedConfig implements ToXContentObject {
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSER, CHUNKING_CONFIG);
         PARSER.declareObject(Builder::setDelayedDataCheckConfig, DelayedDataCheckConfig.PARSER, DELAYED_DATA_CHECK_CONFIG);
         PARSER.declareInt(Builder::setMaxEmptySearches, MAX_EMPTY_SEARCHES);
-        PARSER.declareObject(Builder::setIndicesOptions,
+        PARSER.declareObject(
+            Builder::setIndicesOptions,
             (p, c) -> IndicesOptions.fromMap(p.map(), new IndicesOptions(IndicesOptions.Option.NONE, IndicesOptions.WildcardStates.NONE)),
-            INDICES_OPTIONS);
+            INDICES_OPTIONS
+        );
         PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
     }
 
@@ -120,10 +118,22 @@ public class DatafeedConfig implements ToXContentObject {
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
 
-    private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, BytesReference query,
-                           BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize,
-                           ChunkingConfig chunkingConfig, DelayedDataCheckConfig delayedDataCheckConfig,
-                           Integer maxEmptySearches, IndicesOptions indicesOptions, Map<String, Object> runtimeMappings) {
+    private DatafeedConfig(
+        String id,
+        String jobId,
+        TimeValue queryDelay,
+        TimeValue frequency,
+        List<String> indices,
+        BytesReference query,
+        BytesReference aggregations,
+        List<SearchSourceBuilder.ScriptField> scriptFields,
+        Integer scrollSize,
+        ChunkingConfig chunkingConfig,
+        DelayedDataCheckConfig delayedDataCheckConfig,
+        Integer maxEmptySearches,
+        IndicesOptions indicesOptions,
+        Map<String, Object> runtimeMappings
+    ) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -296,8 +306,22 @@ public class DatafeedConfig implements ToXContentObject {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indices, asMap(query), scrollSize, asMap(aggregations), scriptFields,
-            chunkingConfig, delayedDataCheckConfig, maxEmptySearches, indicesOptions, runtimeMappings);
+        return Objects.hash(
+            id,
+            jobId,
+            frequency,
+            queryDelay,
+            indices,
+            asMap(query),
+            scrollSize,
+            asMap(aggregations),
+            scriptFields,
+            chunkingConfig,
+            delayedDataCheckConfig,
+            maxEmptySearches,
+            indicesOptions,
+            runtimeMappings
+        );
     }
 
     public static Builder builder(String id, String jobId) {
@@ -434,14 +458,27 @@ public class DatafeedConfig implements ToXContentObject {
         }
 
         public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
-            this.runtimeMappings = Objects.requireNonNull(runtimeMappings,
-                SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName());
+            this.runtimeMappings = Objects.requireNonNull(runtimeMappings, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName());
             return this;
         }
 
         public DatafeedConfig build() {
-            return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, query, aggregations, scriptFields, scrollSize,
-                chunkingConfig, delayedDataCheckConfig, maxEmptySearches, indicesOptions, runtimeMappings);
+            return new DatafeedConfig(
+                id,
+                jobId,
+                queryDelay,
+                frequency,
+                indices,
+                query,
+                aggregations,
+                scriptFields,
+                scrollSize,
+                chunkingConfig,
+                delayedDataCheckConfig,
+                maxEmptySearches,
+                indicesOptions,
+                runtimeMappings
+            );
         }
 
         private static BytesReference xContentToBytes(ToXContentObject object) throws IOException {

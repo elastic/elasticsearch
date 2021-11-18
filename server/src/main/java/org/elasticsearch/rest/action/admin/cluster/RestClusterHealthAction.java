@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -26,9 +15,12 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,10 +33,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterHealthAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
+    private static final String RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT = "return_200_for_cluster_health_timeout";
+    private static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "the ["
+        + RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT
+        + "] parameter is deprecated and will be removed in a future release.";
+
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cluster/health"),
-            new Route(GET, "/_cluster/health/{index}"));
+        return List.of(new Route(GET, "/_cluster/health"), new Route(GET, "/_cluster/health/{index}"));
     }
 
     @Override
@@ -74,13 +71,16 @@ public class RestClusterHealthAction extends BaseRestHandler {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
         }
         clusterHealthRequest.waitForNoRelocatingShards(
-            request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards()));
+            request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards())
+        );
         clusterHealthRequest.waitForNoInitializingShards(
-            request.paramAsBoolean("wait_for_no_initializing_shards", clusterHealthRequest.waitForNoInitializingShards()));
+            request.paramAsBoolean("wait_for_no_initializing_shards", clusterHealthRequest.waitForNoInitializingShards())
+        );
         if (request.hasParam("wait_for_relocating_shards")) {
             // wait_for_relocating_shards has been removed in favor of wait_for_no_relocating_shards
-            throw new IllegalArgumentException("wait_for_relocating_shards has been removed, " +
-                "use wait_for_no_relocating_shards [true/false] instead");
+            throw new IllegalArgumentException(
+                "wait_for_relocating_shards has been removed, " + "use wait_for_no_relocating_shards [true/false] instead"
+            );
         }
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -90,6 +90,15 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
+        String return200ForClusterHealthTimeout = request.param(RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT);
+        if (return200ForClusterHealthTimeout != null) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "cluster_health_request_timeout",
+                CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG
+            );
+        }
+        clusterHealthRequest.return200ForClusterHealthTimeout(Boolean.parseBoolean(return200ForClusterHealthTimeout));
         return clusterHealthRequest;
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
@@ -29,13 +30,24 @@ class AggregationDataExtractorContext {
     final IndicesOptions indicesOptions;
     final Map<String, Object> runtimeMappings;
 
-    AggregationDataExtractorContext(String jobId, String timeField, Set<String> fields, List<String> indices, QueryBuilder query,
-                                    AggregatorFactories.Builder aggs, long start, long end, boolean includeDocCount,
-                                    Map<String, String> headers, IndicesOptions indicesOptions, Map<String, Object> runtimeMappings) {
+    AggregationDataExtractorContext(
+        String jobId,
+        String timeField,
+        Set<String> fields,
+        List<String> indices,
+        QueryBuilder query,
+        AggregatorFactories.Builder aggs,
+        long start,
+        long end,
+        boolean includeDocCount,
+        Map<String, String> headers,
+        IndicesOptions indicesOptions,
+        Map<String, Object> runtimeMappings
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         this.query = Objects.requireNonNull(query);
         this.aggs = Objects.requireNonNull(aggs);
         this.start = start;

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -29,10 +18,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -55,12 +44,16 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     static final String TYPE = "gcs";
 
-    static final Setting<String> BUCKET =
-            simpleString("bucket", Property.NodeScope, Property.Dynamic);
-    static final Setting<String> BASE_PATH =
-            simpleString("base_path", Property.NodeScope, Property.Dynamic);
-    static final Setting<ByteSizeValue> CHUNK_SIZE =
-            byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
+    static final Setting<String> BUCKET = simpleString("bucket", Property.NodeScope, Property.Dynamic);
+    static final Setting<String> BASE_PATH = simpleString("base_path", Property.NodeScope, Property.Dynamic);
+    static final Setting<ByteSizeValue> CHUNK_SIZE = byteSizeSetting(
+        "chunk_size",
+        MAX_CHUNK_SIZE,
+        MIN_CHUNK_SIZE,
+        MAX_CHUNK_SIZE,
+        Property.NodeScope,
+        Property.Dynamic
+    );
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
     private final GoogleCloudStorageService storageService;
@@ -74,39 +67,45 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, buildBasePath(metadata),
-                buildLocation(metadata));
+        final RecoverySettings recoverySettings
+    ) {
+        super(
+            metadata,
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            buildBasePath(metadata),
+            buildLocation(metadata)
+        );
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
-        logger.debug(
-            "using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
+        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
-            BlobPath path = new BlobPath();
+            BlobPath path = BlobPath.EMPTY;
             for (String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             return path;
         } else {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return Map.of("base_path", BASE_PATH.get(metadata.settings()),
-            "bucket", getSetting(BUCKET, metadata));
+        return Map.of("base_path", BASE_PATH.get(metadata.settings()), "bucket", getSetting(BUCKET, metadata));
     }
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(bucket, clientName, metadata.name(), storageService, bufferSize);
+        return new GoogleCloudStorageBlobStore(bucket, clientName, metadata.name(), storageService, bigArrays, bufferSize);
     }
 
     @Override

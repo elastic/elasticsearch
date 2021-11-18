@@ -1,26 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor.Formatter;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistanceProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
@@ -220,14 +220,30 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     //
     // Date/Time functions
     //
+    @Deprecated
     public static Integer dateTimeChrono(Object dateTime, String tzId, String chronoName) {
-        if (dateTime == null || tzId == null || chronoName == null) {
+        String extractorName = null;
+        switch (chronoName) {
+            case "DAY_OF_WEEK":
+                extractorName = "ISO_DAY_OF_WEEK";
+                break;
+            case "ALIGNED_WEEK_OF_YEAR":
+                extractorName = "ISO_WEEK_OF_YEAR";
+                break;
+            default:
+                extractorName = chronoName;
+        }
+        return dateTimeExtract(dateTime, tzId, extractorName);
+    }
+
+    public static Integer dateTimeExtract(Object dateTime, String tzId, String extractorName) {
+        if (dateTime == null || tzId == null || extractorName == null) {
             return null;
         }
         if (dateTime instanceof OffsetTime) {
-            return TimeFunction.dateTimeChrono((OffsetTime) dateTime, tzId, chronoName);
+            return TimeProcessor.doProcess((OffsetTime) dateTime, tzId, extractorName);
         }
-        return DateTimeFunction.dateTimeChrono(asDateTime(dateTime), tzId, chronoName);
+        return DateTimeProcessor.doProcess(asDateTime(dateTime), tzId, extractorName);
     }
 
     public static String dayName(Object dateTime, String tzId) {
@@ -266,16 +282,16 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static ZonedDateTime dateAdd(String dateField, Integer numberOfUnits, Object dateTime, String tzId) {
-        return (ZonedDateTime) DateAddProcessor.process(dateField, numberOfUnits, asDateTime(dateTime) , ZoneId.of(tzId));
+        return (ZonedDateTime) DateAddProcessor.process(dateField, numberOfUnits, asDateTime(dateTime), ZoneId.of(tzId));
     }
 
     public static Integer dateDiff(String dateField, Object dateTime1, Object dateTime2, String tzId) {
-        return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2) , ZoneId.of(tzId));
+        return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2), ZoneId.of(tzId));
     }
 
     public static Object dateTrunc(String truncateTo, Object dateTimeOrInterval, String tzId) {
         if (dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
-           return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
+            return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
         }
         return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }
@@ -300,6 +316,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (String) Formatter.FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
     }
 
+    public static String toChar(Object dateTime, String pattern, String tzId) {
+        return (String) Formatter.TO_CHAR.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
     public static Object timeParse(String dateField, String pattern, String tzId) {
         return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
@@ -312,19 +332,16 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         if (dateTime == null) {
             return null;
         }
-        if (dateTime instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
-        }
         if (dateTime instanceof ZonedDateTime) {
             return dateTime;
         }
         if (false == lenient) {
             if (dateTime instanceof Number) {
-                return DateUtils.asDateTime(((Number) dateTime).longValue());
+                return DateUtils.asDateTimeWithMillis(((Number) dateTime).longValue());
             }
 
             if (dateTime instanceof String) {
-                return DateUtils.asDateTime(dateTime.toString());
+                return DateUtils.asDateTimeWithNanos(dateTime.toString());
             }
             throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }

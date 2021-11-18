@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.ingest;
 
@@ -29,8 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -43,6 +30,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.List;
@@ -75,11 +64,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         int numDocs = randomIntBetween(8, 256);
         for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(new IndexRequest("foobar")
-                .id(Integer.toString(i))
-                .source("{}", XContentType.JSON)
-                .setPipeline("_id")
-            );
+            bulkRequest.add(new IndexRequest("foobar").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("_id"));
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
@@ -99,65 +84,69 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         private ThreadPool threadPool;
 
         @Override
-        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver expressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             this.threadPool = threadPool;
             return List.of();
         }
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Map.of(
-                "test-async", (factories, tag, description, config) -> {
-                    return new AbstractProcessor(tag, description) {
+            return Map.of("test-async", (factories, tag, description, config) -> {
+                return new AbstractProcessor(tag, description) {
 
-                        @Override
-                        public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                            threadPool.generic().execute(() -> {
-                                String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
-                                if (usually()) {
-                                    try {
-                                        Thread.sleep(10);
-                                    } catch (InterruptedException e) {
-                                        // ignore
-                                    }
-                                }
-                                ingestDocument.setFieldValue("foo", "bar-" + id);
-                                handler.accept(ingestDocument, null);
-                            });
-                        }
-
-                        @Override
-                        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public String getType() {
-                            return "test-async";
-                        }
-                    };
-                },
-                "test", (processorFactories, tag, description, config) -> {
-                    return new AbstractProcessor(tag, description) {
-                        @Override
-                        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                    @Override
+                    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                        threadPool.generic().execute(() -> {
                             String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
-                            ingestDocument.setFieldValue("bar", "baz-" + id);
-                            return ingestDocument;
-                        }
+                            if (usually()) {
+                                try {
+                                    Thread.sleep(10);
+                                } catch (InterruptedException e) {
+                                    // ignore
+                                }
+                            }
+                            ingestDocument.setFieldValue("foo", "bar-" + id);
+                            handler.accept(ingestDocument, null);
+                        });
+                    }
 
-                        @Override
-                        public String getType() {
-                            return "test";
-                        }
-                    };
-                }
-            );
+                    @Override
+                    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "test-async";
+                    }
+                };
+            }, "test", (processorFactories, tag, description, config) -> {
+                return new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                        String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
+                        ingestDocument.setFieldValue("bar", "baz-" + id);
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "test";
+                    }
+                };
+            });
         }
     }
 

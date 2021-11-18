@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action;
@@ -25,14 +14,9 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -42,6 +26,11 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,14 +63,26 @@ public class RestActions {
     }
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BroadcastResponse response) throws IOException {
-        buildBroadcastShardsHeader(builder, params,
-                                   response.getTotalShards(), response.getSuccessfulShards(), -1, response.getFailedShards(),
-                                   response.getShardFailures());
+        buildBroadcastShardsHeader(
+            builder,
+            params,
+            response.getTotalShards(),
+            response.getSuccessfulShards(),
+            -1,
+            response.getFailedShards(),
+            response.getShardFailures()
+        );
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params,
-                                                  int total, int successful, int skipped, int failed,
-                                                  ShardOperationFailedException[] shardFailures) throws IOException {
+    public static void buildBroadcastShardsHeader(
+        XContentBuilder builder,
+        Params params,
+        int total,
+        int successful,
+        int skipped,
+        int failed,
+        ShardOperationFailedException[] shardFailures
+    ) throws IOException {
         builder.startObject(_SHARDS_FIELD.getPreferredName());
         builder.field(TOTAL_FIELD.getPreferredName(), total);
         builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
@@ -98,6 +99,7 @@ public class RestActions {
         }
         builder.endObject();
     }
+
     /**
      * Create the XContent header for any {@link BaseNodesResponse}.
      *
@@ -106,9 +108,11 @@ public class RestActions {
      * @param response The response containing individual, node-level responses.
      * @see #buildNodesHeader(XContentBuilder, Params, int, int, int, List)
      */
-    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(final XContentBuilder builder, final Params params,
-                                                                                final BaseNodesResponse<NodeResponse> response)
-            throws IOException {
+    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(
+        final XContentBuilder builder,
+        final Params params,
+        final BaseNodesResponse<NodeResponse> response
+    ) throws IOException {
         final int successful = response.getNodes().size();
         final int failed = response.failures().size();
 
@@ -135,9 +139,14 @@ public class RestActions {
      * @param failures The failure exceptions related to {@code failed}.
      * @see #buildNodesHeader(XContentBuilder, Params, BaseNodesResponse)
      */
-    public static void buildNodesHeader(final XContentBuilder builder, final Params params,
-                                        final int total, final int successful, final int failed,
-                                        final List<FailedNodeException> failures) throws IOException {
+    public static void buildNodesHeader(
+        final XContentBuilder builder,
+        final Params params,
+        final int total,
+        final int successful,
+        final int failed,
+        final List<FailedNodeException> failures
+    ) throws IOException {
         builder.startObject("_nodes");
         builder.field("total", total);
         builder.field("successful", successful);
@@ -174,10 +183,12 @@ public class RestActions {
      * @return Never {@code null}.
      * @throws IOException if building the response causes an issue
      */
-    public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(final XContentBuilder builder,
-                                                                                                         final Params params,
-                                                                                                         final NodesResponse response)
-            throws IOException {
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(
+        final XContentBuilder builder,
+        final Params params,
+        final NodesResponse response
+    ) throws IOException {
         builder.startObject();
         RestActions.buildNodesHeader(builder, params, response);
         builder.field("cluster_name", response.getClusterName().value());
@@ -225,8 +236,8 @@ public class RestActions {
      * });
      * </code>
      */
-    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse & ToXContent>
-        extends RestBuilderListener<NodesResponse> {
+    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse<?> & ToXContent> extends RestBuilderListener<
+        NodesResponse> {
 
         public NodesResponseRestListener(RestChannel channel) {
             super(channel);
@@ -250,8 +261,9 @@ public class RestActions {
                 return null;
             } else if (first != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(
-                    parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT +
-                    "] but found [" + first + "]", parser.getTokenLocation()
+                    parser.getTokenLocation(),
+                    "Expected [" + XContentParser.Token.START_OBJECT + "] but found [" + first + "]",
+                    parser.getTokenLocation()
                 );
             }
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {

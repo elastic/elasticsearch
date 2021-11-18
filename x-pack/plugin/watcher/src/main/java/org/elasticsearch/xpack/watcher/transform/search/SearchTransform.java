@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -19,16 +20,19 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateReque
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Objects;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class SearchTransform implements Transform {
 
     public static final String TYPE = "search";
 
     private final WatcherSearchTemplateRequest request;
-    @Nullable private final TimeValue timeout;
-    @Nullable private final ZoneId dynamicNameTimeZone;
+    @Nullable
+    private final TimeValue timeout;
+    @Nullable
+    private final ZoneId dynamicNameTimeZone;
 
     public SearchTransform(WatcherSearchTemplateRequest request, @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone) {
         this.request = request;
@@ -55,14 +59,16 @@ public class SearchTransform implements Transform {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchTransform that = (SearchTransform) o;
-
-        if (request != null ? !request.equals(that.request) : that.request != null) return false;
-        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
-        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
+        return Objects.equals(request, that.request)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);
     }
 
     @Override
@@ -103,8 +109,13 @@ public class SearchTransform implements Transform {
                 try {
                     request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
                 } catch (ElasticsearchParseException srpe) {
-                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
-                            TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] transform for watch [{}]. failed to parse [{}]",
+                        srpe,
+                        TYPE,
+                        watchId,
+                        currentFieldName
+                    );
                 }
             } else if (Field.TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                 timeout = timeValueMillis(parser.longValue());
@@ -115,18 +126,31 @@ public class SearchTransform implements Transform {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateUtils.of(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a" +
-                            " string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] transform for watch [{}]. failed to parse [{}]. must be a"
+                            + " string value (e.g. 'UTC' or '+01:00').",
+                        TYPE,
+                        watchId,
+                        currentFieldName
+                    );
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. unexpected field [{}]", TYPE,
-                        watchId, currentFieldName);
+                throw new ElasticsearchParseException(
+                    "could not parse [{}] transform for watch [{}]. unexpected field [{}]",
+                    TYPE,
+                    watchId,
+                    currentFieldName
+                );
             }
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. missing required [{}] field", TYPE,
-                    watchId, Field.REQUEST.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] transform for watch [{}]. missing required [{}] field",
+                TYPE,
+                watchId,
+                Field.REQUEST.getPreferredName()
+            );
         }
         return new SearchTransform(request, timeout, dynamicNameTimeZone);
     }
@@ -137,7 +161,8 @@ public class SearchTransform implements Transform {
 
     public static class Result extends Transform.Result {
 
-        @Nullable private final WatcherSearchTemplateRequest request;
+        @Nullable
+        private final WatcherSearchTemplateRequest request;
 
         public Result(WatcherSearchTemplateRequest request, Payload payload) {
             super(TYPE, payload);

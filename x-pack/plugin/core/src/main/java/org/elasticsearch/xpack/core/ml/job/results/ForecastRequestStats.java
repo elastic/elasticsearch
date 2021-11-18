@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -52,8 +53,11 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<ForecastRequestStats, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<ForecastRequestStats, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<ForecastRequestStats, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
-                a -> new ForecastRequestStats((String) a[0], (String) a[1]));
+        ConstructingObjectParser<ForecastRequestStats, Void> parser = new ConstructingObjectParser<>(
+            RESULT_TYPE_VALUE,
+            ignoreUnknownFields,
+            a -> new ForecastRequestStats((String) a[0], (String) a[1])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
@@ -61,16 +65,11 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         parser.declareString((modelForecastRequestStats, s) -> {}, Result.RESULT_TYPE);
         parser.declareLong(ForecastRequestStats::setRecordCount, PROCESSED_RECORD_COUNT);
         parser.declareStringArray(ForecastRequestStats::setMessages, MESSAGES);
-        parser.declareField(ForecastRequestStats::setTimeStamp,
-                p -> Instant.ofEpochMilli(p.longValue()), Result.TIMESTAMP, ValueType.LONG);
-        parser.declareField(ForecastRequestStats::setStartTime,
-                p -> Instant.ofEpochMilli(p.longValue()), START_TIME, ValueType.LONG);
-        parser.declareField(ForecastRequestStats::setEndTime,
-                p -> Instant.ofEpochMilli(p.longValue()), END_TIME, ValueType.LONG);
-        parser.declareField(ForecastRequestStats::setCreateTime,
-                p -> Instant.ofEpochMilli(p.longValue()), CREATE_TIME, ValueType.LONG);
-        parser.declareField(ForecastRequestStats::setExpiryTime,
-                p -> Instant.ofEpochMilli(p.longValue()), EXPIRY_TIME, ValueType.LONG);
+        parser.declareField(ForecastRequestStats::setTimeStamp, p -> Instant.ofEpochMilli(p.longValue()), Result.TIMESTAMP, ValueType.LONG);
+        parser.declareField(ForecastRequestStats::setStartTime, p -> Instant.ofEpochMilli(p.longValue()), START_TIME, ValueType.LONG);
+        parser.declareField(ForecastRequestStats::setEndTime, p -> Instant.ofEpochMilli(p.longValue()), END_TIME, ValueType.LONG);
+        parser.declareField(ForecastRequestStats::setCreateTime, p -> Instant.ofEpochMilli(p.longValue()), CREATE_TIME, ValueType.LONG);
+        parser.declareField(ForecastRequestStats::setExpiryTime, p -> Instant.ofEpochMilli(p.longValue()), EXPIRY_TIME, ValueType.LONG);
         parser.declareDouble(ForecastRequestStats::setProgress, PROGRESS);
         parser.declareLong(ForecastRequestStats::setProcessingTime, PROCESSING_TIME_MS);
         parser.declareField(ForecastRequestStats::setStatus, p -> ForecastRequestStatus.fromString(p.text()), STATUS, ValueType.STRING);
@@ -80,7 +79,12 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     }
 
     public enum ForecastRequestStatus implements Writeable {
-        OK, FAILED, STOPPED, STARTED, FINISHED, SCHEDULED;
+        OK,
+        FAILED,
+        STOPPED,
+        STARTED,
+        FINISHED,
+        SCHEDULED;
 
         public static ForecastRequestStatus fromString(String statusName) {
             return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
@@ -96,7 +100,6 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         public boolean isAnyOf(ForecastRequestStatus... candidates) {
             return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
         }
-
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -349,24 +352,37 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
             return false;
         }
         ForecastRequestStats that = (ForecastRequestStats) other;
-        return Objects.equals(this.jobId, that.jobId) &&
-                Objects.equals(this.forecastId, that.forecastId) &&
-                this.recordCount == that.recordCount &&
-                Objects.equals(this.messages, that.messages) &&
-                Objects.equals(this.timestamp, that.timestamp) &&
-                Objects.equals(this.startTime, that.startTime) &&
-                Objects.equals(this.endTime, that.endTime) &&
-                Objects.equals(this.createTime, that.createTime) &&
-                Objects.equals(this.expiryTime, that.expiryTime) &&
-                this.progress == that.progress &&
-                this.processingTime == that.processingTime &&
-                this.memoryUsage == that.memoryUsage &&
-                Objects.equals(this.status, that.status);
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.forecastId, that.forecastId)
+            && this.recordCount == that.recordCount
+            && Objects.equals(this.messages, that.messages)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.startTime, that.startTime)
+            && Objects.equals(this.endTime, that.endTime)
+            && Objects.equals(this.createTime, that.createTime)
+            && Objects.equals(this.expiryTime, that.expiryTime)
+            && this.progress == that.progress
+            && this.processingTime == that.processingTime
+            && this.memoryUsage == that.memoryUsage
+            && Objects.equals(this.status, that.status);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, forecastId, recordCount, messages, timestamp, startTime, endTime, createTime, expiryTime,
-                progress, processingTime, memoryUsage, status);
+        return Objects.hash(
+            jobId,
+            forecastId,
+            recordCount,
+            messages,
+            timestamp,
+            startTime,
+            endTime,
+            createTime,
+            expiryTime,
+            progress,
+            processingTime,
+            memoryUsage,
+            status
+        );
     }
 }

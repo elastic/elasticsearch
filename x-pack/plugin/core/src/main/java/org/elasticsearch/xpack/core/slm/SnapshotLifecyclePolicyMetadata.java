@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,7 +33,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHea
  * incrementing number), and last modified date
  */
 public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLifecyclePolicyMetadata>
-    implements ToXContentObject, Diffable<SnapshotLifecyclePolicyMetadata> {
+    implements
+        ToXContentObject,
+        Diffable<SnapshotLifecyclePolicyMetadata> {
 
     static final ParseField POLICY = new ParseField("policy");
     static final ParseField HEADERS = new ParseField("headers");
@@ -54,22 +57,22 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
     private final SnapshotInvocationRecord lastFailure;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_metadata",
-            a -> {
-                SnapshotLifecyclePolicy policy = (SnapshotLifecyclePolicy) a[0];
-                SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[4];
-                SnapshotInvocationRecord lastFailure = (SnapshotInvocationRecord) a[5];
+    public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_policy_metadata",
+        a -> {
+            SnapshotLifecyclePolicy policy = (SnapshotLifecyclePolicy) a[0];
+            SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[4];
+            SnapshotInvocationRecord lastFailure = (SnapshotInvocationRecord) a[5];
 
-                return builder()
-                    .setPolicy(policy)
-                    .setHeaders((Map<String, String>) a[1])
-                    .setVersion((long) a[2])
-                    .setModifiedDate((long) a[3])
-                    .setLastSuccess(lastSuccess)
-                    .setLastFailure(lastFailure)
-                    .build();
-            });
+            return builder().setPolicy(policy)
+                .setHeaders((Map<String, String>) a[1])
+                .setVersion((long) a[2])
+                .setModifiedDate((long) a[3])
+                .setLastSuccess(lastSuccess)
+                .setLastFailure(lastFailure)
+                .build();
+        }
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotLifecyclePolicy::parse, POLICY);
@@ -84,8 +87,14 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         return PARSER.apply(parser, name);
     }
 
-    SnapshotLifecyclePolicyMetadata(SnapshotLifecyclePolicy policy, Map<String, String> headers, long version, long modifiedDate,
-                                    SnapshotInvocationRecord lastSuccess, SnapshotInvocationRecord lastFailure) {
+    SnapshotLifecyclePolicyMetadata(
+        SnapshotLifecyclePolicy policy,
+        Map<String, String> headers,
+        long version,
+        long modifiedDate,
+        SnapshotInvocationRecord lastSuccess,
+        SnapshotInvocationRecord lastFailure
+    ) {
         this.policy = policy;
         this.headers = headers;
         assertNoAuthorizationHeader(this.headers);
@@ -124,8 +133,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         if (metadata == null) {
             return builder();
         }
-        return new Builder()
-            .setHeaders(metadata.getHeaders())
+        return new Builder().setHeaders(metadata.getHeaders())
             .setPolicy(metadata.getPolicy())
             .setVersion(metadata.getVersion())
             .setModifiedDate(metadata.getModifiedDate())
@@ -192,12 +200,12 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
             return false;
         }
         SnapshotLifecyclePolicyMetadata other = (SnapshotLifecyclePolicyMetadata) obj;
-        return Objects.equals(policy, other.policy) &&
-            Objects.equals(headers, other.headers) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate) &&
-            Objects.equals(lastSuccess, other.lastSuccess) &&
-            Objects.equals(lastFailure, other.lastFailure);
+        return Objects.equals(policy, other.policy)
+            && Objects.equals(headers, other.headers)
+            && Objects.equals(version, other.version)
+            && Objects.equals(modifiedDate, other.modifiedDate)
+            && Objects.equals(lastSuccess, other.lastSuccess)
+            && Objects.equals(lastFailure, other.lastFailure);
     }
 
     @Override
@@ -210,8 +218,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
 
     public static class Builder {
 
-        private Builder() {
-        }
+        private Builder() {}
 
         private SnapshotLifecyclePolicy policy;
         private Map<String, String> headers;
@@ -257,7 +264,8 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
                 version,
                 Objects.requireNonNull(modifiedDate, "modifiedDate must be set"),
                 lastSuccessDate,
-                lastFailureDate);
+                lastFailureDate
+            );
         }
     }
 

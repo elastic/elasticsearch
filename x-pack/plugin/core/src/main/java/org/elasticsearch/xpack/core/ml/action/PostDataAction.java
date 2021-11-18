@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
@@ -125,7 +127,7 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             boolean hasXContentType = xContentType != null;
             out.writeBoolean(hasXContentType);
             if (hasXContentType) {
-                out.writeEnum(xContentType);
+                XContentHelper.writeTo(out, xContentType);
             }
         }
 
@@ -157,7 +159,9 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             this.dataDescription = dataDescription;
         }
 
-        public BytesReference getContent() { return content; }
+        public BytesReference getContent() {
+            return content;
+        }
 
         public XContentType getXContentType() {
             return xContentType;
@@ -185,13 +189,12 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             Request other = (Request) obj;
 
             // content stream not included
-            return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(resetStart, other.resetStart) &&
-                    Objects.equals(resetEnd, other.resetEnd) &&
-                    Objects.equals(dataDescription, other.dataDescription) &&
-                    Objects.equals(xContentType, other.xContentType);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(resetStart, other.resetStart)
+                && Objects.equals(resetEnd, other.resetEnd)
+                && Objects.equals(dataDescription, other.dataDescription)
+                && Objects.equals(xContentType, other.xContentType);
         }
     }
-
 
 }

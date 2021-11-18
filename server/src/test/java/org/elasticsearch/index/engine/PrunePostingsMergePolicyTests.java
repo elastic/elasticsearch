@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -29,7 +18,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -50,8 +38,11 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setSoftDeletesField("_soft_deletes");
-            MergePolicy mp = new SoftDeletesRetentionMergePolicy("_soft_deletes", MatchAllDocsQuery::new,
-                new PrunePostingsMergePolicy(newLogMergePolicy(), "id"));
+            MergePolicy mp = new SoftDeletesRetentionMergePolicy(
+                "_soft_deletes",
+                MatchAllDocsQuery::new,
+                new PrunePostingsMergePolicy(newLogMergePolicy(), "id")
+            );
             iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
             boolean sorted = randomBoolean();
             if (sorted) {
@@ -61,7 +52,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
             int numDocs = randomIntBetween(numUniqueDocs, numUniqueDocs * 5);
 
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < numDocs ; i++) {
+                for (int i = 0; i < numDocs; i++) {
                     if (rarely()) {
                         writer.flush();
                     }
@@ -136,7 +127,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
                 }
 
                 { // drop all ids
-                    // first add a doc such that we can force merge
+                  // first add a doc such that we can force merge
                     Document doc = new Document();
                     doc.add(new StringField("id", "" + 0, Field.Store.NO));
                     doc.add(newTextField("text", "the quick brown fox", Field.Store.YES));
@@ -148,10 +139,9 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
                     writer.flush();
                     writer.forceMerge(1);
 
-
                     try (DirectoryReader reader = DirectoryReader.open(writer)) {
                         LeafReader leafReader = reader.leaves().get(0).reader();
-                        assertEquals(numDocs+1, leafReader.maxDoc());
+                        assertEquals(numDocs + 1, leafReader.maxDoc());
                         assertEquals(0, leafReader.numDocs());
                         assertNull(leafReader.terms("id"));
                         TermsEnum iterator = leafReader.terms("text").iterator();

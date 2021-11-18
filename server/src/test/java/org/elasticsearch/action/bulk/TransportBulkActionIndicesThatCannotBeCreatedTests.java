@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -33,14 +22,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -49,12 +38,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -81,9 +69,12 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         bulkRequest.add(new IndexRequest("can't"));
         bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
         bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
-        indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
-            throw new IndexNotFoundException("Can't make it because I say so");
-        });
+        indicesThatCannotBeCreatedTestCase(
+            Set.of("no", "can't", "do", "nothin"),
+            bulkRequest,
+            index -> true,
+            index -> { throw new IndexNotFoundException("Can't make it because I say so"); }
+        );
     }
 
     public void testSomeFail() {
@@ -98,9 +89,12 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         });
     }
 
-
-    private void indicesThatCannotBeCreatedTestCase(Set<String> expected,
-            BulkRequest bulkRequest, Function<String, Boolean> shouldAutoCreate, Consumer<String> simulateAutoCreate) {
+    private void indicesThatCannotBeCreatedTestCase(
+        Set<String> expected,
+        BulkRequest bulkRequest,
+        Function<String, Boolean> shouldAutoCreate,
+        Consumer<String> simulateAutoCreate
+    ) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
@@ -116,22 +110,39 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
 
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final ExecutorService direct = EsExecutors.newDirectExecutorService();
-        when(threadPool.executor(anyString())).thenReturn(direct);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)) {
+        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE
+        ) {
             @Override
             public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
                 return shouldAutoCreate.apply(indexAbstraction) == false;
             }
         };
 
-        TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
-            null, null, mock(ActionFilters.class), indexNameExpressionResolver,
-            new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of())) {
+        TransportBulkAction action = new TransportBulkAction(
+            threadPool,
+            mock(TransportService.class),
+            clusterService,
+            null,
+            null,
+            mock(ActionFilters.class),
+            indexNameExpressionResolver,
+            new IndexingPressure(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE
+        ) {
             @Override
-            void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
-                    AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+            void executeBulk(
+                Task task,
+                BulkRequest bulkRequest,
+                long startTimeNanos,
+                ActionListener<BulkResponse> listener,
+                String executorName,
+                AtomicArray<BulkItemResponse> responses,
+                Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+            ) {
                 assertEquals(expected, indicesThatCannotBeCreated.keySet());
             }
 

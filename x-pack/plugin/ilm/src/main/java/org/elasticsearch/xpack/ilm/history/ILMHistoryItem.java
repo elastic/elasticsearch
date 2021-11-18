@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 
 import java.io.IOException;
@@ -48,8 +49,15 @@ public class ILMHistoryItem implements ToXContentObject {
     @Nullable
     private final String errorDetails;
 
-    private ILMHistoryItem(String index, String policyId, long timestamp, @Nullable Long indexAge, boolean success,
-                           @Nullable LifecycleExecutionState executionState, @Nullable String errorDetails) {
+    private ILMHistoryItem(
+        String index,
+        String policyId,
+        long timestamp,
+        @Nullable Long indexAge,
+        boolean success,
+        @Nullable LifecycleExecutionState executionState,
+        @Nullable String errorDetails
+    ) {
         this.index = index;
         this.policyId = policyId;
         this.timestamp = timestamp;
@@ -59,13 +67,24 @@ public class ILMHistoryItem implements ToXContentObject {
         this.errorDetails = errorDetails;
     }
 
-    public static ILMHistoryItem success(String index, String policyId, long timestamp, @Nullable Long indexAge,
-                                         @Nullable LifecycleExecutionState executionState) {
+    public static ILMHistoryItem success(
+        String index,
+        String policyId,
+        long timestamp,
+        @Nullable Long indexAge,
+        @Nullable LifecycleExecutionState executionState
+    ) {
         return new ILMHistoryItem(index, policyId, timestamp, indexAge, true, executionState, null);
     }
 
-    public static ILMHistoryItem failure(String index, String policyId, long timestamp, @Nullable Long indexAge,
-                                         @Nullable LifecycleExecutionState executionState, Exception error) {
+    public static ILMHistoryItem failure(
+        String index,
+        String policyId,
+        long timestamp,
+        @Nullable Long indexAge,
+        @Nullable LifecycleExecutionState executionState,
+        Exception error
+    ) {
         Objects.requireNonNull(error, "ILM failures require an attached exception");
         return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, exceptionToString(error));
     }
@@ -81,7 +100,7 @@ public class ILMHistoryItem implements ToXContentObject {
         }
         builder.field(SUCCESS.getPreferredName(), success);
         if (executionState != null) {
-            builder.field(EXECUTION_STATE.getPreferredName(), executionState.asMap());
+            builder.stringStringMap(EXECUTION_STATE.getPreferredName(), executionState.asMap());
         }
         if (errorDetails != null) {
             builder.field(ERROR.getPreferredName(), errorDetails);
@@ -102,8 +121,10 @@ public class ILMHistoryItem implements ToXContentObject {
             // In the unlikely case that we cannot generate an exception string,
             // try the best way can to encapsulate the error(s) with at least
             // the message
-            exceptionString = "unable to generate the ILM error details due to: " + e.getMessage() +
-                "; the ILM error was: " + exception.getMessage();
+            exceptionString = "unable to generate the ILM error details due to: "
+                + e.getMessage()
+                + "; the ILM error was: "
+                + exception.getMessage();
         }
         return exceptionString;
     }

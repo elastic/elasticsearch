@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client;
 
@@ -37,16 +26,23 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public class EnrichIT extends ESRestHighLevelClientTestCase {
 
     public void testCRUD() throws Exception {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index")
-            .mapping(Map.of("properties", Map.of("enrich_key", Map.of("type", "keyword"))));
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").mapping(
+            Map.of("properties", Map.of("enrich_key", Map.of("type", "keyword")))
+        );
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         final EnrichClient enrichClient = highLevelClient().enrich();
-        PutPolicyRequest putPolicyRequest =
-            new PutPolicyRequest("my-policy", "match", List.of("my-index"), "enrich_key", List.of("enrich_value"));
+        PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
+            "my-policy",
+            "match",
+            List.of("my-index"),
+            "enrich_key",
+            List.of("enrich_value")
+        );
         AcknowledgedResponse putPolicyResponse = execute(putPolicyRequest, enrichClient::putPolicy, enrichClient::putPolicyAsync);
         assertThat(putPolicyResponse.isAcknowledged(), is(true));
 
@@ -69,13 +65,19 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), greaterThanOrEqualTo(0L));
 
         ExecutePolicyRequest executePolicyRequest = new ExecutePolicyRequest("my-policy");
-        ExecutePolicyResponse executePolicyResponse =
-            execute(executePolicyRequest, enrichClient::executePolicy, enrichClient::executePolicyAsync);
+        ExecutePolicyResponse executePolicyResponse = execute(
+            executePolicyRequest,
+            enrichClient::executePolicy,
+            enrichClient::executePolicyAsync
+        );
         assertThat(executePolicyResponse.getExecutionStatus().getPhase(), equalTo("COMPLETE"));
 
         DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("my-policy");
-        AcknowledgedResponse deletePolicyResponse =
-            execute(deletePolicyRequest, enrichClient::deletePolicy, enrichClient::deletePolicyAsync);
+        AcknowledgedResponse deletePolicyResponse = execute(
+            deletePolicyRequest,
+            enrichClient::deletePolicy,
+            enrichClient::deletePolicyAsync
+        );
         assertThat(deletePolicyResponse.isAcknowledged(), is(true));
 
         getPolicyRequest = new GetPolicyRequest();

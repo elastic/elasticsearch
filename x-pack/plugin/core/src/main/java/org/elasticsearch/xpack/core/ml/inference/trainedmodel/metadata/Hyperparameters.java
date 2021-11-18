@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -30,16 +31,17 @@ public class Hyperparameters implements ToXContentObject, Writeable {
     public static final ParseField RELATIVE_IMPORTANCE = new ParseField("relative_importance");
     public static final ParseField SUPPLIED = new ParseField("supplied");
 
-
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<Hyperparameters, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<Hyperparameters, Void> STRICT_PARSER = createParser(false);
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Hyperparameters, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Hyperparameters, Void> parser = new ConstructingObjectParser<>(NAME,
+        ConstructingObjectParser<Hyperparameters, Void> parser = new ConstructingObjectParser<>(
+            NAME,
             ignoreUnknownFields,
-            a -> new Hyperparameters((String)a[0], (Double)a[1], (Double)a[2], (Double)a[3], (Boolean)a[4]));
+            a -> new Hyperparameters((String) a[0], (Double) a[1], (Double) a[2], (Double) a[3], (Boolean) a[4])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), HYPERPARAMETER_NAME);
         parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE);
         parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ABSOLUTE_IMPORTANCE);
@@ -101,8 +103,7 @@ public class Hyperparameters implements ToXContentObject, Writeable {
             && Objects.equals(value, that.value)
             && Objects.equals(absoluteImportance, that.absoluteImportance)
             && Objects.equals(relativeImportance, that.relativeImportance)
-            && Objects.equals(supplied, that.supplied)
-        ;
+            && Objects.equals(supplied, that.supplied);
     }
 
     public Map<String, Object> asMap() {
@@ -116,7 +117,7 @@ public class Hyperparameters implements ToXContentObject, Writeable {
             map.put(RELATIVE_IMPORTANCE.getPreferredName(), relativeImportance);
         }
         map.put(SUPPLIED.getPreferredName(), supplied);
-        
+
         return map;
     }
 

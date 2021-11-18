@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -35,8 +36,7 @@ public class AttributeSet implements Set<Attribute> {
     public AttributeSet(Collection<? extends Attribute> attr) {
         if (attr.isEmpty()) {
             delegate = EMPTY_DELEGATE;
-        }
-        else {
+        } else {
             delegate = new AttributeMap<>();
 
             for (Attribute a : attr) {
@@ -98,7 +98,7 @@ public class AttributeSet implements Set<Attribute> {
     @Override
     public boolean containsAll(Collection<?> c) {
         for (Object o : c) {
-            if (!delegate.containsKey(o)) {
+            if (delegate.containsKey(o) == false) {
                 return false;
             }
         }
@@ -179,6 +179,7 @@ public class AttributeSet implements Set<Attribute> {
     public int hashCode() {
         return delegate.hashCode();
     }
+
     @Override
     public String toString() {
         return delegate.keySet().toString();

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util.concurrent;
 
@@ -72,8 +61,12 @@ public class ThreadContextTests extends ESTestCase {
         }
 
         // foo is the only existing transient header that is cleared
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(false, randomFrom(List.of("foo", "foo"),
-                List.of("foo"), List.of("foo", "acme")))) {
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
+                false,
+                randomFrom(List.of("foo", "foo"), List.of("foo"), List.of("foo", "acme"))
+            )
+        ) {
             // only the requested transient header is cleared
             assertNull(threadContext.getTransient("foo"));
             // missing header is still missing
@@ -109,16 +102,24 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("qux", threadContext.getResponseHeaders().get("bar").get(0));
 
         // test stashed missing header stays missing
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(randomBoolean(), randomFrom(Arrays.asList("acme", "acme"),
-                Arrays.asList("acme")))) {
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
+                randomBoolean(),
+                randomFrom(Arrays.asList("acme", "acme"), Arrays.asList("acme"))
+            )
+        ) {
             assertNull(threadContext.getTransient("acme"));
             threadContext.putTransient("acme", "foo");
         }
         assertNull(threadContext.getTransient("acme"));
 
         // test preserved response headers
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(true, randomFrom(List.of("foo", "foo"),
-                List.of("foo"), List.of("foo", "acme")))) {
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
+                true,
+                randomFrom(List.of("foo", "foo"), List.of("foo"), List.of("foo", "acme"))
+            )
+        ) {
             threadContext.addResponseHeader("baz", "bar");
             threadContext.addResponseHeader("foo", "baz");
         }
@@ -448,9 +449,9 @@ public class ThreadContextTests extends ESTestCase {
         // Create a runnable that should run with some header
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
-            withContext = threadContext.preserveContext(sometimesAbstractRunnable(() -> {
-                assertEquals("bar", threadContext.getHeader("foo"));
-            }));
+            withContext = threadContext.preserveContext(
+                sometimesAbstractRunnable(() -> { assertEquals("bar", threadContext.getHeader("foo")); })
+            );
         }
 
         // We don't see the header outside of the runnable
@@ -471,9 +472,9 @@ public class ThreadContextTests extends ESTestCase {
         // Create a runnable that should run with some header
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
-            withContext = threadContext.preserveContext(sometimesAbstractRunnable(() -> {
-                assertEquals("bar", threadContext.getHeader("foo"));
-            }));
+            withContext = threadContext.preserveContext(
+                sometimesAbstractRunnable(() -> { assertEquals("bar", threadContext.getHeader("foo")); })
+            );
         }
 
         // Now attempt to rewrap it
@@ -682,8 +683,10 @@ public class ThreadContextTests extends ESTestCase {
         threadContext.putHeader(Collections.<String, String>emptyMap());
         threadContext.putHeader(Collections.<String, String>singletonMap("foo", "bar"));
         assertEquals("bar", threadContext.getHeader("foo"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom"))
+        );
         assertEquals("value for key [foo] already present", e.getMessage());
     }
 

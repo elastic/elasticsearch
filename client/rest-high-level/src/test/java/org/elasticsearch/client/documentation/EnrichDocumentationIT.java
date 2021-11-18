@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.documentation;
 
@@ -27,9 +16,9 @@ import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.ExecutePolicyRequest;
 import org.elasticsearch.client.enrich.ExecutePolicyResponse;
-import org.elasticsearch.client.enrich.NamedPolicy;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyResponse;
+import org.elasticsearch.client.enrich.NamedPolicy;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.StatsRequest;
 import org.elasticsearch.client.enrich.StatsResponse;
@@ -43,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings("removal")
 public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After
@@ -58,8 +48,9 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+            Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+        );
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // tag::enrich-put-policy-request
@@ -108,14 +99,19 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-                .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+                Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+            );
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
             // Add a policy, so that it can be deleted:
             PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-                "users-policy", "match", List.of("users"),
-                "email", List.of("address", "zip", "city", "state"));
+                "users-policy",
+                "match",
+                List.of("users"),
+                "email",
+                List.of("address", "zip", "city", "state")
+            );
             client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
         }
 
@@ -163,13 +159,18 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+            Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+        );
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-            "users-policy", "match", List.of("users"),
-            "email", List.of("address", "zip", "city", "state"));
+            "users-policy",
+            "match",
+            List.of("users"),
+            "email",
+            List.of("address", "zip", "city", "state")
+        );
         client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
 
         // tag::enrich-get-policy-request
@@ -265,12 +266,17 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-                .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+                Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+            );
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-                "users-policy", "match", List.of("users"),
-                "email", List.of("address", "zip", "city", "state"));
+                "users-policy",
+                "match",
+                List.of("users"),
+                "email",
+                List.of("address", "zip", "city", "state")
+            );
             client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
         }
 

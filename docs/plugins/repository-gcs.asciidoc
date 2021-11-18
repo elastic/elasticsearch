@@ -45,29 +45,34 @@ https://cloud.google.com/storage/docs/quickstart-console#create_a_bucket[Google 
 
 The plugin must authenticate the requests it makes to the Google Cloud Storage
 service. It is common for Google client libraries to employ a strategy named https://cloud.google.com/docs/authentication/production#providing_credentials_to_your_application[application default credentials].
-However, that strategy is **not** supported for use with Elasticsearch. The
+However, that strategy is only **partially supported** by Elasticsearch. The
 plugin operates under the Elasticsearch process, which runs with the security
-manager enabled. The security manager obstructs the "automatic" credential discovery.
-Therefore, you must configure <<repository-gcs-using-service-account,service account>>
-credentials even if you are using an environment that does not normally require
-this configuration (such as Compute Engine, Kubernetes Engine or App Engine).
+manager enabled. The security manager obstructs the "automatic" credential discovery
+when the environment variable `GOOGLE_APPLICATION_CREDENTIALS` is used to point to a
+local file on disk. It can, however, retrieve the service account that is attached to
+the resource that is running Elasticsearch, or fall back to the default service
+account that Compute Engine, Kubernetes Engine or App Engine provide.
+Alternatively, you must configure <<repository-gcs-using-service-account,service account>>
+credentials if you are using an environment that does not support automatic
+credential discovery.
 
 [[repository-gcs-using-service-account]]
 ===== Using a Service Account
 You have to obtain and provide https://cloud.google.com/iam/docs/overview#service_account[service account credentials]
 manually.
 
-For detailed information about generating JSON service account files, see the  https://cloud.google.com/storage/docs/authentication?hl=en#service_accounts[Google Cloud documentation].
+For detailed information about generating JSON service account files, see the https://cloud.google.com/storage/docs/authentication?hl=en#service_accounts[Google Cloud documentation].
 Note that the PKCS12 format is not supported by this plugin.
 
 Here is a summary of the steps:
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
 2. Select your project.
-3. Go to the https://console.cloud.google.com/permissions[Permission] tab.
-4. Select the https://console.cloud.google.com/permissions/serviceaccounts[Service Accounts] tab.
-5. Click *Create service account*.
-6. After the account is created, select it and download a JSON key file.
+3. Select the https://console.cloud.google.com/iam-admin/serviceaccounts[Service Accounts] tab.
+4. Click *Create service account*.
+5. After the account is created, select it and go to *Keys*.
+6. Select *Add Key* and then *Create new key*.
+7. Select Key Type *JSON* as P12 is unsupported.
 
 A JSON service account file looks like this:
 
@@ -88,7 +93,7 @@ A JSON service account file looks like this:
 ----
 // NOTCONSOLE
 
-To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must
+To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore]. You must
 add a `file` setting with the name `gcs.client.NAME.credentials_file` using the `add-file` subcommand.
  `NAME` is the name of the client configuration for the repository. The implicit client
 name is `default`, but a different client name can be specified in the

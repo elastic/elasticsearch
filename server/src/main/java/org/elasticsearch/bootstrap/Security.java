@@ -1,35 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.lang.reflect.Field;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -48,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 
@@ -102,6 +98,10 @@ final class Security {
     /** no instantiation */
     private Security() {}
 
+    static void setSecurityManager(@SuppressWarnings("removal") SecurityManager sm) {
+        System.setSecurityManager(sm);
+    }
+
     /**
      * Initializes SecurityManager for the environment
      * Can only happen once!
@@ -112,16 +112,22 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment),
-            getPluginAndModulePermissions(environment), filterBadDefaults, createRecursiveDataPathPermission(environment)));
+        Policy.setPolicy(
+            new ESPolicy(
+                codebases,
+                createPermissions(environment),
+                getPluginAndModulePermissions(environment),
+                filterBadDefaults,
+                createRecursiveDataPathPermission(environment)
+            )
+        );
 
         // enable security manager
-        final String[] classesThatCanExit =
-                new String[]{
-                        // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
-                        ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
-                        Command.class.getName()};
-        System.setSecurityManager(new SecureSM(classesThatCanExit));
+        final String[] classesThatCanExit = new String[] {
+            // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
+            ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
+            Command.class.getName() };
+        setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();
@@ -132,8 +138,8 @@ final class Security {
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static Map<String,Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
-        Map<String,Policy> map = new HashMap<>();
+    static Map<String, Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
+        Map<String, Policy> map = new HashMap<>();
         Consumer<PluginPolicyInfo> addPolicy = pluginPolicy -> {
             if (pluginPolicy == null) {
                 return;
@@ -210,8 +216,13 @@ final class Security {
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
         if (environment.sharedDataFile() != null) {
-            addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
-                "read,readlink,write,delete", false);
+            addDirectoryPath(
+                policy,
+                Environment.PATH_SHARED_DATA_SETTING.getKey(),
+                environment.sharedDataFile(),
+                "read,readlink,write,delete",
+                false
+            );
         }
         final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {
@@ -223,7 +234,7 @@ final class Security {
              */
             try {
                 final Path realPath = path.toRealPath();
-                if (!dataFilesPaths.add(realPath)) {
+                if (dataFilesPaths.add(realPath) == false) {
                     throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
                 }
             } catch (final IOException e) {
@@ -331,5 +342,48 @@ final class Security {
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }
+    }
+
+    /**
+     * Prepopulates the system's security manager callers map with this class as a caller.
+     * This is loathsome, but avoids the annoying warning message at run time.
+     * Returns true if the callers map has been populated.
+     */
+    static boolean prepopulateSecurityCaller() {
+        Field f;
+        try {
+            f = getDeclaredField(Class.forName("java.lang.System$CallersHolder", true, null), "callers");
+        } catch (NoSuchFieldException | ClassNotFoundException ignore) {
+            return false;
+        }
+        try {
+            Class<?> c = Class.forName("sun.misc.Unsafe");
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(c, MethodHandles.lookup());
+            VarHandle handle = lookup.findStaticVarHandle(c, "theUnsafe", c);
+            Object theUnsafe = handle.get();
+            MethodHandle mh = lookup.findVirtual(c, "staticFieldBase", methodType(Object.class, Field.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            Object base = mh.invokeExact(theUnsafe, f);
+            mh = lookup.findVirtual(c, "staticFieldOffset", methodType(long.class, Field.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            long offset = (long) mh.invokeExact(theUnsafe, f);
+            mh = lookup.findVirtual(c, "getObject", methodType(Object.class, Object.class, long.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            Object callers = (Object) mh.invokeExact(theUnsafe, base, offset);
+            if (Map.class.isAssignableFrom(callers.getClass())) {
+                @SuppressWarnings("unchecked")
+                Map<Class<?>, Boolean> map = Map.class.cast(callers);
+                map.put(org.elasticsearch.bootstrap.Security.class, true);
+                return true;
+            }
+        } catch (Throwable t) {
+            throw new ElasticsearchException(t);
+        }
+        return false;
+    }
+
+    @SuppressForbidden(reason = "access violation required")
+    private static Field getDeclaredField(Class<?> c, String name) throws NoSuchFieldException {
+        return c.getDeclaredField(name);
     }
 }

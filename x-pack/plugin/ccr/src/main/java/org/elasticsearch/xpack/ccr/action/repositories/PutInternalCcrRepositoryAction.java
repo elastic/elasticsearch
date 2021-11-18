@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.repositories;
@@ -25,21 +26,24 @@ public class PutInternalCcrRepositoryAction extends ActionType<ActionResponse.Em
         super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
-    public static class TransportPutInternalRepositoryAction
-        extends TransportAction<PutInternalCcrRepositoryRequest, ActionResponse.Empty> {
+    public static class TransportPutInternalRepositoryAction extends TransportAction<
+        PutInternalCcrRepositoryRequest,
+        ActionResponse.Empty> {
 
         private final RepositoriesService repositoriesService;
 
         @Inject
-        public TransportPutInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
-                                                    TransportService transportService) {
+        public TransportPutInternalRepositoryAction(
+            RepositoriesService repositoriesService,
+            ActionFilters actionFilters,
+            TransportService transportService
+        ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
         }
 
         @Override
-        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request,
-                                 ActionListener<ActionResponse.Empty> listener) {
+        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request, ActionListener<ActionResponse.Empty> listener) {
             repositoriesService.registerInternalRepository(request.getName(), request.getType());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }

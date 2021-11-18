@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.history;
 
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure per-action conditions are honored.
@@ -52,8 +54,11 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
     private final ExecutableCondition scriptConditionPasses = mockScriptCondition("return true;");
     private final ExecutableCondition compareConditionPasses = new CompareCondition("ctx.payload.key", CompareCondition.Op.GTE, 15);
-    private final ExecutableCondition conditionPasses = randomFrom(InternalAlwaysCondition.INSTANCE,
-                                                                   scriptConditionPasses, compareConditionPasses);
+    private final ExecutableCondition conditionPasses = randomFrom(
+        InternalAlwaysCondition.INSTANCE,
+        scriptConditionPasses,
+        compareConditionPasses
+    );
 
     private final ExecutableCondition scriptConditionFails = mockScriptCondition("return false;");
     private final ExecutableCondition compareConditionFails = new CompareCondition("ctx.payload.key", CompareCondition.Op.LT, 15);
@@ -74,9 +79,10 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
             scripts.put("return true;", vars -> true);
             scripts.put("return false;", vars -> false);
-            scripts.put("throw new IllegalStateException('failed');", vars -> {
-                throw new IllegalStateException("[expected] failed hard");
-            });
+            scripts.put(
+                "throw new IllegalStateException('failed');",
+                vars -> { throw new IllegalStateException("[expected] failed hard"); }
+            );
 
             return scripts;
         }
@@ -91,8 +97,11 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         final String id = "testActionConditionWithHardFailures";
 
         final ExecutableCondition scriptConditionFailsHard = mockScriptCondition("throw new IllegalStateException('failed');");
-        final List<ExecutableCondition> actionConditionsWithFailure =
-                Arrays.asList(scriptConditionFailsHard, conditionPasses, InternalAlwaysCondition.INSTANCE);
+        final List<ExecutableCondition> actionConditionsWithFailure = Arrays.asList(
+            scriptConditionFailsHard,
+            conditionPasses,
+            InternalAlwaysCondition.INSTANCE
+        );
 
         Collections.shuffle(actionConditionsWithFailure, random());
 
@@ -106,15 +115,15 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditionsWithFailure.size(); ++i) {
-            final Map<String, Object> action = (Map<String, Object>)actions.get(i);
-            final Map<String, Object> condition = (Map<String, Object>)action.get("condition");
-            final Map<String, Object> logging = (Map<String, Object>)action.get("logging");
+            final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+            final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+            final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
 
             assertThat(action.get("id"), is("action" + i));
 
@@ -138,10 +147,9 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";
         final ExecutableCondition[] actionConditionsWithFailure = new ExecutableCondition[] {
-                conditionFails,
-                conditionPasses,
-                InternalAlwaysCondition.INSTANCE
-        };
+            conditionFails,
+            conditionPasses,
+            InternalAlwaysCondition.INSTANCE };
         Collections.shuffle(Arrays.asList(actionConditionsWithFailure), random());
 
         final int failedIndex = Arrays.asList(actionConditionsWithFailure).indexOf(conditionFails);
@@ -151,15 +159,15 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditionsWithFailure.length; ++i) {
-            final Map<String, Object> action = (Map<String, Object>)actions.get(i);
-            final Map<String, Object> condition = (Map<String, Object>)action.get("condition");
-            final Map<String, Object> logging = (Map<String, Object>)action.get("logging");
+            final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+            final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+            final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
 
             assertThat(action.get("id"), is("action" + i));
             assertThat(condition.get("type"), is(actionConditionsWithFailure[i].type()));
@@ -179,11 +187,11 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/65064")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65064")
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
         final List<ExecutableCondition> actionConditions = new ArrayList<>();
-        //actionConditions.add(conditionPasses);
+        // actionConditions.add(conditionPasses);
         actionConditions.add(InternalAlwaysCondition.INSTANCE);
 
         /*
@@ -202,15 +210,15 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // all actions should be successful
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
 
         for (int i = 0; i < actionConditions.size(); ++i) {
-            final Map<String, Object> action = (Map<String, Object>)actions.get(i);
-            final Map<String, Object> condition = (Map<String, Object>)action.get("condition");
-            final Map<String, Object> logging = (Map<String, Object>)action.get("logging");
+            final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+            final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+            final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
 
             assertThat(action.get("id"), is("action" + i));
             assertThat(action.get("status"), is("success"));
@@ -229,9 +237,9 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      */
     @SuppressWarnings("unchecked")
     private List<Object> getActionsFromHit(final Map<String, Object> source) {
-        final Map<String, Object> result = (Map<String, Object>)source.get("result");
+        final Map<String, Object> result = (Map<String, Object>) source.get("result");
 
-        return (List<Object>)result.get("actions");
+        return (List<Object>) result.get("actions");
     }
 
     /**
@@ -244,10 +252,9 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @param actionConditions The conditions to add to the Watch
      */
     private void putAndTriggerWatch(final String id, final Input input, final Condition... actionConditions) throws Exception {
-        WatchSourceBuilder source = watchBuilder()
-                .trigger(schedule(interval("5s")))
-                .input(input)
-                .condition(InternalAlwaysCondition.INSTANCE);
+        WatchSourceBuilder source = watchBuilder().trigger(schedule(interval("5s")))
+            .input(input)
+            .condition(InternalAlwaysCondition.INSTANCE);
 
         for (int i = 0; i < actionConditions.length; ++i) {
             source.addAction("action" + i, actionConditions[i], loggingAction(Integer.toString(i)));

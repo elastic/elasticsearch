@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
@@ -20,11 +21,9 @@ public class AucRocResultTests extends AbstractWireSerializingTestCase<Result> {
 
     public static Result createRandom() {
         double score = randomDoubleBetween(0.0, 1.0, true);
-        List<AucRocPoint> curve =
-            Stream
-                .generate(() -> new AucRocPoint(randomDouble(), randomDouble(), randomDouble()))
-                .limit(randomIntBetween(0, 20))
-                .collect(Collectors.toList());
+        List<AucRocPoint> curve = Stream.generate(() -> new AucRocPoint(randomDouble(), randomDouble(), randomDouble()))
+            .limit(randomIntBetween(0, 20))
+            .collect(Collectors.toList());
         return new Result(score, curve);
     }
 

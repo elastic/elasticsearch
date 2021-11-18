@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,10 +27,10 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketScriptPipelineAggregationBuilder> {
     public static final String NAME = "bucket_script";
@@ -52,14 +41,21 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
     public static final ConstructingObjectParser<BucketScriptPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-            NAME, false, (args, name) -> {
-                @SuppressWarnings("unchecked")
-                var bucketsPathsMap = (Map<String, String>) args[0];
-                return new BucketScriptPipelineAggregationBuilder(name, bucketsPathsMap, (Script) args[1]);
-            });
+        NAME,
+        false,
+        (args, name) -> {
+            @SuppressWarnings("unchecked")
+            var bucketsPathsMap = (Map<String, String>) args[0];
+            return new BucketScriptPipelineAggregationBuilder(name, bucketsPathsMap, (Script) args[1]);
+        }
+    );
     static {
-        PARSER.declareField(constructorArg(), BucketScriptPipelineAggregationBuilder::extractBucketPath,
-                BUCKETS_PATH_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        PARSER.declareField(
+            constructorArg(),
+            BucketScriptPipelineAggregationBuilder::extractBucketPath,
+            BUCKETS_PATH_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING
+        );
         Script.declareScript(PARSER, constructorArg());
 
         PARSER.declareString(BucketScriptPipelineAggregationBuilder::format, FORMAT);
@@ -70,7 +66,6 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
     };
-
 
     public BucketScriptPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
         super(name, NAME, new TreeMap<>(bucketsPathsMap).values().toArray(new String[bucketsPathsMap.size()]));
@@ -111,23 +106,23 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
 
     private static Map<String, String> extractBucketPath(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-       if (token == XContentParser.Token.VALUE_STRING) {
-           // input is a string, name of the path set to '_value'.
-           // This is a bit odd as there is not constructor for it
-           return Collections.singletonMap("_value", parser.text());
-       } else if (token == XContentParser.Token.START_ARRAY) {
-           // input is an array, name of the path set to '_value' + position
-           Map<String, String> bucketsPathsMap = new HashMap<>();
-           int i =0;
-           while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-               String path = parser.text();
-               bucketsPathsMap.put("_value" + i++, path);
-           }
-           return bucketsPathsMap;
-       } else  {
-           // input is an object, it should contain name / value pairs
-           return parser.mapStrings();
-       }
+        if (token == XContentParser.Token.VALUE_STRING) {
+            // input is a string, name of the path set to '_value'.
+            // This is a bit odd as there is not constructor for it
+            return Collections.singletonMap("_value", parser.text());
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            // input is an array, name of the path set to '_value' + position
+            Map<String, String> bucketsPathsMap = new HashMap<>();
+            int i = 0;
+            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                String path = parser.text();
+                bucketsPathsMap.put("_value" + i++, path);
+            }
+            return bucketsPathsMap;
+        } else {
+            // input is an object, it should contain name / value pairs
+            return parser.mapStrings();
+        }
     }
 
     private static Map<String, String> convertToBucketsPathMap(String[] bucketsPaths) {

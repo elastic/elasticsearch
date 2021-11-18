@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util;
 
@@ -29,6 +18,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTestCase<SetBackedScalingCuckooFilter> {
@@ -52,7 +42,12 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
     @Override
     protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) throws IOException {
-        SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(instance);
+        SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(
+            instance.getThreshold(),
+            instance.getRng(),
+            instance.getFpp()
+        );
+        newInstance.merge(instance);
         int num = randomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
             newInstance.add(randomLong());
@@ -131,8 +126,10 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         assertNull(filter.hashes);
         assertThat(filter.filters.size(), greaterThan(0));
         IllegalStateException e = expectThrows(IllegalStateException.class, filter::convert);
-        assertThat(e.getMessage(), equalTo("Cannot convert SetBackedScalingCuckooFilter to approximate " +
-            "when it has already been converted."));
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot convert SetBackedScalingCuckooFilter to approximate " + "when it has already been converted.")
+        );
     }
 
     public void testMergeSmall() {
@@ -216,16 +213,16 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
     }
 
     public void testBadParameters() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new SetBackedScalingCuckooFilter(-1, Randomness.get(), 0.11));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SetBackedScalingCuckooFilter(-1, Randomness.get(), 0.11)
+        );
         assertThat(e.getMessage(), equalTo("[threshold] must be a positive integer"));
 
-        e = expectThrows(IllegalArgumentException.class,
-            () -> new SetBackedScalingCuckooFilter(1000000, Randomness.get(), 0.11));
+        e = expectThrows(IllegalArgumentException.class, () -> new SetBackedScalingCuckooFilter(1000000, Randomness.get(), 0.11));
         assertThat(e.getMessage(), equalTo("[threshold] must be smaller than [500000]"));
 
-        e = expectThrows(IllegalArgumentException.class,
-            () -> new SetBackedScalingCuckooFilter(100, Randomness.get(), -1.0));
+        e = expectThrows(IllegalArgumentException.class, () -> new SetBackedScalingCuckooFilter(100, Randomness.get(), -1.0));
         assertThat(e.getMessage(), equalTo("[fpp] must be a positive double"));
     }
 }

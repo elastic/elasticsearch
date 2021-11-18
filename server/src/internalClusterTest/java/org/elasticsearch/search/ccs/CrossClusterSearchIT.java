@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.ccs;
@@ -31,14 +20,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.LegacyReaderContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
@@ -60,6 +51,8 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
@@ -107,7 +100,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .map(DiscoveryNode::getName)
                 .filter(nodeName -> nodeWithoutRemoteClusterClientRole.equals(nodeName) == false)
                 .filter(nodeName -> nodeName.equals(pureDataNode) == false)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList())
+        );
 
         final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)
             .prepareSearch("demo", "cluster_a:prod")
@@ -122,9 +116,17 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo"));
         indexDocs(client(LOCAL_CLUSTER), "demo");
         final String remoteNode = cluster("cluster_a").startDataOnlyNode();
-        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", remoteNode)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()));
+        assertAcked(
+            client("cluster_a").admin()
+                .indices()
+                .prepareCreate("prod")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", remoteNode)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+        );
         indexDocs(client("cluster_a"), "prod");
         SearchListenerPlugin.blockQueryPhase();
         try {
@@ -162,7 +164,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             remoteCluster.ensureAtLeastNumDataNodes(3);
             List<String> remoteDataNodes = StreamSupport.stream(remoteCluster.clusterService().state().nodes().spliterator(), false)
-                .filter(DiscoveryNode::isDataNode)
+                .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getName)
                 .collect(Collectors.toList());
             assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));
@@ -176,10 +178,21 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 allocationFilter.put("index.routing.allocation.include._name", String.join(",", seedNodes));
             }
         }
-        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
-            .setSettings(Settings.builder().put(allocationFilter.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)));
-        assertFalse(client("cluster_a").admin().cluster().prepareHealth("prod")
-            .setWaitForYellowStatus().setTimeout(TimeValue.timeValueSeconds(10)).get().isTimedOut());
+        assertAcked(
+            client("cluster_a").admin()
+                .indices()
+                .prepareCreate("prod")
+                .setSettings(Settings.builder().put(allocationFilter.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        assertFalse(
+            client("cluster_a").admin()
+                .cluster()
+                .prepareHealth("prod")
+                .setWaitForYellowStatus()
+                .setTimeout(TimeValue.timeValueSeconds(10))
+                .get()
+                .isTimedOut()
+        );
         indexDocs(client("cluster_a"), "prod");
         SearchListenerPlugin.blockQueryPhase();
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
@@ -190,10 +203,16 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         SearchListenerPlugin.waitSearchStarted();
         // Get the search task and cancelled
-        final TaskInfo rootTask = client().admin().cluster().prepareListTasks()
+        final TaskInfo rootTask = client().admin()
+            .cluster()
+            .prepareListTasks()
             .setActions(SearchAction.INSTANCE.name())
-            .get().getTasks().stream().filter(t -> t.getParentTaskId().isSet() == false)
-            .findFirst().get();
+            .get()
+            .getTasks()
+            .stream()
+            .filter(t -> t.getParentTaskId().isSet() == false)
+            .findFirst()
+            .get();
         final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTaskId(rootTask.getTaskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
         final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
@@ -257,6 +276,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         @Override
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
+                @Override
+                public void onNewReaderContext(ReaderContext readerContext) {
+                    assertThat(readerContext, not(instanceOf(LegacyReaderContext.class)));
+                }
+
                 @Override
                 public void onPreQueryPhase(SearchContext searchContext) {
                     startedLatch.get().countDown();

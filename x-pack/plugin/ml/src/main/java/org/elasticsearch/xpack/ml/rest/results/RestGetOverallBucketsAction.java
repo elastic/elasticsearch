@@ -1,36 +1,42 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestGetOverallBucketsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(
-                GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets"),
-            new Route(
-                POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets")
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets", RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets")
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -60,14 +66,14 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
             if (restRequest.hasParam(Request.END.getPreferredName())) {
                 request.setEnd(restRequest.param(Request.END.getPreferredName()));
             }
-            if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
-                    null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH.getPreferredName());
-            }
-            request.setAllowNoMatch(
-                restRequest.paramAsBoolean(
-                    Request.ALLOW_NO_MATCH.getPreferredName(),
-                    restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
+            checkAndSetDeprecatedParam(
+                DEPRECATED_ALLOW_NO_JOBS_PARAM,
+                Request.ALLOW_NO_MATCH.getPreferredName(),
+                RestApiVersion.V_7,
+                restRequest,
+                (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+                request::setAllowNoMatch
+            );
         }
 
         return channel -> client.execute(GetOverallBucketsAction.INSTANCE, request, new RestToXContentListener<>(channel));

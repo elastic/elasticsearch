@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
@@ -63,8 +52,9 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final Tuple<Map<String, GoogleCloudStorageClientSettings>, Settings> randomClients = randomClients(nbClients, deprecationWarnings);
         final Map<String, GoogleCloudStorageClientSettings> expectedClientsSettings = randomClients.v1();
 
-        final Map<String, GoogleCloudStorageClientSettings> actualClientsSettings = GoogleCloudStorageClientSettings
-                .load(randomClients.v2());
+        final Map<String, GoogleCloudStorageClientSettings> actualClientsSettings = GoogleCloudStorageClientSettings.load(
+            randomClients.v2()
+        );
         assertEquals(expectedClientsSettings.size(), actualClientsSettings.size());
 
         for (final String clientName : expectedClientsSettings.keySet()) {
@@ -97,17 +87,23 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final String clientName = randomAlphaOfLength(5);
         final Tuple<ServiceAccountCredentials, byte[]> credentials = randomCredential(clientName);
         final ServiceAccountCredentials credential = credentials.v1();
-        final GoogleCloudStorageClientSettings googleCloudStorageClientSettings = new GoogleCloudStorageClientSettings(credential,
-                ENDPOINT_SETTING.getDefault(Settings.EMPTY), PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
-                CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY), READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
-                APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY), new URI(""));
+        final GoogleCloudStorageClientSettings googleCloudStorageClientSettings = new GoogleCloudStorageClientSettings(
+            credential,
+            ENDPOINT_SETTING.getDefault(Settings.EMPTY),
+            PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
+            CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
+            new URI("")
+        );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
     }
 
     /** Generates a given number of GoogleCloudStorageClientSettings along with the Settings to build them from **/
-    private Tuple<Map<String, GoogleCloudStorageClientSettings>, Settings> randomClients(final int nbClients,
-                                                                                         final List<Setting<?>> deprecationWarnings)
-            throws Exception {
+    private Tuple<Map<String, GoogleCloudStorageClientSettings>, Settings> randomClients(
+        final int nbClients,
+        final List<Setting<?>> deprecationWarnings
+    ) throws Exception {
         final Map<String, GoogleCloudStorageClientSettings> expectedClients = new HashMap<>();
 
         final Settings.Builder settings = Settings.builder();
@@ -130,10 +126,12 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     }
 
     /** Generates a random GoogleCloudStorageClientSettings along with the Settings to build it **/
-    private static GoogleCloudStorageClientSettings randomClient(final String clientName,
-                                                                 final Settings.Builder settings,
-                                                                 final MockSecureSettings secureSettings,
-                                                                 final List<Setting<?>> deprecationWarnings) throws Exception {
+    private static GoogleCloudStorageClientSettings randomClient(
+        final String clientName,
+        final Settings.Builder settings,
+        final MockSecureSettings secureSettings,
+        final List<Setting<?>> deprecationWarnings
+    ) throws Exception {
 
         final Tuple<ServiceAccountCredentials, byte[]> credentials = randomCredential(clientName);
         final ServiceAccountCredentials credential = credentials.v1();
@@ -141,8 +139,14 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
         String endpoint;
         if (randomBoolean()) {
-            endpoint = randomFrom("http://www.elastic.co", "http://metadata.google.com:88/oauth", "https://www.googleapis.com",
-                    "https://www.elastic.co:443", "http://localhost:8443", "https://www.googleapis.com/oauth/token");
+            endpoint = randomFrom(
+                "http://www.elastic.co",
+                "http://metadata.google.com:88/oauth",
+                "https://www.googleapis.com",
+                "https://www.elastic.co:443",
+                "http://localhost:8443",
+                "https://www.googleapis.com/oauth/token"
+            );
             settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         } else {
             endpoint = ENDPOINT_SETTING.getDefault(Settings.EMPTY);
@@ -181,8 +185,15 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             applicationName = APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY);
         }
 
-        return new GoogleCloudStorageClientSettings(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName,
-                new URI(""));
+        return new GoogleCloudStorageClientSettings(
+            credential,
+            endpoint,
+            projectId,
+            connectTimeout,
+            readTimeout,
+            applicationName,
+            new URI("")
+        );
     }
 
     /** Generates a random GoogleCredential along with its corresponding Service Account file provided as a byte array **/
@@ -196,15 +207,23 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         credentialBuilder.setPrivateKeyId("private_key_id_" + clientName);
         credentialBuilder.setScopes(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
         final String encodedPrivateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
-        final String serviceAccount = "{\"type\":\"service_account\"," +
-            "\"project_id\":\"project_id_" + clientName + "\"," +
-            "\"private_key_id\":\"private_key_id_" + clientName + "\"," +
-            "\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n" +
-            encodedPrivateKey +
-            "\\n-----END PRIVATE KEY-----\\n\"," +
-            "\"client_email\":\"" + clientName + "\"," +
-            "\"client_id\":\"id_" + clientName + "\"" +
-            "}";
+        final String serviceAccount = "{\"type\":\"service_account\","
+            + "\"project_id\":\"project_id_"
+            + clientName
+            + "\","
+            + "\"private_key_id\":\"private_key_id_"
+            + clientName
+            + "\","
+            + "\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n"
+            + encodedPrivateKey
+            + "\\n-----END PRIVATE KEY-----\\n\","
+            + "\"client_email\":\""
+            + clientName
+            + "\","
+            + "\"client_id\":\"id_"
+            + clientName
+            + "\""
+            + "}";
         return Tuple.tuple(credentialBuilder.build(), serviceAccount.getBytes(StandardCharsets.UTF_8));
     }
 

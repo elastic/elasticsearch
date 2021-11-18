@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack;
 
@@ -25,15 +26,23 @@ import java.util.List;
  */
 public class SlackService extends NotificationService<SlackAccount> {
 
-    private static final Setting<String> SETTING_DEFAULT_ACCOUNT =
-            Setting.simpleString("xpack.notification.slack.default_account", Property.Dynamic, Property.NodeScope);
+    private static final Setting<String> SETTING_DEFAULT_ACCOUNT = Setting.simpleString(
+        "xpack.notification.slack.default_account",
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    private static final Setting.AffixSetting<SecureString> SETTING_URL_SECURE =
-            Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url", (key) -> SecureSetting.secureString(key, null));
+    private static final Setting.AffixSetting<SecureString> SETTING_URL_SECURE = Setting.affixKeySetting(
+        "xpack.notification.slack.account.",
+        "secure_url",
+        (key) -> SecureSetting.secureString(key, null)
+    );
 
-    private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
-            Setting.affixKeySetting("xpack.notification.slack.account.", "message_defaults",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+    private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS = Setting.affixKeySetting(
+        "xpack.notification.slack.account.",
+        "message_defaults",
+        (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope)
+    );
 
     private static final Logger logger = LogManager.getLogger(SlackService.class);
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -42,21 +43,31 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
         Client client = internalCluster().getInstance(Client.class, internalCluster().getMasterName());
         UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders = map -> {
             map.remove("removed-template");
-            map.put("added-template", IndexTemplateMetadata.builder("added-template")
+            map.put(
+                "added-template",
+                IndexTemplateMetadata.builder("added-template")
                     .order(1)
-                    .patterns(Collections.singletonList(randomAlphaOfLength(10))).build());
+                    .patterns(Collections.singletonList(randomAlphaOfLength(10)))
+                    .build()
+            );
             return map;
         };
 
-        AcknowledgedResponse putIndexTemplateResponse = client().admin().indices().preparePutTemplate("removed-template")
-                .setOrder(1)
-                .setPatterns(Collections.singletonList(randomAlphaOfLength(10)))
-                .get();
+        AcknowledgedResponse putIndexTemplateResponse = client().admin()
+            .indices()
+            .preparePutTemplate("removed-template")
+            .setOrder(1)
+            .setPatterns(Collections.singletonList(randomAlphaOfLength(10)))
+            .get();
         assertAcked(putIndexTemplateResponse);
         assertTemplates("removed-template", "added-template");
 
-        TemplateUpgradeService templateUpgradeService = new TemplateUpgradeService(client, clusterService, threadPool,
-                Collections.singleton(indexTemplateMetadataUpgraders));
+        TemplateUpgradeService templateUpgradeService = new TemplateUpgradeService(
+            client,
+            clusterService,
+            threadPool,
+            Collections.singleton(indexTemplateMetadataUpgraders)
+        );
 
         // ensure the cluster listener gets triggered
         ClusterChangedEvent event = new ClusterChangedEvent("testing", clusterService.state(), clusterService.state());

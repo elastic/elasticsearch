@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -32,8 +34,8 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -49,16 +51,16 @@ import static org.mockito.Mockito.when;
 public class IndexingStateProcessorTests extends ESTestCase {
 
     private static final String STATE_SAMPLE = ""
-            + "        \n"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
-            + "{ \"field\" : \"value1\" }\n"
-            + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"2\"}}\n"
-            + "{ \"field\" : \"value2\" }\n"
-            + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"3\"}}\n"
-            + "{ \"field\" : \"value3\" }\n"
-            + "\0";
+        + "        \n"
+        + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
+        + "{ \"field\" : \"value1\" }\n"
+        + "\0"
+        + "{\"index\": {\"_index\": \"test\", \"_id\": \"2\"}}\n"
+        + "{ \"field\" : \"value2\" }\n"
+        + "\0"
+        + "{\"index\": {\"_index\": \"test\", \"_id\": \"3\"}}\n"
+        + "{ \"field\" : \"value3\" }\n"
+        + "\0";
 
     private static final String JOB_ID = "state-processor-test-job";
 
@@ -120,8 +122,9 @@ public class IndexingStateProcessorTests extends ESTestCase {
 
     public void testStateRead_StateDocumentUpdated() throws IOException {
         testStateRead(
-            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy");
+            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy"
+        );
     }
 
     public void testStateReadGivenConsecutiveZeroBytes() throws IOException {

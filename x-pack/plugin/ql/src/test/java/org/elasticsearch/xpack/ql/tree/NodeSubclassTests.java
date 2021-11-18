@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -115,7 +116,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     }
 
     /**
-     * Test {@link Node#transformPropertiesOnly(java.util.function.Function, Class)}
+     * Test {@link Node#transformPropertiesOnly(Class, java.util.function.Function)}
      * implementation on {@link #subclass} which tests the implementation of
      * {@link Node#info()}. And tests the actual {@link NodeInfo} subclass
      * implementations in the process.
@@ -133,7 +134,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Type changedArgType = argTypes[changedArgOffset];
             Object changedArgValue = randomValueOtherThan(nodeCtorArgs[changedArgOffset], () -> makeArg(changedArgType));
 
-            B transformed = node.transformNodeProps(prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop, Object.class);
+            B transformed = node.transformNodeProps(Object.class, prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop);
 
             if (node.children().contains(originalArgValue) || node.children().equals(originalArgValue)) {
                 if (node.children().equals(emptyList()) && originalArgValue.equals(emptyList())) {
@@ -156,7 +157,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     }
 
     /**
-     * Test {@link Node#replaceChildren} implementation on {@link #subclass}.
+     * Test {@link Node#replaceChildren(List)} implementation on {@link #subclass}.
      */
     public void testReplaceChildren() throws Exception {
         Constructor<T> ctor = longestCtor(subclass);
@@ -235,8 +236,14 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
-    private void assertTransformedOrReplacedChildren(T node, B transformed, Constructor<T> ctor,
-            Object[] nodeCtorArgs, int changedArgOffset, Object changedArgValue) throws Exception {
+    private void assertTransformedOrReplacedChildren(
+        T node,
+        B transformed,
+        Constructor<T> ctor,
+        Object[] nodeCtorArgs,
+        int changedArgOffset,
+        Object changedArgValue
+    ) throws Exception {
         if (node instanceof Function) {
             /*
              * Functions have a weaker definition of transform then other
@@ -282,7 +289,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      */
     static <T> Constructor<T> longestCtor(Class<T> clazz) {
         Constructor<T> longest = null;
-        for (Constructor<?> ctor: clazz.getConstructors()) {
+        for (Constructor<?> ctor : clazz.getConstructors()) {
             if (longest == null || longest.getParameterCount() < ctor.getParameterCount()) {
                 @SuppressWarnings("unchecked") // Safe because the ctor has to be a ctor for T
                 Constructor<T> castCtor = (Constructor<T>) ctor;
@@ -302,10 +309,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     @ParametersFactory
     @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
-        return subclassesOf(Node.class).stream()
-            .filter(c -> testClassFor(c) == null)
-            .map(c -> new Object[] {c})
-            .collect(toList());
+        return subclassesOf(Node.class).stream().filter(c -> testClassFor(c) == null).map(c -> new Object[] { c }).collect(toList());
     }
 
     /**
@@ -319,19 +323,19 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         for (int i = 0; i < argTypes.length; i++) {
             final int currentArgIndex = i;
             args[i] = randomValueOtherThanMany(candidate -> {
-                    for (int a = 0; a < currentArgIndex; a++) {
-                        if (Objects.equals(args[a], candidate)) {
-                            return true;
-                        }
+                for (int a = 0; a < currentArgIndex; a++) {
+                    if (Objects.equals(args[a], candidate)) {
+                        return true;
                     }
-                    return false;
-                }, () -> {
-                    try {
-                        return makeArg(ctor.getDeclaringClass(), argTypes[currentArgIndex]);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                }
+                return false;
+            }, () -> {
+                try {
+                    return makeArg(ctor.getDeclaringClass(), argTypes[currentArgIndex]);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
         return args;
     }
@@ -414,12 +418,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // InnerAggregate's AggregateFunction must be an EnclosedAgg.
             if (argClass == AggregateFunction.class) {
                 return makeEnclosedAgg();
-            }
-            else if (argClass == CompoundAggregate.class) {
+            } else if (argClass == CompoundAggregate.class) {
                 return makeCompoundAgg();
             }
-        }
-        else if (toBuildClass == FieldAttribute.class) {
+        } else if (toBuildClass == FieldAttribute.class) {
             // `parent` is nullable.
             if (argClass == FieldAttribute.class && randomBoolean()) {
                 return null;
@@ -617,7 +619,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
         Set<Class<? extends T>> results = new LinkedHashSet<>();
         String[] paths = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
-        for (String path: paths) {
+        for (String path : paths) {
             Path root = PathUtils.get(path);
             int rootLength = root.toString().length() + 1;
 
@@ -639,7 +641,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
             // for folders, just use the FileSystems API
             else {
-                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                Files.walkFileTree(root, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
@@ -668,11 +670,12 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * Load classes from predefined packages (hack to limit the scope) and if they match the hierarchy, add them to the cache
      */
     private static <T> void maybeLoadClass(Class<T> clazz, String className, String location, Set<Class<? extends T>> results)
-            throws IOException {
+        throws IOException {
 
         // filter the class that are not interested
         // (and IDE folders like eclipse)
-        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false
+        if (className.startsWith("org.elasticsearch.xpack.ql") == false
+            && className.startsWith("org.elasticsearch.xpack.sql") == false
             && className.startsWith("org.elasticsearch.xpack.eql") == false) {
             return;
         }
@@ -684,9 +687,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             throw new IOException("Couldn't load " + location, e);
         }
 
-        if (false == Modifier.isAbstract(c.getModifiers())
-                && false == c.isAnonymousClass()
-                && clazz.isAssignableFrom(c)) {
+        if (false == Modifier.isAbstract(c.getModifiers()) && false == c.isAnonymousClass() && clazz.isAssignableFrom(c)) {
             Class<? extends T> s = c.asSubclass(clazz);
             results.add(s);
         }

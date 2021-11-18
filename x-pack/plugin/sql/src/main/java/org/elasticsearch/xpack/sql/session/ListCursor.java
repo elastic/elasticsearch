@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.session;
@@ -73,22 +74,20 @@ public class ListCursor implements Cursor {
     // why this method is not exposed
     private static Page of(Schema schema, List<List<?>> data, int pageSize, int columnCount) {
         List<List<?>> nextData = data.size() > pageSize ? data.subList(pageSize, data.size()) : emptyList();
-        Cursor next = nextData.isEmpty()
-                ? Cursor.EMPTY
-                : new ListCursor(nextData, pageSize, columnCount);
-        List<List<?>> currData = data.isEmpty() || pageSize == 0
-                ? emptyList()
-                : data.size() == pageSize ? data : data.subList(0, Math.min(pageSize, data.size()));
+        Cursor next = nextData.isEmpty() ? Cursor.EMPTY : new ListCursor(nextData, pageSize, columnCount);
+        List<List<?>> currData = data.isEmpty() || pageSize == 0 ? emptyList()
+            : data.size() == pageSize ? data
+            : data.subList(0, Math.min(pageSize, data.size()));
         return new Page(new ListRowSet(schema, currData, columnCount), next);
     }
-    
+
     @Override
     public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         listener.onResponse(of(Schema.EMPTY, data, pageSize, columnCount));
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
@@ -109,8 +108,8 @@ public class ListCursor implements Cursor {
 
         ListCursor other = (ListCursor) obj;
         return Objects.equals(pageSize, other.pageSize)
-                && Objects.equals(columnCount, other.columnCount)
-                && Objects.equals(data, other.data);
+            && Objects.equals(columnCount, other.columnCount)
+            && Objects.equals(data, other.data);
     }
 
     @Override

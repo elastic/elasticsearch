@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.manual;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
@@ -33,24 +34,19 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
      * from the given list of jobs
      */
     @Override
-    public void start(Collection<Watch> jobs) {
-    }
+    public void start(Collection<Watch> jobs) {}
 
     @Override
-    public void stop() {
-    }
+    public void stop() {}
 
     @Override
-    public void register(Consumer<Iterable<TriggerEvent>> consumer) {
-    }
+    public void register(Consumer<Iterable<TriggerEvent>> consumer) {}
 
     @Override
-    public void add(Watch job) {
-    }
+    public void add(Watch job) {}
 
     @Override
-    public void pauseExecution() {
-    }
+    public void pauseExecution() {}
 
     @Override
     public boolean remove(String jobId) {
@@ -79,8 +75,8 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
     }
 
     @Override
-    public ManualTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws
-            IOException {
+    public ManualTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser)
+        throws IOException {
         return ManualTriggerEvent.parse(service, watchId, context, parser);
     }
 }

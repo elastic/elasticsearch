@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
@@ -13,12 +14,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
@@ -35,7 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -46,8 +47,14 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
     private final WatchParser parser;
 
     @Inject
-    public TransportQueryWatchesAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState,
-                                       ClockHolder clockHolder, Client client, WatchParser parser) {
+    public TransportQueryWatchesAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        ClockHolder clockHolder,
+        Client client,
+        WatchParser parser
+    ) {
         super(QueryWatchesAction.NAME, transportService, actionFilters, licenseState, QueryWatchesAction.Request::new);
         this.clock = clockHolder.clock;
         this.client = client;
@@ -57,8 +64,13 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
     @Override
     protected void doExecute(QueryWatchesAction.Request request, ActionListener<QueryWatchesAction.Response> listener) {
         SearchRequest searchRequest = createSearchRequest(request);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, searchRequest,
-            ActionListener.<SearchResponse>wrap(r -> transformResponse(r, listener), listener::onFailure), client::search);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            WATCHER_ORIGIN,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(r -> transformResponse(r, listener), listener::onFailure),
+            client::search
+        );
     }
 
     SearchRequest createSearchRequest(QueryWatchesAction.Request request) {
@@ -86,7 +98,6 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
         return searchRequest;
     }
 
-
     void transformResponse(SearchResponse searchResponse, ActionListener<QueryWatchesAction.Response> listener) {
         assert searchResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
         List<QueryWatchesAction.Response.Item> items = Arrays.stream(searchResponse.getHits().getHits())
@@ -98,14 +109,23 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
     QueryWatchesAction.Response.Item transformSearchHit(SearchHit searchHit) {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         try (XContentBuilder builder = jsonBuilder()) {
-            Watch watch = parser.parseWithSecrets(searchHit.getId(), true, searchHit.getSourceRef(), now,
-                XContentType.JSON, searchHit.getSeqNo(), searchHit.getPrimaryTerm());
-            watch.toXContent(builder, WatcherParams.builder()
-                .hideSecrets(true)
-                .includeStatus(false)
-                .build());
-            return new QueryWatchesAction.Response.Item(searchHit.getId(), new XContentSource(builder), watch.status(),
-                watch.getSourceSeqNo(), watch.getSourcePrimaryTerm());
+            Watch watch = parser.parseWithSecrets(
+                searchHit.getId(),
+                true,
+                searchHit.getSourceRef(),
+                now,
+                XContentType.JSON,
+                searchHit.getSeqNo(),
+                searchHit.getPrimaryTerm()
+            );
+            watch.toXContent(builder, WatcherParams.builder().hideSecrets(true).includeStatus(false).build());
+            return new QueryWatchesAction.Response.Item(
+                searchHit.getId(),
+                new XContentSource(builder),
+                watch.status(),
+                watch.getSourceSeqNo(),
+                watch.getSourcePrimaryTerm()
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

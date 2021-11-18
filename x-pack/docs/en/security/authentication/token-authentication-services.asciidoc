@@ -2,15 +2,36 @@
 [[token-authentication-services]]
 === Token-based authentication services
 
-The {stack-security-features} authenticate users by using realms and one or more token-based
-authentication services. The token-based authentication services are used for
-authentication and for the management of tokens. These tokens can be used as
-credentials attached to requests that are sent to {es}. When {es} receives a request
-that must be authenticated, it consults first the token-based authentication
-services then the realm chain.
+The {stack-security-features} authenticate users by using realms and one or
+more token-based authentication services. The token-based authentication
+services are used for authenticating and managing tokens. You can attach these
+tokens to requests that are sent to {es} and use them as credentials. When {es}
+receives a request that must be authenticated, it consults the token-based
+authentication services first, and then the realm chain.
 
-The {security-features} provide the following built-in token-based authentication
-services, which are listed in the order they are consulted:
+The {security-features} provide the following built-in token-based
+authentication services, which are listed in the order they are consulted:
+
+_service-accounts_::
++
+--
+
+The <<service-accounts,service accounts>> use either the
+<<security-api-create-service-token,create service account token API>>
+or the <<service-tokens-command,elasticsearch-service-tokens>> CLI tool to
+generate service account tokens.
+
+To use a service account token, include the generated token value in a request
+with an `Authorization: Bearer` header:
+
+[source,shell]
+----
+curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZ...mXQtc2VydmMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3" http://localhost:9200/_cluster/health
+----
+// NOTCONSOLE
+
+include::service-accounts.asciidoc[tag=service-accounts-usage]
+--
 
 _token-service_::
 The token service uses the <<security-api-get-token,get token API>> to
@@ -25,7 +46,7 @@ access token. For example:
 --
 [source,shell]
 --------------------------------------------------
-curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
+curl -H "Authorization: Bearer dGhpcyBpcyBub3Qx5...F0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
 --------------------------------------------------
 // NOTCONSOLE
 --
@@ -43,7 +64,7 @@ base64 encoding of the API key ID and the API key joined by a colon. For example
 --
 [source,shell]
 --------------------------------------------------
-curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" http://localhost:9200/_cluster/health
+curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrU...W0tZTVhT3g6dWkybHAyYXhUTm1zeWFrd0dk5udw==" http://localhost:9200/_cluster/health
 --------------------------------------------------
 // NOTCONSOLE
 --

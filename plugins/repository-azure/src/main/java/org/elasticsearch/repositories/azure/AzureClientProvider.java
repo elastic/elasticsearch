@@ -1,23 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
+
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
+import reactor.netty.resources.ConnectionProvider;
 
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
@@ -34,24 +33,16 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.threadpool.ThreadPool;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
-import reactor.netty.resources.ConnectionProvider;
 
 import java.io.IOException;
 import java.net.URL;
@@ -75,23 +66,27 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         "repository.azure.http_client.event_loop_executor_thread_count",
         DEFAULT_EVENT_LOOP_THREAD_COUNT,
         1,
-        Setting.Property.NodeScope);
+        Setting.Property.NodeScope
+    );
 
     static final Setting<Integer> MAX_OPEN_CONNECTIONS = Setting.intSetting(
         "repository.azure.http_client.max_open_connections",
         DEFAULT_MAX_CONNECTIONS,
         1,
-        Setting.Property.NodeScope);
+        Setting.Property.NodeScope
+    );
 
     static final Setting<TimeValue> OPEN_CONNECTION_TIMEOUT = Setting.timeSetting(
         "repository.azure.http_client.connection_timeout",
         DEFAULT_CONNECTION_TIMEOUT,
-        Setting.Property.NodeScope);
+        Setting.Property.NodeScope
+    );
 
     static final Setting<TimeValue> MAX_IDLE_TIME = Setting.timeSetting(
         "repository.azure.http_client.connection_max_idle_time",
         DEFAULT_MAX_CONNECTION_IDLE_TIME,
-        Setting.Property.NodeScope);
+        Setting.Property.NodeScope
+    );
 
     private final ThreadPool threadPool;
     private final String reactorExecutorName;
@@ -101,11 +96,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
     private volatile boolean closed = false;
 
-    AzureClientProvider(ThreadPool threadPool,
-                        String reactorExecutorName,
-                        EventLoopGroup eventLoopGroup,
-                        ConnectionProvider connectionProvider,
-                        ByteBufAllocator byteBufAllocator) {
+    AzureClientProvider(
+        ThreadPool threadPool,
+        String reactorExecutorName,
+        EventLoopGroup eventLoopGroup,
+        ConnectionProvider connectionProvider,
+        ByteBufAllocator byteBufAllocator
+    ) {
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;
@@ -122,19 +119,20 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // Most of the code that needs special permissions (i.e. jackson serializers generation) is executed
         // in the event loop executor. That's the reason why we should provide an executor that allows the
         // execution of privileged code
-        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(eventLoopThreadsFromSettings(settings),
-            new PrivilegedExecutor(eventLoopExecutor));
+        final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(
+            eventLoopThreadsFromSettings(settings),
+            new PrivilegedExecutor(eventLoopExecutor)
+        );
 
         final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
         final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);
 
-        ConnectionProvider provider =
-            ConnectionProvider.builder("azure-sdk-connection-pool")
-                .maxConnections(MAX_OPEN_CONNECTIONS.get(settings))
-                .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
-                .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
-                .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
-                .build();
+        ConnectionProvider provider = ConnectionProvider.builder("azure-sdk-connection-pool")
+            .maxConnections(MAX_OPEN_CONNECTIONS.get(settings))
+            .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
+            .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
+            .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
+            .build();
 
         ByteBufAllocator pooledByteBufAllocator = createByteBufAllocator();
 
@@ -151,30 +149,22 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
         int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
 
-        return new PooledByteBufAllocator(false,
-            nHeapArena,
-            0,
-            pageSize,
-            maxOrder,
-            tinyCacheSize,
-            smallCacheSize,
-            normalCacheSize,
-            false);
+        return new PooledByteBufAllocator(false, nHeapArena, 0, pageSize, maxOrder, tinyCacheSize, smallCacheSize, normalCacheSize, false);
     }
 
-    AzureBlobServiceClient createClient(AzureStorageSettings settings,
-                                        LocationMode locationMode,
-                                        RequestRetryOptions retryOptions,
-                                        ProxyOptions proxyOptions,
-                                        BiConsumer<String, URL> successfulRequestConsumer) {
+    AzureBlobServiceClient createClient(
+        AzureStorageSettings settings,
+        LocationMode locationMode,
+        RequestRetryOptions retryOptions,
+        ProxyOptions proxyOptions,
+        BiConsumer<String, URL> successfulRequestConsumer
+    ) {
         if (closed) {
             throw new IllegalStateException("AzureClientProvider is already closed");
         }
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
-        nettyHttpClient = nettyHttpClient
-            .port(80)
-            .wiretap(false);
+        nettyHttpClient = nettyHttpClient.port(80).wiretap(false);
 
         nettyHttpClient = nettyHttpClient.tcpConfiguration(tcpClient -> {
             tcpClient = tcpClient.runOn(eventLoopGroup);
@@ -182,15 +172,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             return tcpClient;
         });
 
-        final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient)
-            .disableBufferCopy(true)
-            .proxy(proxyOptions)
-            .build();
+        final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 
         final String connectionString = settings.getConnectString();
 
-        BlobServiceClientBuilder builder = new BlobServiceClientBuilder()
-            .connectionString(connectionString)
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
             .httpClient(httpClient)
             .retryOptions(retryOptions);
 
@@ -203,8 +189,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
             String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
             if (secondaryUri == null) {
-                throw new IllegalArgumentException("Unable to configure an AzureClient using a secondary location without a secondary " +
-                    "endpoint");
+                throw new IllegalArgumentException(
+                    "Unable to configure an AzureClient using a secondary location without a secondary " + "endpoint"
+                );
             }
 
             builder.endpoint(secondaryUri);
@@ -275,8 +262,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
-            return next.process()
-                .doOnSuccess(httpResponse -> trackSuccessfulRequest(context.getHttpRequest(), httpResponse));
+            return next.process().doOnSuccess(httpResponse -> trackSuccessfulRequest(context.getHttpRequest(), httpResponse));
         }
 
         private void trackSuccessfulRequest(HttpRequest httpRequest, HttpResponse httpResponse) {

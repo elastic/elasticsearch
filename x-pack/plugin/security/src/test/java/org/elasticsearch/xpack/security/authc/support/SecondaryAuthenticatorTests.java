@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.support;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -68,6 +70,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -97,7 +101,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         realm = new DummyUsernamePasswordRealm(new RealmConfig(new RealmIdentifier("dummy", "test_realm"), settings, env, threadContext));
-        when(realms.asList()).thenReturn(List.of(realm));
+        when(realms.getActiveRealms()).thenReturn(List.of(realm));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
 
         final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
@@ -111,7 +115,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(License.OperationMode.PLATINUM, true, Long.MAX_VALUE, null);
+        licenseState.update(License.OperationMode.PLATINUM, true, null);
 
         final Clock clock = Clock.systemUTC();
 
@@ -122,11 +126,34 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         securityContext = new SecurityContext(settings, threadContext);
 
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, licenseState,
-                                                              securityIndex, clusterService,
-                                                              mock(CacheInvalidatorRegistry.class),threadPool);
-        authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
-            tokenService, apiKeyService, OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
+        final ApiKeyService apiKeyService = new ApiKeyService(
+            settings,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            mock(CacheInvalidatorRegistry.class),
+            threadPool
+        );
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
+        authenticationService = new AuthenticationService(
+            settings,
+            realms,
+            auditTrail,
+            failureHandler,
+            threadPool,
+            anonymous,
+            tokenService,
+            apiKeyService,
+            serviceAccountService,
+            OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
     }
 
@@ -158,8 +185,10 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class,
-            () -> future.actionGet(0, TimeUnit.MILLISECONDS));
+        final ElasticsearchSecurityException ex = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> future.actionGet(0, TimeUnit.MILLISECONDS)
+        );
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
     }
@@ -170,8 +199,10 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticateAndAttachToContext(request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class,
-            () -> future.actionGet(0, TimeUnit.MILLISECONDS));
+        final ElasticsearchSecurityException ex = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> future.actionGet(0, TimeUnit.MILLISECONDS)
+        );
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
 
@@ -199,18 +230,18 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
         realm.defineUser(user, password);
 
-        threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Basic " +
-            Base64.getEncoder().encodeToString((user + ":" + password).getBytes(StandardCharsets.UTF_8)));
+        threadPool.getThreadContext()
+            .putHeader(
+                SECONDARY_AUTH_HEADER_NAME,
+                "Basic " + Base64.getEncoder().encodeToString((user + ":" + password).getBytes(StandardCharsets.UTF_8))
+            );
 
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
-        consumer.accept(ActionListener.wrap(
-            result -> {
-                listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
-                future.onResponse(result);
-            },
-            e -> future.onFailure(e)
-        ));
+        consumer.accept(ActionListener.wrap(result -> {
+            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            future.onResponse(result);
+        }, e -> future.onFailure(e)));
 
         final SecondaryAuthentication secondaryAuthentication = future.get(0, TimeUnit.MILLISECONDS);
         assertThat(secondaryAuthentication, Matchers.notNullValue());
@@ -242,21 +273,23 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
         realm.defineUser(user, password);
 
-        threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Basic " +
-            Base64.getEncoder().encodeToString((user + ":NOT-" + password).getBytes(StandardCharsets.UTF_8)));
+        threadPool.getThreadContext()
+            .putHeader(
+                SECONDARY_AUTH_HEADER_NAME,
+                "Basic " + Base64.getEncoder().encodeToString((user + ":NOT-" + password).getBytes(StandardCharsets.UTF_8))
+            );
 
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
-        consumer.accept(ActionListener.wrap(
-            future::onResponse,
-            e -> {
-                listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
-                future.onFailure(e);
-            }
-        ));
+        consumer.accept(ActionListener.wrap(future::onResponse, e -> {
+            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            future.onFailure(e);
+        }));
 
-        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class,
-            () -> future.actionGet(0, TimeUnit.MILLISECONDS));
+        final ElasticsearchSecurityException ex = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> future.actionGet(0, TimeUnit.MILLISECONDS)
+        );
 
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString(user)));
@@ -266,9 +299,11 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateUsingBearerToken() throws Exception {
         final User user = new User(randomAlphaOfLengthBetween(6, 12));
-        Authentication auth = new Authentication(user,
+        Authentication auth = new Authentication(
+            user,
             new RealmRef(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(8, 12)),
-            null);
+            null
+        );
 
         final AtomicReference<String> tokenDocId = new AtomicReference<>();
         final AtomicReference<BytesReference> tokenSource = new AtomicReference<>();

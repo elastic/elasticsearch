@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -34,14 +35,14 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         createIndex("foo");
         client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("index.blocks.write", true)).get();
 
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
-                .trigger(schedule(interval("10m")))
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("10m")))
 
-                        // adding an action that throws an error and is associated with a 60 minute throttle period
-                        // with such a period, on successful execution we other executions of the watch will be
-                        // throttled within the hour... but on failed execution there should be no throttling
-                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo")))
-                .get();
+                // adding an action that throws an error and is associated with a 60 minute throttle period
+                // with such a period, on successful execution we other executions of the watch will be
+                // throttled within the hour... but on failed execution there should be no throttling
+                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo"))
+        ).get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -51,9 +52,11 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // there should be a single history record with a failure status for the action:
         assertBusy(() -> {
-            long count = watchRecordCount(QueryBuilders.boolQuery()
+            long count = watchRecordCount(
+                QueryBuilders.boolQuery()
                     .must(termsQuery("result.actions.id", "_action"))
-                    .must(termsQuery("result.actions.status", "failure")));
+                    .must(termsQuery("result.actions.status", "failure"))
+            );
             assertThat(count, is(1L));
         });
 
@@ -68,9 +71,11 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // there should be a single history record with a failure status for the action:
         assertBusy(() -> {
-            long count = watchRecordCount(QueryBuilders.boolQuery()
+            long count = watchRecordCount(
+                QueryBuilders.boolQuery()
                     .must(termsQuery("result.actions.id", "_action"))
-                    .must(termsQuery("result.actions.status", "failure")));
+                    .must(termsQuery("result.actions.status", "failure"))
+            );
             assertThat(count, is(2L));
         });
 

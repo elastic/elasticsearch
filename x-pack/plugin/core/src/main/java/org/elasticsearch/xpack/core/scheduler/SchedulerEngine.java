@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.scheduler;
@@ -75,9 +76,7 @@ public class SchedulerEngine {
 
         @Override
         public String toString() {
-            return "Event[jobName=" + jobName + "," +
-                "triggeredTime=" + triggeredTime + "," +
-                "scheduledTime=" + scheduledTime + "]";
+            return "Event[jobName=" + jobName + "," + "triggeredTime=" + triggeredTime + "," + "scheduledTime=" + scheduledTime + "]";
         }
     }
 
@@ -118,7 +117,9 @@ public class SchedulerEngine {
     SchedulerEngine(final Settings settings, final Clock clock, final Logger logger) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.scheduler = Executors.newScheduledThreadPool(
-                1,  EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler"));
+            1,
+            EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler")
+        );
         this.logger = Objects.requireNonNull(logger, "logger");
     }
 
@@ -157,6 +158,7 @@ public class SchedulerEngine {
             if (previousSchedule != null) {
                 previousSchedule.cancel();
             }
+            logger.debug(() -> new ParameterizedMessage("added job [{}]", job.getId()));
             return schedule;
         });
     }
@@ -164,6 +166,7 @@ public class SchedulerEngine {
     public boolean remove(String jobId) {
         ActiveSchedule removedSchedule = schedules.remove(jobId);
         if (removedSchedule != null) {
+            logger.debug(() -> new ParameterizedMessage("removed job [{}]", jobId));
             removedSchedule.cancel();
         }
         return removedSchedule != null;
@@ -213,6 +216,7 @@ public class SchedulerEngine {
         public void run() {
             final long triggeredTime = clock.millis();
             try {
+                logger.debug(() -> new ParameterizedMessage("job [{}] triggered with triggeredTime=[{}]", name, triggeredTime));
                 notifyListeners(name, triggeredTime, scheduledTime);
             } catch (final Throwable t) {
                 /*
@@ -235,6 +239,14 @@ public class SchedulerEngine {
                 try {
                     synchronized (this) {
                         if (future == null || future.isCancelled() == false) {
+                            logger.debug(
+                                () -> new ParameterizedMessage(
+                                    "schedule job [{}] with scheduleTime=[{}] and delay=[{}]",
+                                    name,
+                                    scheduledTime,
+                                    delay
+                                )
+                            );
                             future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
                         }
                     }

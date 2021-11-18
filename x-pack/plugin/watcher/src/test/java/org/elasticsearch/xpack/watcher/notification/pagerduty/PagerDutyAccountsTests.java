@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
@@ -9,9 +10,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
@@ -41,8 +42,11 @@ public class PagerDutyAccountsTests extends ESTestCase {
     public void testProxy() throws Exception {
         Settings.Builder builder = Settings.builder().put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
-        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                new HashSet<>(PagerDutyService.getSettings())));
+        PagerDutyService service = new PagerDutyService(
+            builder.build(),
+            httpClient,
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(PagerDutyService.getSettings()))
+        );
         PagerDutyAccount account = service.getAccount("account1");
 
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
@@ -61,18 +65,23 @@ public class PagerDutyAccountsTests extends ESTestCase {
     public void testContextIsSentCorrect() throws Exception {
         Settings.Builder builder = Settings.builder().put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
-        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                new HashSet<>(PagerDutyService.getSettings())));
+        PagerDutyService service = new PagerDutyService(
+            builder.build(),
+            httpClient,
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(PagerDutyService.getSettings()))
+        );
         PagerDutyAccount account = service.getAccount("account1");
 
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
 
         IncidentEventContext[] contexts = {
-                IncidentEventContext.link("https://www.elastic.co/products/x-pack/alerting", "Go to the Elastic.co Alerting website"),
-                IncidentEventContext.image("https://www.elastic.co/assets/blte5d899fd0b0e6808/icon-alerting-bb.svg",
-                        "https://www.elastic.co/products/x-pack/alerting", "X-Pack-Alerting website link with log")
-        };
+            IncidentEventContext.link("https://www.elastic.co/products/x-pack/alerting", "Go to the Elastic.co Alerting website"),
+            IncidentEventContext.image(
+                "https://www.elastic.co/assets/blte5d899fd0b0e6808/icon-alerting-bb.svg",
+                "https://www.elastic.co/products/x-pack/alerting",
+                "X-Pack-Alerting website link with log"
+            ) };
         IncidentEvent event = new IncidentEvent("foo", null, null, null, null, account.getName(), true, contexts, HttpProxy.NO_PROXY);
         account.send(event, Payload.EMPTY, null);
 
@@ -86,8 +95,9 @@ public class PagerDutyAccountsTests extends ESTestCase {
     private void addAccountSettings(String name, Settings.Builder builder) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(
-                "xpack.notification.pagerduty.account." + name + "." + PagerDutyAccount.SECURE_SERVICE_API_KEY_SETTING.getKey(),
-                randomAlphaOfLength(50));
+            "xpack.notification.pagerduty.account." + name + "." + PagerDutyAccount.SECURE_SERVICE_API_KEY_SETTING.getKey(),
+            randomAlphaOfLength(50)
+        );
         builder.setSecureSettings(secureSettings);
         Settings defaults = SlackMessageDefaultsTests.randomSettings();
         for (String setting : defaults.keySet()) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.util;
 
@@ -21,15 +22,18 @@ public abstract class Graphviz {
     private static final int CLUSTER_INDENT = 2;
     private static final int INDENT = 1;
 
-
     public static String dot(String name, Node<?> root) {
         StringBuilder sb = new StringBuilder();
         // name
-        sb.append("digraph G { "
+        sb.append(
+            "digraph G { "
                 + "rankdir=BT; \n"
-                + "label=\"" + name + "\"; \n"
+                + "label=\""
+                + name
+                + "\"; \n"
                 + "node[shape=plaintext, color=azure1];\n "
-                + "edge[color=black,arrowsize=0.5];\n");
+                + "edge[color=black,arrowsize=0.5];\n"
+        );
         handleNode(sb, root, new AtomicInteger(0), INDENT, true);
         sb.append("}");
         return sb.toString();
@@ -40,12 +44,13 @@ public abstract class Graphviz {
 
         StringBuilder sb = new StringBuilder();
         // name
-        sb.append("digraph G { "
+        sb.append(
+            "digraph G { "
                 + "rankdir=BT;\n "
                 + "node[shape=plaintext, color=azure1];\n "
                 + "edge[color=black];\n "
-                + "graph[compound=true];\n\n");
-
+                + "graph[compound=true];\n\n"
+        );
 
         int clusterNodeStart = 1;
         int clusterId = 0;
@@ -104,7 +109,7 @@ public abstract class Graphviz {
 
         // connecting the clusters arranges them in a weird position
         // so don't
-        //sb.append(clusterEdges.toString());
+        // sb.append(clusterEdges.toString());
 
         // align the cluster by requiring the invisible nodes in each cluster to be of the same rank
         indent(sb, INDENT);
@@ -127,9 +132,7 @@ public abstract class Graphviz {
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
         nodeInfo.append("<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n");
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
-        nodeInfo.append("<th><td border=\"0\" colspan=\"2\" align=\"center\"><b>"
-                + n.nodeName()
-                + "</b></td></th>\n");
+        nodeInfo.append("<th><td border=\"0\" colspan=\"2\" align=\"center\"><b>" + n.nodeName() + "</b></td></th>\n");
         indent(nodeInfo, currentIndent + NODE_LABEL_INDENT);
 
         List<Object> props = n.nodeProperties();
@@ -138,28 +141,25 @@ public abstract class Graphviz {
 
         for (Object v : props) {
             // skip null values, children and location
-            if (v != null && !n.children().contains(v)) {
+            if (v != null && n.children().contains(v) == false) {
                 if (v instanceof Collection) {
                     Collection<?> c = (Collection<?>) v;
-                        StringBuilder colS = new StringBuilder();
-                        for (Object o : c) {
-                            if (drawSubTrees && isAnotherTree(o)) {
-                                subTrees.add((Node<?>) o);
-                            }
-                            else {
-                                colS.append(o);
-                                colS.append("\n");
-                            }
+                    StringBuilder colS = new StringBuilder();
+                    for (Object o : c) {
+                        if (drawSubTrees && isAnotherTree(o)) {
+                            subTrees.add((Node<?>) o);
+                        } else {
+                            colS.append(o);
+                            colS.append("\n");
                         }
-                        if (colS.length() > 0) {
-                            parsed.add(colS.toString());
-                        }
-                }
-                else {
+                    }
+                    if (colS.length() > 0) {
+                        parsed.add(colS.toString());
+                    }
+                } else {
                     if (drawSubTrees && isAnotherTree(v)) {
                         subTrees.add((Node<?>) v);
-                    }
-                    else {
+                    } else {
                         parsed.add(v.toString());
                     }
                 }
@@ -176,7 +176,7 @@ public abstract class Graphviz {
         nodeInfo.append("</table>\n");
 
         // check any subtrees
-        if (!subTrees.isEmpty()) {
+        if (subTrees.isEmpty() == false) {
             // write nested trees
             output.append("subgraph cluster_" + thisId + " {");
             output.append("style=filled; color=white; fillcolor=azure2; label=\"\";\n");
@@ -190,7 +190,7 @@ public abstract class Graphviz {
         output.append(quoteGraphviz(nodeInfo.toString()));
         output.append("];\n");
 
-        if (!subTrees.isEmpty()) {
+        if (subTrees.isEmpty() == false) {
             indent(output, currentIndent + INDENT);
             output.append("node[shape=ellipse, color=black]\n");
 
@@ -203,7 +203,7 @@ public abstract class Graphviz {
         }
 
         indent(output, currentIndent + 1);
-        //output.append("{ rankdir=LR; rank=same; \n");
+        // output.append("{ rankdir=LR; rank=same; \n");
         int prevId = -1;
         // handle children
         for (Node<?> c : n.children()) {
@@ -231,7 +231,7 @@ public abstract class Graphviz {
             prevId = childId;
         }
         indent(output, currentIndent);
-        //output.append("}\n");
+        // output.append("}\n");
     }
 
     private static void drawNodeTree(StringBuilder sb, Node<?> node, String prefix, int counter) {
@@ -269,8 +269,7 @@ public abstract class Graphviz {
     private static void drawNode(StringBuilder sb, Node<?> node, String nodeName) {
         if (node.children().isEmpty()) {
             sb.append(nodeName + " [label=\"" + node.toString() + "\"];\n");
-        }
-        else {
+        } else {
             sb.append(nodeName + " [label=\"" + node.nodeName() + "\"];\n");
         }
     }
@@ -288,12 +287,12 @@ public abstract class Graphviz {
 
     private static String escapeHtml(Object value) {
         return String.valueOf(value)
-                .replace("&", "&#38;")
-                .replace("\"", "&#34;")
-                .replace("'", "&#39;")
-                .replace("<", "&#60;")
-                .replace(">", "&#62;")
-                .replace("\n", "<br align=\"left\"/>");
+            .replace("&", "&#38;")
+            .replace("\"", "&#34;")
+            .replace("'", "&#39;")
+            .replace("<", "&#60;")
+            .replace(">", "&#62;")
+            .replace("\n", "<br align=\"left\"/>");
     }
 
     private static String quoteGraphviz(String value) {
@@ -305,10 +304,7 @@ public abstract class Graphviz {
     }
 
     private static String escapeGraphviz(String value) {
-        return value
-                .replace("<", "\\<")
-                .replace(">", "\\>")
-                .replace("\"", "\\\"");
+        return value.replace("<", "\\<").replace(">", "\\>").replace("\"", "\\\"");
     }
 
     private static void indent(StringBuilder sb, int indent) {

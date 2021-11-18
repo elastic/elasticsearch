@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,44 +24,52 @@ import static org.hamcrest.Matchers.nullValue;
 public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testWrongIndentation() throws Exception {
         {
-            XContentParser parser = createParser(YamlXContent.yamlXContent,
-                    "\"First test section\": \n" +
-                            "  - skip:\n" +
-                            "    version:  \"2.0.0 - 2.2.0\"\n" +
-                            "    reason:   \"Update doesn't return metadata fields, waiting for #3259\"");
+            XContentParser parser = createParser(
+                YamlXContent.yamlXContent,
+                "\"First test section\": \n"
+                    + "  - skip:\n"
+                    + "    version:  \"2.0.0 - 2.2.0\"\n"
+                    + "    reason:   \"Update doesn't return metadata fields, waiting for #3259\""
+            );
 
             ParsingException e = expectThrows(ParsingException.class, () -> ClientYamlTestSection.parse(parser));
             assertEquals("Error parsing test named [First test section]", e.getMessage());
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Expected [START_OBJECT, found [VALUE_NULL], the skip section is not properly indented",
-                    e.getCause().getMessage());
+            assertEquals(
+                "Expected [START_OBJECT, found [VALUE_NULL], the skip section is not properly indented",
+                e.getCause().getMessage()
+            );
         }
         {
-            XContentParser parser = createParser(YamlXContent.yamlXContent,
-                    "\"First test section\": \n" +
-                            " - do :\n" +
-                            "   catch: missing\n" +
-                            "   indices.get_warmer:\n" +
-                            "       index: test_index\n" +
-                            "       name: test_warmer"
+            XContentParser parser = createParser(
+                YamlXContent.yamlXContent,
+                "\"First test section\": \n"
+                    + " - do :\n"
+                    + "   catch: missing\n"
+                    + "   indices.get_warmer:\n"
+                    + "       index: test_index\n"
+                    + "       name: test_warmer"
             );
             ParsingException e = expectThrows(ParsingException.class, () -> ClientYamlTestSection.parse(parser));
             assertEquals("Error parsing test named [First test section]", e.getMessage());
             assertThat(e.getCause(), instanceOf(IOException.class));
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("expected [START_OBJECT], found [VALUE_NULL], the do section is not properly indented",
-                    e.getCause().getCause().getMessage());
+            assertEquals(
+                "expected [START_OBJECT], found [VALUE_NULL], the do section is not properly indented",
+                e.getCause().getCause().getMessage()
+            );
         }
     }
 
     public void testParseTestSectionWithDoSection() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "\"First test section\": \n" +
-                " - do :\n" +
-                "     catch: missing\n" +
-                "     indices.get_warmer:\n" +
-                "         index: test_index\n" +
-                "         name: test_warmer"
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "\"First test section\": \n"
+                + " - do :\n"
+                + "     catch: missing\n"
+                + "     indices.get_warmer:\n"
+                + "         index: test_index\n"
+                + "         name: test_warmer"
         );
 
         ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
@@ -81,7 +78,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getName(), equalTo("First test section"));
         assertThat(testSection.getSkipSection(), equalTo(SkipSection.EMPTY));
         assertThat(testSection.getExecutableSections().size(), equalTo(1));
-        DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);
+        DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_warmer"));
@@ -90,18 +87,19 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     }
 
     public void testParseTestSectionWithDoSetAndSkipSectionsNoSkip() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "\"First test section\": \n" +
-                        "  - skip:\n" +
-                        "      version:  \"6.0.0 - 6.2.0\"\n" +
-                        "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
-                        "  - do :\n" +
-                        "      catch: missing\n" +
-                        "      indices.get_warmer:\n" +
-                        "          index: test_index\n" +
-                        "          name: test_warmer\n" +
-                        "  - set: {_scroll_id: scroll_id}");
-
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "\"First test section\": \n"
+                + "  - skip:\n"
+                + "      version:  \"6.0.0 - 6.2.0\"\n"
+                + "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n"
+                + "  - do :\n"
+                + "      catch: missing\n"
+                + "      indices.get_warmer:\n"
+                + "          index: test_index\n"
+                + "          name: test_warmer\n"
+                + "  - set: {_scroll_id: scroll_id}"
+        );
 
         ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
 
@@ -112,7 +110,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.2.0")));
         assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
-        DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);
+        DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), equalTo("missing"));
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_warmer"));
@@ -124,20 +122,21 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     }
 
     public void testParseTestSectionWithMultipleDoSections() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "\"Basic\":\n" +
-                        "\n" +
-                        "  - do:\n" +
-                        "      index:\n" +
-                        "        index: test_1\n" +
-                        "        type:  test\n" +
-                        "        id:    中文\n" +
-                        "        body:  { \"foo\": \"Hello: 中文\" }\n" +
-                        "  - do:\n" +
-                        "      get:\n" +
-                        "        index: test_1\n" +
-                        "        type:  test\n" +
-                        "        id:    中文"
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "\"Basic\":\n"
+                + "\n"
+                + "  - do:\n"
+                + "      index:\n"
+                + "        index: test_1\n"
+                + "        type:  test\n"
+                + "        id:    中文\n"
+                + "        body:  { \"foo\": \"Hello: 中文\" }\n"
+                + "  - do:\n"
+                + "      get:\n"
+                + "        index: test_1\n"
+                + "        type:  test\n"
+                + "        id:    中文"
         );
 
         ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
@@ -146,13 +145,13 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getName(), equalTo("Basic"));
         assertThat(testSection.getSkipSection(), equalTo(SkipSection.EMPTY));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
-        DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);
+        DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("index"));
         assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
-        doSection = (DoSection)testSection.getExecutableSections().get(1);
+        doSection = (DoSection) testSection.getExecutableSections().get(1);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("get"));
@@ -161,35 +160,36 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     }
 
     public void testParseTestSectionWithDoSectionsAndAssertions() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "\"Basic\":\n" +
-                        "\n" +
-                        "  - do:\n" +
-                        "      index:\n" +
-                        "        index: test_1\n" +
-                        "        type:  test\n" +
-                        "        id:    中文\n" +
-                        "        body:  { \"foo\": \"Hello: 中文\" }\n" +
-                        "\n" +
-                        "  - do:\n" +
-                        "      get:\n" +
-                        "        index: test_1\n" +
-                        "        type:  test\n" +
-                        "        id:    中文\n" +
-                        "\n" +
-                        "  - match: { _index:   test_1 }\n" +
-                        "  - is_true: _source\n" +
-                        "  - match: { _source:  { foo: \"Hello: 中文\" } }\n" +
-                        "\n" +
-                        "  - do:\n" +
-                        "      get:\n" +
-                        "        index: test_1\n" +
-                        "        id:    中文\n" +
-                        "\n" +
-                        "  - length: { _index:   6 }\n" +
-                        "  - is_false: whatever\n" +
-                        "  - gt: { size: 5      }\n" +
-                        "  - lt: { size: 10      }"
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "\"Basic\":\n"
+                + "\n"
+                + "  - do:\n"
+                + "      index:\n"
+                + "        index: test_1\n"
+                + "        type:  test\n"
+                + "        id:    中文\n"
+                + "        body:  { \"foo\": \"Hello: 中文\" }\n"
+                + "\n"
+                + "  - do:\n"
+                + "      get:\n"
+                + "        index: test_1\n"
+                + "        type:  test\n"
+                + "        id:    中文\n"
+                + "\n"
+                + "  - match: { _index:   test_1 }\n"
+                + "  - is_true: _source\n"
+                + "  - match: { _source:  { foo: \"Hello: 中文\" } }\n"
+                + "\n"
+                + "  - do:\n"
+                + "      get:\n"
+                + "        index: test_1\n"
+                + "        id:    中文\n"
+                + "\n"
+                + "  - length: { _index:   6 }\n"
+                + "  - is_false: whatever\n"
+                + "  - gt: { size: 5      }\n"
+                + "  - lt: { size: 10      }"
         );
 
         ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
@@ -199,35 +199,35 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getSkipSection(), equalTo(SkipSection.EMPTY));
         assertThat(testSection.getExecutableSections().size(), equalTo(10));
 
-        DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);
+        DoSection doSection = (DoSection) testSection.getExecutableSections().get(0);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("index"));
         assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
 
-        doSection = (DoSection)testSection.getExecutableSections().get(1);
+        doSection = (DoSection) testSection.getExecutableSections().get(1);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("get"));
         assertThat(doSection.getApiCallSection().getParams().size(), equalTo(3));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
 
-        MatchAssertion matchAssertion = (MatchAssertion)testSection.getExecutableSections().get(2);
+        MatchAssertion matchAssertion = (MatchAssertion) testSection.getExecutableSections().get(2);
         assertThat(matchAssertion.getField(), equalTo("_index"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("test_1"));
 
-        IsTrueAssertion trueAssertion = (IsTrueAssertion)testSection.getExecutableSections().get(3);
+        IsTrueAssertion trueAssertion = (IsTrueAssertion) testSection.getExecutableSections().get(3);
         assertThat(trueAssertion.getField(), equalTo("_source"));
 
-        matchAssertion = (MatchAssertion)testSection.getExecutableSections().get(4);
+        matchAssertion = (MatchAssertion) testSection.getExecutableSections().get(4);
         assertThat(matchAssertion.getField(), equalTo("_source"));
         assertThat(matchAssertion.getExpectedValue(), instanceOf(Map.class));
-        Map map = (Map) matchAssertion.getExpectedValue();
+        Map<?, ?> map = (Map<?, ?>) matchAssertion.getExpectedValue();
         assertThat(map.size(), equalTo(1));
         assertThat(map.get("foo").toString(), equalTo("Hello: 中文"));
 
-        doSection = (DoSection)testSection.getExecutableSections().get(5);
+        doSection = (DoSection) testSection.getExecutableSections().get(5);
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getApiCallSection().getApi(), equalTo("get"));
@@ -239,7 +239,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(lengthAssertion.getExpectedValue(), instanceOf(Integer.class));
         assertThat(lengthAssertion.getExpectedValue(), equalTo(6));
 
-        IsFalseAssertion falseAssertion = (IsFalseAssertion)testSection.getExecutableSections().get(7);
+        IsFalseAssertion falseAssertion = (IsFalseAssertion) testSection.getExecutableSections().get(7);
         assertThat(falseAssertion.getField(), equalTo("whatever"));
 
         GreaterThanAssertion greaterThanAssertion = (GreaterThanAssertion) testSection.getExecutableSections().get(8);
@@ -254,13 +254,15 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     }
 
     public void testSmallSection() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "\"node_info test\":\n" +
-                "  - do:\n" +
-                "      cluster.node_info: {}\n" +
-                "  \n" +
-                "  - is_true: nodes\n" +
-                "  - is_true: cluster_name\n");
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "\"node_info test\":\n"
+                + "  - do:\n"
+                + "      cluster.node_info: {}\n"
+                + "  \n"
+                + "  - is_true: nodes\n"
+                + "  - is_true: cluster_name\n"
+        );
 
         ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
         assertThat(testSection, notNullValue());

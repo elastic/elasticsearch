@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -21,29 +24,21 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
-    private final Index index;
+public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask {
+
+    private static final Logger logger = LogManager.getLogger(SetStepInfoUpdateTask.class);
+
     private final String policy;
-    private final Step.StepKey currentStepKey;
-    private ToXContentObject stepInfo;
+    private final ToXContentObject stepInfo;
 
     public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        this.index = index;
+        super(index, currentStepKey);
         this.policy = policy;
-        this.currentStepKey = currentStepKey;
         this.stepInfo = stepInfo;
-    }
-
-    Index getIndex() {
-        return index;
     }
 
     String getPolicy() {
         return policy;
-    }
-
-    Step.StepKey getCurrentStepKey() {
-        return currentStepKey;
     }
 
     ToXContentObject getStepInfo() {
@@ -51,7 +46,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) throws IOException {
+    protected ClusterState doExecute(ClusterState currentState) throws IOException {
         IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -60,7 +55,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && Objects.equals(currentStepKey, LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+            && Objects.equals(currentStepKey, LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now
@@ -71,9 +66,32 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
-        throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName()
-                + "] failed trying to set step info for step [" + currentStepKey + "].", e);
+    public void handleFailure(String source, Exception e) {
+        logger.warn(
+            new ParameterizedMessage(
+                "policy [{}] for index [{}] failed trying to set step info for step [{}].",
+                policy,
+                index,
+                currentStepKey
+            ),
+            e
+        );
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SetStepInfoUpdateTask that = (SetStepInfoUpdateTask) o;
+        return index.equals(that.index)
+            && policy.equals(that.policy)
+            && currentStepKey.equals(that.currentStepKey)
+            && Objects.equals(stepInfo, that.stepInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, policy, currentStepKey, stepInfo);
     }
 
     public static class ExceptionWrapper implements ToXContentObject {

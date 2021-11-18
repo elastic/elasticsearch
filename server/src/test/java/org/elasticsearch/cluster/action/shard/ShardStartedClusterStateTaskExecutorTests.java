@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.action.shard;
@@ -66,33 +55,37 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        AllocationService allocationService = createAllocationService(Settings.builder()
-            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-            .build());
-        executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService,
-            ShardStartedClusterStateTaskExecutorTests::neverReroutes, logger);
+        AllocationService allocationService = createAllocationService(
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build()
+        );
+        executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(
+            allocationService,
+            ShardStartedClusterStateTaskExecutorTests::neverReroutes,
+            logger
+        );
     }
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
         final ClusterState clusterState = stateWithNoShard();
-        final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, Collections.emptyList());
+        final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, Collections.emptyList());
         assertSame(clusterState, result.resultingState);
     }
 
     public void testNonExistentIndexMarkedAsSuccessful() throws Exception {
         final ClusterState clusterState = stateWithNoShard();
         final StartedShardEntry entry = new StartedShardEntry(
-                new ShardId("test", "_na", 0),
-                "aId",
-                randomNonNegativeLong(),
-                "test",
-                ShardLongFieldRange.UNKNOWN);
+            new ShardId("test", "_na", 0),
+            "aId",
+            randomNonNegativeLong(),
+            "test",
+            ShardLongFieldRange.UNKNOWN
+        );
 
-        final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, singletonList(entry));
+        final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, singletonList(entry));
         assertSame(clusterState, result.resultingState);
         assertThat(result.executionResults.size(), equalTo(1));
         assertThat(result.executionResults.containsKey(entry), is(true));
-        assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(entry)).isSuccess(), is(true));
+        assertThat(result.executionResults.get(entry).isSuccess(), is(true));
     }
 
     public void testNonExistentShardsAreMarkedAsSuccessful() throws Exception {
@@ -103,57 +96,62 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final List<StartedShardEntry> tasks = Stream.concat(
             // Existent shard id but different allocation id
             IntStream.range(0, randomIntBetween(1, 5))
-                .mapToObj(i -> new StartedShardEntry(
+                .mapToObj(
+                    i -> new StartedShardEntry(
                         new ShardId(indexMetadata.getIndex(), 0),
                         String.valueOf(i),
                         0L,
                         "allocation id",
-                        ShardLongFieldRange.UNKNOWN)),
+                        ShardLongFieldRange.UNKNOWN
+                    )
+                ),
             // Non existent shard id
             IntStream.range(1, randomIntBetween(2, 5))
-                .mapToObj(i -> new StartedShardEntry(
+                .mapToObj(
+                    i -> new StartedShardEntry(
                         new ShardId(indexMetadata.getIndex(), i),
                         String.valueOf(i),
                         0L,
                         "shard id",
-                        ShardLongFieldRange.UNKNOWN))
+                        ShardLongFieldRange.UNKNOWN
+                    )
+                )
 
         ).collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, tasks);
         assertSame(clusterState, result.resultingState);
         assertThat(result.executionResults.size(), equalTo(tasks.size()));
         tasks.forEach(task -> {
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
         });
     }
 
     public void testNonInitializingShardAreMarkedAsSuccessful() throws Exception {
         final String indexName = "test";
-        final ClusterState clusterState = stateWithAssignedPrimariesAndReplicas(new String[]{indexName}, randomIntBetween(2, 10), 1);
+        final ClusterState clusterState = stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, randomIntBetween(2, 10), 1);
 
         final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
-        final List<StartedShardEntry> tasks = IntStream.range(0, randomIntBetween(1, indexMetadata.getNumberOfShards()))
-            .mapToObj(i -> {
-                final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-                final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
-                final String allocationId;
-                if (randomBoolean()) {
-                    allocationId = shardRoutingTable.primaryShard().allocationId().getId();
-                } else {
-                    allocationId = shardRoutingTable.replicaShards().iterator().next().allocationId().getId();
-                }
-                final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
-                return new StartedShardEntry(shardId, allocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN);
-            }).collect(Collectors.toList());
+        final List<StartedShardEntry> tasks = IntStream.range(0, randomIntBetween(1, indexMetadata.getNumberOfShards())).mapToObj(i -> {
+            final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+            final IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().shardRoutingTable(shardId);
+            final String allocationId;
+            if (randomBoolean()) {
+                allocationId = shardRoutingTable.primaryShard().allocationId().getId();
+            } else {
+                allocationId = shardRoutingTable.replicaShards().iterator().next().allocationId().getId();
+            }
+            final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
+            return new StartedShardEntry(shardId, allocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN);
+        }).collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, tasks);
         assertSame(clusterState, result.resultingState);
         assertThat(result.executionResults.size(), equalTo(tasks.size()));
         tasks.forEach(task -> {
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
         });
     }
 
@@ -174,12 +172,12 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             final String replicaAllocationId = replicaShard.allocationId().getId();
             tasks.add(new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN));
         }
-        final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, tasks);
         assertNotSame(clusterState, result.resultingState);
         assertThat(result.executionResults.size(), equalTo(tasks.size()));
         tasks.forEach(task -> {
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
 
             final IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
@@ -200,12 +198,12 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             .mapToObj(i -> new StartedShardEntry(shardId, allocationId, primaryTerm, "test", ShardLongFieldRange.UNKNOWN))
             .collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, tasks);
         assertNotSame(clusterState, result.resultingState);
         assertThat(result.executionResults.size(), equalTo(tasks.size()));
         tasks.forEach(task -> {
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
 
             final IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
@@ -219,40 +217,46 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
 
         ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata())
-                .put(IndexMetadata.builder(clusterState.metadata().index(indexName))
-                    .primaryTerm(shard, primaryTerm)
-                    .build(), true)
-                .build())
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .put(IndexMetadata.builder(clusterState.metadata().index(indexName)).primaryTerm(shard, primaryTerm).build(), true)
+                    .build()
+            )
             .build();
         final ShardId shardId = new ShardId(clusterState.metadata().index(indexName).getIndex(), shard);
         final String primaryAllocationId = clusterState.routingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
         {
             final StartedShardEntry task = new StartedShardEntry(
-                    shardId,
-                    primaryAllocationId,
-                    primaryTerm - 1,
-                    "primary terms does not match on primary",
-                    ShardLongFieldRange.UNKNOWN);
+                shardId,
+                primaryAllocationId,
+                primaryTerm - 1,
+                "primary terms does not match on primary",
+                ShardLongFieldRange.UNKNOWN
+            );
 
-            final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, singletonList(task));
+            final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, singletonList(task));
             assertSame(clusterState, result.resultingState);
             assertThat(result.executionResults.size(), equalTo(1));
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
             IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.INITIALIZING));
             assertSame(clusterState, result.resultingState);
         }
         {
             final StartedShardEntry task = new StartedShardEntry(
-                    shardId, primaryAllocationId, primaryTerm, "primary terms match on primary", ShardLongFieldRange.UNKNOWN);
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                "primary terms match on primary",
+                ShardLongFieldRange.UNKNOWN
+            );
 
-            final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, singletonList(task));
+            final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, singletonList(task));
             assertNotSame(clusterState, result.resultingState);
             assertThat(result.executionResults.size(), equalTo(1));
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
             IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
             assertNotSame(clusterState, result.resultingState);
@@ -260,17 +264,27 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         }
         {
             final long replicaPrimaryTerm = randomBoolean() ? primaryTerm : primaryTerm - 1;
-            final String replicaAllocationId = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().iterator().next()
-                .allocationId().getId();
+            final String replicaAllocationId = clusterState.routingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .iterator()
+                .next()
+                .allocationId()
+                .getId();
 
             final StartedShardEntry task = new StartedShardEntry(
-                    shardId, replicaAllocationId, replicaPrimaryTerm, "test on replica",  ShardLongFieldRange.UNKNOWN);
+                shardId,
+                replicaAllocationId,
+                replicaPrimaryTerm,
+                "test on replica",
+                ShardLongFieldRange.UNKNOWN
+            );
 
-            final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, singletonList(task));
+            final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, singletonList(task));
             assertNotSame(clusterState, result.resultingState);
             assertThat(result.executionResults.size(), equalTo(1));
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
             IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
             assertNotSame(clusterState, result.resultingState);
@@ -287,43 +301,44 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         final String primaryAllocationId = primaryShard.allocationId().getId();
 
-        assertThat(indexMetadata.getTimestampMillisRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
 
-        final ShardLongFieldRange shardTimestampMillisRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN :
-                randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
+        final ShardLongFieldRange shardTimestampRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
+            : randomBoolean() ? ShardLongFieldRange.EMPTY
+            : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
 
         final List<StartedShardEntry> tasks = new ArrayList<>();
-        tasks.add(new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampMillisRange));
+        tasks.add(new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampRange));
         if (randomBoolean()) {
             final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().iterator().next();
             final String replicaAllocationId = replicaShard.allocationId().getId();
-            tasks.add(new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampMillisRange));
+            tasks.add(new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampRange));
         }
-        final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<?> result = executeTasks(clusterState, tasks);
         assertNotSame(clusterState, result.resultingState);
         assertThat(result.executionResults.size(), equalTo(tasks.size()));
         tasks.forEach(task -> {
             assertThat(result.executionResults.containsKey(task), is(true));
-            assertThat(((ClusterStateTaskExecutor.TaskResult) result.executionResults.get(task)).isSuccess(), is(true));
+            assertThat(result.executionResults.get(task).isSuccess(), is(true));
 
             final IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
 
-            final IndexLongFieldRange timestampMillisRange = result.resultingState.metadata().index(indexName).getTimestampMillisRange();
-            if (shardTimestampMillisRange == ShardLongFieldRange.UNKNOWN) {
-                assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.UNKNOWN));
-            } else if (shardTimestampMillisRange == ShardLongFieldRange.EMPTY) {
-                assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
+            final IndexLongFieldRange timestampRange = result.resultingState.metadata().index(indexName).getTimestampRange();
+            if (shardTimestampRange == ShardLongFieldRange.UNKNOWN) {
+                assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            } else if (shardTimestampRange == ShardLongFieldRange.EMPTY) {
+                assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
             } else {
-                assertTrue(timestampMillisRange.isComplete());
-                assertThat(timestampMillisRange.getMin(), equalTo(shardTimestampMillisRange.getMin()));
-                assertThat(timestampMillisRange.getMax(), equalTo(shardTimestampMillisRange.getMax()));
+                assertTrue(timestampRange.isComplete());
+                assertThat(timestampRange.getMin(), equalTo(shardTimestampRange.getMin()));
+                assertThat(timestampRange.getMax(), equalTo(shardTimestampRange.getMax()));
             }
         });
     }
 
-    private ClusterStateTaskExecutor.ClusterTasksResult executeTasks(final ClusterState state,
-                                                                     final List<StartedShardEntry> tasks) throws Exception {
+    private ClusterStateTaskExecutor.ClusterTasksResult<?> executeTasks(final ClusterState state, final List<StartedShardEntry> tasks)
+        throws Exception {
         final ClusterStateTaskExecutor.ClusterTasksResult<StartedShardEntry> result = executor.execute(state, tasks);
         assertThat(result, notNullValue());
         return result;

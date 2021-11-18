@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
 
@@ -36,10 +37,11 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
         public static final ParseField FIELD_SELECTION = new ParseField("field_selection");
         public static final ParseField MEMORY_ESTIMATION = new ParseField("memory_estimation");
 
-        static final ConstructingObjectParser<Response, Void> PARSER =
-            new ConstructingObjectParser<>(
-                TYPE.getPreferredName(),
-                args -> new Response((List<FieldSelection>) args[0], (MemoryEstimation) args[1]));
+        @SuppressWarnings({ "unchecked" })
+        static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+            TYPE.getPreferredName(),
+            args -> new Response((List<FieldSelection>) args[0], (MemoryEstimation) args[1])
+        );
 
         static {
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FieldSelection.PARSER, FIELD_SELECTION);
@@ -81,8 +83,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
             if (other == null || getClass() != other.getClass()) return false;
 
             Response that = (Response) other;
-            return Objects.equals(fieldSelection, that.fieldSelection)
-                && Objects.equals(memoryEstimation, that.memoryEstimation);
+            return Objects.equals(fieldSelection, that.fieldSelection) && Objects.equals(memoryEstimation, that.memoryEstimation);
         }
 
         @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.logical;
 
@@ -20,9 +21,10 @@ public class BinaryLogicProcessorTests extends AbstractWireSerializingTestCase<B
 
     public static BinaryLogicProcessor randomProcessor() {
         return new BinaryLogicProcessor(
-                new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
-                new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
-                randomFrom(BinaryLogicProcessor.BinaryLogicOperation.values()));
+            new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
+            new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
+            randomFrom(BinaryLogicProcessor.BinaryLogicOperation.values())
+        );
     }
 
     @Override

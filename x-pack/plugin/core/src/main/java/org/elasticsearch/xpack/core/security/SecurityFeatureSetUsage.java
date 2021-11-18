@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -63,12 +64,20 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public SecurityFeatureSetUsage(boolean enabled, Map<String, Object> realmsUsage,
-                                   Map<String, Object> rolesStoreUsage, Map<String, Object> roleMappingStoreUsage,
-                                   Map<String, Object> sslUsage, Map<String, Object> auditUsage,
-                                   Map<String, Object> ipFilterUsage, Map<String, Object> anonymousUsage,
-                                   Map<String, Object> tokenServiceUsage, Map<String, Object> apiKeyServiceUsage,
-                                   Map<String, Object> fips140Usage, Map<String, Object> operatorPrivilegesUsage) {
+    public SecurityFeatureSetUsage(
+        boolean enabled,
+        Map<String, Object> realmsUsage,
+        Map<String, Object> rolesStoreUsage,
+        Map<String, Object> roleMappingStoreUsage,
+        Map<String, Object> sslUsage,
+        Map<String, Object> auditUsage,
+        Map<String, Object> ipFilterUsage,
+        Map<String, Object> anonymousUsage,
+        Map<String, Object> tokenServiceUsage,
+        Map<String, Object> apiKeyServiceUsage,
+        Map<String, Object> fips140Usage,
+        Map<String, Object> operatorPrivilegesUsage
+    ) {
         super(XPackField.SECURITY, true, enabled);
         this.realmsUsage = realmsUsage;
         this.rolesStoreUsage = rolesStoreUsage;

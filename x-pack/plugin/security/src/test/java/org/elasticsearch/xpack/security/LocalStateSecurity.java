@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -36,11 +37,17 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
 
     public static class SecurityTransportXPackUsageAction extends TransportXPackUsageAction {
         @Inject
-        public SecurityTransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
-                                                   ClusterService clusterService, ActionFilters actionFilters,
-                                                   IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
+        public SecurityTransportXPackUsageAction(
+            ThreadPool threadPool,
+            TransportService transportService,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            NodeClient client
+        ) {
             super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
         }
+
         @Override
         protected List<XPackUsageFeatureAction> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.SECURITY);
@@ -49,8 +56,12 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
 
     public static class SecurityTransportXPackInfoAction extends TransportXPackInfoAction {
         @Inject
-        public SecurityTransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters,
-                                                 LicenseService licenseService, NodeClient client) {
+        public SecurityTransportXPackInfoAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            LicenseService licenseService,
+            NodeClient client
+        ) {
             super(transportService, actionFilters, licenseService, client);
         }
 
@@ -81,10 +92,14 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         });
         plugins.add(new Security(settings, configPath) {
             @Override
-            protected SSLService getSslService() { return thisVar.getSslService(); }
+            protected SSLService getSslService() {
+                return thisVar.getSslService();
+            }
 
             @Override
-            protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
         });
     }
 

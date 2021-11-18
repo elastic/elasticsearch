@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -74,8 +75,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         private TimeValue expiresIn;
         private Long maxModelMemory;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -107,12 +107,20 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         public void setDuration(TimeValue duration) {
             this.duration = duration;
             if (this.duration.compareTo(TimeValue.ZERO) <= 0) {
-                throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be positive: ["
-                        + duration.getStringRep() + "]");
+                throw new IllegalArgumentException(
+                    "[" + DURATION.getPreferredName() + "] must be positive: [" + duration.getStringRep() + "]"
+                );
             }
             if (this.duration.compareTo(MAX_DURATION) > 0) {
-                throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be "
-                        + MAX_DURATION.getStringRep() + " or less: [" + duration.getStringRep() + "]");
+                throw new IllegalArgumentException(
+                    "["
+                        + DURATION.getPreferredName()
+                        + "] must be "
+                        + MAX_DURATION.getStringRep()
+                        + " or less: ["
+                        + duration.getStringRep()
+                        + "]"
+                );
             }
         }
 
@@ -127,8 +135,9 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         public void setExpiresIn(TimeValue expiresIn) {
             this.expiresIn = expiresIn;
             if (this.expiresIn.compareTo(TimeValue.ZERO) < 0) {
-                throw new IllegalArgumentException("[" + EXPIRES_IN.getPreferredName() + "] must be non-negative: ["
-                        + expiresIn.getStringRep() + "]");
+                throw new IllegalArgumentException(
+                    "[" + EXPIRES_IN.getPreferredName() + "] must be non-negative: [" + expiresIn.getStringRep() + "]"
+                );
             }
         }
 
@@ -140,7 +149,8 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
                 throw ExceptionsHelper.badRequestException(
                     "[{}] must be less than {}",
                     MAX_MODEL_MEMORY.getPreferredName(),
-                    FORECAST_LOCAL_STORAGE_LIMIT.getStringRep());
+                    FORECAST_LOCAL_STORAGE_LIMIT.getStringRep()
+                );
             }
             this.maxModelMemory = numBytes;
         }
@@ -164,9 +174,9 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId)
-                    && Objects.equals(duration, other.duration)
-                    && Objects.equals(expiresIn, other.expiresIn)
-                    && Objects.equals(maxModelMemory, other.maxModelMemory);
+                && Objects.equals(duration, other.duration)
+                && Objects.equals(expiresIn, other.expiresIn)
+                && Objects.equals(maxModelMemory, other.maxModelMemory);
         }
 
         @Override
@@ -246,4 +256,3 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         }
     }
 }
-

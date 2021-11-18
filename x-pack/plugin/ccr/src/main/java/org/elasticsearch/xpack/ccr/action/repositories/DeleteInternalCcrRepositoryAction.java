@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.repositories;
@@ -25,21 +26,24 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
         super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
-    public static class TransportDeleteInternalRepositoryAction
-        extends TransportAction<DeleteInternalCcrRepositoryRequest, ActionResponse.Empty> {
+    public static class TransportDeleteInternalRepositoryAction extends TransportAction<
+        DeleteInternalCcrRepositoryRequest,
+        ActionResponse.Empty> {
 
         private final RepositoriesService repositoriesService;
 
         @Inject
-        public TransportDeleteInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
-                                                       TransportService transportService) {
+        public TransportDeleteInternalRepositoryAction(
+            RepositoriesService repositoriesService,
+            ActionFilters actionFilters,
+            TransportService transportService
+        ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
         }
 
         @Override
-        protected void doExecute(Task task, DeleteInternalCcrRepositoryRequest request,
-                                 ActionListener<ActionResponse.Empty> listener) {
+        protected void doExecute(Task task, DeleteInternalCcrRepositoryRequest request, ActionListener<ActionResponse.Empty> listener) {
             repositoriesService.unregisterInternalRepository(request.getName());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }

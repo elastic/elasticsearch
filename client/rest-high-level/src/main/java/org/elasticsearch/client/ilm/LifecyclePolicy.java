@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -44,24 +33,49 @@ public class LifecyclePolicy implements ToXContentObject {
     static final ParseField PHASES_FIELD = new ParseField("phases");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", true,
+    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>(
+        "lifecycle_policy",
+        true,
         (a, name) -> {
             List<Phase> phases = (List<Phase>) a[0];
             Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
             return new LifecyclePolicy(name, phaseMap);
-        });
+        }
+    );
     private static Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
 
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
-            throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
-        }, PHASES_FIELD);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> Phase.parse(p, n),
+            v -> { throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported"); },
+            PHASES_FIELD
+        );
 
         ALLOWED_ACTIONS.put("hot", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME));
-        ALLOWED_ACTIONS.put("warm", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
-            ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
-        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
-            FreezeAction.NAME, SearchableSnapshotAction.NAME));
+        ALLOWED_ACTIONS.put(
+            "warm",
+            Sets.newHashSet(
+                UnfollowAction.NAME,
+                SetPriorityAction.NAME,
+                MigrateAction.NAME,
+                AllocateAction.NAME,
+                ForceMergeAction.NAME,
+                ReadOnlyAction.NAME,
+                ShrinkAction.NAME
+            )
+        );
+        ALLOWED_ACTIONS.put(
+            "cold",
+            Sets.newHashSet(
+                UnfollowAction.NAME,
+                SetPriorityAction.NAME,
+                MigrateAction.NAME,
+                AllocateAction.NAME,
+                FreezeAction.NAME,
+                SearchableSnapshotAction.NAME
+            )
+        );
         ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME));
     }
 
@@ -76,14 +90,18 @@ public class LifecyclePolicy implements ToXContentObject {
      *            {@link LifecyclePolicy}.
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
-       phases.values().forEach(phase -> {
+        phases.values().forEach(phase -> {
             if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
                 throw new IllegalArgumentException("Lifecycle does not support phase [" + phase.getName() + "]");
             }
+            if (phase.getName().equals("delete") && phase.getActions().size() == 0) {
+                throw new IllegalArgumentException("phase [" + phase.getName() + "] must define actions");
+            }
             phase.getActions().forEach((actionName, action) -> {
                 if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
-                    throw new IllegalArgumentException("invalid action [" + actionName + "] " +
-                        "defined in phase [" + phase.getName() +"]");
+                    throw new IllegalArgumentException(
+                        "invalid action [" + actionName + "] " + "defined in phase [" + phase.getName() + "]"
+                    );
                 }
             });
         });
@@ -136,8 +154,7 @@ public class LifecyclePolicy implements ToXContentObject {
             return false;
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
-        return Objects.equals(name, other.name) &&
-            Objects.equals(phases, other.phases);
+        return Objects.equals(name, other.name) && Objects.equals(phases, other.phases);
     }
 
     @Override

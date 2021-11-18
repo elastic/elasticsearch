@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -36,50 +25,50 @@ import static java.util.Collections.emptyMap;
 public class HasPrivilegesResponseTests extends ESTestCase {
 
     public void testParseValidResponse() throws IOException {
-        String json = "{" +
-            " \"username\": \"namor\"," +
-            " \"has_all_requested\": false," +
-            " \"cluster\" : {" +
-            "   \"manage\" : false," +
-            "   \"monitor\" : true" +
-            " }," +
-            " \"index\" : {" +
-            "   \"index-01\": {" +
-            "     \"read\" : true," +
-            "     \"write\" : false" +
-            "   }," +
-            "   \"index-02\": {" +
-            "     \"read\" : true," +
-            "     \"write\" : true" +
-            "   }," +
-            "   \"index-03\": {" +
-            "     \"read\" : false," +
-            "     \"write\" : false" +
-            "   }" +
-            " }," +
-            " \"application\" : {" +
-            "   \"app01\" : {" +
-            "     \"/object/1\" : {" +
-            "       \"read\" : true," +
-            "       \"write\" : false" +
-            "     }," +
-            "     \"/object/2\" : {" +
-            "       \"read\" : true," +
-            "       \"write\" : true" +
-            "     }" +
-            "   }," +
-            "   \"app02\" : {" +
-            "     \"/object/1\" : {" +
-            "       \"read\" : false," +
-            "       \"write\" : false" +
-            "     }," +
-            "     \"/object/3\" : {" +
-            "       \"read\" : false," +
-            "       \"write\" : true" +
-            "     }" +
-            "   }" +
-            " }" +
-            "}";
+        String json = "{"
+            + " \"username\": \"namor\","
+            + " \"has_all_requested\": false,"
+            + " \"cluster\" : {"
+            + "   \"manage\" : false,"
+            + "   \"monitor\" : true"
+            + " },"
+            + " \"index\" : {"
+            + "   \"index-01\": {"
+            + "     \"read\" : true,"
+            + "     \"write\" : false"
+            + "   },"
+            + "   \"index-02\": {"
+            + "     \"read\" : true,"
+            + "     \"write\" : true"
+            + "   },"
+            + "   \"index-03\": {"
+            + "     \"read\" : false,"
+            + "     \"write\" : false"
+            + "   }"
+            + " },"
+            + " \"application\" : {"
+            + "   \"app01\" : {"
+            + "     \"/object/1\" : {"
+            + "       \"read\" : true,"
+            + "       \"write\" : false"
+            + "     },"
+            + "     \"/object/2\" : {"
+            + "       \"read\" : true,"
+            + "       \"write\" : true"
+            + "     }"
+            + "   },"
+            + "   \"app02\" : {"
+            + "     \"/object/1\" : {"
+            + "       \"read\" : false,"
+            + "       \"write\" : false"
+            + "     },"
+            + "     \"/object/3\" : {"
+            + "       \"read\" : false,"
+            + "       \"write\" : true"
+            + "     }"
+            + "   }"
+            + " }"
+            + "}";
         final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
         HasPrivilegesResponse response = HasPrivilegesResponse.fromXContent(parser);
 
@@ -177,22 +166,30 @@ public class HasPrivilegesResponseTests extends ESTestCase {
         assertThat(response.hasApplicationPrivilege("a2", "/action/1", "execute"), Matchers.is(true));
         assertThat(response.hasApplicationPrivilege("a2", "/action/*", "execute"), Matchers.is(false));
 
-        final IllegalArgumentException iae1 = expectThrows(IllegalArgumentException.class,
-            () -> response.hasApplicationPrivilege("a0", "/data/1", "read"));
+        final IllegalArgumentException iae1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> response.hasApplicationPrivilege("a0", "/data/1", "read")
+        );
         assertThat(iae1.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("application [a0]"));
 
-        final IllegalArgumentException iae2 = expectThrows(IllegalArgumentException.class,
-            () -> response.hasApplicationPrivilege("a1", "/data/0", "read"));
+        final IllegalArgumentException iae2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> response.hasApplicationPrivilege("a1", "/data/0", "read")
+        );
         assertThat(iae2.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("application [a1]"));
         assertThat(iae2.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("resource [/data/0]"));
 
-        final IllegalArgumentException iae3 = expectThrows(IllegalArgumentException.class,
-            () -> response.hasApplicationPrivilege("a1", "/action/1", "execute"));
+        final IllegalArgumentException iae3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> response.hasApplicationPrivilege("a1", "/action/1", "execute")
+        );
         assertThat(iae3.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("application [a1]"));
         assertThat(iae3.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("resource [/action/1]"));
 
-        final IllegalArgumentException iae4 = expectThrows(IllegalArgumentException.class,
-            () -> response.hasApplicationPrivilege("a1", "/data/1", "write"));
+        final IllegalArgumentException iae4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> response.hasApplicationPrivilege("a1", "/data/1", "write")
+        );
         assertThat(iae4.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("application [a1]"));
         assertThat(iae4.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("resource [/data/1]"));
         assertThat(iae4.getMessage().toLowerCase(Locale.ROOT), Matchers.containsString("privilege [write]"));
@@ -204,30 +201,57 @@ public class HasPrivilegesResponseTests extends ESTestCase {
     }
 
     private HasPrivilegesResponse copy(HasPrivilegesResponse response) {
-        return new HasPrivilegesResponse(response.getUsername(),
+        return new HasPrivilegesResponse(
+            response.getUsername(),
             response.hasAllRequested(),
             response.getClusterPrivileges(),
             response.getIndexPrivileges(),
-            response.getApplicationPrivileges());
+            response.getApplicationPrivileges()
+        );
     }
 
     private HasPrivilegesResponse mutate(HasPrivilegesResponse request) {
         switch (randomIntBetween(1, 5)) {
             case 1:
-                return new HasPrivilegesResponse("_" + request.getUsername(), request.hasAllRequested(),
-                    request.getClusterPrivileges(), request.getIndexPrivileges(), request.getApplicationPrivileges());
+                return new HasPrivilegesResponse(
+                    "_" + request.getUsername(),
+                    request.hasAllRequested(),
+                    request.getClusterPrivileges(),
+                    request.getIndexPrivileges(),
+                    request.getApplicationPrivileges()
+                );
             case 2:
-                return new HasPrivilegesResponse(request.getUsername(), request.hasAllRequested() == false,
-                    request.getClusterPrivileges(), request.getIndexPrivileges(), request.getApplicationPrivileges());
+                return new HasPrivilegesResponse(
+                    request.getUsername(),
+                    request.hasAllRequested() == false,
+                    request.getClusterPrivileges(),
+                    request.getIndexPrivileges(),
+                    request.getApplicationPrivileges()
+                );
             case 3:
-                return new HasPrivilegesResponse(request.getUsername(), request.hasAllRequested(),
-                    emptyMap(), request.getIndexPrivileges(), request.getApplicationPrivileges());
+                return new HasPrivilegesResponse(
+                    request.getUsername(),
+                    request.hasAllRequested(),
+                    emptyMap(),
+                    request.getIndexPrivileges(),
+                    request.getApplicationPrivileges()
+                );
             case 4:
-                return new HasPrivilegesResponse(request.getUsername(), request.hasAllRequested(),
-                    request.getClusterPrivileges(), emptyMap(), request.getApplicationPrivileges());
+                return new HasPrivilegesResponse(
+                    request.getUsername(),
+                    request.hasAllRequested(),
+                    request.getClusterPrivileges(),
+                    emptyMap(),
+                    request.getApplicationPrivileges()
+                );
             case 5:
-                return new HasPrivilegesResponse(request.getUsername(), request.hasAllRequested(),
-                    request.getClusterPrivileges(), request.getIndexPrivileges(), emptyMap());
+                return new HasPrivilegesResponse(
+                    request.getUsername(),
+                    request.hasAllRequested(),
+                    request.getClusterPrivileges(),
+                    request.getIndexPrivileges(),
+                    emptyMap()
+                );
         }
         throw new IllegalStateException("The universe is broken (or the RNG is)");
     }

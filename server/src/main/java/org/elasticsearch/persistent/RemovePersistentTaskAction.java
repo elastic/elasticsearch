@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.persistent;
 
@@ -94,8 +83,10 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<RemovePersistentTaskAction.Request,
-            PersistentTaskResponse, RemovePersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        RemovePersistentTaskAction.Request,
+        PersistentTaskResponse,
+        RemovePersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, RemovePersistentTaskAction action) {
             super(client, action, new Request());
@@ -113,12 +104,25 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.MANAGEMENT);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                RemovePersistentTaskAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver,
+                PersistentTaskResponse::new,
+                ThreadPool.Names.MANAGEMENT
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
@@ -129,11 +133,13 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
         }
 
         @Override
-        protected final void masterOperation(Task ignoredTask, final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
+        protected final void masterOperation(
+            Task ignoredTask,
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
             persistentTasksClusterService.removePersistentTask(request.taskId, listener.map(PersistentTaskResponse::new));
         }
     }
 }
-
-

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -27,9 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +41,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     /**
      * Create {@link AnalysisStats} from the given cluster state.
      */
-    public static AnalysisStats of(Metadata metadata) {
+    public static AnalysisStats of(Metadata metadata, Runnable ensureNotCancelled) {
         final Map<String, IndexFeatureStats> usedCharFilterTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenizerTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenFilterTypes = new HashMap<>();
@@ -63,6 +52,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
 
         for (IndexMetadata indexMetadata : metadata) {
+            ensureNotCancelled.run();
             if (indexMetadata.isSystem()) {
                 // Don't include system indices in statistics about analysis,
                 // we care about the user's indices.
@@ -144,15 +134,23 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
         }
-        return new AnalysisStats(usedCharFilterTypes.values(), usedTokenizerTypes.values(), usedTokenFilterTypes.values(),
-                usedAnalyzerTypes.values(), usedBuiltInCharFilters.values(), usedBuiltInTokenizers.values(),
-                usedBuiltInTokenFilters.values(), usedBuiltInAnalyzers.values());
+        return new AnalysisStats(
+            usedCharFilterTypes.values(),
+            usedTokenizerTypes.values(),
+            usedTokenFilterTypes.values(),
+            usedAnalyzerTypes.values(),
+            usedBuiltInCharFilters.values(),
+            usedBuiltInTokenizers.values(),
+            usedBuiltInTokenFilters.values(),
+            usedBuiltInAnalyzers.values()
+        );
     }
 
     private static void aggregateAnalysisTypes(
-                Collection<Settings> settings,
-                Map<String, IndexFeatureStats> stats,
-                Set<String> indexTypes) {
+        Collection<Settings> settings,
+        Map<String, IndexFeatureStats> stats,
+        Set<String> indexTypes
+    ) {
         for (Settings analysisComponentSettings : settings) {
             final String type = analysisComponentSettings.get("type");
             if (type != null) {
@@ -175,14 +173,15 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     private final Set<IndexFeatureStats> usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers;
 
     AnalysisStats(
-            Collection<IndexFeatureStats> usedCharFilters,
-            Collection<IndexFeatureStats> usedTokenizers,
-            Collection<IndexFeatureStats> usedTokenFilters,
-            Collection<IndexFeatureStats> usedAnalyzers,
-            Collection<IndexFeatureStats> usedBuiltInCharFilters,
-            Collection<IndexFeatureStats> usedBuiltInTokenizers,
-            Collection<IndexFeatureStats> usedBuiltInTokenFilters,
-            Collection<IndexFeatureStats> usedBuiltInAnalyzers) {
+        Collection<IndexFeatureStats> usedCharFilters,
+        Collection<IndexFeatureStats> usedTokenizers,
+        Collection<IndexFeatureStats> usedTokenFilters,
+        Collection<IndexFeatureStats> usedAnalyzers,
+        Collection<IndexFeatureStats> usedBuiltInCharFilters,
+        Collection<IndexFeatureStats> usedBuiltInTokenizers,
+        Collection<IndexFeatureStats> usedBuiltInTokenFilters,
+        Collection<IndexFeatureStats> usedBuiltInAnalyzers
+    ) {
         this.usedCharFilters = sort(usedCharFilters);
         this.usedTokenizers = sort(usedTokenizers);
         this.usedTokenFilters = sort(usedTokenFilters);
@@ -277,24 +276,32 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalysisStats that = (AnalysisStats) o;
-        return Objects.equals(usedCharFilters, that.usedCharFilters) &&
-                Objects.equals(usedTokenizers, that.usedTokenizers) &&
-                Objects.equals(usedTokenFilters, that.usedTokenFilters) &&
-                Objects.equals(usedAnalyzers, that.usedAnalyzers) &&
-                Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters) &&
-                Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers) &&
-                Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters) &&
-                Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers);
+        return Objects.equals(usedCharFilters, that.usedCharFilters)
+            && Objects.equals(usedTokenizers, that.usedTokenizers)
+            && Objects.equals(usedTokenFilters, that.usedTokenFilters)
+            && Objects.equals(usedAnalyzers, that.usedAnalyzers)
+            && Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters)
+            && Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers)
+            && Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters)
+            && Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers, usedBuiltInCharFilters,
-                usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers);
+        return Objects.hash(
+            usedCharFilters,
+            usedTokenizers,
+            usedTokenFilters,
+            usedAnalyzers,
+            usedBuiltInCharFilters,
+            usedBuiltInTokenizers,
+            usedBuiltInTokenFilters,
+            usedBuiltInAnalyzers
+        );
     }
 
     private void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll)
-                throws IOException {
+        throws IOException {
         builder.startArray(name);
         for (ToXContent toXContent : coll) {
             toXContent.toXContent(builder, params);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -9,14 +10,14 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -26,25 +27,28 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
-public class TransportGetFiltersAction extends AbstractTransportGetResourcesAction<MlFilter,
-                                                                                   GetFiltersAction.Request,
-                                                                                   GetFiltersAction.Response> {
+public class TransportGetFiltersAction extends AbstractTransportGetResourcesAction<
+    MlFilter,
+    GetFiltersAction.Request,
+    GetFiltersAction.Response> {
 
     @Inject
-    public TransportGetFiltersAction(TransportService transportService,
-                                     ActionFilters actionFilters,
-                                     Client client,
-                                     NamedXContentRegistry xContentRegistry) {
+    public TransportGetFiltersAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(GetFiltersAction.NAME, transportService, actionFilters, GetFiltersAction.Request::new, client, xContentRegistry);
     }
 
     @Override
     protected void doExecute(Task task, GetFiltersAction.Request request, ActionListener<GetFiltersAction.Response> listener) {
         request.setAllowNoResources(true);
-        searchResources(request, ActionListener.wrap(
-            filters -> listener.onResponse(new GetFiltersAction.Response(filters)),
-            listener::onFailure
-        ));
+        searchResources(
+            request,
+            ActionListener.wrap(filters -> listener.onResponse(new GetFiltersAction.Response(filters)), listener::onFailure)
+        );
     }
 
     @Override
@@ -54,7 +58,7 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
 
     @Override
     protected String[] getIndices() {
-        return new String[]{MlMetaIndex.indexName()};
+        return new String[] { MlMetaIndex.indexName() };
     }
 
     @Override
@@ -64,7 +68,7 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
 
     @Override
     protected ResourceNotFoundException notFoundException(String resourceId) {
-        return new ResourceNotFoundException("Unable to find filter [" + resourceId +"]");
+        return new ResourceNotFoundException("Unable to find filter [" + resourceId + "]");
     }
 
     @Override

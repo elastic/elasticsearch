@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.get;
@@ -45,9 +34,13 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiGetAction(TransportService transportService, ClusterService clusterService,
-                                   NodeClient client, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver resolver) {
+    public TransportMultiGetAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver resolver
+    ) {
         super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.client = client;
@@ -65,24 +58,20 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
 
-            String concreteSingleIndex;
+            ShardId shardId;
             try {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
-
+                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
                 item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
-                if ((item.routing() == null) && (clusterState.getMetadata().routingRequired(concreteSingleIndex))) {
-                    responses.set(i, newItemFailure(concreteSingleIndex, item.id(),
-                        new RoutingMissingException(concreteSingleIndex, item.id())));
-                    continue;
-                }
+                shardId = clusterService.operationRouting()
+                    .getShards(clusterState, concreteSingleIndex, item.id(), item.routing(), null)
+                    .shardId();
+            } catch (RoutingMissingException e) {
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
             } catch (Exception e) {
                 responses.set(i, newItemFailure(item.index(), item.id(), e));
                 continue;
             }
-
-            ShardId shardId = clusterService.operationRouting()
-                    .getShards(clusterState, concreteSingleIndex, item.id(), item.routing(), null)
-                    .shardId();
 
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
@@ -100,13 +89,15 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         executeShardAction(listener, responses, shardRequests);
     }
 
-    protected void executeShardAction(ActionListener<MultiGetResponse> listener,
-                                      AtomicArray<MultiGetItemResponse> responses,
-                                      Map<ShardId, MultiGetShardRequest> shardRequests) {
+    protected void executeShardAction(
+        ActionListener<MultiGetResponse> listener,
+        AtomicArray<MultiGetItemResponse> responses,
+        Map<ShardId, MultiGetShardRequest> shardRequests
+    ) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
-            client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new ActionListener<>() {
+            client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(MultiGetShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {
@@ -131,7 +122,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+                    delegate.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
                 }
             });
         }

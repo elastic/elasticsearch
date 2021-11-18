@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -34,28 +35,24 @@ public class ClusterAlertsUtil {
     /**
      * Replace the <code>${monitoring.watch.cluster_uuid}</code> field in the watches.
      */
-    private static final Pattern CLUSTER_UUID_PROPERTY =
-            Pattern.compile(Pattern.quote("${monitoring.watch.cluster_uuid}"));
+    private static final Pattern CLUSTER_UUID_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.watch.cluster_uuid}"));
     /**
      * Replace the <code>${monitoring.watch.id}</code> field in the watches.
      */
-    private static final Pattern WATCH_ID_PROPERTY =
-            Pattern.compile(Pattern.quote("${monitoring.watch.id}"));
+    private static final Pattern WATCH_ID_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.watch.id}"));
     /**
      * Replace the <code>${monitoring.watch.unique_id}</code> field in the watches.
      *
      * @see #createUniqueWatchId(ClusterService, String)
      */
-    private static final Pattern UNIQUE_WATCH_ID_PROPERTY =
-            Pattern.compile(Pattern.quote("${monitoring.watch.unique_id}"));
+    private static final Pattern UNIQUE_WATCH_ID_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.watch.unique_id}"));
 
     /**
      * Replace the <code>${monitoring.watch.unique_id}</code> field in the watches.
      *
      * @see #createUniqueWatchId(ClusterService, String)
      */
-    private static final Pattern VERSION_CREATED_PROPERTY =
-        Pattern.compile(Pattern.quote("${monitoring.version_created}"));
+    private static final Pattern VERSION_CREATED_PROPERTY = Pattern.compile(Pattern.quote("${monitoring.version_created}"));
 
     /**
      * The last time that all watches were updated. For now, all watches have been updated in the same version and should all be replaced
@@ -72,8 +69,7 @@ public class ClusterAlertsUtil {
         "kibana_version_mismatch",
         "logstash_version_mismatch",
         "xpack_license_expiration",
-        "elasticsearch_nodes",
-    };
+        "elasticsearch_nodes", };
 
     /**
      * Create a unique identifier for the watch and cluster.
@@ -141,8 +137,8 @@ public class ClusterAlertsUtil {
      * @throws SettingsException if an unknown cluster alert ID exists in the blacklist.
      */
     public static List<String> getClusterAlertsBlacklist(final Exporter.Config config) {
-        final List<String> blacklist =
-                CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        final List<String> blacklist = CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name())
+            .get(config.settings());
 
         // validate the blacklist only contains recognized IDs
         if (blacklist.isEmpty() == false) {
@@ -151,8 +147,12 @@ public class ClusterAlertsUtil {
 
             if (unknownIds.isEmpty() == false) {
                 throw new SettingsException(
-                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() +
-                            "] contains unrecognized Cluster Alert IDs [" + String.join(", ", unknownIds) + "]");
+                    "["
+                        + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey()
+                        + "] contains unrecognized Cluster Alert IDs ["
+                        + String.join(", ", unknownIds)
+                        + "]"
+                );
             }
         }
 

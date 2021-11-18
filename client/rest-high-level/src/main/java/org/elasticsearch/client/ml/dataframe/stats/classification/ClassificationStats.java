@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.dataframe.stats.classification;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -40,22 +29,19 @@ public class ClassificationStats implements AnalysisStats {
     public static final ParseField TIMING_STATS = new ParseField("timing_stats");
     public static final ParseField VALIDATION_LOSS = new ParseField("validation_loss");
 
-    public static final ConstructingObjectParser<ClassificationStats, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(),
+    public static final ConstructingObjectParser<ClassificationStats, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
         true,
-        a -> new ClassificationStats(
-            (Instant) a[0],
-            (Integer) a[1],
-            (Hyperparameters) a[2],
-            (TimingStats) a[3],
-            (ValidationLoss) a[4]
-        )
+        a -> new ClassificationStats((Instant) a[0], (Integer) a[1], (Hyperparameters) a[2], (TimingStats) a[3], (ValidationLoss) a[4])
     );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ITERATION);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Hyperparameters.PARSER, HYPERPARAMETERS);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimingStats.PARSER, TIMING_STATS);
@@ -68,8 +54,13 @@ public class ClassificationStats implements AnalysisStats {
     private final TimingStats timingStats;
     private final ValidationLoss validationLoss;
 
-    public ClassificationStats(Instant timestamp, Integer iteration, Hyperparameters hyperparameters, TimingStats timingStats,
-                               ValidationLoss validationLoss) {
+    public ClassificationStats(
+        Instant timestamp,
+        Integer iteration,
+        Hyperparameters hyperparameters,
+        TimingStats timingStats,
+        ValidationLoss validationLoss
+    ) {
         this.timestamp = Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
         this.iteration = iteration;
         this.hyperparameters = Objects.requireNonNull(hyperparameters);

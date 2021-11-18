@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.history;
 
@@ -27,6 +28,7 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -50,35 +52,40 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
 
-                // email
-                .put("xpack.notification.email.account.test.smtp.auth", true)
-                .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
-                .put("xpack.notification.email.account.test.smtp.port", server.port())
-                .put("xpack.notification.email.account.test.smtp.host", "localhost")
-                .setSecureSettings(secureSettings)
-                .build();
+            // email
+            .put("xpack.notification.email.account.test.smtp.auth", true)
+            .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
+            .put("xpack.notification.email.account.test.smtp.port", server.port())
+            .put("xpack.notification.email.account.test.smtp.host", "localhost")
+            .setSecureSettings(secureSettings)
+            .build();
     }
 
     public void testEmailFields() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5s")))
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_email", emailAction(EmailTemplate.builder()
-                        .from("from@example.com")
-                        .to("to1@example.com", "to2@example.com")
-                        .cc("cc1@example.com", "cc2@example.com")
-                        .bcc("bcc1@example.com", "bcc2@example.com")
-                        .replyTo("rt1@example.com", "rt2@example.com")
-                        .subject("_subject")
-                        .textBody("_body"))))
-                .get();
+                .addAction(
+                    "_email",
+                    emailAction(
+                        EmailTemplate.builder()
+                            .from("from@example.com")
+                            .to("to1@example.com", "to2@example.com")
+                            .cc("cc1@example.com", "cc2@example.com")
+                            .bcc("bcc1@example.com", "bcc2@example.com")
+                            .replyTo("rt1@example.com", "rt2@example.com")
+                            .subject("_subject")
+                            .textBody("_body")
+                    )
+                )
+        ).get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
         timeWarp().trigger("_id");
@@ -88,16 +95,18 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(searchSource()
-                .aggregation(terms("from").field("result.actions.email.message.from"))
-                .aggregation(terms("to").field("result.actions.email.message.to"))
-                .aggregation(terms("cc").field("result.actions.email.message.cc"))
-                .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
-                .aggregation(terms("reply_to").field("result.actions.email.message.reply_to")))
-                .get();
+        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
+            .setSource(
+                searchSource().aggregation(terms("from").field("result.actions.email.message.from"))
+                    .aggregation(terms("to").field("result.actions.email.message.to"))
+                    .aggregation(terms("cc").field("result.actions.email.message.cc"))
+                    .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
+                    .aggregation(terms("reply_to").field("result.actions.email.message.reply_to"))
+            )
+            .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 
@@ -105,38 +114,38 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey("from@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("from@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("from@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("to");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("to1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("to1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("to1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("to2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("to2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("to2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("cc");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("cc1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("cc1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("cc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("cc2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("cc2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("cc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("bcc");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("bcc1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("bcc1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("bcc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("bcc2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("bcc2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("bcc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("reply_to");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("rt1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("rt1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("rt1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("rt2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("rt2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("rt2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
     }
 }

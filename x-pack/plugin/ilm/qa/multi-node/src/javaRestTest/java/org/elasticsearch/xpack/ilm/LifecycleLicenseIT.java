@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -15,13 +15,13 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
@@ -44,7 +44,6 @@ import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66088")
 public class LifecycleLicenseIT extends ESRestTestCase {
 
     private String policy;
@@ -70,11 +69,21 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_license")));
         checkCurrentLicenseIs("basic");
 
-        ResponseException exception = expectThrows(ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true)));
-        assertThat(EntityUtils.toString(exception.getResponse().getEntity()),
-            containsStringIgnoringCase("policy [" + policy + "] defines the [" + SearchableSnapshotAction.NAME + "] action but the " +
-                "current license is non-compliant for [searchable-snapshots]"));
+        ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true))
+        );
+        assertThat(
+            EntityUtils.toString(exception.getResponse().getEntity()),
+            containsStringIgnoringCase(
+                "policy ["
+                    + policy
+                    + "] defines the ["
+                    + SearchableSnapshotAction.NAME
+                    + "] action but the "
+                    + "current license is non-compliant for [searchable-snapshots]"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -83,8 +92,12 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", dataStream,
-            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
+        createComposableTemplate(
+            client(),
+            "template-name",
+            dataStream,
+            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
+        );
 
         assertOK(client().performRequest(new Request("DELETE", "/_license")));
         checkCurrentLicenseIs("basic");
@@ -106,8 +119,10 @@ public class LifecycleLicenseIT extends ESRestTestCase {
             // until the failed step is executed successfully).
             // So, *if* we catch ILM in the ERROR step, we check the failed message
             if (ErrorStep.NAME.equals(explainIndex.get("step"))) {
-                assertThat(((Map<String, String>) explainIndex.get("step_info")).get("reason"),
-                    containsStringIgnoringCase("current license is non-compliant for [searchable-snapshots]"));
+                assertThat(
+                    ((Map<String, String>) explainIndex.get("step_info")).get("reason"),
+                    containsStringIgnoringCase("current license is non-compliant for [searchable-snapshots]")
+                );
             }
         }, 30, TimeUnit.SECONDS);
 
@@ -115,7 +130,7 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         putTrialLicense();
         checkCurrentLicenseIs("trial");
 
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(restoredIndexName);
@@ -124,12 +139,15 @@ public class LifecycleLicenseIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
-            TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)),
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     private void putTrialLicense() throws Exception {
-        License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueDays(7));
+        License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueDays(14));
         Request putTrialRequest = new Request("PUT", "/_license");
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = signedLicense.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -142,12 +160,11 @@ public class LifecycleLicenseIT extends ESRestTestCase {
     }
 
     private void checkCurrentLicenseIs(String type) throws Exception {
-        assertBusy(() ->  {
+        assertBusy(() -> {
             Response getLicense = client().performRequest(new Request("GET", "/_license"));
             String responseBody = EntityUtils.toString(getLicense.getEntity());
             logger.info("get license response body is [{}]", responseBody);
-            assertThat(responseBody,
-                containsStringIgnoringCase("\"type\" : \"" + type + "\""));
+            assertThat(responseBody, containsStringIgnoringCase("\"type\" : \"" + type + "\""));
         });
     }
 }

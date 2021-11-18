@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -80,8 +69,14 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numDataNodes;
     private final int numMasterAndDataNodes;
 
-    public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses,
-                               Function<Client, Client> clientWrapper, String clusterName, TransportAddress... transportAddresses) {
+    public ExternalTestCluster(
+        Path tempDir,
+        Settings additionalSettings,
+        Collection<Class<? extends Plugin>> pluginClasses,
+        Function<Client, Client> clientWrapper,
+        String clusterName,
+        TransportAddress... transportAddresses
+    ) {
         super(0);
         this.clusterName = clusterName;
         Settings.Builder clientSettingsBuilder = Settings.builder()
@@ -90,8 +85,10 @@ public final class ExternalTestCluster extends TestCluster {
             .put("node.name", EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("cluster.name", clusterName)
             .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
-            .putList("discovery.seed_hosts",
-                Arrays.stream(transportAddresses).map(TransportAddress::toString).collect(Collectors.toList()));
+            .putList(
+                "discovery.seed_hosts",
+                Arrays.stream(transportAddresses).map(TransportAddress::toString).collect(Collectors.toList())
+            );
         if (Environment.PATH_HOME_SETTING.exists(additionalSettings) == false) {
             clientSettingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         }
@@ -119,7 +116,7 @@ public final class ExternalTestCluster extends TestCluster {
             for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
                 NodeInfo nodeInfo = nodeInfos.getNodes().get(i);
                 httpAddresses[i] = nodeInfo.getInfo(HttpInfo.class).address().publishAddress().address();
-                if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
+                if (DiscoveryNode.canContainData(nodeInfo.getSettings())) {
                     dataNodes++;
                     masterAndDataNodes++;
                 } else if (DiscoveryNode.isMasterNode(nodeInfo.getSettings())) {
@@ -187,25 +184,39 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
-                    .clear().setBreaker(true).setIndices(true).execute().actionGet();
+            NodesStatsResponse nodeStats = client().admin()
+                .cluster()
+                .prepareNodesStats()
+                .clear()
+                .setBreaker(true)
+                .setIndices(true)
+                .execute()
+                .actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
-                        stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
-                assertThat("Accounting breaker not reset to " + stats.getIndices().getSegments().getMemoryInBytes() +
-                                " on node: " + stats.getNode(),
-                        stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING).getEstimated(),
-                        equalTo(stats.getIndices().getSegments().getMemoryInBytes()));
+                assertThat(
+                    "Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                    stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
+                    equalTo(0L)
+                );
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0
 
-                assertThat("Fielddata size must be 0 on node: " +
-                    stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
-                assertThat("Query cache size must be 0 on node: " +
-                    stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
-                assertThat("FixedBitSet cache size must be 0 on node: " +
-                    stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+                assertThat(
+                    "Fielddata size must be 0 on node: " + stats.getNode(),
+                    stats.getIndices().getFieldData().getMemorySizeInBytes(),
+                    equalTo(0L)
+                );
+                assertThat(
+                    "Query cache size must be 0 on node: " + stats.getNode(),
+                    stats.getIndices().getQueryCache().getMemorySizeInBytes(),
+                    equalTo(0L)
+                );
+                assertThat(
+                    "FixedBitSet cache size must be 0 on node: " + stats.getNode(),
+                    stats.getIndices().getSegments().getBitsetMemoryInBytes(),
+                    equalTo(0L)
+                );
             }
         }
     }

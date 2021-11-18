@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils;
 
@@ -27,8 +28,7 @@ import static org.hamcrest.Matchers.is;
 public class NameResolverTests extends ESTestCase {
 
     public void testNoMatchingNames() {
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-                () -> newUnaliasedResolver().expand("foo", false));
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> newUnaliasedResolver().expand("foo", false));
         assertThat(e.getMessage(), equalTo("foo"));
     }
 
@@ -37,14 +37,15 @@ public class NameResolverTests extends ESTestCase {
     }
 
     public void testNoMatchingNames_GivenPatternAndNotAllowNoMatch() {
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-                () -> newUnaliasedResolver().expand("foo*", false));
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> newUnaliasedResolver().expand("foo*", false));
         assertThat(e.getMessage(), equalTo("foo*"));
     }
 
     public void testNoMatchingNames_GivenMatchingNameAndNonMatchingPatternAndNotAllowNoMatch() {
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-                () ->  newUnaliasedResolver("foo").expand("foo, bar*", false));
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> newUnaliasedResolver("foo").expand("foo, bar*", false)
+        );
         assertThat(e.getMessage(), equalTo("bar*"));
     }
 

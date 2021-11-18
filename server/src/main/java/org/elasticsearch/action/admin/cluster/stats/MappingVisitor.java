@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -30,31 +19,36 @@ public final class MappingVisitor {
         visitMapping(mapping, "", fieldMappingConsumer);
     }
 
-    private static void visitMapping(Map<String, ?> mapping, String path, BiConsumer<String, Map<String, ?>> fieldMappingConsumer) {
+    private static void visitMapping(
+        final Map<String, ?> mapping,
+        final String path,
+        final BiConsumer<String, Map<String, ?>> fieldMappingConsumer
+    ) {
         Object properties = mapping.get("properties");
         if (properties instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> propertiesAsMap = (Map<String, ?>) properties;
-            for (String field : propertiesAsMap.keySet()) {
-                Object v = propertiesAsMap.get(field);
+            for (Map.Entry<String, ?> entry : propertiesAsMap.entrySet()) {
+                final Object v = entry.getValue();
                 if (v instanceof Map) {
 
                     @SuppressWarnings("unchecked")
                     Map<String, ?> fieldMapping = (Map<String, ?>) v;
-                    fieldMappingConsumer.accept(path + field, fieldMapping);
-                    visitMapping(fieldMapping, path + field + ".", fieldMappingConsumer);
+                    final String prefix = path + entry.getKey();
+                    fieldMappingConsumer.accept(prefix, fieldMapping);
+                    visitMapping(fieldMapping, prefix + ".", fieldMappingConsumer);
 
                     // Multi fields
                     Object fieldsO = fieldMapping.get("fields");
                     if (fieldsO instanceof Map) {
                         @SuppressWarnings("unchecked")
                         Map<String, ?> fields = (Map<String, ?>) fieldsO;
-                        for (String subfield : fields.keySet()) {
-                            Object v2 = fields.get(subfield);
+                        for (Map.Entry<String, ?> subfieldEntry : fields.entrySet()) {
+                            Object v2 = subfieldEntry.getValue();
                             if (v2 instanceof Map) {
                                 @SuppressWarnings("unchecked")
                                 Map<String, ?> fieldMapping2 = (Map<String, ?>) v2;
-                                fieldMappingConsumer.accept(path + field + "." + subfield, fieldMapping2);
+                                fieldMappingConsumer.accept(prefix + "." + subfieldEntry.getKey(), fieldMapping2);
                             }
                         }
                     }
@@ -63,4 +57,21 @@ public final class MappingVisitor {
         }
     }
 
+    public static void visitRuntimeMapping(Map<String, ?> mapping, BiConsumer<String, Map<String, ?>> runtimeFieldMappingConsumer) {
+        Object runtimeObject = mapping.get("runtime");
+        if (runtimeObject instanceof Map == false) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, ?> runtimeMappings = (Map<String, ?>) runtimeObject;
+        for (Map.Entry<String, ?> entry : runtimeMappings.entrySet()) {
+            final Object runtimeFieldMappingObject = entry.getValue();
+            if (runtimeFieldMappingObject instanceof Map == false) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, ?> runtimeFieldMapping = (Map<String, ?>) runtimeFieldMappingObject;
+            runtimeFieldMappingConsumer.accept(entry.getKey(), runtimeFieldMapping);
+        }
+    }
 }

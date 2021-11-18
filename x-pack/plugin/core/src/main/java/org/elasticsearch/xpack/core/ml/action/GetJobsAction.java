@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -30,8 +31,6 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        @Deprecated
-        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String jobId;
@@ -113,6 +112,5 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
             return Job::new;
         }
     }
-
 
 }

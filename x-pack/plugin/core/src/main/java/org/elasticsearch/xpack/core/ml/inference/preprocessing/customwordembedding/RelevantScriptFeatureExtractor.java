@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
@@ -37,7 +38,7 @@ public class RelevantScriptFeatureExtractor implements FeatureExtractor {
             // Get anything that is a letter, or anything complex enough warranting a check (more than one UTF-8 byte).
             // cp > Byte.MAX_VALUE works as the first 127 codepoints are the same as the ASCII encoding,
             // which is the same as one UTF-8 byte.
-            if(Character.isLetter(cp) || cp > Byte.MAX_VALUE) {
+            if (Character.isLetter(cp) || cp > Byte.MAX_VALUE) {
                 ScriptDetector.Script script = ScriptDetector.Script.fromCodePoint(cp);
                 counts.computeIfAbsent(script, (s) -> Counter.newCounter()).addAndGet(1);
                 totalCount.addAndGet(1L);

@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -47,9 +49,14 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportCreateTokenAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                                      TokenService tokenService, AuthenticationService authenticationService,
-                                      SecurityContext securityContext) {
+    public TransportCreateTokenAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        TokenService tokenService,
+        AuthenticationService authenticationService,
+        SecurityContext securityContext
+    ) {
         super(CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
         this.threadPool = threadPool;
         this.tokenService = tokenService;
@@ -68,11 +75,19 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 break;
             case CLIENT_CREDENTIALS:
                 Authentication authentication = securityContext.getAuthentication();
+                if (authentication.isAuthenticatedWithServiceAccount() && false == authentication.getUser().isRunAs()) {
+                    // Service account itself cannot create OAuth2 tokens.
+                    // But it is possible to create an oauth2 token if the service account run-as a different user.
+                    // In this case, the token will be created for the run-as user (not the service account).
+                    listener.onFailure(new ElasticsearchException("OAuth2 token creation is not supported for service accounts"));
+                    return;
+                }
                 createToken(type, request, authentication, authentication, false, listener);
                 break;
             default:
-                listener.onFailure(new IllegalStateException("grant_type [" + request.getGrantType() +
-                    "] is not supported by the create token action"));
+                listener.onFailure(
+                    new IllegalStateException("grant_type [" + request.getGrantType() + "] is not supported by the create token action")
+                );
                 break;
         }
     }
@@ -87,24 +102,24 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             }
             final AuthenticationToken authToken = tokenAndException.v1();
             if (authToken == null) {
-                listener.onFailure(new IllegalStateException(
-                        "grant_type [" + request.getGrantType() + "] is not supported by the create token action"));
+                listener.onFailure(
+                    new IllegalStateException("grant_type [" + request.getGrantType() + "] is not supported by the create token action")
+                );
                 return;
             }
 
-            authenticationService.authenticate(CreateTokenAction.NAME, request, authToken,
-                ActionListener.wrap(authentication -> {
-                    clearCredentialsFromRequest(grantType, request);
+            authenticationService.authenticate(CreateTokenAction.NAME, request, authToken, ActionListener.wrap(authentication -> {
+                clearCredentialsFromRequest(grantType, request);
 
-                    if (authentication != null) {
-                        createToken(grantType, request, authentication, originatingAuthentication, true, listener);
-                    } else {
-                        listener.onFailure(new UnsupportedOperationException("cannot create token if authentication is not allowed"));
-                    }
-                }, e -> {
-                    clearCredentialsFromRequest(grantType, request);
-                    listener.onFailure(e);
-                }));
+                if (authentication != null) {
+                    createToken(grantType, request, authentication, originatingAuthentication, true, listener);
+                } else {
+                    listener.onFailure(new UnsupportedOperationException("cannot create token if authentication is not allowed"));
+                }
+            }, e -> {
+                clearCredentialsFromRequest(grantType, request);
+                listener.onFailure(e);
+            }));
         }
     }
 
@@ -119,8 +134,10 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             try {
                 decodedKerberosTicket = Base64.getDecoder().decode(base64EncodedToken);
             } catch (IllegalArgumentException iae) {
-                return new Tuple<>(null,
-                    Optional.of(new UnsupportedOperationException("could not decode base64 kerberos ticket " + base64EncodedToken, iae)));
+                return new Tuple<>(
+                    null,
+                    Optional.of(new UnsupportedOperationException("could not decode base64 kerberos ticket " + base64EncodedToken, iae))
+                );
             }
             authToken = new KerberosAuthenticationToken(decodedKerberosTicket);
         }
@@ -135,17 +152,33 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         }
     }
 
-    private void createToken(GrantType grantType, CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
-            boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
-        tokenService.createOAuth2Tokens(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
-                ActionListener.wrap(tokenResult -> {
-                    final String scope = getResponseScopeValue(request.getScope());
-                    final String base64AuthenticateResponse = (grantType == GrantType.KERBEROS) ? extractOutToken() : null;
-                    final CreateTokenResponse response = new CreateTokenResponse(tokenResult.getAccessToken(),
-                        tokenService.getExpirationDelay(), scope, tokenResult.getRefreshToken(), base64AuthenticateResponse,
-                        authentication);
-                    listener.onResponse(response);
-                }, listener::onFailure));
+    private void createToken(
+        GrantType grantType,
+        CreateTokenRequest request,
+        Authentication authentication,
+        Authentication originatingAuth,
+        boolean includeRefreshToken,
+        ActionListener<CreateTokenResponse> listener
+    ) {
+        tokenService.createOAuth2Tokens(
+            authentication,
+            originatingAuth,
+            Collections.emptyMap(),
+            includeRefreshToken,
+            ActionListener.wrap(tokenResult -> {
+                final String scope = getResponseScopeValue(request.getScope());
+                final String base64AuthenticateResponse = (grantType == GrantType.KERBEROS) ? extractOutToken() : null;
+                final CreateTokenResponse response = new CreateTokenResponse(
+                    tokenResult.getAccessToken(),
+                    tokenService.getExpirationDelay(),
+                    scope,
+                    tokenResult.getRefreshToken(),
+                    base64AuthenticateResponse,
+                    authentication
+                );
+                listener.onResponse(response);
+            }, listener::onFailure)
+        );
     }
 
     private String extractOutToken() {
@@ -154,8 +187,9 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             final String wwwAuthenticateHeaderValue = values.get(0);
             // it may contain base64 encoded token that needs to be sent to client if mutual auth was requested
             if (wwwAuthenticateHeaderValue.startsWith(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX)) {
-                final String base64EncodedToken = wwwAuthenticateHeaderValue
-                        .substring(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX.length()).trim();
+                final String base64EncodedToken = wwwAuthenticateHeaderValue.substring(
+                    KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX.length()
+                ).trim();
                 return base64EncodedToken;
             }
         }

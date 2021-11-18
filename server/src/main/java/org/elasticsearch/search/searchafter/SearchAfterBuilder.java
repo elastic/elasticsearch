@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.searchafter;
@@ -24,20 +13,21 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -52,8 +42,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     private Object[] sortValues = EMPTY_SORT_VALUES;
 
-    public SearchAfterBuilder() {
-    }
+    public SearchAfterBuilder() {}
 
     /**
      * Read from a stream.
@@ -104,7 +93,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         return Arrays.copyOf(sortValues, sortValues.length);
     }
 
-    public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values) {
+    public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values, @Nullable String collapseField) {
         if (sort == null || sort.sort.getSort() == null || sort.sort.getSort().length == 0) {
             throw new IllegalArgumentException("Sort must contain at least one field.");
         }
@@ -112,9 +101,18 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         SortField[] sortFields = sort.sort.getSort();
         if (sortFields.length != values.length) {
             throw new IllegalArgumentException(
-                    SEARCH_AFTER.getPreferredName() + " has " + values.length + " value(s) but sort has "
-                            + sort.sort.getSort().length + ".");
+                SEARCH_AFTER.getPreferredName() + " has " + values.length + " value(s) but sort has " + sort.sort.getSort().length + "."
+            );
         }
+
+        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+            throw new IllegalArgumentException(
+                "Cannot use [collapse] in conjunction with ["
+                    + SEARCH_AFTER.getPreferredName()
+                    + "] unless the search is sorted on the same field. Multiple sort fields are not allowed."
+            );
+        }
+
         Object[] fieldValues = new Object[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             SortField sortField = sortFields[i];
@@ -187,8 +185,11 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     if (value instanceof Number && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                         return ((Number) value).longValue();
                     }
-                    return format.parseLong(value.toString(), false,
-                        () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); });
+                    return format.parseLong(
+                        value.toString(),
+                        false,
+                        () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); }
+                    );
 
                 case FLOAT:
                     if (value instanceof Number) {
@@ -201,12 +202,15 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     return format.parseBytesRef(value.toString());
 
                 default:
-                    throw new IllegalArgumentException("Comparator type [" + sortType.name() + "] for field [" + fieldName
-                            + "] is not supported.");
+                    throw new IllegalArgumentException(
+                        "Comparator type [" + sortType.name() + "] for field [" + fieldName + "] is not supported."
+                    );
             }
-        } catch(NumberFormatException e) {
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
-                    "Failed to parse " + SEARCH_AFTER.getPreferredName() + " value for field [" + fieldName + "].", e);
+                "Failed to parse " + SEARCH_AFTER.getPreferredName() + " value for field [" + fieldName + "].",
+                e
+            );
         }
     }
 
@@ -225,7 +229,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
     public static SearchAfterBuilder fromXContent(XContentParser parser) throws IOException {
         SearchAfterBuilder builder = new SearchAfterBuilder();
         XContentParser.Token token = parser.currentToken();
-        List<Object> values = new ArrayList<> ();
+        List<Object> values = new ArrayList<>();
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -251,8 +255,9 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                             break;
 
                         default:
-                            throw new IllegalArgumentException("[search_after] does not accept numbers of type ["
-                                + parser.numberType() + "], got " + parser.text());
+                            throw new IllegalArgumentException(
+                                "[search_after] does not accept numbers of type [" + parser.numberType() + "], got " + parser.text()
+                            );
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     values.add(parser.text());
@@ -261,14 +266,34 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                 } else if (token == XContentParser.Token.VALUE_NULL) {
                     values.add(null);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] or ["
-                            + XContentParser.Token.VALUE_NUMBER + "] or [" + XContentParser.Token.VALUE_BOOLEAN + "] or ["
-                            + XContentParser.Token.VALUE_NULL + "] but found [" + token + "] inside search_after.");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Expected ["
+                            + XContentParser.Token.VALUE_STRING
+                            + "] or ["
+                            + XContentParser.Token.VALUE_NUMBER
+                            + "] or ["
+                            + XContentParser.Token.VALUE_BOOLEAN
+                            + "] or ["
+                            + XContentParser.Token.VALUE_NULL
+                            + "] but found ["
+                            + token
+                            + "] inside search_after."
+                    );
                 }
             }
         } else {
-            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_ARRAY + "] in ["
-                    + SEARCH_AFTER.getPreferredName() + "] but found [" + token + "] inside search_after", parser.getTokenLocation());
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected ["
+                    + XContentParser.Token.START_ARRAY
+                    + "] in ["
+                    + SEARCH_AFTER.getPreferredName()
+                    + "] but found ["
+                    + token
+                    + "] inside search_after",
+                parser.getTokenLocation()
+            );
         }
         builder.setSortValues(values.toArray());
         return builder;
@@ -276,7 +301,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object other) {
-        if (! (other instanceof SearchAfterBuilder)) {
+        if ((other instanceof SearchAfterBuilder) == false) {
             return false;
         }
         return Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);

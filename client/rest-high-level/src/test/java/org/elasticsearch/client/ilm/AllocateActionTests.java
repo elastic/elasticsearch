@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -80,19 +69,31 @@ public class AllocateActionTests extends AbstractXContentTestCase<AllocateAction
         Map<String, String> include = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(null, include, exclude, require));
-        assertEquals("At least one of " + AllocateAction.INCLUDE_FIELD.getPreferredName() + ", "
-            + AllocateAction.EXCLUDE_FIELD.getPreferredName() + " or " + AllocateAction.REQUIRE_FIELD.getPreferredName()
-            + "must contain attributes for action " + AllocateAction.NAME, exception.getMessage());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AllocateAction(null, include, exclude, require)
+        );
+        assertEquals(
+            "At least one of "
+                + AllocateAction.INCLUDE_FIELD.getPreferredName()
+                + ", "
+                + AllocateAction.EXCLUDE_FIELD.getPreferredName()
+                + " or "
+                + AllocateAction.REQUIRE_FIELD.getPreferredName()
+                + "must contain attributes for action "
+                + AllocateAction.NAME,
+            exception.getMessage()
+        );
     }
 
     public void testInvalidNumberOfReplicas() {
         Map<String, String> include = randomMap(1, 5);
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(randomIntBetween(-1000, -1), include, exclude, require));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AllocateAction(randomIntBetween(-1000, -1), include, exclude, require)
+        );
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 

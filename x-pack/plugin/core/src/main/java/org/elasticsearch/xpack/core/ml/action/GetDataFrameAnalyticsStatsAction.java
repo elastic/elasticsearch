@@ -1,34 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -140,9 +140,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id)
-                && allowNoMatch == other.allowNoMatch
-                && Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(id, other.id) && allowNoMatch == other.allowNoMatch && Objects.equals(pageParams, other.pageParams);
         }
     }
 
@@ -175,9 +173,17 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             @Nullable
             private final String assignmentExplanation;
 
-            public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, List<PhaseProgress> progress,
-                         @Nullable DataCounts dataCounts, @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats,
-                         @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
+            public Stats(
+                String id,
+                DataFrameAnalyticsState state,
+                @Nullable String failureReason,
+                List<PhaseProgress> progress,
+                @Nullable DataCounts dataCounts,
+                @Nullable MemoryUsage memoryUsage,
+                @Nullable AnalysisStats analysisStats,
+                @Nullable DiscoveryNode node,
+                @Nullable String assignmentExplanation
+            ) {
                 this.id = Objects.requireNonNull(id);
                 this.state = Objects.requireNonNull(state);
                 this.failureReason = failureReason;
@@ -193,26 +199,10 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
                 failureReason = in.readOptionalString();
-                if (in.getVersion().before(Version.V_7_4_0)) {
-                    progress = readProgressFromLegacy(state, in);
-                } else {
-                    progress = in.readList(PhaseProgress::new);
-                }
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    dataCounts = new DataCounts(in);
-                } else {
-                    dataCounts = null;
-                }
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    memoryUsage = new MemoryUsage(in);
-                } else {
-                    memoryUsage = null;
-                }
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
-                } else {
-                    analysisStats = null;
-                }
+                progress = in.readList(PhaseProgress::new);
+                dataCounts = new DataCounts(in);
+                memoryUsage = new MemoryUsage(in);
+                analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
             }
@@ -247,7 +237,8 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     new PhaseProgress("reindexing", reindexingProgress),
                     new PhaseProgress("loading_data", loadingDataProgress),
                     new PhaseProgress("analyzing", analyzingProgress),
-                    new PhaseProgress("writing_results", 0));
+                    new PhaseProgress("writing_results", 0)
+                );
             }
 
             public String getId() {
@@ -315,7 +306,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                         analysisStats,
                         new MapParams(
                             Collections.singletonMap(
-                                ToXContentParams.FOR_INTERNAL_STORAGE, Boolean.toString(params.paramAsBoolean(VERBOSE, false)))));
+                                ToXContentParams.FOR_INTERNAL_STORAGE,
+                                Boolean.toString(params.paramAsBoolean(VERBOSE, false))
+                            )
+                        )
+                    );
                     builder.endObject();
                 }
                 if (node != null) {
@@ -343,54 +338,27 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 out.writeString(id);
                 state.writeTo(out);
                 out.writeOptionalString(failureReason);
-                if (out.getVersion().before(Version.V_7_4_0)) {
-                    writeProgressToLegacy(out);
-                } else {
-                    out.writeList(progress);
-                }
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    dataCounts.writeTo(out);
-                }
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    memoryUsage.writeTo(out);
-                }
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    out.writeOptionalNamedWriteable(analysisStats);
-                }
+                out.writeList(progress);
+                dataCounts.writeTo(out);
+                memoryUsage.writeTo(out);
+                out.writeOptionalNamedWriteable(analysisStats);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
             }
 
-            private void writeProgressToLegacy(StreamOutput out) throws IOException {
-                String targetPhase = null;
-                switch (state) {
-                    case ANALYZING:
-                        targetPhase = "analyzing";
-                        break;
-                    case REINDEXING:
-                        targetPhase = "reindexing";
-                        break;
-                    case STARTING:
-                    case STARTED:
-                    case STOPPED:
-                    case STOPPING:
-                    default:
-                        break;
-                }
-
-                Integer legacyProgressPercent = null;
-                for (PhaseProgress phaseProgress : progress) {
-                    if (phaseProgress.getPhase().equals(targetPhase)) {
-                        legacyProgressPercent = phaseProgress.getProgressPercent();
-                    }
-                }
-                out.writeOptionalInt(legacyProgressPercent);
-            }
-
             @Override
             public int hashCode() {
-                return Objects.hash(id, state, failureReason, progress, dataCounts, memoryUsage, analysisStats, node,
-                    assignmentExplanation);
+                return Objects.hash(
+                    id,
+                    state,
+                    failureReason,
+                    progress,
+                    dataCounts,
+                    memoryUsage,
+                    analysisStats,
+                    node,
+                    assignmentExplanation
+                );
             }
 
             @Override
@@ -403,14 +371,14 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 }
                 Stats other = (Stats) obj;
                 return Objects.equals(id, other.id)
-                        && Objects.equals(this.state, other.state)
-                        && Objects.equals(this.failureReason, other.failureReason)
-                        && Objects.equals(this.progress, other.progress)
-                        && Objects.equals(this.dataCounts, other.dataCounts)
-                        && Objects.equals(this.memoryUsage, other.memoryUsage)
-                        && Objects.equals(this.analysisStats, other.analysisStats)
-                        && Objects.equals(this.node, other.node)
-                        && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
+                    && Objects.equals(this.state, other.state)
+                    && Objects.equals(this.failureReason, other.failureReason)
+                    && Objects.equals(this.progress, other.progress)
+                    && Objects.equals(this.dataCounts, other.dataCounts)
+                    && Objects.equals(this.memoryUsage, other.memoryUsage)
+                    && Objects.equals(this.analysisStats, other.analysisStats)
+                    && Objects.equals(this.node, other.node)
+                    && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }
         }
 
@@ -420,8 +388,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             this(Collections.emptyList(), Collections.emptyList(), stats);
         }
 
-        public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
-                        QueryPage<Stats> stats) {
+        public Response(
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures,
+            QueryPage<Stats> stats
+        ) {
             super(taskFailures, nodeFailures);
             this.stats = stats;
         }

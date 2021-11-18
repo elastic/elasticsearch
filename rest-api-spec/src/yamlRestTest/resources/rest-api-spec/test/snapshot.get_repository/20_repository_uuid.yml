@@ -1,0 +1,72 @@
+---
+"Get repository returns UUID":
+  - skip:
+      version: " - 7.12.99"
+      reason:  repository UUIDs introduced in 7.12.0
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_uuid_1
+        body:
+          type: fs
+          settings:
+            location: "test_repo_uuid_1_loc"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_uuid_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - do:
+      snapshot.get_repository: {}
+
+  - match: { test_repo_uuid_1.type: fs }
+  - is_true: test_repo_uuid_1.uuid
+  - set: { test_repo_uuid_1.uuid: repo_uuid }
+  - match: { test_repo_uuid_1.settings.location: "test_repo_uuid_1_loc" }
+  - is_false: test_repo_uuid_1.generation
+  - is_false: test_repo_uuid_1.pending_generation
+
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_uuid_1
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_uuid_1_copy
+        body:
+          type: fs
+          settings:
+            location: "test_repo_uuid_1_loc"
+
+  - do:
+      snapshot.get_repository: {}
+
+  - match: { test_repo_uuid_1_copy.uuid: $repo_uuid }
+
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_uuid_1_copy
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_uuid_1_ro
+        body:
+          type: fs
+          settings:
+            location: "test_repo_uuid_1_loc"
+            read_only: true
+
+  - do:
+      snapshot.get_repository: {}
+
+  - match: { test_repo_uuid_1_ro.uuid: $repo_uuid }

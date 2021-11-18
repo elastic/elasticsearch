@@ -1,34 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,26 +45,30 @@ public class EvalQueryQualityTests extends ESTestCase {
         for (int i = 0; i < numberOfSearchHits; i++) {
             RatedSearchHit ratedSearchHit = RatedSearchHitTests.randomRatedSearchHit();
             // we need to associate each hit with an index name otherwise rendering will not work
-            ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new ShardId("index", "_na_", 0), null, OriginalIndices.NONE));
+            ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new ShardId("index", "_na_", 0), null));
             ratedHits.add(ratedSearchHit);
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),
-                randomDoubleBetween(0.0, 1.0, true));
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             int metricDetail = randomIntBetween(0, 2);
             switch (metricDetail) {
-            case 0:
-                evalQueryQuality.setMetricDetails(new PrecisionAtK.Detail(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
-                break;
-            case 1:
-                evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Detail(randomIntBetween(0, 1000)));
-                break;
-            case 2:
-                evalQueryQuality.setMetricDetails(new DiscountedCumulativeGain.Detail(randomDoubleBetween(0, 1, true),
-                        randomBoolean() ? randomDoubleBetween(0, 1, true) : 0, randomInt()));
-                break;
-            default:
-                throw new IllegalArgumentException("illegal randomized value in test");
+                case 0:
+                    evalQueryQuality.setMetricDetails(new PrecisionAtK.Detail(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
+                    break;
+                case 1:
+                    evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Detail(randomIntBetween(0, 1000)));
+                    break;
+                case 2:
+                    evalQueryQuality.setMetricDetails(
+                        new DiscountedCumulativeGain.Detail(
+                            randomDoubleBetween(0, 1, true),
+                            randomBoolean() ? randomDoubleBetween(0, 1, true) : 0,
+                            randomInt()
+                        )
+                    );
+                    break;
+                default:
+                    throw new IllegalArgumentException("illegal randomized value in test");
             }
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);
@@ -134,24 +126,24 @@ public class EvalQueryQualityTests extends ESTestCase {
         List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
         MetricDetail metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
-        case 0:
-            id = id + "_";
-            break;
-        case 1:
-            metricScore = metricScore + 0.1;
-            break;
-        case 2:
-            if (metricDetails == null) {
-                metricDetails = new PrecisionAtK.Detail(1, 5);
-            } else {
-                metricDetails = null;
-            }
-            break;
-        case 3:
-            ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
-            break;
-        default:
-            throw new IllegalStateException("The test should only allow four parameters mutated");
+            case 0:
+                id = id + "_";
+                break;
+            case 1:
+                metricScore = metricScore + 0.1;
+                break;
+            case 2:
+                if (metricDetails == null) {
+                    metricDetails = new PrecisionAtK.Detail(1, 5);
+                } else {
+                    metricDetails = null;
+                }
+                break;
+            case 3:
+                ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
+                break;
+            default:
+                throw new IllegalStateException("The test should only allow four parameters mutated");
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, metricScore);
         evalQueryQuality.setMetricDetails(metricDetails);

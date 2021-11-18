@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -42,16 +43,22 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<TotalFeatureImportance, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<TotalFeatureImportance, Void> parser = new ConstructingObjectParser<>(NAME,
+        ConstructingObjectParser<TotalFeatureImportance, Void> parser = new ConstructingObjectParser<>(
+            NAME,
             ignoreUnknownFields,
-            a -> new TotalFeatureImportance((String)a[0], (Importance)a[1], (List<ClassImportance>)a[2]));
+            a -> new TotalFeatureImportance((String) a[0], (Importance) a[1], (List<ClassImportance>) a[2])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? Importance.LENIENT_PARSER : Importance.STRICT_PARSER,
-            IMPORTANCE);
-        parser.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
+            IMPORTANCE
+        );
+        parser.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? ClassImportance.LENIENT_PARSER : ClassImportance.STRICT_PARSER,
-            CLASSES);
+            CLASSES
+        );
         return parser;
     }
 
@@ -122,9 +129,11 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         public static final ConstructingObjectParser<Importance, Void> STRICT_PARSER = createParser(false);
 
         private static ConstructingObjectParser<Importance, Void> createParser(boolean ignoreUnknownFields) {
-            ConstructingObjectParser<Importance, Void> parser = new ConstructingObjectParser<>(NAME,
+            ConstructingObjectParser<Importance, Void> parser = new ConstructingObjectParser<>(
+                NAME,
                 ignoreUnknownFields,
-                a -> new Importance((double)a[0], (double)a[1], (double)a[2]));
+                a -> new Importance((double) a[0], (double) a[1], (double) a[2])
+            );
             parser.declareDouble(ConstructingObjectParser.constructorArg(), MEAN_MAGNITUDE);
             parser.declareDouble(ConstructingObjectParser.constructorArg(), MIN);
             parser.declareDouble(ConstructingObjectParser.constructorArg(), MAX);
@@ -152,9 +161,9 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Importance that = (Importance) o;
-            return Double.compare(that.meanMagnitude, meanMagnitude) == 0 &&
-                Double.compare(that.min, min) == 0 &&
-                Double.compare(that.max, max) == 0;
+            return Double.compare(that.meanMagnitude, meanMagnitude) == 0
+                && Double.compare(that.min, min) == 0
+                && Double.compare(that.max, max) == 0;
         }
 
         @Override
@@ -194,9 +203,11 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         public static final ConstructingObjectParser<ClassImportance, Void> STRICT_PARSER = createParser(false);
 
         private static ConstructingObjectParser<ClassImportance, Void> createParser(boolean ignoreUnknownFields) {
-            ConstructingObjectParser<ClassImportance, Void> parser = new ConstructingObjectParser<>(NAME,
+            ConstructingObjectParser<ClassImportance, Void> parser = new ConstructingObjectParser<>(
+                NAME,
                 ignoreUnknownFields,
-                a -> new ClassImportance(a[0], (Importance)a[1]));
+                a -> new ClassImportance(a[0], (Importance) a[1])
+            );
             parser.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                     return p.text();
@@ -207,9 +218,11 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
                 }
                 throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
             }, CLASS_NAME, ObjectParser.ValueType.VALUE);
-            parser.declareObject(ConstructingObjectParser.constructorArg(),
+            parser.declareObject(
+                ConstructingObjectParser.constructorArg(),
                 ignoreUnknownFields ? Importance.LENIENT_PARSER : Importance.STRICT_PARSER,
-                IMPORTANCE);
+                IMPORTANCE
+            );
             return parser;
         }
 

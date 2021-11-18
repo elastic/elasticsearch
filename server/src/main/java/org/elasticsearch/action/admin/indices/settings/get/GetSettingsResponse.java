@@ -1,37 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -44,8 +34,10 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     private final ImmutableOpenMap<String, Settings> indexToSettings;
     private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
 
-    public GetSettingsResponse(ImmutableOpenMap<String, Settings> indexToSettings,
-                               ImmutableOpenMap<String, Settings> indexToDefaultSettings) {
+    public GetSettingsResponse(
+        ImmutableOpenMap<String, Settings> indexToSettings,
+        ImmutableOpenMap<String, Settings> indexToDefaultSettings
+    ) {
         this.indexToSettings = indexToSettings;
         this.indexToDefaultSettings = indexToDefaultSettings;
     }
@@ -108,34 +100,42 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
     }
 
-    private static void parseSettingsField(XContentParser parser, String currentIndexName, Map<String, Settings> indexToSettings,
-                                           Map<String, Settings> indexToDefaultSettings) throws IOException {
+    private static void parseSettingsField(
+        XContentParser parser,
+        String currentIndexName,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
 
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                switch (parser.currentName()) {
-                    case "settings":
-                        indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                        break;
-                    case "defaults":
-                        indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                        break;
-                    default:
-                        parser.skipChildren();
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                parser.skipChildren();
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            switch (parser.currentName()) {
+                case "settings":
+                    indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                    break;
+                case "defaults":
+                    indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                    break;
+                default:
+                    parser.skipChildren();
             }
-            parser.nextToken();
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren();
+        }
+        parser.nextToken();
     }
 
-    private static void parseIndexEntry(XContentParser parser, Map<String, Settings> indexToSettings,
-    Map<String, Settings> indexToDefaultSettings) throws IOException {
+    private static void parseIndexEntry(
+        XContentParser parser,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
         String indexName = parser.currentName();
         parser.nextToken();
-        while (!parser.isClosed() && parser.currentToken() != XContentParser.Token.END_OBJECT) {
+        while (parser.isClosed() == false && parser.currentToken() != XContentParser.Token.END_OBJECT) {
             parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
         }
     }
+
     public static GetSettingsResponse fromXContent(XContentParser parser) throws IOException {
         HashMap<String, Settings> indexToSettings = new HashMap<>();
         HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
@@ -146,9 +146,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         parser.nextToken();
 
-        while (!parser.isClosed()) {
+        while (parser.isClosed() == false) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                //we must assume this is an index entry
+                // we must assume this is an index entry
                 parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 parser.skipChildren();
@@ -158,8 +158,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         }
 
         ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-        ImmutableOpenMap<String, Settings> defaultSettingsMap =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToDefaultSettings).build();
+        ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
+            .putAll(indexToDefaultSettings)
+            .build();
 
         return new GetSettingsResponse(settingsMap, defaultSettingsMap);
     }
@@ -172,7 +173,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             toXContent(builder, ToXContent.EMPTY_PARAMS, false);
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new IllegalStateException(e); //should not be possible here
+            throw new IllegalStateException(e); // should not be possible here
         }
     }
 
@@ -208,8 +209,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSettingsResponse that = (GetSettingsResponse) o;
-        return Objects.equals(indexToSettings, that.indexToSettings) &&
-            Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
+        return Objects.equals(indexToSettings, that.indexToSettings) && Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
     }
 
     @Override

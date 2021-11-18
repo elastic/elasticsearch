@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -32,8 +33,7 @@ public final class MlStrings {
 
     public static final int ID_LENGTH_LIMIT = 64;
 
-    private MlStrings() {
-    }
+    private MlStrings() {}
 
     /**
      * Surrounds with double quotes the given {@code input} if it contains
@@ -45,7 +45,7 @@ public final class MlStrings {
      * that contains {@code input} surrounded by double quotes otherwise
      */
     public static String doubleQuoteIfNotAlphaNumeric(String input) {
-        if (!NEEDS_QUOTING.matcher(input).find()) {
+        if (NEEDS_QUOTING.matcher(input).find() == false) {
             return input;
         }
 
@@ -65,7 +65,7 @@ public final class MlStrings {
     }
 
     public static boolean isValidId(String id) {
-        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && !Metadata.ALL.equals(id);
+        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && Metadata.ALL.equals(id) == false;
     }
 
     /**
@@ -116,7 +116,7 @@ public final class MlStrings {
 
         Set<String> matchingItems = new LinkedHashSet<>();
         for (String pattern : patterns) {
-            if (items.contains(pattern))  {
+            if (items.contains(pattern)) {
                 matchingItems.add(pattern);
             } else if (Regex.isSimpleMatchPattern(pattern)) {
                 for (String item : items) {

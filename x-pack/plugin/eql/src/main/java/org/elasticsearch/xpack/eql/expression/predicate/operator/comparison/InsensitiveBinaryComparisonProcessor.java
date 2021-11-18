@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 
@@ -13,8 +14,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import java.io.IOException;
 import java.util.function.BiFunction;
 
-public class InsensitiveBinaryComparisonProcessor extends
-    FunctionalEnumBinaryProcessor<Object, Object, Boolean, InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation> {
+public class InsensitiveBinaryComparisonProcessor extends FunctionalEnumBinaryProcessor<
+    Object,
+    Object,
+    Boolean,
+    InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation> {
 
     public enum InsensitiveBinaryComparisonOperation implements PredicateBiFunction<Object, Object, Boolean> {
 

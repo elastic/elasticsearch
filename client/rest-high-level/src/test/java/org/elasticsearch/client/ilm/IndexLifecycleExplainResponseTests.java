@@ -1,34 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -54,7 +43,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
         boolean stepNull = randomBoolean();
-        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
+        return IndexLifecycleExplainResponse.newManagedIndexResponse(
+            randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
             stepNull ? null : randomAlphaOfLength(10),
@@ -65,13 +55,16 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
             stepNull ? null : randomNonNegativeLong(),
             stepNull ? null : randomNonNegativeLong(),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+        );
     }
 
     public void testInvalidStepDetails() {
         final int numNull = randomIntBetween(1, 3);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexLifecycleExplainResponse.newManagedIndexResponse(
+                randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 (numNull == 1) ? null : randomAlphaOfLength(10),
@@ -82,7 +75,9 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")));
+                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+            )
+        );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
     }
@@ -110,8 +105,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return (field) ->
-            // actions are plucked from the named registry, and it fails if the action is not in the named registry
-            field.endsWith("phase_definition.actions")
+        // actions are plucked from the named registry, and it fails if the action is not in the named registry
+        field.endsWith("phase_definition.actions")
             // This is a bytes reference, so any new fields are tested for equality in this bytes reference.
             || field.contains("step_info");
     }
@@ -159,7 +154,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(CollectionUtils.appendToCopy(ClusterModule.getNamedXWriteables(),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
+        return new NamedXContentRegistry(
+            CollectionUtils.appendToCopy(
+                ClusterModule.getNamedXWriteables(),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+            )
+        );
     }
 }

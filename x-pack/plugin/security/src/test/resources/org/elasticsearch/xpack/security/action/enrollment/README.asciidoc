@@ -1,0 +1,44 @@
+== Instructions for generating needed keystores
+The keystores in this directory are supposed to mimic the PKCS12 keystores that the elasticsearch
+startup script will auto-generate for a node. The transport.p12 contain a single PrivateKeyEntry for the
+nodes key and certificate for the transport layer.
+The httpCa.p12 keystore contains:
+
+- A PrivateKeyEntry for the node's key and certificate for the HTTP layer
+- A PrivateKeyEntry for the CA's key and certificate
+- A TrustedCertificateEntry for the CA's certificate
+
+=== Generate CA keystore
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+$ES_HOME/bin/elasticsearch-certutil ca --out ca.p12 --pass "password"
+-----------------------------------------------------------------------------------------------------------
+
+=== Generate the transport layer keystore
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+$ES_HOME/bin/elasticsearch-certutil cert --out transport.p12 --ca ca.p12 --ca-pass "password" --pass "password"
+-----------------------------------------------------------------------------------------------------------
+
+=== Generate the HTTP layer keystore
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+$ES_HOME/bin/elasticsearch-certutil cert --out httpCa.p12 --ca ca.p12 --ca-pass password --pass "password" \
+  --dns=localhost --dns=localhost.localdomain --dns=localhost4 --dns=localhost4.localdomain4 \
+  --dns=localhost6 --dns=localhost6.localdomain6 \
+  --ip=127.0.0.1 --ip=0:0:0:0:0:0:0:1
+-----------------------------------------------------------------------------------------------------------
+
+Change the alias of the TrustedCertificateEntry so that it won't clash with the CA PrivateKeyEntry
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+keytool -changealias -alias ca -destalias cacert -keystore httpCa.p12
+-----------------------------------------------------------------------------------------------------------
+
+
+Import the CA PrivateKeyEntry
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+keytool -importkeystore -srckeystore ca.p12 -destkeystore httpCa.p12
+-----------------------------------------------------------------------------------------------------------
+

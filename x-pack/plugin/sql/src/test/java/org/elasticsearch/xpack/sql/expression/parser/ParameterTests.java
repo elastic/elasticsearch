@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.parser;
 
@@ -28,10 +29,10 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ParameterTests extends ESTestCase {
 
     public void testSingleParameter() {
-        Expression expression = new SqlParser().createExpression("a = \n?",
-                Collections.singletonList(
-                        new SqlTypedParamValue(KEYWORD.typeName(), "foo")
-                ));
+        Expression expression = new SqlParser().createExpression(
+            "a = \n?",
+            Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), "foo"))
+        );
         logger.info(expression);
         assertThat(expression, instanceOf(Equals.class));
         Expression right = ((Equals) expression).right();
@@ -43,10 +44,15 @@ public class ParameterTests extends ESTestCase {
     }
 
     public void testMultipleParameters() {
-        Expression expression = new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                new SqlTypedParamValue(LONG.typeName(), 1L), new SqlTypedParamValue(LONG.typeName(), 2L),
-                new SqlTypedParamValue(LONG.typeName(), 3L), new SqlTypedParamValue(LONG.typeName(), 4L)
-                ));
+        Expression expression = new SqlParser().createExpression(
+            "(? + ? * ?) - ?",
+            Arrays.asList(
+                new SqlTypedParamValue(LONG.typeName(), 1L),
+                new SqlTypedParamValue(LONG.typeName(), 2L),
+                new SqlTypedParamValue(LONG.typeName(), 3L),
+                new SqlTypedParamValue(LONG.typeName(), 4L)
+            )
+        );
         assertThat(expression, instanceOf(Sub.class));
         Sub sub = (Sub) expression;
         assertThat(((Literal) sub.right()).value(), equalTo(4L));
@@ -60,11 +66,17 @@ public class ParameterTests extends ESTestCase {
     }
 
     public void testNotEnoughParameters() {
-        ParsingException ex = expectThrows(ParsingException.class,
-                () -> new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                        new SqlTypedParamValue(LONG.typeName(), 1L), new SqlTypedParamValue(LONG.typeName(), 2L),
-                        new SqlTypedParamValue(LONG.typeName(), 3L)
-                )));
+        ParsingException ex = expectThrows(
+            ParsingException.class,
+            () -> new SqlParser().createExpression(
+                "(? + ? * ?) - ?",
+                Arrays.asList(
+                    new SqlTypedParamValue(LONG.typeName(), 1L),
+                    new SqlTypedParamValue(LONG.typeName(), 2L),
+                    new SqlTypedParamValue(LONG.typeName(), 3L)
+                )
+            )
+        );
         assertThat(ex.getMessage(), containsString("Not enough actual parameters"));
     }
 }

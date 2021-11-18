@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,12 +39,20 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.add(replicationAction);
             if (onGoingReplicationActions.containsKey(allocationId) == false) {
-                replicationAction.cancel(new IndexShardClosedException(shardId,
-                    "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
+                replicationAction.cancel(
+                    new IndexShardClosedException(
+                        shardId,
+                        "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"
+                    )
+                );
             }
         } else {
-            replicationAction.cancel(new IndexShardClosedException(shardId,
-                "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
+            replicationAction.cancel(
+                new IndexShardClosedException(
+                    shardId,
+                    "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"
+                )
+            );
         }
     }
 
@@ -107,8 +104,11 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
     }
 
     private void cancelActions(ArrayList<Set<RetryableAction<?>>> toCancel, String message) {
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
-            .flatMap(Collection::stream)
-            .forEach(action -> action.cancel(new IndexShardClosedException(shardId, message))));
+        threadPool.executor(ThreadPool.Names.GENERIC)
+            .execute(
+                () -> toCancel.stream()
+                    .flatMap(Collection::stream)
+                    .forEach(action -> action.cancel(new IndexShardClosedException(shardId, message)))
+            );
     }
 }

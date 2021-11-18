@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.FileInputStream;
@@ -23,7 +24,6 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Duration;
-
 
 /**
  * Opens named pipes that are created elsewhere.
@@ -72,10 +72,10 @@ public class NamedPipeHelper {
         if (Constants.WINDOWS) {
             return WIN_PIPE_PREFIX;
         }
-        // Use the Java temporary directory.  The Elasticsearch bootstrap sets up the security
-        // manager to allow this to be read from and written to.  Also, the code that spawns our
+        // Use the Java temporary directory. The Elasticsearch bootstrap sets up the security
+        // manager to allow this to be read from and written to. Also, the code that spawns our
         // daemon passes on this location to the C++ code using the $TMPDIR environment variable.
-        // All these factors need to align for everything to work in production.  If any changes
+        // All these factors need to align for everything to work in production. If any changes
         // are made here then CNamedPipeFactory::defaultPath() in the C++ code will probably
         // also need to be changed.
         return env.tmpFile().toString() + PathUtils.getDefaultFileSystem().getSeparator();
@@ -109,7 +109,7 @@ public class NamedPipeHelper {
 
         // Can't use Files.isRegularFile() on on named pipes on Windows, as it renders them unusable,
         // but luckily there's an even simpler check (that's not possible on *nix)
-        if (Constants.WINDOWS && !file.toString().startsWith(WIN_PIPE_PREFIX)) {
+        if (Constants.WINDOWS && file.toString().startsWith(WIN_PIPE_PREFIX) == false) {
             throw new IOException(file + " is not a named pipe");
         }
 
@@ -122,7 +122,7 @@ public class NamedPipeHelper {
         // it's still not available throw the exception from FileInputStream
         while (true) {
             // On Windows Files.isRegularFile() will render a genuine named pipe unusable
-            if (!Constants.WINDOWS && Files.isRegularFile(file)) {
+            if (Constants.WINDOWS == false && Files.isRegularFile(file)) {
                 throw new IOException(file + " is not a named pipe");
             }
             try {
@@ -186,7 +186,7 @@ public class NamedPipeHelper {
         long timeoutMillisRemaining = timeout.toMillis();
 
         // Can't use File.isFile() on Windows, but luckily there's an even simpler check (that's not possible on *nix)
-        if (!file.toString().startsWith(WIN_PIPE_PREFIX)) {
+        if (file.toString().startsWith(WIN_PIPE_PREFIX) == false) {
             throw new IOException(file + " is not a named pipe");
         }
 
@@ -230,7 +230,7 @@ public class NamedPipeHelper {
 
         // Periodically check whether the file exists until the timeout expires, then, if
         // it's still not available throw a FileNotFoundException
-        while (timeoutMillisRemaining > 0 && !Files.exists(file)) {
+        while (timeoutMillisRemaining > 0 && Files.exists(file) == false) {
             long thisSleep = Math.min(timeoutMillisRemaining, PAUSE_TIME_MS);
             timeoutMillisRemaining -= thisSleep;
             try {
@@ -245,12 +245,12 @@ public class NamedPipeHelper {
             throw new IOException(file + " is not a named pipe");
         }
 
-        if (!Files.exists(file)) {
+        if (Files.exists(file) == false) {
             throw new FileNotFoundException("Cannot open " + file + " (No such file or directory)");
         }
 
         // There's a race condition here in that somebody could delete the named pipe at this point
-        // causing the line below to create a regular file.  Not sure what can be done about this
+        // causing the line below to create a regular file. Not sure what can be done about this
         // without using low level OS calls...
 
         return Files.newOutputStream(file);
@@ -266,7 +266,7 @@ public class NamedPipeHelper {
     private void propagatePrivilegedException(RuntimeException e) throws IOException {
         Throwable ioe = ExceptionsHelper.unwrap(e, IOException.class);
         if (ioe != null) {
-            throw (IOException)ioe;
+            throw (IOException) ioe;
         }
         throw e;
     }

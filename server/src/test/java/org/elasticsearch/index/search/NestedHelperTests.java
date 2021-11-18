@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search;
@@ -30,15 +19,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -53,58 +42,60 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("foo")
-                            .field("type", "keyword")
-                        .endObject()
-                        .startObject("foo2")
-                            .field("type", "long")
-                        .endObject()
-                        .startObject("nested1")
-                            .field("type", "nested")
-                            .startObject("properties")
-                                .startObject("foo")
-                                    .field("type", "keyword")
-                                .endObject()
-                                .startObject("foo2")
-                                    .field("type", "long")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .startObject("nested2")
-                            .field("type", "nested")
-                            .field("include_in_parent", true)
-                            .startObject("properties")
-                                .startObject("foo")
-                                    .field("type", "keyword")
-                                .endObject()
-                                .startObject("foo2")
-                                    .field("type", "long")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .startObject("nested3")
-                            .field("type", "nested")
-                            .field("include_in_root", true)
-                            .startObject("properties")
-                                .startObject("foo")
-                                    .field("type", "keyword")
-                                .endObject()
-                                .startObject("foo2")
-                                    .field("type", "long")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject().endObject();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("foo2")
+            .field("type", "long")
+            .endObject()
+            .startObject("nested1")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("foo2")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("nested2")
+            .field("type", "nested")
+            .field("include_in_parent", true)
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("foo2")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("nested3")
+            .field("type", "nested")
+            .field("include_in_root", true)
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("foo2")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
         indexService = createIndex("index", Settings.EMPTY, mapping);
         mapperService = indexService.mapperService();
     }
 
     private static NestedHelper buildNestedHelper(MapperService mapperService) {
-        return new NestedHelper(mapperService::getObjectMapper, field -> mapperService.fieldType(field) != null);
+        return new NestedHelper(mapperService.mappingLookup().objectMappers()::get, field -> mapperService.fieldType(field) != null);
     }
 
     public void testMatchAll() {
@@ -184,7 +175,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testRangeQuery() {
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         Query rangeQuery = mapperService.fieldType("foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
@@ -215,59 +206,51 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisjunction() {
-        BooleanQuery bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
-                .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
-                .build();
+        BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
+            .build();
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested1.foo", "bar")), Occur.SHOULD)
-                .add(new TermQuery(new Term("nested1.foo", "baz")), Occur.SHOULD)
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested1.foo", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("nested1.foo", "baz")), Occur.SHOULD)
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertFalse(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested2.foo", "bar")), Occur.SHOULD)
-                .add(new TermQuery(new Term("nested2.foo", "baz")), Occur.SHOULD)
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("nested2.foo", "baz")), Occur.SHOULD)
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested2"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested3.foo", "bar")), Occur.SHOULD)
-                .add(new TermQuery(new Term("nested3.foo", "baz")), Occur.SHOULD)
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("nested3.foo", "baz")), Occur.SHOULD)
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested3"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
-                .add(new MatchAllDocsQuery(), Occur.SHOULD)
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
+            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested1.foo", "bar")), Occur.SHOULD)
-                .add(new MatchAllDocsQuery(), Occur.SHOULD)
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested1.foo", "bar")), Occur.SHOULD)
+            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested2.foo", "bar")), Occur.SHOULD)
-                .add(new MatchAllDocsQuery(), Occur.SHOULD)
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), Occur.SHOULD)
+            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested2"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested3.foo", "bar")), Occur.SHOULD)
-                .add(new MatchAllDocsQuery(), Occur.SHOULD)
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), Occur.SHOULD)
+            .add(new MatchAllDocsQuery(), Occur.SHOULD)
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested3"));
     }
@@ -277,65 +260,49 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testConjunction() {
-        BooleanQuery bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("foo", "bar")), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), requiredOccur())
+            .add(new MatchAllDocsQuery(), requiredOccur())
+            .build();
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested1.foo", "bar")), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested1.foo", "bar")), requiredOccur())
+            .add(new MatchAllDocsQuery(), requiredOccur())
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertFalse(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested2.foo", "bar")), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), requiredOccur())
+            .add(new MatchAllDocsQuery(), requiredOccur())
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested2"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested3.foo", "bar")), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        bq = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), requiredOccur())
+            .add(new MatchAllDocsQuery(), requiredOccur())
+            .build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested3"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested1"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested2"));
 
-        bq = new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .add(new MatchAllDocsQuery(), requiredOccur())
-                .build();
+        bq = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), requiredOccur()).add(new MatchAllDocsQuery(), requiredOccur()).build();
         assertTrue(buildNestedHelper(mapperService).mightMatchNestedDocs(bq));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(bq, "nested3"));
     }
 
     public void testNested() throws IOException {
-        QueryShardContext context = indexService.newQueryShardContext(
+        SearchExecutionContext context = indexService.newSearchExecutionContext(
             0,
             0,
             new IndexSearcher(new MultiReader()),
@@ -346,11 +313,10 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
-        Query expectedChildQuery = new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), Occur.MUST)
-                // we automatically add a filter since the inner query might match non-nested docs
-                .add(new TermQuery(new Term("_nested_path", "nested1")), Occur.FILTER)
-                .build();
+        Query expectedChildQuery = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST)
+            // we automatically add a filter since the inner query might match non-nested docs
+            .add(new TermQuery(new Term("_nested_path", "nested1")), Occur.FILTER)
+            .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(query));
@@ -376,10 +342,9 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_parent
-        expectedChildQuery = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested2.foo", "bar")), Occur.MUST)
-                .add(new TermQuery(new Term("_nested_path", "nested2")), Occur.FILTER)
-                .build();
+        expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), Occur.MUST)
+            .add(new TermQuery(new Term("_nested_path", "nested2")), Occur.FILTER)
+            .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(query));
@@ -392,10 +357,9 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_root
-        expectedChildQuery = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("nested3.foo", "bar")), Occur.MUST)
-                .add(new TermQuery(new Term("_nested_path", "nested3")), Occur.FILTER)
-                .build();
+        expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), Occur.MUST)
+            .add(new TermQuery(new Term("_nested_path", "nested3")), Occur.FILTER)
+            .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(query));

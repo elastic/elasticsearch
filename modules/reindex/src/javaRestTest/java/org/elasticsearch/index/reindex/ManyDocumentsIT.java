@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -53,14 +42,15 @@ public class ManyDocumentsIT extends ESRestTestCase {
     public void testReindex() throws IOException {
         Request request = new Request("POST", "/_reindex");
         request.setJsonEntity(
-                "{\n" +
-                "  \"source\":{\n" +
-                "    \"index\":\"test\"\n" +
-                "  },\n" +
-                "  \"dest\":{\n" +
-                "    \"index\":\"des\"\n" +
-                "  }\n" +
-                "}");
+            "{\n"
+                + "  \"source\":{\n"
+                + "    \"index\":\"test\"\n"
+                + "  },\n"
+                + "  \"dest\":{\n"
+                + "    \"index\":\"des\"\n"
+                + "  }\n"
+                + "}"
+        );
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));
@@ -71,42 +61,47 @@ public class ManyDocumentsIT extends ESRestTestCase {
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
-        String remote = "http://"+ http.get("publish_address");
+        String remote = "http://" + http.get("publish_address");
         Request request = new Request("POST", "/_reindex");
         if (randomBoolean()) {
             request.setJsonEntity(
-                "{\n" +
-                    "  \"source\":{\n" +
-                    "    \"index\":\"test\",\n" +
-                    "    \"remote\":{\n" +
-                    "      \"host\":\"" + remote + "\"\n" +
-                    "    }\n" +
-                    "  }\n," +
-                    "  \"dest\":{\n" +
-                    "    \"index\":\"des\"\n" +
-                    "  }\n" +
-                    "}");
+                "{\n"
+                    + "  \"source\":{\n"
+                    + "    \"index\":\"test\",\n"
+                    + "    \"remote\":{\n"
+                    + "      \"host\":\""
+                    + remote
+                    + "\"\n"
+                    + "    }\n"
+                    + "  }\n,"
+                    + "  \"dest\":{\n"
+                    + "    \"index\":\"des\"\n"
+                    + "  }\n"
+                    + "}"
+            );
         } else {
             // Test with external version_type
             request.setJsonEntity(
-                "{\n" +
-                    "  \"source\":{\n" +
-                    "    \"index\":\"test\",\n" +
-                    "    \"remote\":{\n" +
-                    "      \"host\":\"" + remote + "\"\n" +
-                    "    }\n" +
-                    "  }\n," +
-                    "  \"dest\":{\n" +
-                    "    \"index\":\"des\",\n" +
-                    "    \"version_type\": \"external\"\n" +
-                    "  }\n" +
-                    "}");
+                "{\n"
+                    + "  \"source\":{\n"
+                    + "    \"index\":\"test\",\n"
+                    + "    \"remote\":{\n"
+                    + "      \"host\":\""
+                    + remote
+                    + "\"\n"
+                    + "    }\n"
+                    + "  }\n,"
+                    + "  \"dest\":{\n"
+                    + "    \"index\":\"des\",\n"
+                    + "    \"version_type\": \"external\"\n"
+                    + "  }\n"
+                    + "}"
+            );
         }
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));
     }
-
 
     public void testUpdateByQuery() throws IOException {
         Map<String, Object> response = entityAsMap(client().performRequest(new Request("POST", "/test/_update_by_query")));
@@ -116,12 +111,7 @@ public class ManyDocumentsIT extends ESRestTestCase {
 
     public void testDeleteByQuery() throws IOException {
         Request request = new Request("POST", "/test/_delete_by_query");
-        request.setJsonEntity(
-                "{\n" +
-                "  \"query\":{\n" +
-                "    \"match_all\": {}\n" +
-                "  }\n" +
-                "}");
+        request.setJsonEntity("{\n" + "  \"query\":{\n" + "    \"match_all\": {}\n" + "  }\n" + "}");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("deleted", count));

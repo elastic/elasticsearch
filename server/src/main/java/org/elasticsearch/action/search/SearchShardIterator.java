@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -22,10 +11,10 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -62,13 +51,24 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
-            originalIndices, null, null);
+        this(
+            clusterAlias,
+            shardId,
+            shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
+            originalIndices,
+            null,
+            null
+        );
     }
 
-    public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId,
-                               List<String> targetNodeIds, OriginalIndices originalIndices,
-                               ShardSearchContextId searchContextId, TimeValue searchContextKeepAlive) {
+    public SearchShardIterator(
+        @Nullable String clusterAlias,
+        ShardId shardId,
+        List<String> targetNodeIds,
+        OriginalIndices originalIndices,
+        ShardSearchContextId searchContextId,
+        TimeValue searchContextKeepAlive
+    ) {
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
         this.originalIndices = originalIndices;
@@ -96,7 +96,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     SearchShardTarget nextOrNull() {
         final String nodeId = targetNodesIterator.nextOrNull();
         if (nodeId != null) {
-            return new SearchShardTarget(nodeId, shardId, clusterAlias, originalIndices);
+            return new SearchShardTarget(nodeId, shardId, clusterAlias);
         }
         return null;
     }
@@ -139,7 +139,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     boolean skip() {
         return skip;
     }
-
 
     @Override
     public int size() {

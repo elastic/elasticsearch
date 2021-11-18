@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.client.ml.job.config.Operator;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,17 +34,10 @@ public class TreeNode implements ToXContentObject {
     public static final ParseField LEAF_VALUE = new ParseField("leaf_value");
     public static final ParseField NUMBER_SAMPLES = new ParseField("number_samples");
 
-
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
-            NAME,
-            true,
-            Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
     static {
         PARSER.declareDouble(Builder::setThreshold, THRESHOLD);
-        PARSER.declareField(Builder::setOperator,
-            p -> Operator.fromString(p.text()),
-            DECISION_TYPE,
-            ObjectParser.ValueType.STRING);
+        PARSER.declareField(Builder::setOperator, p -> Operator.fromString(p.text()), DECISION_TYPE, ObjectParser.ValueType.STRING);
         PARSER.declareInt(Builder::setLeftChild, LEFT_CHILD);
         PARSER.declareInt(Builder::setRightChild, RIGHT_CHILD);
         PARSER.declareBoolean(Builder::setDefaultLeft, DEFAULT_LEFT);
@@ -81,25 +63,26 @@ public class TreeNode implements ToXContentObject {
     private final Integer rightChild;
     private final Long numberSamples;
 
-
-    TreeNode(Operator operator,
-             Double threshold,
-             Integer splitFeature,
-             int nodeIndex,
-             Double splitGain,
-             List<Double> leafValue,
-             Boolean defaultLeft,
-             Integer leftChild,
-             Integer rightChild,
-             Long numberSamples) {
+    TreeNode(
+        Operator operator,
+        Double threshold,
+        Integer splitFeature,
+        int nodeIndex,
+        Double splitGain,
+        List<Double> leafValue,
+        Boolean defaultLeft,
+        Integer leftChild,
+        Integer rightChild,
+        Long numberSamples
+    ) {
         this.operator = operator;
-        this.threshold  = threshold;
+        this.threshold = threshold;
         this.splitFeature = splitFeature;
         this.nodeIndex = nodeIndex;
-        this.splitGain  = splitGain;
+        this.splitGain = splitGain;
         this.leafValue = leafValue;
         this.defaultLeft = defaultLeft;
-        this.leftChild  = leftChild;
+        this.leftChild = leftChild;
         this.rightChild = rightChild;
         this.numberSamples = numberSamples;
     }
@@ -153,7 +136,7 @@ public class TreeNode implements ToXContentObject {
         addOptionalField(builder, SPLIT_GAIN, splitGain);
         addOptionalField(builder, NODE_INDEX, nodeIndex);
         addOptionalField(builder, LEAF_VALUE, leafValue);
-        addOptionalField(builder, DEFAULT_LEFT, defaultLeft );
+        addOptionalField(builder, DEFAULT_LEFT, defaultLeft);
         addOptionalField(builder, LEFT_CHILD, leftChild);
         addOptionalField(builder, RIGHT_CHILD, rightChild);
         addOptionalField(builder, NUMBER_SAMPLES, numberSamples);
@@ -186,7 +169,8 @@ public class TreeNode implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(operator,
+        return Objects.hash(
+            operator,
             threshold,
             splitFeature,
             splitGain,
@@ -195,7 +179,8 @@ public class TreeNode implements ToXContentObject {
             defaultLeft,
             leftChild,
             rightChild,
-            numberSamples);
+            numberSamples
+        );
     }
 
     @Override
@@ -206,7 +191,7 @@ public class TreeNode implements ToXContentObject {
     public static Builder builder(int nodeIndex) {
         return new Builder(nodeIndex);
     }
-    
+
     public static class Builder {
         private Operator operator;
         private Double threshold;
@@ -223,8 +208,7 @@ public class TreeNode implements ToXContentObject {
             this.nodeIndex = nodeIndex;
         }
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder setOperator(Operator operator) {
             this.operator = operator;
@@ -285,16 +269,18 @@ public class TreeNode implements ToXContentObject {
         }
 
         public TreeNode build() {
-            return new TreeNode(operator,
-                threshold, 
-                splitFeature, 
-                nodeIndex, 
-                splitGain, 
-                leafValue, 
-                defaultLeft, 
-                leftChild, 
+            return new TreeNode(
+                operator,
+                threshold,
+                splitFeature,
+                nodeIndex,
+                splitGain,
+                leafValue,
+                defaultLeft,
+                leftChild,
                 rightChild,
-                numberSamples);
+                numberSamples
+            );
         }
     }
 }

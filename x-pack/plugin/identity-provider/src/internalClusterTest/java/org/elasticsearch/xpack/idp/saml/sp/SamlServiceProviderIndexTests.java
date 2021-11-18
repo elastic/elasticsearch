@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.sp;
@@ -190,10 +191,14 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private Set<SamlServiceProviderDocument> getAllDocs() {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        serviceProviderIndex.findAll(assertListenerIsOnlyCalledOnce(ActionListener.wrap(
-            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-            future::onFailure
-        )));
+        serviceProviderIndex.findAll(
+            assertListenerIsOnlyCalledOnce(
+                ActionListener.wrap(
+                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+                    future::onFailure
+                )
+            )
+        );
         return future.actionGet();
     }
 
@@ -206,16 +211,26 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private void writeDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL,
-            assertListenerIsOnlyCalledOnce(future));
+        serviceProviderIndex.writeDocument(
+            doc,
+            DocWriteRequest.OpType.INDEX,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            assertListenerIsOnlyCalledOnce(future)
+        );
         doc.setDocId(future.actionGet().getId());
     }
 
     private DeleteResponse deleteDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.readDocument(doc.docId, assertListenerIsOnlyCalledOnce(ActionListener.wrap(
-            info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
-            future::onFailure)));
+        serviceProviderIndex.readDocument(
+            doc.docId,
+            assertListenerIsOnlyCalledOnce(
+                ActionListener.wrap(
+                    info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
+                    future::onFailure
+                )
+            )
+        );
         return future.actionGet();
     }
 
@@ -227,10 +242,15 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private Set<SamlServiceProviderDocument> findAllByEntityId(String entityId) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        serviceProviderIndex.findByEntityId(entityId, assertListenerIsOnlyCalledOnce(ActionListener.wrap(
-            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-            future::onFailure
-        )));
+        serviceProviderIndex.findByEntityId(
+            entityId,
+            assertListenerIsOnlyCalledOnce(
+                ActionListener.wrap(
+                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+                    future::onFailure
+                )
+            )
+        );
         return future.actionGet();
     }
 

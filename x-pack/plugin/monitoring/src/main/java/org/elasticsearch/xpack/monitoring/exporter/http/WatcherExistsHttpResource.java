@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -11,12 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,13 +35,17 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
     /**
      * Use this to avoid getting any JSON response from a request.
      */
-    public static final Map<String, String> WATCHER_CHECK_PARAMETERS =
-            Collections.singletonMap("filter_path", "features.watcher.available,features.watcher.enabled");
+    public static final Map<String, String> WATCHER_CHECK_PARAMETERS = Collections.singletonMap(
+        "filter_path",
+        "features.watcher.available,features.watcher.enabled"
+    );
     /**
      * Valid response codes that note explicitly that {@code _xpack} does not exist.
      */
-    public static final Set<Integer> XPACK_DOES_NOT_EXIST =
-            Sets.newHashSet(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus());
+    public static final Set<Integer> XPACK_DOES_NOT_EXIST = Sets.newHashSet(
+        RestStatus.NOT_FOUND.getStatus(),
+        RestStatus.BAD_REQUEST.getStatus()
+    );
 
     /**
      * The cluster service allows this check to be limited to only handling <em>elected</em> master nodes
@@ -98,16 +103,27 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
      * @param listener Returns {@code true} to <em>skip</em> cluster alert creation. {@code false} to check/create them.
      */
     private void checkXPackForWatcher(final RestClient client, final ActionListener<Boolean> listener) {
-        final CheckedFunction<Response, Boolean, IOException> responseChecker =
-            (response) -> canUseWatcher(response, XContentType.JSON.xContent());
+        final CheckedFunction<Response, Boolean, IOException> responseChecker = (response) -> canUseWatcher(
+            response,
+            XContentType.JSON.xContent()
+        );
         // use DNE to pretend that we're all set; it means that Watcher is unusable
         final CheckedFunction<Response, Boolean, IOException> doesNotExistChecker = (response) -> false;
 
-        checkForResource(client, listener, logger,
-                         "", "_xpack", "watcher check",
-                         resourceOwnerName, "monitoring cluster",
-                         GET_EXISTS, Sets.newHashSet(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus()),
-                         responseChecker, doesNotExistChecker);
+        checkForResource(
+            client,
+            listener,
+            logger,
+            "",
+            "_xpack",
+            "watcher check",
+            resourceOwnerName,
+            "monitoring cluster",
+            GET_EXISTS,
+            Sets.newHashSet(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus()),
+            responseChecker,
+            doesNotExistChecker
+        );
     }
 
     /**

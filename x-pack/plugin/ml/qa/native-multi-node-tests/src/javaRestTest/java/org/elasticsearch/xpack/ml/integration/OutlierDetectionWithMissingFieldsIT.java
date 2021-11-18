@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -35,9 +36,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
     public void testMissingFields() throws Exception {
         String sourceIndex = "test-outlier-detection-with-missing-fields";
 
-        client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping("numeric", "type=double", "categorical", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate(sourceIndex).setMapping("numeric", "type=double", "categorical", "type=keyword").get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -59,7 +58,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         // Add a doc with numeric being array which is also treated as missing
         {
             IndexRequest arrayIndexRequest = new IndexRequest(sourceIndex);
-            arrayIndexRequest.source("numeric", new double[]{1.0, 2.0}, "categorical", "foo");
+            arrayIndexRequest.source("numeric", new double[] { 1.0, 2.0 }, "categorical", "foo");
             bulkRequestBuilder.add(arrayIndexRequest);
         }
 
@@ -69,8 +68,13 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         }
 
         String id = "test_outlier_detection_with_missing_fields";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);

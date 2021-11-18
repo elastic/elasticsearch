@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.close;
 
@@ -35,8 +24,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -48,19 +37,37 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
-    TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
+    TransportVerifyShardBeforeCloseAction.ShardRequest,
+    TransportVerifyShardBeforeCloseAction.ShardRequest,
+    ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
     protected Logger logger = LogManager.getLogger(getClass());
 
     @Inject
-    public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,
-                                                 final ClusterService clusterService, final IndicesService indicesService,
-                                                 final ThreadPool threadPool, final ShardStateAction stateAction,
-                                                 final ActionFilters actionFilters) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters,
-            ShardRequest::new, ShardRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportVerifyShardBeforeCloseAction(
+        final Settings settings,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final ThreadPool threadPool,
+        final ShardStateAction stateAction,
+        final ActionFilters actionFilters
+    ) {
+        super(
+            settings,
+            NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            stateAction,
+            actionFilters,
+            ShardRequest::new,
+            ShardRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override
@@ -69,25 +76,32 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected void acquirePrimaryOperationPermit(final IndexShard primary,
-                                                 final ShardRequest request,
-                                                 final ActionListener<Releasable> onAcquired) {
+    protected void acquirePrimaryOperationPermit(
+        final IndexShard primary,
+        final ShardRequest request,
+        final ActionListener<Releasable> onAcquired
+    ) {
         primary.acquireAllPrimaryOperationsPermits(onAcquired, request.timeout());
     }
 
     @Override
-    protected void acquireReplicaOperationPermit(final IndexShard replica,
-                                                 final ShardRequest request,
-                                                 final ActionListener<Releasable> onAcquired,
-                                                 final long primaryTerm,
-                                                 final long globalCheckpoint,
-                                                 final long maxSeqNoOfUpdateOrDeletes) {
+    protected void acquireReplicaOperationPermit(
+        final IndexShard replica,
+        final ShardRequest request,
+        final ActionListener<Releasable> onAcquired,
+        final long primaryTerm,
+        final long globalCheckpoint,
+        final long maxSeqNoOfUpdateOrDeletes
+    ) {
         replica.acquireAllReplicaOperationsPermits(primaryTerm, globalCheckpoint, maxSeqNoOfUpdateOrDeletes, onAcquired, request.timeout());
     }
 
     @Override
-    protected void shardOperationOnPrimary(final ShardRequest shardRequest, final IndexShard primary,
-            ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
+    protected void shardOperationOnPrimary(
+        final ShardRequest shardRequest,
+        final IndexShard primary,
+        ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             executeShardOperation(shardRequest, primary);
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
@@ -139,8 +153,12 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
      */
     class VerifyShardBeforeCloseActionReplicasProxy extends ReplicasProxy {
         @Override
-        public void markShardCopyAsStaleIfNeeded(final ShardId shardId, final String allocationId, final long primaryTerm,
-                                                 final ActionListener<Void> listener) {
+        public void markShardCopyAsStaleIfNeeded(
+            final ShardId shardId,
+            final String allocationId,
+            final long primaryTerm,
+            final ActionListener<Void> listener
+        ) {
             shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
         }
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.action.saml;
@@ -26,33 +27,31 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
 import org.w3c.dom.Element;
 
-import javax.xml.transform.Transformer;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import java.util.List;
 import java.util.Locale;
+
+import javax.xml.transform.Transformer;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
 /**
  * Transport action responsible for generating a SAML SP Metadata.
  */
-public class TransportSamlSpMetadataAction
-    extends HandledTransportAction<SamlSpMetadataRequest, SamlSpMetadataResponse>  {
+public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSpMetadataRequest, SamlSpMetadataResponse> {
 
     private final Realms realms;
 
     @Inject
     public TransportSamlSpMetadataAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new
-        );
+        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new);
         this.realms = realms;
     }
 
     @Override
-    protected void doExecute(Task task, SamlSpMetadataRequest request,
-                             ActionListener<SamlSpMetadataResponse> listener) {
+    protected void doExecute(Task task, SamlSpMetadataRequest request, ActionListener<SamlSpMetadataResponse> listener) {
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), null);
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request.getRealmName()));
@@ -80,8 +79,7 @@ public class TransportSamlSpMetadataAction
             serializer.transform(new DOMSource(element), new StreamResult(writer));
             listener.onResponse(new SamlSpMetadataResponse(writer.toString()));
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage(
-                "Error during SAML SP metadata generation for realm [{}]", realm.name()), e);
+            logger.error(new ParameterizedMessage("Error during SAML SP metadata generation for realm [{}]", realm.name()), e);
             listener.onFailure(e);
         }
     }

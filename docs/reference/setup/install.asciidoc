@@ -4,11 +4,7 @@
 [discrete]
 === Hosted Elasticsearch
 
-You can run Elasticsearch on your own hardware, or use our
-https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
-on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
-{ess-trial}[Try out the
-Elasticsearch Service for free].
+{ess-leadin}
 
 [discrete]
 === Installing Elasticsearch Yourself
@@ -31,7 +27,7 @@ The `zip` archive is suitable for installation on Windows.
 `deb`::
 
 The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
-systems.  Debian packages may be downloaded from the Elasticsearch website or
+systems. Debian packages may be downloaded from the Elasticsearch website or
 from our Debian repository.
 +
 <<deb>>
@@ -39,7 +35,7 @@ from our Debian repository.
 `rpm`::
 
 The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
-OpenSuSE and other RPM-based systems.  RPMs may be downloaded from the
+OpenSuSE and other RPM-based systems. RPMs may be downloaded from the
 Elasticsearch website or from our RPM repository.
 +
 <<rpm>>

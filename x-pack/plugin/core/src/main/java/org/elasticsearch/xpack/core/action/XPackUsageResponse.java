@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
@@ -34,8 +35,7 @@ public class XPackUsageResponse extends ActionResponse {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         // we can only write the usages with version the coordinating node is compatible with otherwise it will not know the named writeable
-        final List<XPackFeatureSet.Usage> usagesToWrite = usages
-            .stream()
+        final List<XPackFeatureSet.Usage> usagesToWrite = usages.stream()
             .filter(usage -> out.getVersion().onOrAfter(usage.getMinimalSupportedVersion()))
             .collect(Collectors.toUnmodifiableList());
         writeTo(out, usagesToWrite);

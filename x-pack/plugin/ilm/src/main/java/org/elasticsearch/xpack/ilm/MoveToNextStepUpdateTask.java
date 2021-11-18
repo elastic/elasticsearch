@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -17,50 +17,38 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
+public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
 
-    private final Index index;
     private final String policy;
-    private final Step.StepKey currentStepKey;
     private final Step.StepKey nextStepKey;
     private final LongSupplier nowSupplier;
     private final PolicyStepsRegistry stepRegistry;
     private final Consumer<ClusterState> stateChangeConsumer;
 
-    public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-                                    LongSupplier nowSupplier, PolicyStepsRegistry stepRegistry,
-                                    Consumer<ClusterState> stateChangeConsumer) {
-        this.index = index;
+    public MoveToNextStepUpdateTask(
+        Index index,
+        String policy,
+        Step.StepKey currentStepKey,
+        Step.StepKey nextStepKey,
+        LongSupplier nowSupplier,
+        PolicyStepsRegistry stepRegistry,
+        Consumer<ClusterState> stateChangeConsumer
+    ) {
+        super(index, currentStepKey);
         this.policy = policy;
-        this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
         this.stepRegistry = stepRegistry;
         this.stateChangeConsumer = stateChangeConsumer;
     }
 
-    Index getIndex() {
-        return index;
-    }
-
-    String getPolicy() {
-        return policy;
-    }
-
-    Step.StepKey getCurrentStepKey() {
-        return currentStepKey;
-    }
-
-    Step.StepKey getNextStepKey() {
-        return nextStepKey;
-    }
-
     @Override
-    public ClusterState execute(ClusterState currentState) {
+    public ClusterState doExecute(ClusterState currentState) {
         IndexMetadata indexMetadata = currentState.getMetadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
@@ -81,15 +69,37 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (oldState.equals(newState) == false) {
-            stateChangeConsumer.accept(newState);
-        }
+    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        stateChangeConsumer.accept(newState);
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
-        throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step ["
-                + currentStepKey + "] to step [" + nextStepKey + "].", e);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MoveToNextStepUpdateTask that = (MoveToNextStepUpdateTask) o;
+        return index.equals(that.index)
+            && policy.equals(that.policy)
+            && currentStepKey.equals(that.currentStepKey)
+            && nextStepKey.equals(that.nextStepKey);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, policy, currentStepKey, nextStepKey);
+    }
+
+    @Override
+    public void handleFailure(String source, Exception e) {
+        logger.warn(
+            new ParameterizedMessage(
+                "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",
+                policy,
+                index,
+                currentStepKey,
+                nextStepKey
+            ),
+            e
+        );
     }
 }

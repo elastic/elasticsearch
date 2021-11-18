@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class RowResults implements ToXContentObject {
 
@@ -23,8 +24,10 @@ public class RowResults implements ToXContentObject {
     public static final ParseField RESULTS = new ParseField("results");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RowResults, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new RowResults((Integer) a[0], (Map<String, Object>) a[1]));
+    public static final ConstructingObjectParser<RowResults, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE.getPreferredName(),
+        a -> new RowResults((Integer) a[0], (Map<String, Object>) a[1])
+    );
 
     static {
         PARSER.declareInt(constructorArg(), CHECKSUM);

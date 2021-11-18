@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.documentation;
 
@@ -49,6 +38,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
@@ -56,8 +46,6 @@ import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
-import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -117,6 +105,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
@@ -175,7 +164,6 @@ import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLo
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
-import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
@@ -183,6 +171,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.TrainedModelType;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
@@ -208,22 +197,19 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -249,15 +235,21 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
+@SuppressWarnings("removal")
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
-        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
-            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+        .setWarningsHandler(
+            warnings -> Collections.singletonList(
+                "Posting data directly to anomaly detection jobs is deprecated, "
+                    + "in a future major version it will be compulsory to use a datafeed"
+            ).equals(warnings) == false
+        )
+        .build();
 
     @After
     public void cleanUp() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+        new MlTestStateCleaner(logger, adminHighLevelClient()).clearMlMetadata();
     }
 
     public void testCreateJob() throws Exception {
@@ -306,8 +298,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             String id = "job_2";
-            Job.Builder jobBuilder = new Job.Builder(id)
-                .setAnalysisConfig(analysisConfigBuilder)
+            Job.Builder jobBuilder = new Job.Builder(id).setAnalysisConfig(analysisConfigBuilder)
                 .setDataDescription(dataDescriptionBuilder)
                 .setDescription("Total sum of requests");
 
@@ -364,8 +355,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-job-response
             assertEquals(2, response.count());
             assertThat(response.jobs(), hasSize(2));
-            assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()),
-                containsInAnyOrder(job.getId(), secondJob.getId()));
+            assertThat(
+                response.jobs().stream().map(Job::getId).collect(Collectors.toList()),
+                containsInAnyOrder(job.getId(), secondJob.getId())
+            );
         }
         {
             GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*");
@@ -573,22 +566,24 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         String jobId = "test-update-job";
         Job tempJob = MachineLearningIT.buildJob(jobId);
-        Job job = new Job.Builder(tempJob)
-            .setAnalysisConfig(new AnalysisConfig.Builder(tempJob.getAnalysisConfig())
-                .setCategorizationFieldName("categorization-field")
-                .setDetector(0,
+        Job job = new Job.Builder(tempJob).setAnalysisConfig(
+            new AnalysisConfig.Builder(tempJob.getAnalysisConfig()).setCategorizationFieldName("categorization-field")
+                .setDetector(
+                    0,
                     new Detector.Builder().setFieldName("total")
                         .setFunction("sum")
                         .setPartitionFieldName("mlcategory")
                         .setDetectorDescription(randomAlphaOfLength(10))
-                        .build()))
-            .build();
+                        .build()
+                )
+        ).build();
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
         {
 
             List<DetectionRule> detectionRules = Arrays.asList(
-                new DetectionRule.Builder(Arrays.asList(RuleCondition.createTime(Operator.GT, 100L))).build());
+                new DetectionRule.Builder(Arrays.asList(RuleCondition.createTime(Operator.GT, 100L))).build()
+            );
             Map<String, Object> customSettings = new HashMap<>();
             customSettings.put("custom-setting-1", "custom-value");
 
@@ -603,17 +598,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDescription("My description") // <2>
                 .setAnalysisLimits(new AnalysisLimits(1000L, null)) // <3>
                 .setBackgroundPersistInterval(TimeValue.timeValueHours(3)) // <4>
-                .setCategorizationFilters(Arrays.asList("categorization-filter")) // <5>
-                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <6>
-                .setGroups(Arrays.asList("job-group-1")) // <7>
-                .setResultsRetentionDays(10L) // <8>
-                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <9>
-                .setModelSnapshotRetentionDays(7L) // <10>
-                .setCustomSettings(customSettings) // <11>
-                .setRenormalizationWindowDays(3L) // <12>
+                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <5>
+                .setGroups(Arrays.asList("job-group-1")) // <6>
+                .setResultsRetentionDays(10L) // <7>
+                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <8>
+                .setModelSnapshotRetentionDays(7L) // <9>
+                .setCustomSettings(customSettings) // <10>
+                .setRenormalizationWindowDays(3L) // <11>
                 .build();
             // end::update-job-options
-
 
             // tag::update-job-request
             UpdateJobRequest updateJobRequest = new UpdateJobRequest(update); // <1>
@@ -787,6 +780,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             AggregatorFactories.Builder aggs = AggregatorFactories.builder();
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            Map<String, Object> runtimeMappings = Collections.emptyMap();
             // tag::update-datafeed-config
             DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder(datafeedId) // <1>
                 .setAggregations(aggs) // <2>
@@ -796,7 +790,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setQuery(QueryBuilders.matchAllQuery()) // <6>
                 .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
                 .setScriptFields(scriptFields) // <8>
-                .setScrollSize(1000); // <9>
+                .setScrollSize(1000) // <9>
+                .setRuntimeMappings(runtimeMappings); // <10>
             // end::update-datafeed-config
 
             // Clearing aggregation to avoid complex validation rules
@@ -969,9 +964,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "preview_data_2";
         createIndex(indexName);
-        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setIndices(indexName)
-            .build();
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId()).setIndices(indexName).build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         {
             // tag::preview-datafeed-request
@@ -1026,9 +1019,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "start_data_2";
         createIndex(indexName);
-        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
-            .setIndices(indexName)
-            .build();
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId()).setIndices(indexName).build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
         {
@@ -1147,15 +1138,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId1 = job.getId() + "-feed";
         String indexName = "datafeed_stats_data_2";
         createIndex(indexName);
-        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
-            .setIndices(indexName)
-            .build();
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId()).setIndices(indexName).build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
         String datafeedId2 = secondJob.getId() + "-feed";
-        DatafeedConfig secondDatafeed = DatafeedConfig.builder(datafeedId2, secondJob.getId())
-            .setIndices(indexName)
-            .build();
+        DatafeedConfig secondDatafeed = DatafeedConfig.builder(datafeedId2, secondJob.getId()).setIndices(indexName).build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(secondDatafeed), RequestOptions.DEFAULT);
 
         {
@@ -1176,8 +1163,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(2, response.count());
             assertThat(response.datafeedStats(), hasSize(2));
-            assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
-                containsInAnyOrder(datafeed.getId(), secondDatafeed.getId()));
+            assertThat(
+                response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+                containsInAnyOrder(datafeed.getId(), secondDatafeed.getId())
+            );
         }
         {
             GetDatafeedStatsRequest request = new GetDatafeedStatsRequest("*");
@@ -1218,8 +1207,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a bucket
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"test-get-buckets\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
-                        "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 80.0}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\"test-get-buckets\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000,"
+                + "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 80.0}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -1378,10 +1370,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
         client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
         PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
-        for(int i = 0; i < 30; i++) {
+        for (int i = 0; i < 30; i++) {
             Map<String, Object> hashMap = new HashMap<>();
             hashMap.put("total", randomInt(1000));
-            hashMap.put("timestamp", (i+1)*1000);
+            hashMap.put("timestamp", (i + 1) * 1000);
             builder.addDoc(hashMap);
         }
 
@@ -1390,8 +1382,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
-        ForecastJobResponse forecastJobResponse = client.machineLearning().
-            forecastJob(new ForecastJobRequest(job.getId()), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse = client.machineLearning()
+            .forecastJob(new ForecastJobRequest(job.getId()), RequestOptions.DEFAULT);
         String forecastId = forecastJobResponse.getForecastId();
 
         GetRequest request = new GetRequest(".ml-anomalies-" + job.getId());
@@ -1477,8 +1469,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(2, response.count());
             assertThat(response.jobStats(), hasSize(2));
-            assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()),
-                containsInAnyOrder(job.getId(), secondJob.getId()));
+            assertThat(
+                response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()),
+                containsInAnyOrder(job.getId(), secondJob.getId())
+            );
         }
         {
             GetJobStatsRequest request = new GetJobStatsRequest("get-machine-learning-job-stats1", "get-machine-learning-job-*");
@@ -1517,10 +1511,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
-        for(int i = 0; i < 30; i++) {
+        for (int i = 0; i < 30; i++) {
             Map<String, Object> hashMap = new HashMap<>();
             hashMap.put("total", randomInt(1000));
-            hashMap.put("timestamp", (i+1)*1000);
+            hashMap.put("timestamp", (i + 1) * 1000);
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
@@ -1594,14 +1588,20 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
-            indexRequest.source("{\"job_id\":\"test-get-overall-buckets-1\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
-                    "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 60.0}", XContentType.JSON);
+            indexRequest.source(
+                "{\"job_id\":\"test-get-overall-buckets-1\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000,"
+                    + "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 60.0}",
+                XContentType.JSON
+            );
             bulkRequest.add(indexRequest);
         }
         {
             IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
-            indexRequest.source("{\"job_id\":\"test-get-overall-buckets-2\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
-                    "\"bucket_span\": 3600,\"is_interim\": false, \"anomaly_score\": 100.0}", XContentType.JSON);
+            indexRequest.source(
+                "{\"job_id\":\"test-get-overall-buckets-2\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000,"
+                    + "\"bucket_span\": 3600,\"is_interim\": false, \"anomaly_score\": 100.0}",
+                XContentType.JSON
+            );
             bulkRequest.add(indexRequest);
         }
 
@@ -1689,8 +1689,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a record
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"test-get-records\", \"result_type\":\"record\", \"timestamp\": 1533081600000," +
-                "\"bucket_span\": 600,\"is_interim\": false, \"record_score\": 80.0}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\"test-get-records\", \"result_type\":\"record\", \"timestamp\": 1533081600000,"
+                + "\"bucket_span\": 600,\"is_interim\": false, \"record_score\": 80.0}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -1786,7 +1789,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             PostDataRequest postDataRequest = new PostDataRequest("test-post-data", jsonBuilder); // <4>
             // end::post-data-request
 
-
             // tag::post-data-request-options
             postDataRequest.setResetStart("2018-08-31T16:35:07+00:00"); // <1>
             postDataRequest.setResetEnd("2018-08-31T16:35:17+00:00"); // <2>
@@ -1846,68 +1848,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testFindFileStructure() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        Path anInterestingFile = createTempFile();
-        String contents = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
-                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
-            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
-                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
-        Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
-
-        {
-            // tag::find-file-structure-request
-            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest(); // <1>
-            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile)); // <2>
-            // end::find-file-structure-request
-
-            // tag::find-file-structure-request-options
-            findFileStructureRequest.setLinesToSample(500); // <1>
-            findFileStructureRequest.setExplain(true); // <2>
-            // end::find-file-structure-request-options
-
-            // tag::find-file-structure-execute
-            FindFileStructureResponse findFileStructureResponse =
-                client.machineLearning().findFileStructure(findFileStructureRequest, RequestOptions.DEFAULT);
-            // end::find-file-structure-execute
-
-            // tag::find-file-structure-response
-            FileStructure structure = findFileStructureResponse.getFileStructure(); // <1>
-            // end::find-file-structure-response
-            assertEquals(2, structure.getNumLinesAnalyzed());
-        }
-        {
-            // tag::find-file-structure-execute-listener
-            ActionListener<FindFileStructureResponse> listener = new ActionListener<FindFileStructureResponse>() {
-                @Override
-                public void onResponse(FindFileStructureResponse findFileStructureResponse) {
-                    // <1>
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
-            // end::find-file-structure-execute-listener
-            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest();
-            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile));
-
-            // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::find-file-structure-execute-async
-            client.machineLearning().findFileStructureAsync(findFileStructureRequest, RequestOptions.DEFAULT, listener); // <1>
-            // end::find-file-structure-execute-async
-
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-    }
-
     public void testGetInfluencers() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -1918,9 +1858,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a record
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"test-get-influencers\", \"result_type\":\"influencer\", \"timestamp\": 1533081600000," +
-                "\"bucket_span\": 600,\"is_interim\": false, \"influencer_score\": 80.0, \"influencer_field_name\": \"my_influencer\"," +
-                "\"influencer_field_value\":\"foo\"}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\"test-get-influencers\", \"result_type\":\"influencer\", \"timestamp\": 1533081600000,"
+                + "\"bucket_span\": 600,\"is_interim\": false, \"influencer_score\": 80.0, \"influencer_field_name\": \"my_influencer\","
+                + "\"influencer_field_value\":\"foo\"}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2009,8 +1952,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a category
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\"," +
-                " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\","
+                + " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2074,7 +2020,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         String jobId = "test-delete-expired-data";
         MachineLearningIT.buildJob(jobId);
-       {
+        {
             // tag::delete-expired-data-request
             DeleteExpiredDataRequest request = new DeleteExpiredDataRequest( // <1>
                 null, // <2>
@@ -2123,7 +2069,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-
     public void testDeleteModelSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -2135,14 +2080,23 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a snapshot
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
-            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
-            "\"snapshot_id\":\"" + snapshotId + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
-            "\"job_id\":\"" + jobId + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
-            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
-            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\""
+                + jobId
+                + "\", \"timestamp\":1541587919000, "
+                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
+                + "\"snapshot_id\":\""
+                + snapshotId
+                + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
+                + "\"job_id\":\""
+                + jobId
+                + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
+                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
+                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
+                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
+                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false}",
+            XContentType.JSON
+        );
         {
             client.index(indexRequest, RequestOptions.DEFAULT);
 
@@ -2201,14 +2155,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a snapshot
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, " +
-            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
-            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
-            "\"job_id\":\"test-get-model-snapshots\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
-            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
-            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, "
+                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
+                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
+                + "\"job_id\":\"test-get-model-snapshots\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
+                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
+                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
+                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
+                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2299,16 +2256,19 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
-            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
-            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
-            "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
-            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
-            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, " +
-            "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
-            "\"quantile_state\":\"state\"}}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, "
+                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
+                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
+                + "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
+                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
+                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
+                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
+                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false, "
+                + "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, "
+                + "\"quantile_state\":\"state\"}}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2374,16 +2334,19 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"test-upgrade-job-model-snapshot\", \"timestamp\":1541587919000, " +
-            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
-            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
-            "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
-            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
-            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, " +
-            "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
-            "\"quantile_state\":\"state\"}}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\"test-upgrade-job-model-snapshot\", \"timestamp\":1541587919000, "
+                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
+                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
+                + "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
+                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
+                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
+                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
+                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false, "
+                + "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, "
+                + "\"quantile_state\":\"state\"}}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2452,14 +2415,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a snapshot
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source("{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, " +
-            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
-            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
-            "\"job_id\":\"test-update-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
-            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
-            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false}", XContentType.JSON);
+        indexRequest.source(
+            "{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, "
+                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
+                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
+                + "\"job_id\":\"test-update-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
+                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
+                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
+                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
+                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false}",
+            XContentType.JSON
+        );
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2485,7 +2451,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-model-snapshot-response
 
             assertTrue(acknowledged);
-            assertEquals("My Snapshot", modelSnapshot.getDescription());        }
+            assertEquals("My Snapshot", modelSnapshot.getDescription());
+        }
         {
             UpdateModelSnapshotRequest request = new UpdateModelSnapshotRequest(jobId, snapshotId);
 
@@ -2613,9 +2580,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testDeleteCalendarJob() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
-        Calendar calendar = new Calendar("holidays",
-            Arrays.asList("job_1", "job_group_1", "job_2"),
-            "A calendar for public holidays");
+        Calendar calendar = new Calendar("holidays", Arrays.asList("job_1", "job_group_1", "job_2"), "A calendar for public holidays");
         PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
         client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
         {
@@ -2905,16 +2870,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testDeleteCalendarEvent() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
-        Calendar calendar = new Calendar("holidays",
-            Arrays.asList("job_1", "job_group_1", "job_2"),
-            "A calendar for public holidays");
+        Calendar calendar = new Calendar("holidays", Arrays.asList("job_1", "job_group_1", "job_2"), "A calendar for public holidays");
         PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
         client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
-        List<ScheduledEvent> events = Arrays.asList(ScheduledEventTests.testInstance(calendar.getId(), null),
-            ScheduledEventTests.testInstance(calendar.getId(), null));
+        List<ScheduledEvent> events = Arrays.asList(
+            ScheduledEventTests.testInstance(calendar.getId(), null),
+            ScheduledEventTests.testInstance(calendar.getId(), null)
+        );
         client.machineLearning().postCalendarEvent(new PostCalendarEventRequest("holidays", events), RequestOptions.DEFAULT);
-        GetCalendarEventsResponse getCalendarEventsResponse =
-            client.machineLearning().getCalendarEvents(new GetCalendarEventsRequest("holidays"), RequestOptions.DEFAULT);
+        GetCalendarEventsResponse getCalendarEventsResponse = client.machineLearning()
+            .getCalendarEvents(new GetCalendarEventsRequest("holidays"), RequestOptions.DEFAULT);
         {
 
             // tag::delete-calendar-event-request
@@ -2935,8 +2900,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(acknowledged, is(true));
         }
         {
-            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest("holidays",
-                getCalendarEventsResponse.events().get(1).getEventId());
+            DeleteCalendarEventRequest request = new DeleteCalendarEventRequest(
+                "holidays",
+                getCalendarEventsResponse.events().get(1).getEventId()
+            );
 
             // tag::delete-calendar-event-execute-listener
             ActionListener<AcknowledgedResponse> listener =
@@ -3074,13 +3041,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
             // end::put-data-frame-analytics-query-config
 
+            Map<String, Object> runtimeMappings = Collections.emptyMap();
+
             // tag::put-data-frame-analytics-source-config
             DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder() // <1>
                 .setIndex("put-test-source-index") // <2>
                 .setQueryConfig(queryConfig) // <3>
+                .setRuntimeMappings(runtimeMappings) // <4>
                 .setSourceFiltering(new FetchSourceContext(true,
                     new String[] { "included_field_1", "included_field_2" },
-                    new String[] { "excluded_field" })) // <4>
+                    new String[] { "excluded_field" })) // <5>
                 .build();
             // end::put-data-frame-analytics-source-config
 
@@ -3121,6 +3091,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
                     .addOneHot("cat", "cat_column")
                     .build()))
+                .setAlpha(1.0) // <14>
+                .setEtaGrowthRatePerTree(1.0) // <15>
+                .setSoftTreeDepthLimit(1.0) // <16>
+                .setSoftTreeDepthTolerance(1.0) // <17>
+                .setDownsampleFactor(0.5) // <18>
+                .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
+                .setEarlyStoppingEnabled(true) // <20>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -3140,6 +3117,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
                     .addOneHot("cat", "cat_column")
                     .build()))
+                .setAlpha(1.0) // <14>
+                .setEtaGrowthRatePerTree(1.0) // <15>
+                .setSoftTreeDepthLimit(1.0) // <16>
+                .setSoftTreeDepthTolerance(1.0) // <17>
+                .setDownsampleFactor(0.5) // <18>
+                .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
+                .setEarlyStoppingEnabled(true) // <20>
                 .build();
             // end::put-data-frame-analytics-regression
 
@@ -3237,9 +3221,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(updatedConfig.getModelMemoryLimit(), is(equalTo(new ByteSizeValue(128, ByteSizeUnit.MB))));
         }
         {
-            DataFrameAnalyticsConfigUpdate update = DataFrameAnalyticsConfigUpdate.builder()
-                .setId("my-analytics-config")
-                .build();
+            DataFrameAnalyticsConfigUpdate update = DataFrameAnalyticsConfigUpdate.builder().setId("my-analytics-config").build();
             UpdateDataFrameAnalyticsRequest request = new UpdateDataFrameAnalyticsRequest(update);
 
             // tag::update-data-frame-analytics-execute-listener
@@ -3327,7 +3309,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
         highLevelClient().index(
             new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]).source(XContentType.JSON, "total", 10000)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+            RequestOptions.DEFAULT
+        );
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
         {
@@ -3349,7 +3333,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         assertBusy(
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
-            30, TimeUnit.SECONDS);
+            30,
+            TimeUnit.SECONDS
+        );
         {
             StartDataFrameAnalyticsRequest request = new StartDataFrameAnalyticsRequest("my-analytics-config");
 
@@ -3379,14 +3365,18 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         assertBusy(
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
-            30, TimeUnit.SECONDS);
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     public void testStopDataFrameAnalytics() throws Exception {
         createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
         highLevelClient().index(
             new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]).source(XContentType.JSON, "total", 10000)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+            RequestOptions.DEFAULT
+        );
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
         {
@@ -3407,7 +3397,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         assertBusy(
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
-            30, TimeUnit.SECONDS);
+            30,
+            TimeUnit.SECONDS
+        );
         {
             StopDataFrameAnalyticsRequest request = new StopDataFrameAnalyticsRequest("my-analytics-config");
 
@@ -3437,36 +3429,37 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         assertBusy(
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
-            30, TimeUnit.SECONDS);
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     public void testEvaluateDataFrame_OutlierDetection() throws Exception {
         String indexName = "evaluate-test-index";
-        CreateIndexRequest createIndexRequest =
-            new CreateIndexRequest(indexName)
-                .mapping(XContentFactory.jsonBuilder().startObject()
-                    .startObject("properties")
-                        .startObject("label")
-                            .field("type", "keyword")
-                        .endObject()
-                        .startObject("p")
-                            .field("type", "double")
-                        .endObject()
-                    .endObject()
-                .endObject());
-        BulkRequest bulkRequest =
-            new BulkRequest(indexName)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.1)) // #0
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.2)) // #1
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.3)) // #2
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.4)) // #3
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.7)) // #4
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.2)) // #5
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.3)) // #6
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.4)) // #7
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.8)) // #8
-                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.9)); // #9
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName).mapping(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("label")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("p")
+                .field("type", "double")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        BulkRequest bulkRequest = new BulkRequest(indexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.1)) // #0
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.2)) // #1
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.3)) // #2
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.4)) // #3
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.7)) // #4
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true, "p", 0.2)) // #5
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true, "p", 0.3)) // #6
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true, "p", 0.4)) // #7
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true, "p", 0.8)) // #8
+            .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true, "p", 0.9)); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3514,7 +3507,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.NAME,
                     org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.NAME,
                     ConfusionMatrixMetric.NAME,
-                    org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME));
+                    org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME
+                )
+            );
             assertThat(precision, closeTo(0.6, 1e-9));
             assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
             assertThat(confusionMatrix.getFalsePositives(), equalTo(1L));  // doc #4
@@ -3531,7 +3526,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric.at(0.4, 0.5, 0.6),
                     org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric.at(0.5, 0.7),
                     ConfusionMatrixMetric.at(0.5),
-                    org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.withCurve()));
+                    org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.withCurve()
+                )
+            );
 
             // tag::evaluate-data-frame-execute-listener
             ActionListener<EvaluateDataFrameResponse> listener = new ActionListener<>() {
@@ -3561,45 +3558,48 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testEvaluateDataFrame_Classification() throws Exception {
         String indexName = "evaluate-classification-test-index";
-        CreateIndexRequest createIndexRequest =
-            new CreateIndexRequest(indexName)
-                .mapping(XContentFactory.jsonBuilder().startObject()
-                    .startObject("properties")
-                        .startObject("actual_class")
-                            .field("type", "keyword")
-                        .endObject()
-                        .startObject("predicted_class")
-                            .field("type", "keyword")
-                        .endObject()
-                        .startObject("ml.top_classes")
-                            .field("type", "nested")
-                        .endObject()
-                    .endObject()
-                    .endObject());
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName).mapping(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("actual_class")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("predicted_class")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("ml.top_classes")
+                .field("type", "nested")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         BiFunction<String, String[], IndexRequest> indexRequest = (actualClass, topPredictedClasses) -> {
             assert topPredictedClasses.length > 0;
-            return new IndexRequest()
-                .source(XContentType.JSON,
-                    "actual_class", actualClass,
-                    "predicted_class", topPredictedClasses[0],
-                    "ml.top_classes", IntStream.range(0, topPredictedClasses.length)
-                        // Consecutive assigned probabilities are: 0.5, 0.25, 0.125, etc.
-                        .mapToObj(i -> Map.of("class_name", topPredictedClasses[i], "class_probability", 1.0 / (2 << i)))
-                        .collect(toList()));
+            return new IndexRequest().source(
+                XContentType.JSON,
+                "actual_class",
+                actualClass,
+                "predicted_class",
+                topPredictedClasses[0],
+                "ml.top_classes",
+                IntStream.range(0, topPredictedClasses.length)
+                    // Consecutive assigned probabilities are: 0.5, 0.25, 0.125, etc.
+                    .mapToObj(i -> Map.of("class_name", topPredictedClasses[i], "class_probability", 1.0 / (2 << i)))
+                    .collect(toList())
+            );
         };
-        BulkRequest bulkRequest =
-            new BulkRequest(indexName)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(indexRequest.apply("cat", new String[]{"cat", "dog", "ant"})) // #0
-                .add(indexRequest.apply("cat", new String[]{"cat", "dog", "ant"})) // #1
-                .add(indexRequest.apply("cat", new String[]{"cat", "horse", "dog"})) // #2
-                .add(indexRequest.apply("cat", new String[]{"dog", "cat", "mule"})) // #3
-                .add(indexRequest.apply("cat", new String[]{"fox", "cat", "dog"})) // #4
-                .add(indexRequest.apply("dog", new String[]{"cat", "dog", "mule"})) // #5
-                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #6
-                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #7
-                .add(indexRequest.apply("dog", new String[]{"dog", "cat", "ant"})) // #8
-                .add(indexRequest.apply("ant", new String[]{"cat", "ant", "wasp"})); // #9
+        BulkRequest bulkRequest = new BulkRequest(indexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(indexRequest.apply("cat", new String[] { "cat", "dog", "ant" })) // #0
+            .add(indexRequest.apply("cat", new String[] { "cat", "dog", "ant" })) // #1
+            .add(indexRequest.apply("cat", new String[] { "cat", "horse", "dog" })) // #2
+            .add(indexRequest.apply("cat", new String[] { "dog", "cat", "mule" })) // #3
+            .add(indexRequest.apply("cat", new String[] { "fox", "cat", "dog" })) // #4
+            .add(indexRequest.apply("dog", new String[] { "cat", "dog", "mule" })) // #5
+            .add(indexRequest.apply("dog", new String[] { "dog", "cat", "ant" })) // #6
+            .add(indexRequest.apply("dog", new String[] { "dog", "cat", "ant" })) // #7
+            .add(indexRequest.apply("dog", new String[] { "dog", "cat", "ant" })) // #8
+            .add(indexRequest.apply("ant", new String[] { "cat", "ant", "wasp" })); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3659,51 +3659,56 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                             "ant",
                             1L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
-                            0L),
+                            0L
+                        ),
                         new ActualClass(
                             "cat",
                             5L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
-                            1L),
+                            1L
+                        ),
                         new ActualClass(
                             "dog",
                             4L,
                             List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
-                            0L))));
+                            0L
+                        )
+                    )
+                )
+            );
             assertThat(otherClassesCount, equalTo(0L));
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocScore, closeTo(0.6425, 1e-9));
+            assertThat(aucRocScore, closeTo(0.619, 1e-3));
         }
     }
 
     public void testEvaluateDataFrame_Regression() throws Exception {
         String indexName = "evaluate-classification-test-index";
-        CreateIndexRequest createIndexRequest =
-            new CreateIndexRequest(indexName)
-                .mapping(XContentFactory.jsonBuilder().startObject()
-                    .startObject("properties")
-                        .startObject("actual_value")
-                            .field("type", "double")
-                        .endObject()
-                        .startObject("predicted_value")
-                            .field("type", "double")
-                        .endObject()
-                    .endObject()
-                    .endObject());
-        BulkRequest bulkRequest =
-            new BulkRequest(indexName)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.0, "predicted_value", 1.0)) // #0
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.0, "predicted_value", 0.9)) // #1
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.0, "predicted_value", 2.0)) // #2
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.5, "predicted_value", 1.4)) // #3
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.2, "predicted_value", 1.3)) // #4
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.7, "predicted_value", 2.0)) // #5
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.1, "predicted_value", 2.1)) // #6
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.5, "predicted_value", 2.7)) // #7
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 0.8, "predicted_value", 1.0)) // #8
-                .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.5, "predicted_value", 2.4)); // #9
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName).mapping(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("actual_value")
+                .field("type", "double")
+                .endObject()
+                .startObject("predicted_value")
+                .field("type", "double")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        BulkRequest bulkRequest = new BulkRequest(indexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.0, "predicted_value", 1.0)) // #0
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.0, "predicted_value", 0.9)) // #1
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.0, "predicted_value", 2.0)) // #2
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.5, "predicted_value", 1.4)) // #3
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.2, "predicted_value", 1.3)) // #4
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 1.7, "predicted_value", 2.0)) // #5
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.1, "predicted_value", 2.1)) // #6
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.5, "predicted_value", 2.7)) // #7
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 0.8, "predicted_value", 1.0)) // #8
+            .add(new IndexRequest().source(XContentType.JSON, "actual_value", 2.5, "predicted_value", 2.4)); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3747,9 +3752,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testExplainDataFrameAnalytics() throws Exception {
         createIndex("explain-df-test-source-index");
-        BulkRequest bulkRequest =
-            new BulkRequest("explain-df-test-source-index")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequest bulkRequest = new BulkRequest("explain-df-test-source-index").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; ++i) {
             bulkRequest.add(new IndexRequest().source(XContentType.JSON, "timestamp", 123456789L, "total", 10L));
         }
@@ -3837,7 +3840,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setTags("regression") // <8>
                 .setExcludeGenerated(false); // <9>
             // end::get-trained-models-request
-            request.setTags((List<String>)null);
+            request.setTags((List<String>) null);
 
             // tag::get-trained-models-execute
             GetTrainedModelsResponse response = client.machineLearning().getTrainedModels(request, RequestOptions.DEFAULT);
@@ -3885,11 +3888,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .setDefinition(definition) // <1>
             .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition)) // <2>
             .setModelId("my-new-trained-model") // <3>
-            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <4>
-            .setDescription("test model") // <5>
-            .setMetadata(new HashMap<>()) // <6>
-            .setTags("my_regression_models") // <7>
-            .setInferenceConfig(new RegressionConfig("value", 0)) // <8>
+            .setModelType(TrainedModelType.TREE_ENSEMBLE) // <4>
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <5>
+            .setDescription("test model") // <6>
+            .setMetadata(new HashMap<>()) // <7>
+            .setTags("my_regression_models") // <8>
+            .setInferenceConfig(new RegressionConfig("value", 0)) // <9>
             .build();
         // end::put-trained-model-config
 
@@ -3950,6 +3954,124 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             highLevelClient().machineLearning()
                 .deleteTrainedModel(new DeleteTrainedModelRequest("my-new-trained-model"), RequestOptions.DEFAULT);
+        }
+    }
+
+    public void testPutTrainedModelAlias() throws Exception {
+        putTrainedModel("my-trained-model-with-alias");
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-trained-model-alias-request
+            PutTrainedModelAliasRequest request = new PutTrainedModelAliasRequest(
+                "my-alias", // <1>
+                "my-trained-model-with-alias", // <2>
+                false // <3>
+            );
+            // end::put-trained-model-alias-request
+
+            // tag::put-trained-model-alias-execute
+            AcknowledgedResponse response =
+                client.machineLearning().putTrainedModelAlias(request, RequestOptions.DEFAULT);
+            // end::put-trained-model-alias-execute
+
+            // tag::put-trained-model-alias-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::put-trained-model-alias-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            PutTrainedModelAliasRequest request = new PutTrainedModelAliasRequest("my-second-alias", "my-trained-model-with-alias", false);
+            // tag::put-trained-model-alias-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-trained-model-alias-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-trained-model-alias-execute-async
+            client.machineLearning()
+                .putTrainedModelAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-trained-model-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteTrainedModelAlias() throws Exception {
+        putTrainedModel("my-trained-model-with-delete-alias");
+        RestHighLevelClient client = highLevelClient();
+        {
+            client.machineLearning()
+                .putTrainedModelAlias(
+                    new PutTrainedModelAliasRequest("my-alias-to-delete", "my-trained-model-with-delete-alias", false),
+                    RequestOptions.DEFAULT
+                );
+
+            // tag::delete-trained-model-alias-request
+            DeleteTrainedModelAliasRequest request = new DeleteTrainedModelAliasRequest(
+                "my-alias-to-delete", // <1>
+                "my-trained-model-with-delete-alias" // <2>
+            );
+            // end::delete-trained-model-alias-request
+
+            // tag::delete-trained-model-alias-execute
+            AcknowledgedResponse response =
+                client.machineLearning().deleteTrainedModelAlias(request, RequestOptions.DEFAULT);
+            // end::delete-trained-model-alias-execute
+
+            // tag::delete-trained-model-alias-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::delete-trained-model-alias-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            client.machineLearning()
+                .putTrainedModelAlias(
+                    new PutTrainedModelAliasRequest("my-alias-to-delete", "my-trained-model-with-delete-alias", false),
+                    RequestOptions.DEFAULT
+                );
+
+            DeleteTrainedModelAliasRequest request = new DeleteTrainedModelAliasRequest(
+                "my-alias-to-delete",
+                "my-trained-model-with-delete-alias"
+            );
+            // tag::delete-trained-model-alias-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-trained-model-alias-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-trained-model-alias-execute-async
+            client.machineLearning()
+                .deleteTrainedModelAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-trained-model-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -4408,8 +4530,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(estimateInBytes, greaterThan(10000000L));
         }
         {
-            AnalysisConfig analysisConfig =
-                AnalysisConfig.builder(Collections.singletonList(Detector.builder().setFunction("count").build())).build();
+            AnalysisConfig analysisConfig = AnalysisConfig.builder(
+                Collections.singletonList(Detector.builder().setFunction("count").build())
+            ).build();
             EstimateModelMemoryRequest request = new EstimateModelMemoryRequest(analysisConfig);
 
             // tag::estimate-model-memory-execute-listener
@@ -4452,23 +4575,25 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void createIndex(String indexName) throws IOException {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
+        createIndexRequest.mapping(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
                 .startObject("timestamp")
-                    .field("type", "date")
+                .field("type", "date")
                 .endObject()
                 .startObject("total")
-                    .field("type", "long")
+                .field("type", "long")
                 .endObject()
-            .endObject()
-        .endObject());
+                .endObject()
+                .endObject()
+        );
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
     }
 
     private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {
-        GetDataFrameAnalyticsStatsResponse statsResponse =
-            highLevelClient().machineLearning().getDataFrameAnalyticsStats(
-                new GetDataFrameAnalyticsStatsRequest(configId), RequestOptions.DEFAULT);
+        GetDataFrameAnalyticsStatsResponse statsResponse = highLevelClient().machineLearning()
+            .getDataFrameAnalyticsStats(new GetDataFrameAnalyticsStatsRequest(configId), RequestOptions.DEFAULT);
         assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
         DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
         return stats.getState();
@@ -4491,15 +4616,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =
-        DataFrameAnalyticsConfig.builder()
-            .setId("my-analytics-config")
-            .setSource(DataFrameAnalyticsSource.builder()
-                .setIndex("put-test-source-index")
-                .build())
-            .setDest(DataFrameAnalyticsDest.builder()
-                .setIndex("put-test-dest-index")
-                .build())
-            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
-            .build();
+    private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG = DataFrameAnalyticsConfig.builder()
+        .setId("my-analytics-config")
+        .setSource(DataFrameAnalyticsSource.builder().setIndex("put-test-source-index").build())
+        .setDest(DataFrameAnalyticsDest.builder().setIndex("put-test-dest-index").build())
+        .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
+        .build();
 }

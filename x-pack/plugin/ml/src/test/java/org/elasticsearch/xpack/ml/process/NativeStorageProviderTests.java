@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.process;
 
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
@@ -35,10 +36,10 @@ public class NativeStorageProviderTests extends ESTestCase {
         storage.put(tmpDir, ByteSizeValue.ofGb(6).getBytes());
         NativeStorageProvider storageProvider = createNativeStorageProvider(storage);
 
-        Assert.assertNotNull(
-                storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10), ByteSizeValue.ofBytes(100)));
-        Assert.assertNull(storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10),
-                ByteSizeValue.ofBytes(1024 * 1024 * 1024 + 1)));
+        Assert.assertNotNull(storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10), ByteSizeValue.ofBytes(100)));
+        Assert.assertNull(
+            storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10), ByteSizeValue.ofBytes(1024 * 1024 * 1024 + 1))
+        );
 
         String id = randomAlphaOfLengthBetween(4, 10);
         Path path = storageProvider.tryGetLocalTmpStorage(id, ByteSizeValue.ofGb(1));
@@ -125,9 +126,8 @@ public class NativeStorageProviderTests extends ESTestCase {
         when(environment.dataFiles()).thenReturn(paths.keySet().toArray(new Path[paths.size()]));
         NativeStorageProvider storageProvider = spy(new NativeStorageProvider(environment, ByteSizeValue.ofGb(5)));
 
-        doAnswer(invocation -> {
-            return paths.getOrDefault(invocation.getArguments()[0], Long.valueOf(0)).longValue();
-        }
+        doAnswer(
+            invocation -> { return paths.getOrDefault(invocation.getArguments()[0], Long.valueOf(0)).longValue(); }
 
         ).when(storageProvider).getUsableSpace(any(Path.class));
 

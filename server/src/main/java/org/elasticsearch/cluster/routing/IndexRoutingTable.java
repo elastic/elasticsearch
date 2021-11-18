@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -22,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -36,16 +26,17 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -64,6 +55,11 @@ import java.util.Set;
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
+    private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
+        ShardRouting::unassigned,
+        ShardRouting::initializing,
+        shardRouting -> true
+    );
     private final Index index;
     private final ShardShuffler shuffler;
 
@@ -81,7 +77,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
             allActiveShards.addAll(cursor.value.activeShards());
         }
-        this.allActiveShards = Collections.unmodifiableList(allActiveShards);
+        this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
     }
 
     /**
@@ -95,7 +91,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     boolean validate(Metadata metadata) {
         // check index exists
-        if (!metadata.hasIndex(index.getName())) {
+        if (metadata.hasIndex(index.getName()) == false) {
             throw new IllegalStateException(index + " exists in routing does not exists in metadata");
         }
         IndexMetadata indexMetadata = metadata.index(index.getName());
@@ -119,34 +115,53 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
             if (routingNumberOfReplicas != indexMetadata.getNumberOfReplicas()) {
-                throw new IllegalStateException("Shard [" + indexShardRoutingTable.shardId().id() +
-                                 "] routing table has wrong number of replicas, expected [" + indexMetadata.getNumberOfReplicas() +
-                                 "], got [" + routingNumberOfReplicas + "]");
+                throw new IllegalStateException(
+                    "Shard ["
+                        + indexShardRoutingTable.shardId().id()
+                        + "] routing table has wrong number of replicas, expected ["
+                        + indexMetadata.getNumberOfReplicas()
+                        + "], got ["
+                        + routingNumberOfReplicas
+                        + "]"
+                );
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
-                if (!shardRouting.index().equals(index)) {
-                    throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
-                                                    "from the routing table");
+                if (shardRouting.index().equals(index) == false) {
+                    throw new IllegalStateException(
+                        "shard routing has an index [" + shardRouting.index() + "] that is different from the routing table"
+                    );
                 }
                 final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
-                if (shardRouting.active() &&
-                    inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
-                    throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the in-sync " +
-                        "allocation set " + inSyncAllocationIds);
+                if (shardRouting.active() && inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
+                    throw new IllegalStateException(
+                        "active shard routing "
+                            + shardRouting
+                            + " has no corresponding entry in the in-sync allocation set "
+                            + inSyncAllocationIds
+                    );
                 }
 
-                if (shardRouting.primary() && shardRouting.initializing() &&
-                    shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                if (shardRouting.primary()
+                    && shardRouting.initializing()
+                    && shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                     if (inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)) {
                         if (inSyncAllocationIds.size() != 1) {
-                            throw new IllegalStateException("a primary shard routing " + shardRouting
-                                + " is a primary that is recovering from a stale primary has unexpected allocation ids in in-sync " +
-                                "allocation set " + inSyncAllocationIds);
+                            throw new IllegalStateException(
+                                "a primary shard routing "
+                                    + shardRouting
+                                    + " is a primary that is recovering from a stale primary has unexpected allocation ids in in-sync "
+                                    + "allocation set "
+                                    + inSyncAllocationIds
+                            );
                         }
                     } else if (inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
-                        throw new IllegalStateException("a primary shard routing " + shardRouting
-                            + " is a primary that is recovering from a known allocation id but has no corresponding entry in the in-sync " +
-                            "allocation set " + inSyncAllocationIds);
+                        throw new IllegalStateException(
+                            "a primary shard routing "
+                                + shardRouting
+                                + " is a primary that is recovering from a known allocation id but has no corresponding "
+                                + "entry in the in-sync allocation set "
+                                + inSyncAllocationIds
+                        );
                     }
                 }
             }
@@ -182,7 +197,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                             }
                         }
                     }
-                    if (!excluded) {
+                    if (excluded == false) {
                         nodes.add(currentNodeId);
                     }
                 }
@@ -275,8 +290,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         IndexRoutingTable that = (IndexRoutingTable) o;
 
-        if (!index.equals(that.index)) return false;
-        if (!shards.equals(that.shards)) return false;
+        if (index.equals(that.index) == false) return false;
+        if (shards.equals(that.shards) == false) return false;
 
         return true;
     }
@@ -365,9 +380,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes a new empty index, to be restored from a snapshot
          */
         public Builder initializeAsNewRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
-            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED,
-                "restore_source[" + recoverySource.snapshot().getRepository() + "/" +
-                 recoverySource.snapshot().getSnapshotId().getName() + "]");
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.NEW_INDEX_RESTORED,
+                "restore_source["
+                    + recoverySource.snapshot().getRepository()
+                    + "/"
+                    + recoverySource.snapshot().getSnapshotId().getName()
+                    + "]"
+            );
             return initializeAsRestore(indexMetadata, recoverySource, ignoreShards, true, unassignedInfo);
         }
 
@@ -375,19 +395,29 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes an existing index, to be restored from a snapshot
          */
         public Builder initializeAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource) {
-            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
-                 "restore_source[" + recoverySource.snapshot().getRepository() + "/" +
-                 recoverySource.snapshot().getSnapshotId().getName() + "]");
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+                "restore_source["
+                    + recoverySource.snapshot().getRepository()
+                    + "/"
+                    + recoverySource.snapshot().getSnapshotId().getName()
+                    + "]"
+            );
             return initializeAsRestore(indexMetadata, recoverySource, null, false, unassignedInfo);
         }
 
         /**
          * Initializes an index, to be restored from snapshot
          */
-        private Builder initializeAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards,
-                                            boolean asNew, UnassignedInfo unassignedInfo) {
+        private Builder initializeAsRestore(
+            IndexMetadata indexMetadata,
+            SnapshotRecoverySource recoverySource,
+            IntSet ignoreShards,
+            boolean asNew,
+            UnassignedInfo unassignedInfo
+        ) {
             assert indexMetadata.getIndex().equals(index);
-            if (!shards.isEmpty()) {
+            if (shards.isEmpty() == false) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
@@ -397,11 +427,23 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     boolean primary = i == 0;
                     if (asNew && ignoreShards.contains(shardNumber)) {
                         // This shards wasn't completely snapshotted - restore it as new shard
-                        indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,
-                            primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE, unassignedInfo));
+                        indexShardRoutingBuilder.addShard(
+                            ShardRouting.newUnassigned(
+                                shardId,
+                                primary,
+                                primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
+                                unassignedInfo
+                            )
+                        );
                     } else {
-                        indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,
-                            primary ? recoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));
+                        indexShardRoutingBuilder.addShard(
+                            ShardRouting.newUnassigned(
+                                shardId,
+                                primary,
+                                primary ? recoverySource : PeerRecoverySource.INSTANCE,
+                                unassignedInfo
+                            )
+                        );
                     }
                 }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
@@ -414,7 +456,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          */
         private Builder initializeEmpty(IndexMetadata indexMetadata, UnassignedInfo unassignedInfo) {
             assert indexMetadata.getIndex().equals(index);
-            if (!shards.isEmpty()) {
+            if (shards.isEmpty() == false) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
@@ -433,8 +475,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 for (int i = 0; i <= indexMetadata.getNumberOfReplicas(); i++) {
                     boolean primary = i == 0;
-                    indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,
-                        primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));
+                    indexShardRoutingBuilder.addShard(
+                        ShardRouting.newUnassigned(
+                            shardId,
+                            primary,
+                            primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE,
+                            unassignedInfo
+                        )
+                    );
                 }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
             }
@@ -446,11 +494,13 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 int shardNumber = cursor.value;
                 ShardId shardId = new ShardId(index, shardNumber);
                 // version 0, will get updated when reroute will happen
-                ShardRouting shard = ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null));
-                shards.put(shardNumber,
-                        new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build()
+                ShardRouting shard = ShardRouting.newUnassigned(
+                    shardId,
+                    false,
+                    PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
                 );
+                shards.put(shardNumber, new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build());
             }
             return this;
         }
@@ -468,20 +518,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 for (ShardRouting shardRouting : indexShard) {
                     builder.addShard(shardRouting);
                 }
-                // first check if there is one that is not assigned to a node, and remove it
+
                 boolean removed = false;
-                for (ShardRouting shardRouting : indexShard) {
-                    if (!shardRouting.primary() && !shardRouting.assignedToNode()) {
-                        builder.removeShard(shardRouting);
-                        removed = true;
-                        break;
-                    }
-                }
-                if (!removed) {
-                    for (ShardRouting shardRouting : indexShard) {
-                        if (!shardRouting.primary()) {
-                            builder.removeShard(shardRouting);
-                            break;
+                for (Predicate<ShardRouting> removeClause : PRIORITY_REMOVE_CLAUSES) {
+                    if (removed == false) {
+                        for (ShardRouting shardRouting : indexShard) {
+                            if (shardRouting.primary() == false && removeClause.test(shardRouting)) {
+                                builder.removeShard(shardRouting);
+                                removed = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -524,24 +570,24 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         CollectionUtil.timSort(ordered, (o1, o2) -> {
-            int v = o1.shardId().getIndex().getName().compareTo(
-                    o2.shardId().getIndex().getName());
+            int v = o1.shardId().getIndex().getName().compareTo(o2.shardId().getIndex().getName());
             if (v == 0) {
-                v = Integer.compare(o1.shardId().id(),
-                                    o2.shardId().id());
+                v = Integer.compare(o1.shardId().id(), o2.shardId().id());
             }
             return v;
         });
 
         for (IndexShardRoutingTable indexShard : ordered) {
-            sb.append("----shard_id [").append(indexShard.shardId().getIndex().getName())
-                .append("][").append(indexShard.shardId().id()).append("]\n");
+            sb.append("----shard_id [")
+                .append(indexShard.shardId().getIndex().getName())
+                .append("][")
+                .append(indexShard.shardId().id())
+                .append("]\n");
             for (ShardRouting shard : indexShard) {
                 sb.append("--------").append(shard.shortSummary()).append("\n");
             }
         }
         return sb.toString();
     }
-
 
 }

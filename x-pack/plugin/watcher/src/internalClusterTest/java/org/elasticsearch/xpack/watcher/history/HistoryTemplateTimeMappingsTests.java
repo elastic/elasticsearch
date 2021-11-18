@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.history;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -33,12 +35,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTimeFields() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5s")))
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_logging", loggingAction("foobar")))
-                .get();
+                .addAction("_logging", loggingAction("foobar"))
+        ).get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
         timeWarp().trigger("_id");
@@ -49,7 +51,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
             assertThat(mappingsResponse, notNullValue());
             assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
             for (ObjectObjectCursor<String, MappingMetadata> metadatas : mappingsResponse.getMappings()) {
-                if (!metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX)) {
+                if (metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX) == false) {
                     continue;
                 }
                 MappingMetadata metadata = metadatas.value;
@@ -59,8 +61,10 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                     logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
                     assertThat(extractValue("properties.trigger_event.properties.type.type", source), is((Object) "keyword"));
                     assertThat(extractValue("properties.trigger_event.properties.triggered_time.type", source), is((Object) "date"));
-                    assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source),
-                            is((Object) "date"));
+                    assertThat(
+                        extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source),
+                        is((Object) "date")
+                    );
                     assertThat(extractValue("properties.result.properties.execution_time.type", source), is((Object) "date"));
                 } catch (ElasticsearchParseException e) {
                     throw new RuntimeException(e);

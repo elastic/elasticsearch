@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +41,7 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public static String randomValidFilterId() {
-        CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
+        CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
@@ -73,8 +75,10 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public void testNullItems() {
-        Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> MlFilter.builder(randomValidFilterId()).setItems((SortedSet<String>) null).build());
+        Exception ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> MlFilter.builder(randomValidFilterId()).setItems((SortedSet<String>) null).build()
+        );
         assertEquals("[items] must not be null.", ex.getMessage());
     }
 
@@ -85,8 +89,7 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     public void testStrictParser() throws IOException {
         String json = "{\"filter_id\":\"filter_1\", \"items\": [], \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> MlFilter.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> MlFilter.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }
@@ -109,8 +112,10 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
         for (int i = 0; i < 10001; ++i) {
             items.add("item_" + i);
         }
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> MlFilter.builder("huge").setItems(items).build());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> MlFilter.builder("huge").setItems(items).build()
+        );
         assertThat(e.getMessage(), startsWith("Filter [huge] contains too many items"));
     }
 

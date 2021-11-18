@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.core.Booleans;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -143,7 +132,7 @@ public class RestUtils {
             return "";
         }
         final int size = s.length();
-        if (!decodingNeeded(s, size, plusAsSpace)) {
+        if (decodingNeeded(s, size, plusAsSpace) == false) {
             return s;
         }
         final byte[] buf = new byte[size];
@@ -189,9 +178,8 @@ public class RestUtils {
                     final char c2 = decodeHexNibble(s.charAt(++i));
                     if (c == Character.MAX_VALUE || c2 == Character.MAX_VALUE) {
                         throw new IllegalArgumentException(
-                            "invalid escape sequence `%" + s.charAt(i - 1)
-                                + s.charAt(i) + "' at index " + (i - 2)
-                                + " of: " + s);
+                            "invalid escape sequence `%" + s.charAt(i - 1) + s.charAt(i) + "' at index " + (i - 2) + " of: " + s
+                        );
                     }
                     c = (char) (c * 16 + c2);
                     // Fall through.
@@ -236,7 +224,7 @@ public class RestUtils {
         boolean isRegex = len > 2 && corsSetting.startsWith("/") && corsSetting.endsWith("/");
 
         if (isRegex) {
-            return Pattern.compile(corsSetting.substring(1, corsSetting.length()-1));
+            return Pattern.compile(corsSetting.substring(1, corsSetting.length() - 1));
         }
 
         return null;
@@ -253,9 +241,6 @@ public class RestUtils {
         if (Strings.isNullOrEmpty(corsSetting)) {
             return new String[0];
         }
-        return Arrays.asList(corsSetting.split(","))
-                     .stream()
-                     .map(String::trim)
-                     .toArray(size -> new String[size]);
+        return Arrays.asList(corsSetting.split(",")).stream().map(String::trim).toArray(size -> new String[size]);
     }
 }

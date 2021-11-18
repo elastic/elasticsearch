@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-flush-job]]
 = Flush jobs API
 ++++
@@ -16,9 +15,8 @@ Forces any buffered data to be processed by the job.
 [[ml-flush-job-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-flush-job-desc]]
 == {api-description-title}
@@ -52,8 +50,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   recent bucket or all buckets within the latency period.
 
 `end`::
-  (string) Optional. When used in conjunction with `calc_interim`, specifies the
-  range of buckets on which to calculate interim results.
+  (string) Optional. When used in conjunction with `calc_interim` and `start`,
+  specifies the range of buckets on which to calculate interim results.
 
 `skip_time`::
   (string) Optional. Specifies to skip to a particular time value. Results are
@@ -63,6 +61,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `start`::
   (string) Optional. When used in conjunction with `calc_interim`, specifies the
   range of buckets on which to calculate interim results.
+
+[[ml-flush-job-request-body]]
+== {api-request-body-title}
+
+You can also specify the query parameters (such as `advance_time` and
+`calc_interim`) in the request body.
 
 [[ml-flush-job-example]]
 == {api-examples-title}
@@ -91,7 +95,7 @@ The `last_finalized_bucket_end` provides the timestamp (in
 milliseconds-since-the-epoch) of the end of the last bucket that was processed.
 
 If you want to flush the job to a specific timestamp, you can use the
-`advance_time` or `skip_time` parameters.  For example, to advance to 11 AM GMT
+`advance_time` or `skip_time` parameters. For example, to advance to 11 AM GMT
 on January 1, 2018:
 
 [source,console]

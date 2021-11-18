@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
@@ -23,13 +12,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -73,6 +62,7 @@ public class PluginsServiceTests extends ESTestCase {
                 .build();
         }
     }
+
     public static class AdditionalSettingsPlugin2 extends Plugin {
         @Override
         public Settings additionalSettings() {
@@ -82,10 +72,29 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
-    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
+    static PluginsService newPluginsService(Settings settings) {
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of());
+    }
+
+    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin));
+    }
+
+    static PluginsService newPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), classpathPlugins);
+    }
+
+    static PluginsService newPluginsService(
+        Settings settings,
+        Class<? extends Plugin> classpathPlugin1,
+        Class<? extends Plugin> classpathPlugin2
+    ) {
         return new PluginsService(
-            settings, null, null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins)
+            settings,
+            null,
+            null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(),
+            List.of(classpathPlugin1, classpathPlugin2)
         );
     }
 
@@ -93,21 +102,18 @@ public class PluginsServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
+            .build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
         // does not override pre existing settings
-        assertEquals(
-            IndexModule.Type.SIMPLEFS.getSettingsKey(),
-            newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-        );
+        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
     }
 
     public void testAdditionalSettingsClash() {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
         try {
             service.updatedSettings();
@@ -124,15 +130,15 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.getPluginBundles(pluginsDir));
-        assertThat(e.getMessage(),
-                   containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
+        assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
     }
 
     public void testFilterPlugins() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
+            .build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, FilterablePlugin.class);
         List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
         assertEquals(1, scriptPlugins.size());
@@ -141,16 +147,10 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testHiddenFiles() throws IOException {
         final Path home = createTempDir();
-        final Settings settings =
-                Settings.builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                        .build();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final Path hidden = home.resolve("plugins").resolve(".hidden");
         Files.createDirectories(hidden);
-        @SuppressWarnings("unchecked")
-        final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> newPluginsService(settings));
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
 
         final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
         assertThat(e, hasToString(containsString(expected)));
@@ -158,16 +158,13 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testDesktopServicesStoreFiles() throws IOException {
         final Path home = createTempDir();
-        final Settings settings =
-                Settings.builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                        .build();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final Path plugins = home.resolve("plugins");
         Files.createDirectories(plugins);
         final Path desktopServicesStore = plugins.resolve(".DS_Store");
         Files.createFile(desktopServicesStore);
         if (Constants.MAC_OS_X) {
-            @SuppressWarnings("unchecked") final PluginsService pluginsService = newPluginsService(settings);
+            final PluginsService pluginsService = newPluginsService(settings);
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
@@ -192,29 +189,35 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testStartupWithRemovingMarker() throws IOException {
         final Path home = createTempDir();
-        final Settings settings =
-                Settings.builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                        .build();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final Path fake = home.resolve("plugins").resolve("fake");
         Files.createDirectories(fake);
         Files.createFile(fake.resolve("plugin.jar"));
         final Path removing = home.resolve("plugins").resolve(".removing-fake");
         Files.createFile(removing);
         PluginTestUtil.writePluginProperties(
-                fake,
-                "description", "fake",
-                "name", "fake",
-                "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "Fake",
-                "has.native.controller", "false");
+            fake,
+            "description",
+            "fake",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "Fake",
+            "has.native.controller",
+            "false"
+        );
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         final String expected = String.format(
-                Locale.ROOT,
-                "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
-                removing);
+            Locale.ROOT,
+            "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
+            removing
+        );
         assertThat(e, hasToString(containsString(expected)));
     }
 
@@ -229,8 +232,10 @@ public class PluginsServiceTests extends ESTestCase {
 
         final Path home = createTempDir();
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-        final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> newPluginsService(settings, NoPublicConstructorPlugin.class));
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> newPluginsService(settings, NoPublicConstructorPlugin.class)
+        );
         assertThat(e, hasToString(containsString("no public constructor")));
     }
 
@@ -294,10 +299,11 @@ public class PluginsServiceTests extends ESTestCase {
         }
 
         final Collection<Class<? extends Plugin>> classes = Arrays.asList(
-                TooManyParametersPlugin.class,
-                TwoParametersFirstIncorrectType.class,
-                TwoParametersSecondIncorrectType.class,
-                OneParameterIncorrectType.class);
+            TooManyParametersPlugin.class,
+            TwoParametersFirstIncorrectType.class,
+            TwoParametersSecondIncorrectType.class,
+            OneParameterIncorrectType.class
+        );
         for (Class<? extends Plugin> pluginClass : classes) {
             final Path home = createTempDir();
             final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
@@ -308,11 +314,23 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("foo"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("foo"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.sortBundles(Collections.singleton(bundle))
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.sortBundles(Collections.singleton(bundle))
         );
         assertEquals("Cycle found in plugin dependencies: foo -> foo", e.getMessage());
     }
@@ -320,17 +338,61 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCycle() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("bar", "other"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("bar", "other"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         bundles.add(new PluginsService.Bundle(info, pluginDir));
-        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("baz"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info2 = new PluginInfo(
+            "bar",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("baz"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         bundles.add(new PluginsService.Bundle(info2, pluginDir));
-        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("foo"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info3 = new PluginInfo(
+            "baz",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("foo"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         bundles.add(new PluginsService.Bundle(info3, pluginDir));
-        PluginInfo info4 = new PluginInfo("other", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info4 = new PluginInfo(
+            "other",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         bundles.add(new PluginsService.Bundle(info4, pluginDir));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.sortBundles(bundles));
@@ -339,8 +401,19 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(Collections.singleton(bundle));
         assertThat(sortedBundles, Matchers.contains(bundle));
@@ -349,16 +422,49 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesNoDeps() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info2 = new PluginInfo(
+            "bar",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info3 = new PluginInfo(
+            "baz",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -367,11 +473,23 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dne"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dne"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            PluginsService.sortBundles(Collections.singleton(bundle))
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PluginsService.sortBundles(Collections.singleton(bundle))
         );
         assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
     }
@@ -379,20 +497,64 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCommonDep() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0",Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "grandparent",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("common"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info2 = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("common"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("common"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info3 = new PluginInfo(
+            "bar",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("common"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
-        PluginInfo info4 = new PluginInfo("common", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("grandparent"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info4 = new PluginInfo(
+            "common",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("grandparent"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir);
         bundles.add(bundle4);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -402,12 +564,34 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesAlreadyOrdered() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "dep",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info2 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -420,9 +604,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class DummyClass3 {}
 
-    void makeJar(Path jarFile, Class... classes) throws Exception {
+    void makeJar(Path jarFile, Class<?>... classes) throws Exception {
         try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jarFile))) {
-            for (Class clazz : classes) {
+            for (Class<?> clazz : classes) {
                 String relativePath = clazz.getCanonicalName().replaceAll("\\.", "/") + ".class";
                 if (relativePath.contains(PluginsServiceTests.class.getSimpleName())) {
                     // static inner class of this test
@@ -437,7 +621,7 @@ public class PluginsServiceTests extends ESTestCase {
                         ZipEntry entry = in.getNextEntry();
                         while (entry != null) {
                             if (entry.getName().equals(relativePath)) {
-                                byte[] buffer = new byte[10*1024];
+                                byte[] buffer = new byte[10 * 1024];
                                 int read = in.read(buffer);
                                 while (read != -1) {
                                     out.write(buffer, 0, read);
@@ -465,11 +649,24 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(dupJar);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
     }
@@ -484,11 +681,24 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dupJar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("dep1", "dep2"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("dep1", "dep2"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
@@ -501,14 +711,60 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
         makeJar(pluginJar, Level.class);
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>()));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>())
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("Level"));
+    }
+
+    public void testJarHellWhenExtendedPluginJarNotFound() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("dummy.jar");
+
+        Path otherDir = createTempDir();
+        Path extendedPlugin = otherDir.resolve("extendedDep-not-present.jar");
+
+        PluginInfo info = new PluginInfo(
+            "dummy",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "Dummy",
+            Arrays.asList("extendedPlugin"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
+
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        transitiveUrls.put("extendedPlugin", Collections.singleton(extendedPlugin.toUri().toURL()));
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls)
+        );
+
+        assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
     }
 
     public void testJarHellDuplicateClassWithDep() throws Exception {
@@ -520,11 +776,24 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
@@ -543,11 +812,24 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("dep1", "dep2"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("dep1", "dep2"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
-            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
         assertThat(e.getCause().getMessage(), containsString("DummyClass2"));
@@ -566,13 +848,92 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
-            "MyPlugin", Arrays.asList("dep1", "dep2"), false, PluginType.ISOLATED, "", false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("dep1", "dep2"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiAddedToTransitiveDeps() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass3.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        Set<URL> transitive = transitiveDeps.get("myplugin");
+        assertThat(transitive, containsInAnyOrder(spiJar.toUri().toURL(), depJar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiConflict() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass1.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dep"),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+        );
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
     public void testNonExtensibleDep() throws Exception {
@@ -588,25 +949,40 @@ public class PluginsServiceTests extends ESTestCase {
         Path mypluginDir = pluginsDir.resolve("myplugin");
         PluginTestUtil.writePluginProperties(
             mypluginDir,
-            "description", "whatever",
-            "name", "myplugin",
-            "version", "1.0.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "extended.plugins", "nonextensible",
-            "classname", "test.DummyPlugin");
+            "description",
+            "whatever",
+            "name",
+            "myplugin",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "extended.plugins",
+            "nonextensible",
+            "classname",
+            "test.DummyPlugin"
+        );
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
             Files.copy(jar, mypluginDir.resolve("plugin.jar"));
         }
         Path nonextensibleDir = pluginsDir.resolve("nonextensible");
         PluginTestUtil.writePluginProperties(
             nonextensibleDir,
-            "description", "whatever",
-            "name", "nonextensible",
-            "version", "1.0.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "test.NonExtensiblePlugin");
+            "description",
+            "whatever",
+            "name",
+            "nonextensible",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.NonExtensiblePlugin"
+        );
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
             Files.copy(jar, nonextensibleDir.resolve("plugin.jar"));
         }
@@ -615,15 +991,37 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.fromId(6000099),
-            "1.8", "FakePlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.fromId(6000099),
+            "1.8",
+            "FakePlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.CURRENT,
-            "1000000.0", "FakePlugin", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1000000.0",
+            "FakePlugin",
+            Collections.emptyList(),
+            false,
+            PluginType.ISOLATED,
+            "",
+            false
+        );
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("my_plugin requires Java"));
     }
@@ -634,13 +1032,20 @@ public class PluginsServiceTests extends ESTestCase {
         final Path fake = plugins.resolve("fake");
 
         PluginTestUtil.writePluginProperties(
-                fake,
-                "description", "description",
-                "name", "fake",
-                "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
+            fake,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.DummyPlugin"
+        );
 
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
             Files.copy(jar, fake.resolve("plugin.jar"));
@@ -650,11 +1055,10 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testExistingMandatoryClasspathPlugin() {
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", createTempDir())
-                        .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
-                        .build();
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+            .build();
         newPluginsService(settings, FakePlugin.class);
     }
 
@@ -677,22 +1081,25 @@ public class PluginsServiceTests extends ESTestCase {
         final Path fake = plugins.resolve("fake");
 
         PluginTestUtil.writePluginProperties(
-                fake,
-                "description", "description",
-                "name", "fake",
-                "version", "1.0.0",
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "java.version", System.getProperty("java.specification.version"),
-                "classname", "test.DummyPlugin");
+            fake,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.DummyPlugin"
+        );
         try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
             Files.copy(jar, fake.resolve("plugin.jar"));
         }
 
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("plugin.mandatory", "fake")
-                        .build();
+        final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
         newPluginsService(settings);
     }
 
@@ -703,47 +1110,64 @@ public class PluginsServiceTests extends ESTestCase {
 
         PluginTestUtil.writePluginProperties(
             fake,
-            "description", "description",
-            "name", "fake",
-            "version", "1.0.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", TestPlugin.class.getName()); // set a class defined outside the bundle (in parent class-loader of plugin)
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            TestPlugin.class.getName()
+        ); // set a class defined outside the bundle (in parent class-loader of plugin)
 
-        final Settings settings =
-            Settings.builder()
-                .put("path.home", pathHome)
-                .put("plugin.mandatory", "fake")
-                .build();
+        final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        assertThat(exception, hasToString(containsString("Plugin [fake] must reference a class loader local Plugin class [" +
-            TestPlugin.class.getName() + "] (class loader [" + PluginsServiceTests.class.getClassLoader() + "])")));
+        assertThat(
+            exception,
+            hasToString(
+                containsString(
+                    "Plugin [fake] must reference a class loader local Plugin class ["
+                        + TestPlugin.class.getName()
+                        + "] (class loader ["
+                        + PluginsServiceTests.class.getClassLoader()
+                        + "])"
+                )
+            )
+        );
     }
 
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
-        PluginsService.loadExtensions(List.of(
-            Tuple.tuple(
-                new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
-                extensiblePlugin
+        PluginsService.loadExtensions(
+            List.of(
+                Tuple.tuple(
+                    new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
+                    extensiblePlugin
+                )
             )
-        ));
+        );
 
         assertThat(extensiblePlugin.extensions, notNullValue());
         assertThat(extensiblePlugin.extensions, hasSize(0));
 
         extensiblePlugin = new TestExtensiblePlugin();
         TestPlugin testPlugin = new TestPlugin();
-        PluginsService.loadExtensions(List.of(
-            Tuple.tuple(
-                new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
-                extensiblePlugin
-            ),
-            Tuple.tuple(
-                new PluginInfo("test", null, null, null, null, null, List.of("extensible"), false, PluginType.ISOLATED, "", false),
-                testPlugin
+        PluginsService.loadExtensions(
+            List.of(
+                Tuple.tuple(
+                    new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
+                    extensiblePlugin
+                ),
+                Tuple.tuple(
+                    new PluginInfo("test", null, null, null, null, null, List.of("extensible"), false, PluginType.ISOLATED, "", false),
+                    testPlugin
+                )
             )
-        ));
+        );
 
         assertThat(extensiblePlugin.extensions, notNullValue());
         assertThat(extensiblePlugin.extensions, hasSize(2));
@@ -755,66 +1179,122 @@ public class PluginsServiceTests extends ESTestCase {
     public void testNoExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
         class TestExtension implements TestExtensionPoint {
-            private TestExtension() {
-            }
+            private TestExtension() {}
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e, hasToString(containsString("no public constructor for extension [" + TestExtension.class.getName() +
-            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "no public constructor for extension ["
+                        + TestExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "]"
+                )
+            )
+        );
     }
 
     public void testMultipleExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
         class TestExtension implements TestExtensionPoint {
-            public TestExtension() {
-            }
+            public TestExtension() {}
+
             public TestExtension(TestPlugin plugin) {
 
             }
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e, hasToString(containsString("no unique public constructor for extension [" + TestExtension.class.getName() +
-            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "no unique public constructor for extension ["
+                        + TestExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "]"
+                )
+            )
+        );
     }
 
     public void testBadSingleParameterConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e,
-            hasToString(containsString("signature of constructor for extension [" + BadSingleParameterConstructorExtension.class.getName() +
-                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + "), not (" +
-                String.class.getName() + ")")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "signature of constructor for extension ["
+                        + BadSingleParameterConstructorExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "] must be either () or ("
+                        + TestPlugin.class.getName()
+                        + "), not ("
+                        + String.class.getName()
+                        + ")"
+                )
+            )
+        );
     }
 
     public void testTooManyParametersExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e,
-            hasToString(containsString("signature of constructor for extension [" + TooManyParametersConstructorExtension.class.getName() +
-                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + ")")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "signature of constructor for extension ["
+                        + TooManyParametersConstructorExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "] must be either () or ("
+                        + TestPlugin.class.getName()
+                        + ")"
+                )
+            )
+        );
     }
 
     public void testThrowingConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin);
-        });
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> { PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin); }
+        );
 
-        assertThat(e,
-            hasToString(containsString("failed to create extension [" + ThrowingConstructorExtension.class.getName() +
-                "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "failed to create extension ["
+                        + ThrowingConstructorExtension.class.getName()
+                        + "] of type ["
+                        + TestExtensionPoint.class.getName()
+                        + "]"
+                )
+            )
+        );
         assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
@@ -832,14 +1312,11 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    public static class TestPlugin extends Plugin {
-    }
+    public static class TestPlugin extends Plugin {}
 
-    public interface TestExtensionPoint {
-    }
+    public interface TestExtensionPoint {}
 
-    public static class TestExtension1 implements TestExtensionPoint {
-    }
+    public static class TestExtension1 implements TestExtensionPoint {}
 
     public static class TestExtension2 implements TestExtensionPoint {
         public Plugin plugin;
@@ -850,13 +1327,11 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public static class BadSingleParameterConstructorExtension implements TestExtensionPoint {
-        public BadSingleParameterConstructorExtension(String bad) {
-        }
+        public BadSingleParameterConstructorExtension(String bad) {}
     }
 
     public static class TooManyParametersConstructorExtension implements TestExtensionPoint {
-        public TooManyParametersConstructorExtension(String bad) {
-        }
+        public TooManyParametersConstructorExtension(String bad) {}
     }
 
     public static class ThrowingConstructorExtension implements TestExtensionPoint {

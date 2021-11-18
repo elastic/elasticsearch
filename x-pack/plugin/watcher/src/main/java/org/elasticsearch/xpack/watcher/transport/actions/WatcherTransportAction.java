@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
@@ -17,14 +18,21 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
-abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse>
-        extends HandledTransportAction<Request, Response> {
+abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends HandledTransportAction<
+    Request,
+    Response> {
 
     protected final XPackLicenseState licenseState;
 
-    WatcherTransportAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                           XPackLicenseState licenseState, Writeable.Reader<Request> request) {
+    WatcherTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        Writeable.Reader<Request> request
+    ) {
         super(actionName, transportService, actionFilters, request);
         this.licenseState = licenseState;
     }
@@ -35,7 +43,7 @@ abstract class WatcherTransportAction<Request extends ActionRequest, Response ex
 
     @Override
     protected final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.WATCHER)) {
+        if (WatcherField.WATCHER_FEATURE.check(licenseState)) {
             doExecute(request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.WATCHER));

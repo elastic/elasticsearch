@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.graph.rest.action;
@@ -9,10 +10,10 @@ package org.elasticsearch.xpack.graph.rest.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.protocol.xpack.graph.Hop;
@@ -20,6 +21,8 @@ import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,6 +39,10 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
  * @see GraphExploreRequest
  */
 public class RestGraphAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGraphAction.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in graph requests is deprecated.";
+    private static final String URI_BASE = "/_xpack";
 
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
@@ -59,8 +66,21 @@ public class RestGraphAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/{index}/_graph/explore"),
-            new Route(POST, "/{index}/_graph/explore"));
+            Route.builder(GET, "/{index}/_graph/explore")
+                .replaces(GET, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/_graph/explore")
+                .replaces(POST, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/{index}/{type}/_graph/explore").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_graph/explore").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -70,6 +90,11 @@ public class RestGraphAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            deprecationLogger.compatibleCritical("graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            request.param("type");
+        }
+
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));
@@ -87,8 +112,10 @@ public class RestGraphAction extends BaseRestHandler {
             XContentParser.Token token = parser.nextToken();
 
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("failed to parse search source. source must be an object, but found [{}] instead",
-                        token.name());
+                throw new ElasticsearchParseException(
+                    "failed to parse search source. source must be an object, but found [{}] instead",
+                    token.name()
+                );
             }
             parseHop(parser, currentHop, graphRequest);
         }
@@ -118,7 +145,9 @@ public class RestGraphAction extends BaseRestHandler {
                 } else if (CONTROLS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     if (currentHop.getParentHop() != null) {
                         throw new ElasticsearchParseException(
-                                "Controls are a global setting that can only be set in the root " + fieldName, token.name());
+                            "Controls are a global setting that can only be set in the root " + fieldName,
+                            token.name()
+                        );
                     }
                     parseControls(parser, graphRequest);
                 } else {
@@ -131,8 +160,7 @@ public class RestGraphAction extends BaseRestHandler {
         }
     }
 
-    private void parseVertices(XContentParser parser, Hop currentHop)
-            throws IOException {
+    private void parseVertices(XContentParser parser, Hop currentHop) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;
@@ -154,8 +182,13 @@ public class RestGraphAction extends BaseRestHandler {
                         if (INCLUDE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                             if (excludes != null) {
                                 throw new ElasticsearchParseException(
-                                        "Graph vertices definition cannot contain both "+INCLUDE_FIELD.getPreferredName()+" and "
-                                        +EXCLUDE_FIELD.getPreferredName()+" clauses", token.name());
+                                    "Graph vertices definition cannot contain both "
+                                        + INCLUDE_FIELD.getPreferredName()
+                                        + " and "
+                                        + EXCLUDE_FIELD.getPreferredName()
+                                        + " clauses",
+                                    token.name()
+                                );
                             }
                             includes = new HashMap<>();
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -171,29 +204,40 @@ public class RestGraphAction extends BaseRestHandler {
                                                     includeTerm = parser.text();
                                                 } else {
                                                     throw new ElasticsearchParseException(
-                                                            "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
-                                                            " clause has invalid property:" + fieldName);
+                                                        "Graph vertices definition "
+                                                            + INCLUDE_FIELD.getPreferredName()
+                                                            + " clause has invalid property:"
+                                                            + fieldName
+                                                    );
                                                 }
                                             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                                                 if (BOOST_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                                                     boost = parser.floatValue();
                                                 } else {
                                                     throw new ElasticsearchParseException(
-                                                            "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
-                                                            " clause has invalid property:" + fieldName);
+                                                        "Graph vertices definition "
+                                                            + INCLUDE_FIELD.getPreferredName()
+                                                            + " clause has invalid property:"
+                                                            + fieldName
+                                                    );
                                                 }
                                             } else {
                                                 throw new ElasticsearchParseException(
-                                                        "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
-                                                        " clause has invalid property type:"+ token.name());
+                                                    "Graph vertices definition "
+                                                        + INCLUDE_FIELD.getPreferredName()
+                                                        + " clause has invalid property type:"
+                                                        + token.name()
+                                                );
 
                                             }
                                         }
                                     }
                                     if (includeTerm == null) {
                                         throw new ElasticsearchParseException(
-                                                "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
-                                                " clause has missing object property for term");
+                                            "Graph vertices definition "
+                                                + INCLUDE_FIELD.getPreferredName()
+                                                + " clause has missing object property for term"
+                                        );
                                     }
                                     includes.put(includeTerm, new TermBoost(includeTerm, boost));
                                 } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -201,24 +245,33 @@ public class RestGraphAction extends BaseRestHandler {
                                     includes.put(term, new TermBoost(term, 1f));
                                 } else {
                                     throw new ElasticsearchParseException(
-                                            "Graph vertices definition " + INCLUDE_FIELD.getPreferredName() +
-                                            " clauses must be string terms or Objects with terms and boosts, not"
-                                                    + token.name());
+                                        "Graph vertices definition "
+                                            + INCLUDE_FIELD.getPreferredName()
+                                            + " clauses must be string terms or Objects with terms and boosts, not"
+                                            + token.name()
+                                    );
                                 }
                             }
                         } else if (EXCLUDE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                             if (includes != null) {
                                 throw new ElasticsearchParseException(
-                                        "Graph vertices definition cannot contain both "+ INCLUDE_FIELD.getPreferredName()+
-                                        " and "+EXCLUDE_FIELD.getPreferredName()+" clauses", token.name());
+                                    "Graph vertices definition cannot contain both "
+                                        + INCLUDE_FIELD.getPreferredName()
+                                        + " and "
+                                        + EXCLUDE_FIELD.getPreferredName()
+                                        + " clauses",
+                                    token.name()
+                                );
                             }
                             excludes = new HashSet<>();
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 excludes.add(parser.text());
                             }
                         } else {
-                            throw new ElasticsearchParseException("Illegal property in graph vertices definition " + fieldName,
-                                    token.name());
+                            throw new ElasticsearchParseException(
+                                "Illegal property in graph vertices definition " + fieldName,
+                                token.name()
+                            );
                         }
                     }
                     if (token == XContentParser.Token.VALUE_STRING) {
@@ -264,7 +317,6 @@ public class RestGraphAction extends BaseRestHandler {
 
     }
 
-
     private void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
         XContentParser.Token token;
 
@@ -285,7 +337,7 @@ public class RestGraphAction extends BaseRestHandler {
                     graphRequest.useSignificance(parser.booleanValue());
                 } else if (RETURN_DETAILED_INFO.match(fieldName, parser.getDeprecationHandler())) {
                     graphRequest.returnDetailedInfo(parser.booleanValue());
-                } else{
+                } else {
                     throw new ElasticsearchParseException("Unknown boolean property: [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {

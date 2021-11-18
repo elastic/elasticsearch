@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.search.action;
 
@@ -11,18 +12,19 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * A response of an async search request.
+ * A response of an async search status request.
  */
-public class AsyncStatusResponse extends ActionResponse implements StatusToXContentObject {
+public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -34,16 +36,18 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
     private final int failedShards;
     private final RestStatus completionStatus;
 
-    public AsyncStatusResponse(String id,
-            boolean isRunning,
-            boolean isPartial,
-            long startTimeMillis,
-            long expirationTimeMillis,
-            int totalShards,
-            int successfulShards,
-            int skippedShards,
-            int failedShards,
-            RestStatus completionStatus) {
+    public AsyncStatusResponse(
+        String id,
+        boolean isRunning,
+        boolean isPartial,
+        long startTimeMillis,
+        long expirationTimeMillis,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        RestStatus completionStatus
+    ) {
         this.id = id;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
@@ -56,8 +60,18 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
         this.completionStatus = completionStatus;
     }
 
-    public static AsyncStatusResponse getStatusFromAsyncSearchResponseWithExpirationTime(AsyncSearchResponse asyncSearchResponse,
-            long expirationTimeMillis) {
+    /**
+     * Get status from the stored async search response
+     * @param asyncSearchResponse stored async search response
+     * @param expirationTimeMillis – expiration time in milliseconds
+     * @param id – encoded async search id
+     * @return status response
+     */
+    public static AsyncStatusResponse getStatusFromStoredSearch(
+        AsyncSearchResponse asyncSearchResponse,
+        long expirationTimeMillis,
+        String id
+    ) {
         int totalShards = 0;
         int successfulShards = 0;
         int skippedShards = 0;
@@ -81,7 +95,7 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
             }
         }
         return new AsyncStatusResponse(
-            asyncSearchResponse.getId(),
+            id,
             asyncSearchResponse.isRunning(),
             asyncSearchResponse.isPartial(),
             asyncSearchResponse.getStartTime(),
@@ -144,6 +158,39 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
         return builder;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        AsyncStatusResponse other = (AsyncStatusResponse) obj;
+        return id.equals(other.id)
+            && isRunning == other.isRunning
+            && isPartial == other.isPartial
+            && startTimeMillis == other.startTimeMillis
+            && expirationTimeMillis == other.expirationTimeMillis
+            && totalShards == other.totalShards
+            && successfulShards == other.successfulShards
+            && skippedShards == other.skippedShards
+            && failedShards == other.failedShards
+            && Objects.equals(completionStatus, other.completionStatus);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            id,
+            isRunning,
+            isPartial,
+            startTimeMillis,
+            expirationTimeMillis,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            failedShards,
+            completionStatus
+        );
+    }
+
     /**
      * Returns the id of the async search status request.
      */
@@ -178,6 +225,7 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
     /**
      * Returns a timestamp when the search will be expired, in milliseconds since epoch.
      */
+    @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
     }

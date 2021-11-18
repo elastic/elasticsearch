@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -94,7 +94,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
                         // shape with the same dimensional value
                         compensatedSumLat.reset(latSum.get(bucket), latCompensations.get(bucket));
                         compensatedSumLon.reset(lonSum.get(bucket), lonCompensations.get(bucket));
-                        compensatedSumWeight.reset(weightSum.get(bucket),  weightCompensations.get(bucket));
+                        compensatedSumWeight.reset(weightSum.get(bucket), weightCompensations.get(bucket));
                         final double coordinateWeight = value.weight();
                         compensatedSumLat.add(coordinateWeight * value.lat());
                         compensatedSumLon.add(coordinateWeight * value.lon());
@@ -135,7 +135,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         final GeoPoint bucketCentroid = (bucketWeight > 0)
             ? new GeoPoint(latSum.get(bucket) / bucketWeight, lonSum.get(bucket) / bucketWeight)
             : null;
-        return new InternalGeoCentroid(name, bucketCentroid , bucketCount, metadata());
+        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, metadata());
     }
 
     @Override
@@ -145,7 +145,15 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(latSum, latCompensations, lonSum, lonCompensations, counts, weightSum, weightCompensations,
-            dimensionalShapeTypes);
+        Releasables.close(
+            latSum,
+            latCompensations,
+            lonSum,
+            lonCompensations,
+            counts,
+            weightSum,
+            weightCompensations,
+            dimensionalShapeTypes
+        );
     }
 }

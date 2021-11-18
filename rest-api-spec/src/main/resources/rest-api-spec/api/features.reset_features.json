@@ -1,0 +1,23 @@
+{
+  "features.reset_features":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+      "description":"Resets the internal state of features, usually by deleting system indices"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_features/_reset",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.termvectors;
 
@@ -26,9 +15,9 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,15 +40,20 @@ final class TermVectorsWriter {
         response = termVectorsResponse;
     }
 
-    void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields,
-                   @Nullable TermVectorsFilter termVectorsFilter) throws IOException {
+    void setFields(
+        Fields termVectorsByField,
+        Set<String> selectedFields,
+        EnumSet<Flag> flags,
+        Fields topLevelFields,
+        @Nullable TermVectorsFilter termVectorsFilter
+    ) throws IOException {
         int numFieldsWritten = 0;
         PostingsEnum docsAndPosEnum = null;
         PostingsEnum docsEnum = null;
         boolean hasScores = termVectorsFilter != null;
 
         for (String field : termVectorsByField) {
-            if ((selectedFields != null) && (!selectedFields.contains(field))) {
+            if (selectedFields != null && selectedFields.contains(field) == false) {
                 continue;
             }
 
@@ -96,7 +90,7 @@ final class TermVectorsWriter {
                 Term term = new Term(field, termBytesRef);
 
                 // with filtering we only keep the best terms
-                if (hasScores && !termVectorsFilter.hasScoreTerm(term)) {
+                if (hasScores && termVectorsFilter.hasScoreTerm(term) == false) {
                     continue;
                 }
 
@@ -125,12 +119,13 @@ final class TermVectorsWriter {
             numFieldsWritten++;
         }
         response.setTermVectorsField(output);
-        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics),
-            flags.contains(Flag.FieldStatistics), hasScores));
+        response.setHeader(
+            writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics), flags.contains(Flag.FieldStatistics), hasScores)
+        );
     }
 
-    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics,
-                                       boolean getFieldStatistics, boolean scores) throws IOException {
+    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics, boolean getFieldStatistics, boolean scores)
+        throws IOException {
         // now, write the information about offset of the terms in the
         // termVectors field
         BytesStreamOutput header = new BytesStreamOutput();
@@ -158,8 +153,13 @@ final class TermVectorsWriter {
         return docsEnum;
     }
 
-    private PostingsEnum writeTermWithDocsAndPos(TermsEnum iterator, PostingsEnum docsAndPosEnum, boolean positions,
-                                                         boolean offsets, boolean payloads) throws IOException {
+    private PostingsEnum writeTermWithDocsAndPos(
+        TermsEnum iterator,
+        PostingsEnum docsAndPosEnum,
+        boolean positions,
+        boolean offsets,
+        boolean payloads
+    ) throws IOException {
         docsAndPosEnum = iterator.postings(docsAndPosEnum, PostingsEnum.ALL);
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
@@ -214,7 +214,7 @@ final class TermVectorsWriter {
     }
 
     private void startField(String fieldName, long termsSize, boolean writePositions, boolean writeOffsets, boolean writePayloads)
-            throws IOException {
+        throws IOException {
         fields.add(fieldName);
         fieldOffset.add(output.position());
         output.writeVLong(termsSize);
@@ -273,15 +273,50 @@ final class TermVectorsWriter {
 
     /** Implements an empty {@link Terms}. */
     private static final Terms EMPTY_TERMS = new Terms() {
-        @Override public TermsEnum iterator() { return TermsEnum.EMPTY; }
-        @Override public long size() { return 0; }
-        @Override public long getSumTotalTermFreq() { return 0; }
-        @Override public long getSumDocFreq() { return 0; }
-        @Override public int getDocCount() { return 0; }
-        @Override public boolean hasFreqs() { return false; }
-        @Override public boolean hasOffsets() { return false; }
-        @Override public boolean hasPositions() { return false; }
-        @Override public boolean hasPayloads() { return false; }
+        @Override
+        public TermsEnum iterator() {
+            return TermsEnum.EMPTY;
+        }
+
+        @Override
+        public long size() {
+            return 0;
+        }
+
+        @Override
+        public long getSumTotalTermFreq() {
+            return 0;
+        }
+
+        @Override
+        public long getSumDocFreq() {
+            return 0;
+        }
+
+        @Override
+        public int getDocCount() {
+            return 0;
+        }
+
+        @Override
+        public boolean hasFreqs() {
+            return false;
+        }
+
+        @Override
+        public boolean hasOffsets() {
+            return false;
+        }
+
+        @Override
+        public boolean hasPositions() {
+            return false;
+        }
+
+        @Override
+        public boolean hasPayloads() {
+            return false;
+        }
     };
 
 }

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -28,11 +29,11 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import java.util.Locale;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.chainInput;
@@ -48,17 +49,21 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
     // issue: https://github.com/elastic/x-plugins/issues/2338
     public void testThatHistoryIsWrittenWithChainedInput() throws Exception {
-        XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("inner").field("date", "2015-06-06").endObject()
-                .endObject();
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+            .startObject("inner")
+            .field("date", "2015-06-06")
+            .endObject()
+            .endObject();
         index("foo", "1", xContentBuilder);
         refresh();
 
-        WatchSourceBuilder builder = watchBuilder()
-                .trigger(schedule(interval("10s")))
-                .addAction("logging", loggingAction("foo"));
+        WatchSourceBuilder builder = watchBuilder().trigger(schedule(interval("10s"))).addAction("logging", loggingAction("foo"));
 
-        builder.input(chainInput().add("first", searchInput(
-                templateRequest(searchSource().sort(SortBuilders.fieldSort("inner.date").order(SortOrder.DESC)), "foo")))
+        builder.input(
+            chainInput().add(
+                "first",
+                searchInput(templateRequest(searchSource().sort(SortBuilders.fieldSort("inner.date").order(SortOrder.DESC)), "foo"))
+            )
         );
 
         PutWatchResponse response = new PutWatchRequestBuilder(client()).setId("test_watch").setSource(builder).get();
@@ -73,15 +78,15 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
     // See https://github.com/elastic/x-plugins/issues/2913
     public void testFailedInputResultWithDotsInFieldNameGetsStored() throws Exception {
-        WatcherSearchTemplateRequest request = templateRequest(searchSource()
-                .query(matchAllQuery())
-                .sort("trigger_event.triggered_time", SortOrder.DESC)
-                .size(1), "non-existing-index");
+        WatcherSearchTemplateRequest request = templateRequest(
+            searchSource().query(matchAllQuery()).sort("trigger_event.triggered_time", SortOrder.DESC).size(1),
+            "non-existing-index"
+        );
 
         // The result of the search input will be a failure, because a missing index does not exist when
         // the query is executed
-        @SuppressWarnings({"rawtypes"})
-        Input.Builder input = searchInput(request);
+        @SuppressWarnings({ "rawtypes" })
+        Input.Builder<? extends Input> input = searchInput(request);
         // wrapping this randomly into a chained input to test this as well
         boolean useChained = randomBoolean();
         if (useChained) {
@@ -89,11 +94,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
 
         new PutWatchRequestBuilder(client()).setId("test_watch")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
-                        .input(input)
-                        .addAction("_logger", loggingAction("#### randomLogging")))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
+                    .input(input)
+                    .addAction("_logger", loggingAction("#### randomLogging"))
+            )
+            .get();
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
@@ -103,25 +109,24 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
-        XContentSource source = new XContentSource(
-                response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
+        XContentSource source = new XContentSource(response.getMappings().valuesIt().next().source().uncompressed(), XContentType.JSON);
         // lets make sure the body fields are disabled
         if (useChained) {
-            String chainedPath = SINGLE_MAPPING_NAME +
-                ".properties.result.properties.input.properties.chain.properties.chained.properties.search" +
-                    ".properties.request.properties.body.enabled";
+            String chainedPath = SINGLE_MAPPING_NAME
+                + ".properties.result.properties.input.properties.chain.properties.chained.properties.search"
+                + ".properties.request.properties.body.enabled";
             assertThat(source.getValue(chainedPath), is(false));
         } else {
-            String path = SINGLE_MAPPING_NAME +
-                ".properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
+            String path = SINGLE_MAPPING_NAME
+                + ".properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
             assertThat(source.getValue(path), is(false));
         }
     }
 
     // See https://github.com/elastic/x-plugins/issues/2913
     public void testPayloadInputWithDotsInFieldNameWorks() throws Exception {
-        @SuppressWarnings({"rawtypes"})
-        Input.Builder input = simpleInput("foo.bar", "bar");
+
+        Input.Builder<? extends Input> input = simpleInput("foo.bar", "bar");
 
         // wrapping this randomly into a chained input to test this as well
         boolean useChained = randomBoolean();
@@ -130,11 +135,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
 
         new PutWatchRequestBuilder(client()).setId("test_watch")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
-                        .input(input)
-                        .addAction("_logger", loggingAction("#### randomLogging")))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
+                    .input(input)
+                    .addAction("_logger", loggingAction("#### randomLogging"))
+            )
+            .get();
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
@@ -144,13 +150,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
-        XContentSource source = new XContentSource(
-                response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
+        XContentSource source = new XContentSource(response.getMappings().valuesIt().next().source().uncompressed(), XContentType.JSON);
 
         // lets make sure the body fields are disabled
         if (useChained) {
-            String path = SINGLE_MAPPING_NAME +
-                ".properties.result.properties.input.properties.chain.properties.chained.properties.payload.enabled";
+            String path = SINGLE_MAPPING_NAME
+                + ".properties.result.properties.input.properties.chain.properties.chained.properties.payload.enabled";
             assertThat(source.getValue(path), is(false));
         } else {
             String path = SINGLE_MAPPING_NAME + ".properties.result.properties.input.properties.payload.enabled";
@@ -160,11 +165,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
     public void testThatHistoryContainsStatus() throws Exception {
         new PutWatchRequestBuilder(client()).setId("test_watch")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
-                        .input(simpleInput("foo", "bar"))
-                        .addAction("_logger", loggingAction("#### randomLogging")))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
+                    .input(simpleInput("foo", "bar"))
+                    .addAction("_logger", loggingAction("#### randomLogging"))
+            )
+            .get();
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
@@ -201,12 +207,13 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         // also ensure that the status field is disabled in the watch history
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
-        XContentSource mappingSource =
-                new XContentSource(response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
+        XContentSource mappingSource = new XContentSource(
+            response.getMappings().valuesIt().next().source().uncompressed(),
+            XContentType.JSON
+        );
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.enabled"), is(false));
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status"), is(nullValue()));
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status.properties.active"), is(nullValue()));
     }
-
 
 }

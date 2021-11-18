@@ -1,0 +1,89 @@
+[role="xpack"]
+[[fingerprint-processor]]
+=== Fingerprint processor
+++++
+<titleabbrev>Fingerprint</titleabbrev>
+++++
+
+Computes a hash of the document's content. You can use this hash for
+{wikipedia}/Fingerprint_(computing)[content fingerprinting].
+
+[[fingerprint-options]]
+.Fingerprint Options
+[options="header"]
+|======
+| Name               | Required | Default       | Description
+| `fields`           | yes      | n/a           | Array of fields to include in
+the fingerprint. For objects, the processor hashes both the field key and
+value. For other fields, the processor hashes only the field value.
+| `target_field`     | no       | `fingerprint` | Output field for the fingerprint.
+| `salt`             | no       | <none>        |
+{wikipedia}/Salt_(cryptography)[Salt value] for the hash function.
+| `method`           | no       | `SHA-1`       | The hash method used to
+compute the fingerprint. Must be one of `MD5`, `SHA-1`, `SHA-256`, `SHA-512`, or
+`MurmurHash3`.
+| `ignore_missing`   | no       | `false`       | If `true`, the processor
+ignores any missing `fields`. If all fields are missing, the processor silently
+exits without modifying the document.
+
+include::common-options.asciidoc[]
+|======
+
+[discrete]
+[[fingerprint-processor-ex]]
+===== Example
+
+The following example illustrates the use of the fingerprint processor:
+
+[source,console]
+----
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "fingerprint": {
+          "fields": ["user"]
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "user": {
+          "last_name": "Smith",
+          "first_name": "John",
+          "date_of_birth": "1980-01-15",
+          "is_active": true
+        }
+      }
+    }
+  ]
+}
+----
+
+Which produces the following result:
+
+[source,console-result]
+----
+{
+  "docs": [
+    {
+      "doc": {
+        ...
+        "_source": {
+          "fingerprint" : "WbSUPW4zY1PBPehh2AA/sSxiRjw=",
+          "user" : {
+            "last_name" : "Smith",
+            "first_name" : "John",
+            "date_of_birth" : "1980-01-15",
+            "is_active" : true
+          }
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]

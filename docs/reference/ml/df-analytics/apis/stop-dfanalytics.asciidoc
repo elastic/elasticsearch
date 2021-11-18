@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[stop-dfanalytics]]
 = Stop {dfanalytics-jobs} API
 
@@ -10,7 +9,6 @@
 
 Stops one or more {dfanalytics-jobs}.
 
-beta::[]
 
 [[ml-stop-dfanalytics-request]]
 == {api-request-title}
@@ -24,12 +22,8 @@ beta::[]
 [[ml-stop-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles or equivalent privileges:
-
-* `machine_learning_admin`
-  
-For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 
 [[ml-stop-dfanalytics-desc]]

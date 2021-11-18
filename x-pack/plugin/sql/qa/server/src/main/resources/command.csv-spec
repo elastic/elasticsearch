@@ -95,6 +95,7 @@ TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
 TIME_PARSE       |SCALAR
 TODAY            |SCALAR
+TO_CHAR          |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
@@ -219,52 +220,75 @@ MINUTE_OF_DAY  |SCALAR
 TODAY          |SCALAR
 ;
 
+showCatalogs
+SHOW CATALOGS;
+
+     name      |     type
+---------------+---------------
+integTest      |local
+;
+
 showTables
 SHOW TABLES;
 
-       name    |  type |  kind   
-logs           |TABLE  |INDEX
-test_alias     |VIEW   |ALIAS
-test_alias_emp |VIEW   |ALIAS 
-test_emp       |TABLE  |INDEX  
-test_emp_copy  |TABLE  |INDEX  
+catalog    |       name    |  type |  kind
+integTest  |empty_mapping  |TABLE  |INDEX
+integTest  |logs           |TABLE  |INDEX
+integTest  |logs_nanos     |TABLE  |INDEX
+integTest  |test_alias     |VIEW   |ALIAS
+integTest  |test_alias_emp |VIEW   |ALIAS
+integTest  |test_emp       |TABLE  |INDEX
+integTest  |test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesSimpleLike
 SHOW TABLES LIKE 'test_emp';
 
- name:s        | type:s| kind:s
-test_emp       |TABLE  |INDEX
+catalog:s  | name:s        | type:s| kind:s
+integTest  |test_emp       |TABLE  |INDEX
 ;
 
 showTablesMultiLike
 SHOW TABLES LIKE 'test_emp%';
 
- name:s        |type:s |kind:s
-test_emp       |TABLE  |INDEX     
-test_emp_copy  |TABLE  |INDEX     
+catalog:s  | name:s        |type:s |kind:s
+integTest  |test_emp       |TABLE  |INDEX
+integTest  |test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesIdentifier
 SHOW TABLES "test_emp";
 
- name:s        |type:s |kind:s
-test_emp       |TABLE  |INDEX
+catalog:s  | name:s        |type:s |kind:s
+integTest  |test_emp       |TABLE  |INDEX
 ;
 
 showTablesIdentifierPattern
 SHOW TABLES "test_e*,-test_emp";
 
- name:s        |type:s |kind:s
-test_emp_copy  |TABLE  |INDEX
+catalog:s  | name:s        |type:s |kind:s
+integTest  |test_emp_copy  |TABLE  |INDEX
 ;
 
 showTablesIdentifierPatternOnAliases
 SHOW TABLES "test*,-test_emp*";
 
- name:s        | type:s | kind:s
-test_alias     |VIEW    |ALIAS          
-test_alias_emp |VIEW    |ALIAS          
+catalog:s  | name:s        | type:s | kind:s
+integTest  |test_alias     |VIEW    |ALIAS
+integTest  |test_alias_emp |VIEW    |ALIAS
+;
+
+showTablesLocalCatalog
+SHOW TABLES CATALOG 'integTest';
+
+catalog    |       name    |  type |  kind
+integTest  |empty_mapping  |TABLE  |INDEX
+integTest  |logs           |TABLE  |INDEX
+integTest  |logs_nanos     |TABLE  |INDEX
+integTest  |test_alias     |VIEW   |ALIAS
+integTest  |test_alias_emp |VIEW   |ALIAS
+integTest  |test_emp       |TABLE  |INDEX
+integTest  |test_emp_copy  |TABLE  |INDEX
 ;
 
 // DESCRIBE
@@ -272,84 +296,111 @@ test_alias_emp |VIEW    |ALIAS
 describeSimpleLike
 DESCRIBE LIKE 'test_emp';
 
-       column       |     type      |    mapping    
---------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime
-dep                 |STRUCT         |nested
-dep.dep_id          |VARCHAR        |keyword
-dep.dep_name        |VARCHAR        |text
-dep.dep_name.keyword|VARCHAR        |keyword
-dep.from_date       |TIMESTAMP      |datetime
-dep.to_date         |TIMESTAMP      |datetime
-emp_no              |INTEGER        |integer
-extra               |STRUCT         |object
-extra.info          |STRUCT         |object
-extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |keyword
-extra_no            |INTEGER        |integer
-first_name          |VARCHAR        |text
-first_name.keyword  |VARCHAR        |keyword
-gender              |VARCHAR        |keyword
-hire_date           |TIMESTAMP      |datetime
-languages           |TINYINT        |byte
-last_name           |VARCHAR        |text
-last_name.keyword   |VARCHAR        |keyword
-null_constant       |VARCHAR        |keyword
-salary              |INTEGER        |integer
-wildcard_name       |VARCHAR        |keyword
+        column        |     type      |    mapping    
+----------------------+---------------+---------------
+birth_date            |TIMESTAMP      |datetime       
+dep                   |STRUCT         |nested         
+dep.dep_id            |VARCHAR        |keyword        
+dep.dep_name          |VARCHAR        |text           
+dep.dep_name.keyword  |VARCHAR        |keyword        
+dep.from_date         |TIMESTAMP      |datetime       
+dep.to_date           |TIMESTAMP      |datetime       
+emp_no                |INTEGER        |integer        
+extra                 |STRUCT         |object         
+extra.info            |STRUCT         |object         
+extra.info.gender     |VARCHAR        |keyword        
+extra_gender          |VARCHAR        |keyword        
+extra_no              |INTEGER        |integer        
+first_name            |VARCHAR        |text           
+first_name.keyword    |VARCHAR        |keyword        
+gender                |VARCHAR        |keyword        
+hire_date             |TIMESTAMP      |datetime       
+languages             |TINYINT        |byte           
+last_name             |VARCHAR        |text           
+last_name.keyword     |VARCHAR        |keyword        
+name                  |VARCHAR        |keyword        
+null_constant         |VARCHAR        |keyword        
+salary                |INTEGER        |integer        
+wildcard_name         |VARCHAR        |keyword        
 ;
 
 describeMultiLike
 DESCRIBE LIKE 'test_emp%';
 
-       column       |     type      |    mapping    
---------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime
-dep                 |STRUCT         |nested
-dep.dep_id          |VARCHAR        |keyword
-dep.dep_name        |VARCHAR        |text
-dep.dep_name.keyword|VARCHAR        |keyword
-dep.from_date       |TIMESTAMP      |datetime
-dep.to_date         |TIMESTAMP      |datetime
-emp_no              |INTEGER        |integer
-extra               |STRUCT         |object
-extra.info          |STRUCT         |object
-extra.info.gender   |VARCHAR        |keyword
-extra_gender        |VARCHAR        |keyword
-extra_no            |INTEGER        |integer
-first_name          |VARCHAR        |text
-first_name.keyword  |VARCHAR        |keyword
-gender              |VARCHAR        |keyword
-hire_date           |TIMESTAMP      |datetime
-languages           |TINYINT        |byte
-last_name           |VARCHAR        |text
-last_name.keyword   |VARCHAR        |keyword
-null_constant       |VARCHAR        |keyword
-salary              |INTEGER        |integer
-wildcard_name       |VARCHAR        |keyword
+        column        |     type      |    mapping    
+----------------------+---------------+---------------
+birth_date            |TIMESTAMP      |datetime       
+dep                   |STRUCT         |nested         
+dep.dep_id            |VARCHAR        |keyword        
+dep.dep_name          |VARCHAR        |text           
+dep.dep_name.keyword  |VARCHAR        |keyword        
+dep.from_date         |TIMESTAMP      |datetime       
+dep.to_date           |TIMESTAMP      |datetime       
+emp_no                |INTEGER        |integer        
+extra                 |STRUCT         |object         
+extra.info            |STRUCT         |object         
+extra.info.gender     |VARCHAR        |keyword        
+extra_gender          |VARCHAR        |keyword        
+extra_no              |INTEGER        |integer        
+first_name            |VARCHAR        |text           
+first_name.keyword    |VARCHAR        |keyword        
+gender                |VARCHAR        |keyword        
+hire_date             |TIMESTAMP      |datetime       
+languages             |TINYINT        |byte           
+last_name             |VARCHAR        |text           
+last_name.keyword     |VARCHAR        |keyword        
+name                  |VARCHAR        |keyword        
+null_constant         |VARCHAR        |keyword        
+salary                |INTEGER        |integer        
+wildcard_name         |VARCHAR        |keyword        
 ;
 
 describeSimpleIdentifier
 DESCRIBE "test_emp";
 
-       column       |     type      |    mapping    
---------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime
-dep                 |STRUCT         |nested
-dep.dep_id          |VARCHAR        |keyword
-dep.dep_name        |VARCHAR        |text
-dep.dep_name.keyword|VARCHAR        |keyword
-dep.from_date       |TIMESTAMP      |datetime
-dep.to_date         |TIMESTAMP      |datetime
-emp_no              |INTEGER        |integer
-first_name          |VARCHAR        |text
-first_name.keyword  |VARCHAR        |keyword
-gender              |VARCHAR        |keyword
-hire_date           |TIMESTAMP      |datetime
-languages           |TINYINT        |byte
-last_name           |VARCHAR        |text
-last_name.keyword   |VARCHAR        |keyword
-salary              |INTEGER        |integer
+        column        |     type      |    mapping
+----------------------+---------------+---------------
+birth_date            |TIMESTAMP      |datetime
+dep                   |STRUCT         |nested
+dep.dep_id            |VARCHAR        |keyword
+dep.dep_name          |VARCHAR        |text
+dep.dep_name.keyword  |VARCHAR        |keyword
+dep.from_date         |TIMESTAMP      |datetime
+dep.to_date           |TIMESTAMP      |datetime
+emp_no                |INTEGER        |integer
+first_name            |VARCHAR        |text
+first_name.keyword    |VARCHAR        |keyword
+gender                |VARCHAR        |keyword
+hire_date             |TIMESTAMP      |datetime
+languages             |TINYINT        |byte
+last_name             |VARCHAR        |text
+last_name.keyword     |VARCHAR        |keyword
+name                  |VARCHAR        |keyword
+salary                |INTEGER        |integer
+;
+
+describeSimpleIdentifierLocalCatalog
+DESCRIBE CATALOG 'integTest' "test_emp";
+
+        column        |     type      |    mapping
+----------------------+---------------+---------------
+birth_date            |TIMESTAMP      |datetime       
+dep                   |STRUCT         |nested         
+dep.dep_id            |VARCHAR        |keyword        
+dep.dep_name          |VARCHAR        |text           
+dep.dep_name.keyword  |VARCHAR        |keyword        
+dep.from_date         |TIMESTAMP      |datetime       
+dep.to_date           |TIMESTAMP      |datetime       
+emp_no                |INTEGER        |integer        
+first_name            |VARCHAR        |text           
+first_name.keyword    |VARCHAR        |keyword        
+gender                |VARCHAR        |keyword        
+hire_date             |TIMESTAMP      |datetime       
+languages             |TINYINT        |byte           
+last_name             |VARCHAR        |text           
+last_name.keyword     |VARCHAR        |keyword        
+name                  |VARCHAR        |keyword        
+salary                |INTEGER        |integer        
 ;
 
 
@@ -377,3 +428,44 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 salary              |INTEGER        |integer
 ;
+
+
+describeNoCols
+DESCRIBE "empty_mapping";
+
+        column:s      |     type:s    |    mapping:s
+----------------------+---------------+---------------
+;
+
+
+showColumnsInNoCols
+SHOW COLUMNS IN "empty_mapping";
+
+        column:s      |     type:s    |    mapping:s
+----------------------+---------------+---------------
+;
+
+showColumnsSimpleIdentifierLocalCatalog
+SHOW COLUMNS CATALOG 'integTest' IN "test_emp";
+
+        column        |     type      |    mapping
+----------------------+---------------+---------------
+birth_date            |TIMESTAMP      |datetime
+dep                   |STRUCT         |nested
+dep.dep_id            |VARCHAR        |keyword
+dep.dep_name          |VARCHAR        |text
+dep.dep_name.keyword  |VARCHAR        |keyword
+dep.from_date         |TIMESTAMP      |datetime
+dep.to_date           |TIMESTAMP      |datetime
+emp_no                |INTEGER        |integer
+first_name            |VARCHAR        |text
+first_name.keyword    |VARCHAR        |keyword
+gender                |VARCHAR        |keyword
+hire_date             |TIMESTAMP      |datetime
+languages             |TINYINT        |byte
+last_name             |VARCHAR        |text
+last_name.keyword     |VARCHAR        |keyword
+name                  |VARCHAR        |keyword
+salary                |INTEGER        |integer
+;
+

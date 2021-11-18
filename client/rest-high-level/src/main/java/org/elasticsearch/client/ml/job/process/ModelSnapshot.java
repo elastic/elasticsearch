@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Date;
@@ -53,27 +42,31 @@ public class ModelSnapshot implements ToXContentObject {
     static {
         PARSER.declareString(Builder::setJobId, Job.ID);
         PARSER.declareString(Builder::setMinVersion, MIN_VERSION);
-        PARSER.declareField(Builder::setTimestamp,
+        PARSER.declareField(
+            Builder::setTimestamp,
             (p) -> TimeUtil.parseTimeField(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ValueType.VALUE);
+            ValueType.VALUE
+        );
         PARSER.declareString(Builder::setDescription, DESCRIPTION);
         PARSER.declareString(Builder::setSnapshotId, SNAPSHOT_ID);
         PARSER.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
-        PARSER.declareObject(Builder::setModelSizeStats, ModelSizeStats.PARSER,
-            ModelSizeStats.RESULT_TYPE_FIELD);
-        PARSER.declareField(Builder::setLatestRecordTimeStamp,
+        PARSER.declareObject(Builder::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.RESULT_TYPE_FIELD);
+        PARSER.declareField(
+            Builder::setLatestRecordTimeStamp,
             (p) -> TimeUtil.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()),
             LATEST_RECORD_TIME,
-            ValueType.VALUE);
-        PARSER.declareField(Builder::setLatestResultTimeStamp,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            Builder::setLatestResultTimeStamp,
             (p) -> TimeUtil.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()),
             LATEST_RESULT_TIME,
-            ValueType.VALUE);
+            ValueType.VALUE
+        );
         PARSER.declareObject(Builder::setQuantiles, Quantiles.PARSER, QUANTILES);
         PARSER.declareBoolean(Builder::setRetain, RETAIN);
     }
-
 
     private final String jobId;
 
@@ -93,10 +86,19 @@ public class ModelSnapshot implements ToXContentObject {
     private final Quantiles quantiles;
     private final boolean retain;
 
-
-    private ModelSnapshot(String jobId, Version minVersion, Date timestamp, String description, String snapshotId, int snapshotDocCount,
-                          ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles,
-                          boolean retain) {
+    private ModelSnapshot(
+        String jobId,
+        Version minVersion,
+        Date timestamp,
+        String description,
+        String snapshotId,
+        int snapshotDocCount,
+        ModelSizeStats modelSizeStats,
+        Date latestRecordTimeStamp,
+        Date latestResultTimeStamp,
+        Quantiles quantiles,
+        boolean retain
+    ) {
         this.jobId = jobId;
         this.minVersion = minVersion;
         this.timestamp = timestamp;
@@ -129,12 +131,18 @@ public class ModelSnapshot implements ToXContentObject {
             builder.field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats);
         }
         if (latestRecordTimeStamp != null) {
-            builder.timeField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
-                latestRecordTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RECORD_TIME.getPreferredName(),
+                LATEST_RECORD_TIME.getPreferredName() + "_string",
+                latestRecordTimeStamp.getTime()
+            );
         }
         if (latestResultTimeStamp != null) {
-            builder.timeField(LATEST_RESULT_TIME.getPreferredName(), LATEST_RESULT_TIME.getPreferredName() + "_string",
-                latestResultTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RESULT_TIME.getPreferredName(),
+                LATEST_RESULT_TIME.getPreferredName() + "_string",
+                latestResultTimeStamp.getTime()
+            );
         }
         if (quantiles != null) {
             builder.field(QUANTILES.getPreferredName(), quantiles);
@@ -190,8 +198,19 @@ public class ModelSnapshot implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, minVersion, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats,
-            latestRecordTimeStamp, latestResultTimeStamp, retain);
+        return Objects.hash(
+            jobId,
+            minVersion,
+            timestamp,
+            description,
+            snapshotId,
+            quantiles,
+            snapshotDocCount,
+            modelSizeStats,
+            latestRecordTimeStamp,
+            latestResultTimeStamp,
+            retain
+        );
     }
 
     /**
@@ -238,9 +257,7 @@ public class ModelSnapshot implements ToXContentObject {
         private Quantiles quantiles;
         private boolean retain;
 
-
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(String jobId) {
             this.jobId = jobId;
@@ -326,8 +343,19 @@ public class ModelSnapshot implements ToXContentObject {
         }
 
         public ModelSnapshot build() {
-            return new ModelSnapshot(jobId, minVersion, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats,
-                latestRecordTimeStamp, latestResultTimeStamp, quantiles, retain);
+            return new ModelSnapshot(
+                jobId,
+                minVersion,
+                timestamp,
+                description,
+                snapshotId,
+                snapshotDocCount,
+                modelSizeStats,
+                latestRecordTimeStamp,
+                latestResultTimeStamp,
+                quantiles,
+                retain
+            );
         }
     }
 }

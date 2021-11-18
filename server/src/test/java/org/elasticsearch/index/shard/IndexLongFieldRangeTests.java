@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -33,11 +22,10 @@ public class IndexLongFieldRangeTests extends ESTestCase {
 
     public void testUnknownShardImpliesUnknownIndex() {
         final IndexLongFieldRange range = randomSpecificRange(false);
-        assertThat(range.extendWithShardRange(
-                IntStream.of(range.getShards()).max().orElse(0) + 1,
-                between(1, 10),
-                ShardLongFieldRange.UNKNOWN),
-                sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(
+            range.extendWithShardRange(IntStream.of(range.getShards()).max().orElse(0) + 1, between(1, 10), ShardLongFieldRange.UNKNOWN),
+            sameInstance(IndexLongFieldRange.UNKNOWN)
+        );
     }
 
     public void testExtendWithKnownShardIsNoOp() {
@@ -49,7 +37,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
 
         final ShardLongFieldRange shardRange;
         if (range.getMinUnsafe() == IndexLongFieldRange.EMPTY.getMinUnsafe()
-                && range.getMaxUnsafe() == IndexLongFieldRange.EMPTY.getMaxUnsafe()) {
+            && range.getMaxUnsafe() == IndexLongFieldRange.EMPTY.getMaxUnsafe()) {
             shardRange = ShardLongFieldRange.EMPTY;
         } else {
             final long min = randomLongBetween(range.getMinUnsafe(), range.getMaxUnsafe());
@@ -57,19 +45,21 @@ public class IndexLongFieldRangeTests extends ESTestCase {
             shardRange = randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRange.of(min, max);
         }
 
-        assertThat(range.extendWithShardRange(
+        assertThat(
+            range.extendWithShardRange(
                 range.isComplete() ? between(1, 10) : randomFrom(IntStream.of(range.getShards()).boxed().collect(Collectors.toList())),
                 between(1, 10),
-                shardRange),
-                sameInstance(range));
+                shardRange
+            ),
+            sameInstance(range)
+        );
     }
 
     public void testExtendUnknownRangeIsNoOp() {
-        assertThat(IndexLongFieldRange.UNKNOWN.extendWithShardRange(
-                between(0, 10),
-                between(0, 10),
-                ShardLongFieldRangeWireTests.randomRange()),
-                sameInstance(IndexLongFieldRange.UNKNOWN));
+        assertThat(
+            IndexLongFieldRange.UNKNOWN.extendWithShardRange(between(0, 10), between(0, 10), ShardLongFieldRangeWireTests.randomRange()),
+            sameInstance(IndexLongFieldRange.UNKNOWN)
+        );
     }
 
     public void testCompleteEmptyRangeIsEmptyInstance() {
@@ -98,10 +88,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
                 min = Math.min(min, shardFieldRange.getMin());
                 max = Math.max(max, shardFieldRange.getMax());
             }
-            range = range.extendWithShardRange(
-                    i,
-                    shardCount,
-                    shardFieldRange);
+            range = range.extendWithShardRange(i, shardCount, shardFieldRange);
         }
         assertTrue(range.isComplete());
         if (range != IndexLongFieldRange.EMPTY) {
@@ -119,7 +106,8 @@ public class IndexLongFieldRangeTests extends ESTestCase {
 
         final IndexLongFieldRange initialRange = randomSpecificRange();
         final int shardCount = initialRange.isComplete()
-                ? between(1, 5) : Arrays.stream(initialRange.getShards()).max().orElse(0) + between(1, 3);
+            ? between(1, 5)
+            : Arrays.stream(initialRange.getShards()).max().orElse(0) + between(1, 3);
 
         final int shard = between(0, shardCount - 1);
         final IndexLongFieldRange rangeWithoutShard = initialRange.removeShard(shard, shardCount);

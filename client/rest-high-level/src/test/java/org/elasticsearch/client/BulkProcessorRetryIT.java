@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client;
 
@@ -26,10 +15,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -49,7 +38,10 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+            (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+            listener,
+            "BulkProcessorRetryIT"
+        );
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Exception {
@@ -70,8 +62,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
         BulkProcessor bulkProcessor = initBulkProcessorBuilder(new BulkProcessor.Listener() {
             @Override
-            public void beforeBulk(long executionId, BulkRequest request) {
-            }
+            public void beforeBulk(long executionId, BulkRequest request) {}
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -86,10 +77,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
                 responses.add(failure);
                 latch.countDown();
             }
-        }).setBulkActions(1)
-            .setConcurrentRequests(randomIntBetween(0, 100))
-            .setBackoffPolicy(internalPolicy)
-            .build();
+        }).setBulkActions(1).setConcurrentRequests(randomIntBetween(0, 100)).setBackoffPolicy(internalPolicy).build();
 
         MultiGetRequest multiGetRequest = indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
@@ -157,8 +145,10 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(INDEX_NAME).id(Integer.toString(i))
-                .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
+            processor.add(
+                new IndexRequest(INDEX_NAME).id(Integer.toString(i))
+                    .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30))
+            );
             multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }
         return multiGetRequest;

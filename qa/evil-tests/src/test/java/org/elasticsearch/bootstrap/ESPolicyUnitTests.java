@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FilePermission;
@@ -42,6 +31,7 @@ import java.util.Map;
 public class ESPolicyUnitTests extends ESTestCase {
 
     static final Map<String, URL> TEST_CODEBASES = BootstrapForTesting.getCodebases();
+
     /**
      * Test policy with null codesource.
      * <p>
@@ -72,8 +62,12 @@ public class ESPolicyUnitTests extends ESTestCase {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
         ESPolicy policy = new ESPolicy(TEST_CODEBASES, noPermissions, Collections.emptyMap(), true, new Permissions());
-        assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
-                new FilePermission("foo", "read")));
+        assertFalse(
+            policy.implies(
+                new ProtectionDomain(new CodeSource(null, (Certificate[]) null), noPermissions),
+                new FilePermission("foo", "read")
+            )
+        );
     }
 
     public void testListen() {
@@ -83,7 +77,9 @@ public class ESPolicyUnitTests extends ESTestCase {
         assertFalse(
             policy.implies(
                 new ProtectionDomain(ESPolicyUnitTests.class.getProtectionDomain().getCodeSource(), noPermissions),
-                new SocketPermission("localhost:" + randomFrom(0, randomIntBetween(49152, 65535)), "listen")));
+                new SocketPermission("localhost:" + randomFrom(0, randomIntBetween(49152, 65535)), "listen")
+            )
+        );
     }
 
     @SuppressForbidden(reason = "to create FilePermission object")
@@ -94,7 +90,9 @@ public class ESPolicyUnitTests extends ESTestCase {
         final ESPolicy policy = new ESPolicy(TEST_CODEBASES, new Permissions(), Collections.emptyMap(), true, dataPathPermission);
         assertTrue(
             policy.implies(
-                    new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions()),
-                    new FilePermission("/home/elasticsearch/data/index/file.si", "read")));
+                new ProtectionDomain(new CodeSource(null, (Certificate[]) null), new Permissions()),
+                new FilePermission("/home/elasticsearch/data/index/file.si", "read")
+            )
+        );
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -26,12 +27,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -48,12 +49,8 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
      */
     private static class DummyDataRemover implements MlDataRemover {
 
-        public void remove(
-            float requestsPerSec,
-            ActionListener<Boolean> listener,
-            Supplier<Boolean> isTimedOutSupplier
-        ) {
-            listener.onResponse(isTimedOutSupplier.get() == false);
+        public void remove(float requestsPerSec, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
+            listener.onResponse(isTimedOutSupplier.getAsBoolean() == false);
         }
     }
 
@@ -64,10 +61,18 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         auditor = mock(AnomalyDetectionAuditor.class);
-        transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(threadPool, ThreadPool.Names.SAME, transportService,
-            new ActionFilters(Collections.emptySet()), client, clusterService, mock(JobConfigProvider.class),
-            mock(JobResultsProvider.class), auditor,
-            Clock.systemUTC());
+        transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(
+            threadPool,
+            ThreadPool.Names.SAME,
+            transportService,
+            new ActionFilters(Collections.emptySet()),
+            client,
+            clusterService,
+            mock(JobConfigProvider.class),
+            mock(JobResultsProvider.class),
+            auditor,
+            Clock.systemUTC()
+        );
     }
 
     @After
@@ -87,7 +92,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
             e -> fail(e.getMessage())
         );
 
-        Supplier<Boolean> isTimedOutSupplier = () -> false;
+        BooleanSupplier isTimedOutSupplier = () -> false;
 
         DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
         transportDeleteExpiredDataAction.deleteExpiredData(request, removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
@@ -108,17 +113,19 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
             e -> fail(e.getMessage())
         );
 
-        Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
+        BooleanSupplier isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
         DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
         request.setJobId("_all");
         transportDeleteExpiredDataAction.deleteExpiredData(request, removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
         assertFalse(succeeded.get());
 
-        verify(auditor, times(1)).warning("",
-            "Deleting expired ML data was cancelled after the timeout period of [8h] was exceeded. " +
-                "The setting [xpack.ml.nightly_maintenance_requests_per_second] " +
-                "controls the deletion rate, consider increasing the value to assist in pruning old data");
+        verify(auditor, times(1)).warning(
+            "",
+            "Deleting expired ML data was cancelled after the timeout period of [8h] was exceeded. "
+                + "The setting [xpack.ml.nightly_maintenance_requests_per_second] "
+                + "controls the deletion rate, consider increasing the value to assist in pruning old data"
+        );
         verifyNoMoreInteractions(auditor);
     }
 
@@ -135,11 +142,11 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
             e -> fail(e.getMessage())
         );
 
-        Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
+        BooleanSupplier isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
         DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request(null, null);
         request.setJobId("foo*");
-        request.setExpandedJobIds(new String[] {"foo1", "foo2"});
+        request.setExpandedJobIds(new String[] { "foo1", "foo2" });
         transportDeleteExpiredDataAction.deleteExpiredData(request, removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
         assertFalse(succeeded.get());
 

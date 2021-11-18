@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -47,9 +36,11 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     }
 
     @Override
-    protected final InternalSignificantTerms createTestInstance(String name,
-                                                          Map<String, Object> metadata,
-                                                          InternalAggregations aggregations) {
+    protected final InternalSignificantTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations
+    ) {
         final int requiredSize = randomIntBetween(1, 5);
         final int numBuckets = randomNumberOfBuckets();
 
@@ -69,21 +60,35 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             subsetSize += subsetDf;
             supersetSize += supersetDf;
         }
-        return createTestInstance(name, metadata, aggregations, requiredSize, numBuckets, subsetSize, subsetDfs,
-                supersetSize, supersetDfs, significanceHeuristic);
+        return createTestInstance(
+            name,
+            metadata,
+            aggregations,
+            requiredSize,
+            numBuckets,
+            subsetSize,
+            subsetDfs,
+            supersetSize,
+            supersetDfs,
+            significanceHeuristic
+        );
     }
 
-    protected abstract InternalSignificantTerms createTestInstance(String name,
-                                                                   Map<String, Object> metadata,
-                                                                   InternalAggregations aggregations,
-                                                                   int requiredSize, int numBuckets,
-                                                                   long subsetSize, int[] subsetDfs,
-                                                                   long supersetSize, int[] supersetDfs,
-                                                                   SignificanceHeuristic significanceHeuristic);
+    protected abstract InternalSignificantTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        int requiredSize,
+        int numBuckets,
+        long subsetSize,
+        int[] subsetDfs,
+        long supersetSize,
+        int[] supersetDfs,
+        SignificanceHeuristic significanceHeuristic
+    );
 
     @Override
-    protected InternalSignificantTerms createUnmappedInstance(String name,
-                                                              Map<String, Object> metadata) {
+    protected InternalSignificantTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {
         InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, metadata);
         return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, metadata);
     }
@@ -94,9 +99,9 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
         assertEquals(inputs.stream().mapToLong(InternalSignificantTerms::getSupersetSize).sum(), reduced.getSupersetSize());
 
         List<Function<SignificantTerms.Bucket, Long>> counts = Arrays.asList(
-                SignificantTerms.Bucket::getSubsetDf,
-                SignificantTerms.Bucket::getSupersetDf,
-                SignificantTerms.Bucket::getDocCount
+            SignificantTerms.Bucket::getSubsetDf,
+            SignificantTerms.Bucket::getSupersetDf,
+            SignificantTerms.Bucket::getDocCount
         );
 
         for (Function<SignificantTerms.Bucket, Long> count : counts) {
@@ -116,7 +121,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
         assertTrue(expected instanceof InternalSignificantTerms);
         assertTrue(actual instanceof ParsedSignificantTerms);
 
-        InternalSignificantTerms expectedSigTerms = (InternalSignificantTerms) expected;
+        InternalSignificantTerms<?, ?> expectedSigTerms = (InternalSignificantTerms<?, ?>) expected;
         ParsedSignificantTerms actualSigTerms = (ParsedSignificantTerms) actual;
         assertEquals(expectedSigTerms.getSubsetSize(), actualSigTerms.getSubsetSize());
         assertEquals(expectedSigTerms.getSupersetSize(), actualSigTerms.getSupersetSize());
@@ -145,16 +150,19 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
         assertEquals(expectedSigTerm.getSupersetSize(), actualSigTerm.getSupersetSize());
     }
 
-    private static Map<Object, Long> toCounts(Stream<? extends SignificantTerms.Bucket> buckets,
-                                              Function<SignificantTerms.Bucket, Long> fn) {
+    private static Map<Object, Long> toCounts(
+        Stream<? extends SignificantTerms.Bucket> buckets,
+        Function<SignificantTerms.Bucket, Long> fn
+    ) {
         return buckets.collect(Collectors.toMap(SignificantTerms.Bucket::getKey, fn, Long::sum));
     }
 
     private static SignificanceHeuristic randomSignificanceHeuristic() {
         return randomFrom(
-                new JLHScore(),
-                new MutualInformation(randomBoolean(), randomBoolean()),
-                new GND(randomBoolean()),
-                new ChiSquare(randomBoolean(), randomBoolean()));
+            new JLHScore(),
+            new MutualInformation(randomBoolean(), randomBoolean()),
+            new GND(randomBoolean()),
+            new ChiSquare(randomBoolean(), randomBoolean())
+        );
     }
 }

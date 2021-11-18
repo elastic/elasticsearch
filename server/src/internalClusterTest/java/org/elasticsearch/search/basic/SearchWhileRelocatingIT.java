@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.basic;
 
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -32,11 +22,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.formatShardStatus;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
@@ -48,17 +39,29 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
 
     private void testSearchAndRelocateConcurrently(final int numberOfReplicas) throws Exception {
         final int numShards = between(1, 20);
-        client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
-                .setMapping("loc", "type=geo_point", "test", "type=text").get();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
+            .setMapping("loc", "type=geo_point", "test", "type=text")
+            .get();
         ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         final int numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            indexBuilders.add(client().prepareIndex("test").setId(Integer.toString(i))
+            indexBuilders.add(
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
                     .setSource(
-                            jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 21)
-                                    .endObject().endObject()));
+                        jsonBuilder().startObject()
+                            .field("test", "value")
+                            .startObject("loc")
+                            .field("lat", 11)
+                            .field("lon", 21)
+                            .endObject()
+                            .endObject()
+                    )
+            );
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
         assertHitCount(client().prepareSearch().get(), (numDocs));
@@ -73,30 +76,40 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                     @Override
                     public void run() {
                         try {
-                            while (!stop.get()) {
+                            while (stop.get() == false) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
                                 if (sr.getHits().getTotalHits().value != numDocs) {
-                                    // if we did not search all shards but had no failures that is potentially fine
+                                    // if we did not search all shards but had no serious failures that is potentially fine
                                     // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                     // request comes in. It's a small window but a known limitation.
-                                    if (sr.getTotalShards() != sr.getSuccessfulShards() && sr.getFailedShards() == 0) {
-                                        nonCriticalExceptions.add("Count is " + sr.getHits().getTotalHits().value + " but " + numDocs +
-                                            " was expected. " + formatShardStatus(sr));
+                                    if (sr.getTotalShards() != sr.getSuccessfulShards()
+                                        && Stream.of(sr.getShardFailures())
+                                            .allMatch(ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
+                                        nonCriticalExceptions.add(
+                                            "Count is "
+                                                + sr.getHits().getTotalHits().value
+                                                + " but "
+                                                + numDocs
+                                                + " was expected. "
+                                                + formatShardStatus(sr)
+                                        );
                                     } else {
                                         assertHitCount(sr, numDocs);
                                     }
                                 }
 
                                 final SearchHits sh = sr.getHits();
-                                assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits().value,
-                                        equalTo((long) (sh.getHits().length)));
+                                assertThat(
+                                    "Expected hits to be the same size the actual hits array",
+                                    sh.getTotalHits().value,
+                                    equalTo((long) (sh.getHits().length))
+                                );
                                 // this is the more critical but that we hit the actual hit array has a different size than the
                                 // actual number of hits.
                             }
                         } catch (SearchPhaseExecutionException ex) {
                             // it's possible that all shards fail if we have a small number of shards.
-                            // with replicas this should not happen
-                            if (numberOfReplicas == 1 || !ex.getMessage().contains("all shards failed")) {
+                            if (ex.getMessage().contains("all shards failed") == false) {
                                 throw ex;
                             }
                         }
@@ -113,11 +126,17 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForYellowStatus()
-                    .setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
+            ClusterHealthResponse resp = client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForYellowStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout("5m")
+                .get();
             assertNoTimeout(resp);
             // if we hit only non-critical exceptions we make sure that the post search works
-            if (!nonCriticalExceptions.isEmpty()) {
+            if (nonCriticalExceptions.isEmpty() == false) {
                 logger.info("non-critical exceptions: {}", nonCriticalExceptions);
                 for (int j = 0; j < 10; j++) {
                     assertHitCount(client().prepareSearch().get(), numDocs);

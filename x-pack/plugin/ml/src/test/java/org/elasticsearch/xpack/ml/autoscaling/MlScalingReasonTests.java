@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.autoscaling;
@@ -36,12 +37,21 @@ public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScal
         return new MlScalingReason(
             randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()),
             randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()),
+            randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()),
             randomConfiguration(),
             randomBoolean() ? null : randomLongBetween(10, ByteSizeValue.ofGb(1).getBytes()),
             randomBoolean() ? null : randomLongBetween(10, ByteSizeValue.ofGb(1).getBytes()),
-            new AutoscalingCapacity(AutoscalingCapacity.AutoscalingResources.ZERO, AutoscalingCapacity.AutoscalingResources.ZERO),
+            new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
+            randomBoolean() ? null : new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
             randomAlphaOfLength(10)
-            );
+        );
+    }
+
+    protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
+        return new AutoscalingCapacity.AutoscalingResources(
+            ByteSizeValue.ofBytes(randomLongBetween(10, ByteSizeValue.ofGb(10).getBytes())),
+            ByteSizeValue.ofBytes(randomLongBetween(10, ByteSizeValue.ofGb(10).getBytes()))
+        );
     }
 
     @Override

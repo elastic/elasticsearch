@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests;
 
@@ -34,7 +35,7 @@ public class PostCalendarEventActionRequestTests extends AbstractWireSerializing
     private PostCalendarEventsAction.Request createTestInstance(String calendarId) {
         int numEvents = randomIntBetween(1, 10);
         List<ScheduledEvent> events = new ArrayList<>();
-        for (int i=0; i<numEvents; i++) {
+        for (int i = 0; i < numEvents; i++) {
             events.add(ScheduledEventTests.createScheduledEvent(calendarId));
         }
 
@@ -47,15 +48,17 @@ public class PostCalendarEventActionRequestTests extends AbstractWireSerializing
 
         StringBuilder requestString = new StringBuilder();
         requestString.append("{\"events\": [");
-        for (ScheduledEvent event: sourceRequest.getScheduledEvents()) {
+        for (ScheduledEvent event : sourceRequest.getScheduledEvents()) {
             requestString.append(Strings.toString(event)).append(',');
         }
-        requestString.replace(requestString.length() -1, requestString.length(), "]");
+        requestString.replace(requestString.length() - 1, requestString.length(), "]");
         requestString.append('}');
 
         XContentParser parser = createParser(XContentType.JSON.xContent(), requestString.toString());
         PostCalendarEventsAction.Request parsedRequest = PostCalendarEventsAction.Request.parseRequest(
-                sourceRequest.getCalendarId(), parser);
+            sourceRequest.getCalendarId(),
+            parser
+        );
 
         assertEquals(sourceRequest, parsedRequest);
     }
@@ -65,16 +68,20 @@ public class PostCalendarEventActionRequestTests extends AbstractWireSerializing
 
         StringBuilder requestString = new StringBuilder();
         requestString.append("{\"events\": [");
-        for (ScheduledEvent event: sourceRequest.getScheduledEvents()) {
+        for (ScheduledEvent event : sourceRequest.getScheduledEvents()) {
             requestString.append(Strings.toString(event)).append(',');
         }
-        requestString.replace(requestString.length() -1, requestString.length(), "]");
+        requestString.replace(requestString.length() - 1, requestString.length(), "]");
         requestString.append('}');
 
         XContentParser parser = createParser(XContentType.JSON.xContent(), requestString.toString());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> PostCalendarEventsAction.Request.parseRequest("bar", parser));
-        assertEquals("Inconsistent calendar_id; 'foo' specified in the body differs from 'bar' specified as a URL argument",
-                e.getMessage());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> PostCalendarEventsAction.Request.parseRequest("bar", parser)
+        );
+        assertEquals(
+            "Inconsistent calendar_id; 'foo' specified in the body differs from 'bar' specified as a URL argument",
+            e.getMessage()
+        );
     }
 }

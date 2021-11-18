@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -22,7 +23,7 @@ import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SamlServiceProviderTestUtils {
 
-    private SamlServiceProviderTestUtils(){} //utility class
+    private SamlServiceProviderTestUtils() {} // utility class
 
     public static SamlServiceProviderDocument randomDocument() {
         return randomDocument(randomIntBetween(1, 999_999));
@@ -73,7 +74,13 @@ public class SamlServiceProviderTestUtils {
     }
 
     private static String randomUri(String scheme) {
-        return scheme + "://" + randomAlphaOfLengthBetween(2, 6) + "."
-            + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(2, 4) + "/";
+        return scheme
+            + "://"
+            + randomAlphaOfLengthBetween(2, 6)
+            + "."
+            + randomAlphaOfLengthBetween(4, 8)
+            + "."
+            + randomAlphaOfLengthBetween(2, 4)
+            + "/";
     }
 }

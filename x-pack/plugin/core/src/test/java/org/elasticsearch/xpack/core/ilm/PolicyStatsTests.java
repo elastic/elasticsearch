@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -36,15 +37,15 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
         Map<String, PhaseStats> phaseStats = instance.getPhaseStats();
         int indicesManaged = instance.getIndicesManaged();
         switch (between(0, 1)) {
-        case 0:
-            phaseStats = new HashMap<>(instance.getPhaseStats());
-            phaseStats.put(randomAlphaOfLengthBetween(21, 25), PhaseStatsTests.createRandomInstance());
-            break;
-        case 1:
-            indicesManaged += randomIntBetween(1, 10);
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                phaseStats = new HashMap<>(instance.getPhaseStats());
+                phaseStats.put(randomAlphaOfLengthBetween(21, 25), PhaseStatsTests.createRandomInstance());
+                break;
+            case 1:
+                indicesManaged += randomIntBetween(1, 10);
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new PolicyStats(phaseStats, indicesManaged);
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.tools.java_version_checker;
@@ -23,14 +12,14 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Simple program that checks if the runtime Java version is at least 1.8.
+ * Simple program that checks if the runtime Java version is at least 17.
  */
 final class JavaVersionChecker {
 
     private JavaVersionChecker() {}
 
     /**
-     * The main entry point. The exit code is 0 if the Java version is at least 1.8, otherwise the exit code is 1.
+     * The main entry point. The exit code is 0 if the Java version is at least 17, otherwise the exit code is 1.
      *
      * @param args the args to the program which are rejected if not empty
      */
@@ -39,10 +28,10 @@ final class JavaVersionChecker {
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
-        if (JavaVersion.compare(JavaVersion.CURRENT, JavaVersion.JAVA_11) < 0) {
+        if (JavaVersion.compare(JavaVersion.CURRENT, JavaVersion.JAVA_17) < 0) {
             final String message = String.format(
                 Locale.ROOT,
-                "the minimum required Java version is 11; your Java version from [%s] does not meet this requirement",
+                "The minimum required Java version is 17; your Java version from [%s] does not meet this requirement",
                 System.getProperty("java.home")
             );
             errPrintln(message);

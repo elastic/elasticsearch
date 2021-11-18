@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -28,6 +29,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     private final Rounding.DateTimeUnit rateUnit;
     protected final RateMode rateMode;
     private final SizedBucketAggregator sizedBucketAggregator;
+    protected final boolean computeWithDocCount;
 
     protected DoubleArray sums;
     protected DoubleArray compensations;
@@ -54,6 +56,8 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         this.rateUnit = rateUnit;
         this.rateMode = rateMode;
         this.sizedBucketAggregator = findSizedBucketAncestor();
+        // If no fields or scripts have been defined in the agg, rate should be computed based on bucket doc_counts
+        this.computeWithDocCount = valuesSourceConfig.fieldContext() == null && valuesSourceConfig.script() == null;
     }
 
     private SizedBucketAggregator findSizedBucketAncestor() {
@@ -65,7 +69,10 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
             }
         }
         if (sizedBucketAggregator == null) {
-            throw new IllegalArgumentException("The rate aggregation can only be used inside a date histogram");
+            throw new IllegalArgumentException(
+                "The rate aggregation can only be used inside a date histogram aggregation or "
+                    + "composite aggregation with one date histogram value source"
+            );
         }
         return sizedBucketAggregator;
     }

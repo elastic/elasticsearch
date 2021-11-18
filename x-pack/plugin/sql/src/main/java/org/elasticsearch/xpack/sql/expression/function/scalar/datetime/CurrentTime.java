@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -21,8 +22,7 @@ public class CurrentTime extends CurrentFunction<OffsetTime> {
     private final Expression precision;
 
     public CurrentTime(Source source, Expression precision, Configuration configuration) {
-        super(source, configuration, nanoPrecision(configuration.now().toOffsetDateTime().toOffsetTime(), precision),
-            SqlDataTypes.TIME);
+        super(source, configuration, nanoPrecision(configuration.now().toOffsetDateTime().toOffsetTime(), precision), SqlDataTypes.TIME);
         this.precision = precision;
     }
 

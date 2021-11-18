@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -31,7 +32,6 @@ public class VersionTests extends ESTestCase {
         assertEquals("Invalid version format [7.1]", err.getMessage());
     }
 
-
     private static final String JAR_PATH_SEPARATOR = "!/";
 
     private static String versionString(byte[] parts) {
@@ -45,7 +45,7 @@ public class VersionTests extends ESTestCase {
 
     private static byte[] randomVersion() {
         byte[] parts = new byte[3];
-        for (int i = 0; i < parts.length; i ++) {
+        for (int i = 0; i < parts.length; i++) {
             parts[i] = (byte) randomIntBetween(0, SqlVersion.REVISION_MULTIPLIER - 1);
         }
         return parts;
@@ -102,8 +102,10 @@ public class VersionTests extends ESTestCase {
         Path innerJarPath = createDriverJar(parts);
 
         // create the uberjar and embed the jdbc driver one into it
-        try (BufferedInputStream in = new BufferedInputStream(Files.newInputStream(innerJarPath));
-                JarOutputStream out = new JarOutputStream(Files.newOutputStream(jarPath, StandardOpenOption.CREATE), new Manifest())) {
+        try (
+            BufferedInputStream in = new BufferedInputStream(Files.newInputStream(innerJarPath));
+            JarOutputStream out = new JarOutputStream(Files.newOutputStream(jarPath, StandardOpenOption.CREATE), new Manifest())
+        ) {
             JarEntry entry = new JarEntry(innerJarPath.getFileName() + JAR_PATH_SEPARATOR);
             out.putNextEntry(entry);
 
@@ -117,8 +119,9 @@ public class VersionTests extends ESTestCase {
             }
         }
 
-        URL jarInJar = new URL("jar:" + jarPath.toUri().toURL().toString() + JAR_PATH_SEPARATOR + innerJarPath.getFileName() +
-            JAR_PATH_SEPARATOR);
+        URL jarInJar = new URL(
+            "jar:" + jarPath.toUri().toURL().toString() + JAR_PATH_SEPARATOR + innerJarPath.getFileName() + JAR_PATH_SEPARATOR
+        );
 
         SqlVersion version = ClientVersion.extractVersion(jarInJar);
         assertEquals(parts[0], version.major);

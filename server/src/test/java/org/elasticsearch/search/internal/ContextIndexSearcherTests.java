@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
@@ -45,6 +34,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -56,7 +46,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -67,6 +56,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -87,10 +77,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ContextIndexSearcherTests extends ESTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
         final Directory directory = newDirectory();
-        IndexWriter iw = new IndexWriter(
-            directory,
-            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-        );
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
 
         Document document = new Document();
         document.add(new StringField("field1", "value1", Field.Store.NO));
@@ -119,13 +106,16 @@ public class ContextIndexSearcherTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         Weight weight = searcher.createWeight(
             new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("field2", "value1"))), 3f),
-            ScoreMode.COMPLETE, 1f);
+            ScoreMode.COMPLETE,
+            1f
+        );
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 
         CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
             Scorable scorer;
+
             @Override
             public void setScorer(Scorable scorer) throws IOException {
                 this.scorer = scorer;
@@ -146,7 +136,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(doc, equalTo(1));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -155,7 +145,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 fail("docId [" + doc + "] should have been deleted");
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -164,7 +154,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(doc, equalTo(3));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         directoryReader.close();
         directory.close();
@@ -227,8 +217,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
             }
         };
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w),
-            new ShardId(settings.getIndex(), 0));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
         BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
@@ -240,8 +229,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
-        ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            filteredReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
 
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
@@ -287,11 +281,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
         return sparseFixedBitSet;
     }
 
-    private static class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
+    public static class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
         private final BitsetFilterCache bitsetFilterCache;
         private final Query roleQuery;
 
-        DocumentSubsetDirectoryReader(DirectoryReader in, BitsetFilterCache bitsetFilterCache, Query roleQuery) throws IOException {
+        public DocumentSubsetDirectoryReader(DirectoryReader in, BitsetFilterCache bitsetFilterCache, Query roleQuery) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -310,7 +304,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
         }
-
 
         @Override
         public CacheHelper getReaderCacheHelper() {
@@ -404,11 +397,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public void extractTerms(Set<Term> terms) {
-            weight.extractTerms(terms);
-        }
-
-        @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return weight.explain(context, doc);
         }
@@ -420,8 +408,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public BulkScorer bulkScorer(LeafReaderContext context)
-            throws IOException {
+        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
             assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
             return weight.bulkScorer(context);
         }
@@ -467,6 +454,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
         @Override
         public int hashCode() {
             return 31 * classHash() + query.hashCode();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
         }
     }
 }

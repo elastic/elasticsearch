@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -71,9 +72,9 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
             });
 
             // Transforms the value of a1, equivalent to:
-            //      ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10;
-            //      ctx.payload.a1_transformed_value = ctx.vars.a1_transform_value;
-            //      return ctx.payload;
+            // ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10;
+            // ctx.payload.a1_transformed_value = ctx.vars.a1_transform_value;
+            // return ctx.payload;
             scripts.put("transform a1", vars -> {
                 Map<String, Object> ctxVars = (Map<String, Object>) XContentMapValues.extractValue("ctx.vars", vars);
                 Map<String, Object> ctxPayload = (Map<String, Object>) XContentMapValues.extractValue("ctx.payload", vars);
@@ -88,9 +89,9 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
             });
 
             // Transforms the value of a2, equivalent to:
-            //      ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20;
-            //      ctx.payload.a2_transformed_value = ctx.vars.a2_transform_value;
-            //      return ctx.payload;
+            // ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20;
+            // ctx.payload.a2_transformed_value = ctx.vars.a2_transform_value;
+            // return ctx.payload;
             scripts.put("transform a2", vars -> {
                 Map<String, Object> ctxVars = (Map<String, Object>) XContentMapValues.extractValue("ctx.vars", vars);
                 Map<String, Object> ctxPayload = (Map<String, Object>) XContentMapValues.extractValue("ctx.payload", vars);
@@ -108,23 +109,24 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67908")
     public void testVars() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
-                .trigger(schedule(cron("0/1 * * * * ?")))
-                .input(simpleInput("value", 5))
-                .condition(new ScriptCondition(
-                        mockScript("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
-                .transform(
-                        scriptTransform(mockScript("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;")))
-                .addAction(
-                        "a1",
-                        scriptTransform(mockScript("transform a1")),
-                        loggingAction("_text"))
-                .addAction(
-                        "a2",
-                        scriptTransform(mockScript("transform a2")),
-                        loggingAction("_text")))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId)
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/1 * * * * ?")))
+                    .input(simpleInput("value", 5))
+                    .condition(
+                        new ScriptCondition(
+                            mockScript("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")
+                        )
+                    )
+                    .transform(
+                        scriptTransform(mockScript("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
+                    )
+                    .addAction("a1", scriptTransform(mockScript("transform a1")), loggingAction("_text"))
+                    .addAction("a2", scriptTransform(mockScript("transform a2")), loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -171,31 +173,28 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
     }
 
     public void testVarsManual() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId).setSource(watchBuilder()
-                .trigger(schedule(cron("0/1 * * * * ? 2020")))
-                .input(simpleInput("value", 5))
-                .condition(new ScriptCondition(
-                        mockScript("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
-                .transform(
-                        scriptTransform(mockScript("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;")))
-                .addAction(
-                        "a1",
-                        scriptTransform(mockScript("transform a1")),
-                        loggingAction("_text"))
-                .addAction(
-                        "a2",
-                        scriptTransform(mockScript("transform a2")),
-                        loggingAction("_text")))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId)
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/1 * * * * ? 2020")))
+                    .input(simpleInput("value", 5))
+                    .condition(
+                        new ScriptCondition(
+                            mockScript("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")
+                        )
+                    )
+                    .transform(
+                        scriptTransform(mockScript("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
+                    )
+                    .addAction("a1", scriptTransform(mockScript("transform a1")), loggingAction("_text"))
+                    .addAction("a2", scriptTransform(mockScript("transform a2")), loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
         boolean debug = randomBoolean();
 
-        ExecuteWatchResponse executeWatchResponse = new ExecuteWatchRequestBuilder(client())
-                .setId(watchId)
-                .setDebug(debug)
-                .get();
+        ExecuteWatchResponse executeWatchResponse = new ExecuteWatchRequestBuilder(client()).setId(watchId).setDebug(debug).get();
         assertThat(executeWatchResponse.getRecordId(), notNullValue());
         XContentSource source = executeWatchResponse.getRecordSource();
 

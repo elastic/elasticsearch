@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
@@ -58,10 +59,19 @@ public class TrainTestSplitterFactory {
             .setQuery(QueryBuilders.existsQuery(regression.getDependentVariable()));
 
         try {
-            SearchResponse searchResponse = ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
-                searchRequestBuilder::get);
-            return new SingleClassReservoirTrainTestSplitter(fieldNames, regression.getDependentVariable(),
-                regression.getTrainingPercent(), regression.getRandomizeSeed(), searchResponse.getHits().getTotalHits().value);
+            SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+                config.getHeaders(),
+                ClientHelper.ML_ORIGIN,
+                client,
+                searchRequestBuilder::get
+            );
+            return new SingleClassReservoirTrainTestSplitter(
+                fieldNames,
+                regression.getDependentVariable(),
+                regression.getTrainingPercent(),
+                regression.getRandomizeSeed(),
+                searchResponse.getHits().getTotalHits().value
+            );
         } catch (Exception e) {
             ParameterizedMessage msg = new ParameterizedMessage("[{}] Error searching total number of training docs", config.getId());
             LOGGER.error(msg, e);
@@ -74,13 +84,19 @@ public class TrainTestSplitterFactory {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(config.getDest().getIndex())
             .setSize(0)
             .setAllowPartialSearchResults(false)
-            .addAggregation(AggregationBuilders.terms(aggName)
-                .field(classification.getDependentVariable())
-                .size(Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY));
+            .addAggregation(
+                AggregationBuilders.terms(aggName)
+                    .field(classification.getDependentVariable())
+                    .size(Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY)
+            );
 
         try {
-            SearchResponse searchResponse = ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
-                searchRequestBuilder::get);
+            SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+                config.getHeaders(),
+                ClientHelper.ML_ORIGIN,
+                client,
+                searchRequestBuilder::get
+            );
             Aggregations aggs = searchResponse.getAggregations();
             Terms terms = aggs.get(aggName);
             Map<String, Long> classCounts = new HashMap<>();
@@ -88,8 +104,13 @@ public class TrainTestSplitterFactory {
                 classCounts.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
             }
 
-            return new StratifiedTrainTestSplitter(fieldNames, classification.getDependentVariable(), classCounts,
-                classification.getTrainingPercent(), classification.getRandomizeSeed());
+            return new StratifiedTrainTestSplitter(
+                fieldNames,
+                classification.getDependentVariable(),
+                classCounts,
+                classification.getTrainingPercent(),
+                classification.getRandomizeSeed()
+            );
         } catch (Exception e) {
             ParameterizedMessage msg = new ParameterizedMessage("[{}] Dependent variable terms search failed", config.getId());
             LOGGER.error(msg, e);

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -41,7 +30,8 @@ public class RestGetSettingsAction extends BaseRestHandler {
             new Route(GET, "/_settings/{name}"),
             new Route(GET, "/{index}/_settings"),
             new Route(GET, "/{index}/_settings/{name}"),
-            new Route(GET, "/{index}/_setting/{name}"));
+            new Route(GET, "/{index}/_setting/{name}")
+        );
     }
 
     @Override
@@ -55,12 +45,11 @@ public class RestGetSettingsAction extends BaseRestHandler {
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         // This is required so the "flat_settings" parameter counts as consumed
         request.paramAsBoolean("flat_settings", false);
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
-                .indices(Strings.splitStringByCommaToArray(request.param("index")))
-                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
-                .humanReadable(request.hasParam("human"))
-                .includeDefaults(renderDefaults)
-                .names(names);
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(Strings.splitStringByCommaToArray(request.param("index")))
+            .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
+            .humanReadable(request.hasParam("human"))
+            .includeDefaults(renderDefaults)
+            .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
         getSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSettingsRequest.masterNodeTimeout()));
         return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestToXContentListener<>(channel));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -17,12 +18,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,8 +70,14 @@ public class MlDailyMaintenanceService implements Releasable {
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
 
-    MlDailyMaintenanceService(Settings settings, ThreadPool threadPool, Client client, ClusterService clusterService,
-                              MlAssignmentNotifier mlAssignmentNotifier, Supplier<TimeValue> scheduleProvider) {
+    MlDailyMaintenanceService(
+        Settings settings,
+        ThreadPool threadPool,
+        Client client,
+        ClusterService clusterService,
+        MlAssignmentNotifier mlAssignmentNotifier,
+        Supplier<TimeValue> scheduleProvider
+    ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -79,8 +86,14 @@ public class MlDailyMaintenanceService implements Releasable {
         this.deleteExpiredDataRequestsPerSecond = MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND.get(settings);
     }
 
-    public MlDailyMaintenanceService(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                     Client client, ClusterService clusterService, MlAssignmentNotifier mlAssignmentNotifier) {
+    public MlDailyMaintenanceService(
+        Settings settings,
+        ClusterName clusterName,
+        ThreadPool threadPool,
+        Client client,
+        ClusterService clusterService,
+        MlAssignmentNotifier mlAssignmentNotifier
+    ) {
         this(settings, threadPool, client, clusterService, mlAssignmentNotifier, () -> delayToNextTime(clusterName));
     }
 
@@ -103,11 +116,7 @@ public class MlDailyMaintenanceService implements Releasable {
         int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
 
         ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
-        ZonedDateTime next = now.plusDays(1)
-            .toLocalDate()
-            .atStartOfDay(now.getZone())
-            .plusMinutes(30)
-            .plusMinutes(minutesOffset);
+        ZonedDateTime next = now.plusDays(1).toLocalDate().atStartOfDay(now.getZone()).plusMinutes(30).plusMinutes(minutesOffset);
         return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
     }
 
@@ -148,6 +157,10 @@ public class MlDailyMaintenanceService implements Releasable {
         try {
             if (MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode()) {
                 LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
+                return;
+            }
+            if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
+                LOGGER.warn("skipping scheduled [ML] maintenance tasks because machine learning feature reset is in progress");
                 return;
             }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
@@ -195,7 +208,8 @@ public class MlDailyMaintenanceService implements Releasable {
             ML_ORIGIN,
             DeleteExpiredDataAction.INSTANCE,
             new DeleteExpiredDataAction.Request(deleteExpiredDataRequestsPerSecond, TimeValue.timeValueHours(8)),
-            deleteExpiredDataActionListener);
+            deleteExpiredDataActionListener
+        );
     }
 
     // Visible for testing
@@ -204,12 +218,11 @@ public class MlDailyMaintenanceService implements Releasable {
 
         ActionListener<List<Tuple<DeleteJobAction.Request, AcknowledgedResponse>>> deleteJobsActionListener = ActionListener.wrap(
             deleteJobsResponses -> {
-                List<String> jobIds =
-                    deleteJobsResponses.stream()
-                        .filter(t -> t.v2().isAcknowledged() == false)
-                        .map(Tuple::v1)
-                        .map(DeleteJobAction.Request::getJobId)
-                        .collect(toList());
+                List<String> jobIds = deleteJobsResponses.stream()
+                    .filter(t -> t.v2().isAcknowledged() == false)
+                    .map(Tuple::v1)
+                    .map(DeleteJobAction.Request::getJobId)
+                    .collect(toList());
                 if (jobIds.isEmpty()) {
                     LOGGER.info("Successfully completed [ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask");
                 } else {
@@ -220,60 +233,59 @@ public class MlDailyMaintenanceService implements Releasable {
             finalListener::onFailure
         );
 
-        ActionListener<ListTasksResponse> listTasksActionListener = ActionListener.wrap(
-            listTasksResponse -> {
-                Set<String> jobsInStateDeleting = jobsInStateDeletingHolder.get();
-                Set<String> jobsWithDeletionTask =
-                    listTasksResponse.getTasks().stream()
-                        .filter(t -> t.getDescription() != null)
-                        .filter(t -> t.getDescription().startsWith(DeleteJobAction.DELETION_TASK_DESCRIPTION_PREFIX))
-                        .map(t -> t.getDescription().substring(DeleteJobAction.DELETION_TASK_DESCRIPTION_PREFIX.length()))
-                        .collect(toSet());
-                Set<String> jobsInStateDeletingWithoutDeletionTask = Sets.difference(jobsInStateDeleting, jobsWithDeletionTask);
-                if (jobsInStateDeletingWithoutDeletionTask.isEmpty()) {
-                    finalListener.onResponse(AcknowledgedResponse.TRUE);
-                    return;
-                }
-                TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor =
-                    new TypedChainTaskExecutor<>(threadPool.executor(ThreadPool.Names.SAME), unused -> true, unused -> true);
-                for (String jobId : jobsInStateDeletingWithoutDeletionTask) {
-                    DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
-                    chainTaskExecutor.add(
-                        listener ->
-                            executeAsyncWithOrigin(
-                                client,
-                                ML_ORIGIN,
-                                DeleteJobAction.INSTANCE,
-                                request,
-                                ActionListener.wrap(response -> listener.onResponse(Tuple.tuple(request, response)), listener::onFailure))
-                    );
-                }
-                chainTaskExecutor.execute(deleteJobsActionListener);
-            },
-            finalListener::onFailure
-        );
+        ActionListener<ListTasksResponse> listTasksActionListener = ActionListener.wrap(listTasksResponse -> {
+            Set<String> jobsInStateDeleting = jobsInStateDeletingHolder.get();
+            Set<String> jobsWithDeletionTask = listTasksResponse.getTasks()
+                .stream()
+                .filter(t -> t.getDescription() != null)
+                .filter(t -> t.getDescription().startsWith(DeleteJobAction.DELETION_TASK_DESCRIPTION_PREFIX))
+                .map(t -> t.getDescription().substring(DeleteJobAction.DELETION_TASK_DESCRIPTION_PREFIX.length()))
+                .collect(toSet());
+            Set<String> jobsInStateDeletingWithoutDeletionTask = Sets.difference(jobsInStateDeleting, jobsWithDeletionTask);
+            if (jobsInStateDeletingWithoutDeletionTask.isEmpty()) {
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor = new TypedChainTaskExecutor<>(
+                threadPool.executor(ThreadPool.Names.SAME),
+                unused -> true,
+                unused -> true
+            );
+            for (String jobId : jobsInStateDeletingWithoutDeletionTask) {
+                DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
+                chainTaskExecutor.add(
+                    listener -> executeAsyncWithOrigin(
+                        client,
+                        ML_ORIGIN,
+                        DeleteJobAction.INSTANCE,
+                        request,
+                        ActionListener.wrap(response -> listener.onResponse(Tuple.tuple(request, response)), listener::onFailure)
+                    )
+                );
+            }
+            chainTaskExecutor.execute(deleteJobsActionListener);
+        }, finalListener::onFailure);
 
-        ActionListener<GetJobsAction.Response> getJobsActionListener = ActionListener.wrap(
-            getJobsResponse -> {
-                Set<String> jobsInStateDeleting =
-                    getJobsResponse.getResponse().results().stream()
-                        .filter(Job::isDeleting)
-                        .map(Job::getId)
-                        .collect(toSet());
-                if (jobsInStateDeleting.isEmpty()) {
-                    finalListener.onResponse(AcknowledgedResponse.TRUE);
-                    return;
-                }
-                jobsInStateDeletingHolder.set(jobsInStateDeleting);
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    ListTasksAction.INSTANCE,
-                    new ListTasksRequest().setActions(DeleteJobAction.NAME),
-                    listTasksActionListener);
-            },
-            finalListener::onFailure
-        );
+        ActionListener<GetJobsAction.Response> getJobsActionListener = ActionListener.wrap(getJobsResponse -> {
+            Set<String> jobsInStateDeleting = getJobsResponse.getResponse()
+                .results()
+                .stream()
+                .filter(Job::isDeleting)
+                .map(Job::getId)
+                .collect(toSet());
+            if (jobsInStateDeleting.isEmpty()) {
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            jobsInStateDeletingHolder.set(jobsInStateDeleting);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                ListTasksAction.INSTANCE,
+                new ListTasksRequest().setActions(DeleteJobAction.NAME),
+                listTasksActionListener
+            );
+        }, finalListener::onFailure);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request("*"), getJobsActionListener);
     }

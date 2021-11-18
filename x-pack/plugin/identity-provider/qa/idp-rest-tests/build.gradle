@@ -1,13 +1,14 @@
-apply plugin: 'elasticsearch.java-rest-test'
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   //TODO: update javaRestTests to not rely on any code that it is testing
-  javaRestTestImplementation project(path: xpackModule('identity-provider'), configuration: 'default')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('identity-provider'))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
 
   setting 'xpack.license.self_generated.type', 'trial'
@@ -45,3 +46,9 @@ testClusters.all {
   user username: "idp_admin", password: "idp-password", role: "idp_admin"
   user username: "idp_user", password: "idp-password", role: "idp_user"
 }
+
+// We don't support the IDP in FIPS-140 mode, so no need to run java rest tests
+tasks.named("javaRestTest").configure {
+  onlyIf { BuildParams.inFipsJvm == false }
+}
+

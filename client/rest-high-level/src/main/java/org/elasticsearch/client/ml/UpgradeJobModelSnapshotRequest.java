@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,7 +28,8 @@ public class UpgradeJobModelSnapshotRequest implements Validatable, ToXContentOb
     private static final ConstructingObjectParser<UpgradeJobModelSnapshotRequest, Void> PARSER = new ConstructingObjectParser<>(
         "upgrade_job_snapshot_request",
         true,
-        a -> new UpgradeJobModelSnapshotRequest((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3]));
+        a -> new UpgradeJobModelSnapshotRequest((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -54,10 +44,7 @@ public class UpgradeJobModelSnapshotRequest implements Validatable, ToXContentOb
     private final Boolean waitForCompletion;
 
     UpgradeJobModelSnapshotRequest(String jobId, String snapshotId, String timeout, Boolean waitForCompletion) {
-        this(jobId,
-            snapshotId,
-            timeout == null ? null : TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()),
-            waitForCompletion);
+        this(jobId, snapshotId, timeout == null ? null : TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()), waitForCompletion);
     }
 
     public UpgradeJobModelSnapshotRequest(String jobId, String snapshotId, TimeValue timeValue, Boolean waitForCompletion) {
@@ -92,10 +79,10 @@ public class UpgradeJobModelSnapshotRequest implements Validatable, ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UpgradeJobModelSnapshotRequest request = (UpgradeJobModelSnapshotRequest) o;
-        return Objects.equals(jobId, request.jobId) &&
-            Objects.equals(timeout, request.timeout) &&
-            Objects.equals(waitForCompletion, request.waitForCompletion) &&
-            Objects.equals(snapshotId, request.snapshotId);
+        return Objects.equals(jobId, request.jobId)
+            && Objects.equals(timeout, request.timeout)
+            && Objects.equals(waitForCompletion, request.waitForCompletion)
+            && Objects.equals(snapshotId, request.snapshotId);
     }
 
     @Override

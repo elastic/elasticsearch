@@ -1,40 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -42,6 +46,7 @@ import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +74,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final Parameter<String> nullValue;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        /**
+         * Parameter that marks this field as a time series dimension.
+         */
+        private final Parameter<Boolean> dimension;
+
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * For the numeric fields gauge and counter metric types are
+         * supported
+         */
+        private final Parameter<MetricType> metric;
+
         public Builder(String name, Settings settings) {
             this(name, IGNORE_MALFORMED_SETTING.get(settings));
         }
@@ -88,6 +105,28 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 (n, c, o) -> parseNullValueAsString(o),
                 m -> toType(m).nullValue
             ).acceptsNull();
+
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            });
+
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            }).precludesParameters(dimension);
         }
 
         private String parseNullValueAsString(Object o) {
@@ -105,9 +144,19 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
+        }
+
+        public Builder metric(MetricType metric) {
+            this.metric.setValue(metric);
+            return this;
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta, dimension, metric);
         }
 
         Number parsedNullValue() {
@@ -119,16 +168,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public UnsignedLongFieldMapper build(ContentPath contentPath) {
+        public UnsignedLongFieldMapper build(MapperBuilderContext context) {
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
                 parsedNullValue(),
-                meta.getValue()
+                meta.getValue(),
+                dimension.getValue(),
+                metric.getValue()
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -137,6 +188,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
         private final Number nullValueFormatted;
+        private final boolean isDimension;
+        private final MetricType metricType;
 
         public UnsignedLongFieldType(
             String name,
@@ -144,14 +197,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             boolean isStored,
             boolean hasDocValues,
             Number nullValueFormatted,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isDimension,
+            MetricType metricType
         ) {
             super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValueFormatted = nullValueFormatted;
+            this.isDimension = isDimension;
+            this.metricType = metricType;
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap());
+            this(name, true, false, true, null, Collections.emptyMap(), false, null);
         }
 
         @Override
@@ -160,7 +217,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
             Long longValue = parseTerm(value);
             if (longValue == null) {
@@ -170,12 +227,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
-            for (int i = 0; i < values.size(); i++) {
-                Object value = values.get(i);
+            for (Object value : values) {
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
                     lvalues[upTo++] = unsignedToSortableSignedLong(longValue);
@@ -191,7 +247,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexed();
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
@@ -224,14 +286,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return (cache, breakerService) -> {
                 final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                     name(),
-                    IndexNumericFieldData.NumericType.LONG
+                    IndexNumericFieldData.NumericType.LONG,
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
                 ).build(cache, breakerService);
-                return new UnsignedLongIndexFieldData(signedLongValues);
+                return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
             };
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -262,11 +325,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException(
-                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
-                );
-            }
+            checkNoTimeZone(timeZone);
             return DocValueFormat.UNSIGNED_LONG_SHIFTED;
         }
 
@@ -386,6 +445,21 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             return longValue;
         }
+
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
+        }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        public MetricType getMetricType() {
+            return metricType;
+        }
     }
 
     private final boolean indexed;
@@ -395,6 +469,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final String nullValue;
     private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
+    private final boolean dimension;
+    private final MetricType metricType;
 
     private UnsignedLongFieldMapper(
         String simpleName,
@@ -416,6 +492,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             long parsed = parseUnsignedLong(nullValue);
             this.nullValueIndexed = unsignedToSortableSignedLong(parsed);
         }
+        this.dimension = builder.dimension.getValue();
+        this.metricType = builder.metric.getValue();
     }
 
     boolean ignoreMalformed() {
@@ -433,12 +511,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         Long numericValue;
-        if (context.externalValueSet()) {
-            numericValue = parseUnsignedLong(context.externalValue());
-        } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             numericValue = null;
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0) {
             numericValue = null;
@@ -479,15 +555,28 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             String storedValued = isNullValue ? nullValue : Long.toUnsignedString(unsignedToSortableSignedLong(numericValue));
             fields.add(new StoredField(fieldType().name(), storedValued));
         }
-        context.doc().addAll(fields);
+
+        if (dimension && fields.size() > 0) { // dimension == true requires that field is indexed and has doc-values
+            // Check that a dimension field is single-valued and not an array
+            if (context.doc().getByKey(fieldType().name()) != null) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+            }
+
+            // Add the field by key so that we can validate if it has been added
+            context.doc().addWithKey(fieldType().name(), new LongPoint(fieldType().name(), numericValue));
+            context.doc().addAll(fields.subList(1, fields.size()));
+        } else {
+            context.doc().addAll(fields);
+        }
+
         if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault).dimension(dimension).metric(metricType).init(this);
     }
 
     /**
@@ -502,21 +591,38 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value [" + lv + "] is out of range for unsigned long.");
                 }
                 return lv;
+            } else if (value instanceof Double || value instanceof Float) {
+                final Number v = (Number) value;
+                if (Double.compare(v.doubleValue(), Math.floor(v.doubleValue())) != 0) {
+                    throw new IllegalArgumentException("Value \"" + value + "\" has a decimal part");
+                }
+                return parseUnsignedLong(v.longValue());
             } else if (value instanceof BigInteger) {
                 BigInteger bigIntegerValue = (BigInteger) value;
                 if (bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
                     throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
                 }
                 return bigIntegerValue.longValue();
+            } else if (value instanceof BigDecimal) {
+                return parseUnsignedLong(((BigDecimal) value).toBigIntegerExact());
             }
             // throw exception for all other numeric types with decimal parts
-            throw new IllegalArgumentException("For input string: [" + value.toString() + "].");
+            throw new IllegalArgumentException("For input string: [" + value + "].");
         } else {
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            final String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             try {
                 return Long.parseUnsignedLong(stringValue);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+            } catch (NumberFormatException ignored) {
+                final BigInteger bigInteger;
+                try {
+                    final BigDecimal bigDecimal = new BigDecimal(stringValue);
+                    bigInteger = bigDecimal.toBigIntegerExact();
+                } catch (ArithmeticException e) {
+                    throw new IllegalArgumentException("Value \"" + stringValue + "\" has a decimal part");
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+                }
+                return parseUnsignedLong(bigInteger);
             }
         }
     }

@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Objects;
@@ -37,7 +26,8 @@ public final class FollowInfoResponse {
             @SuppressWarnings("unchecked")
             List<FollowerInfo> infos = (List<FollowerInfo>) args[0];
             return new FollowInfoResponse(infos);
-        });
+        }
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FollowerInfo.PARSER, FOLLOWER_INDICES_FIELD);
@@ -82,17 +72,26 @@ public final class FollowInfoResponse {
             "follower_info",
             true,
             args -> {
-                return new FollowerInfo((String) args[0], (String) args[1], (String) args[2],
-                    Status.fromString((String) args[3]), (FollowConfig) args[4]);
-            });
+                return new FollowerInfo(
+                    (String) args[0],
+                    (String) args[1],
+                    (String) args[2],
+                    Status.fromString((String) args[3]),
+                    (FollowConfig) args[4]
+                );
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOWER_INDEX_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), REMOTE_CLUSTER_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> FollowConfig.fromXContent(p), PARAMETERS_FIELD);
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> FollowConfig.fromXContent(p),
+                PARAMETERS_FIELD
+            );
         }
 
         private final String followerIndex;
@@ -101,8 +100,7 @@ public final class FollowInfoResponse {
         private final Status status;
         private final FollowConfig parameters;
 
-        FollowerInfo(String followerIndex, String remoteCluster, String leaderIndex, Status status,
-                            FollowConfig parameters) {
+        FollowerInfo(String followerIndex, String remoteCluster, String leaderIndex, Status status, FollowConfig parameters) {
             this.followerIndex = followerIndex;
             this.remoteCluster = remoteCluster;
             this.leaderIndex = leaderIndex;
@@ -135,11 +133,11 @@ public final class FollowInfoResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FollowerInfo that = (FollowerInfo) o;
-            return Objects.equals(followerIndex, that.followerIndex) &&
-                Objects.equals(remoteCluster, that.remoteCluster) &&
-                Objects.equals(leaderIndex, that.leaderIndex) &&
-                status == that.status &&
-                Objects.equals(parameters, that.parameters);
+            return Objects.equals(followerIndex, that.followerIndex)
+                && Objects.equals(remoteCluster, that.remoteCluster)
+                && Objects.equals(leaderIndex, that.leaderIndex)
+                && status == that.status
+                && Objects.equals(parameters, that.parameters);
         }
 
         @Override

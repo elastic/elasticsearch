@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -33,8 +35,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.ML_POST_V660_TEMPLATES.stream(),
-            super.templatesToWaitFor().stream()).collect(Collectors.toSet());
+        List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
+            ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
+            : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        return Stream.concat(templatesToWaitFor.stream(), super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 
     /**
@@ -122,8 +126,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
-            assertEquals("Incorrect type for peak_model_bytes in " + responseLevel, "long",
-                extractValue("mappings.properties.model_size_stats.properties.peak_model_bytes.type", indexLevel));
+            assertEquals(
+                "Incorrect type for peak_model_bytes in " + responseLevel,
+                "long",
+                extractValue("mappings.properties.model_size_stats.properties.peak_model_bytes.type", indexLevel)
+            );
         });
     }
 
@@ -153,8 +160,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that would be incorrectly mapped by dynamic
             // mappings, for example a field we want to be "keyword" incorrectly mapped as "text"
-            assertEquals("Incorrect type for event in " + responseLevel, "keyword",
-                extractValue("mappings.properties.event.type", indexLevel));
+            assertEquals(
+                "Incorrect type for event in " + responseLevel,
+                "keyword",
+                extractValue("mappings.properties.event.type", indexLevel)
+            );
         });
     }
 
@@ -163,8 +173,12 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             Request getMappings = new Request("GET", ".ml-config/_mappings");
-            getMappings.setOptions(expectWarnings("this request accesses system indices: [.ml-config], but in a future major " +
-                "version, direct access to system indices will be prevented by default"));
+            getMappings.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.ml-config], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                )
+            );
             Response response = client().performRequest(getMappings);
 
             Map<String, Object> responseLevel = entityAsMap(response);
@@ -176,8 +190,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
-            assertEquals("Incorrect type for annotations_enabled in " + responseLevel, "boolean",
-                extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel));
+            assertEquals(
+                "Incorrect type for annotations_enabled in " + responseLevel,
+                "boolean",
+                extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
+            );
         });
     }
 }

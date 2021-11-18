@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,7 +37,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             ShapeFieldMapper gsfm = (ShapeFieldMapper) m;
-            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
+            assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
             ShapeFieldMapper gpfm = (ShapeFieldMapper) m;
@@ -51,15 +53,19 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         });
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
-        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.RIGHT));
+        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(Orientation.RIGHT));
     }
-
 
     /**
      * Test that orientation parameter correctly parses
@@ -73,10 +79,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        ShapeBuilder.Orientation orientation = ((ShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = ((ShapeFieldMapper) fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // explicit right orientation test
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -86,10 +92,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        orientation = ((ShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        orientation = ((ShapeFieldMapper) fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**
@@ -104,7 +110,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        boolean coerce = ((ShapeFieldMapper)fieldMapper).coerce();
+        boolean coerce = ((ShapeFieldMapper) fieldMapper).coerce();
         assertThat(coerce, equalTo(true));
 
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -114,11 +120,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        coerce = ((ShapeFieldMapper)fieldMapper).coerce();
+        coerce = ((ShapeFieldMapper) fieldMapper).coerce();
         assertThat(coerce, equalTo(false));
 
     }
-
 
     /**
      * Test that accept_z_value parameter correctly parses
@@ -131,7 +136,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        boolean ignoreZValue = ((ShapeFieldMapper)fieldMapper).ignoreZValue();
+        boolean ignoreZValue = ((ShapeFieldMapper) fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
@@ -142,7 +147,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        ignoreZValue = ((ShapeFieldMapper)fieldMapper).ignoreZValue();
+        ignoreZValue = ((ShapeFieldMapper) fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -158,7 +163,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        boolean ignoreMalformed = ((ShapeFieldMapper)fieldMapper).ignoreMalformed();
+        boolean ignoreMalformed = ((ShapeFieldMapper) fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed, equalTo(true));
 
         // explicit false ignore_malformed test
@@ -169,7 +174,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        ignoreMalformed = ((ShapeFieldMapper)fieldMapper).ignoreMalformed();
+        ignoreMalformed = ((ShapeFieldMapper) fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed, equalTo(false));
     }
 
@@ -188,14 +193,13 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
-        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
     }
 
     public void testSerializeDefaults() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         String serialized = toXContentString((ShapeFieldMapper) defaultMapper.mappers().getMapper(FIELD_NAME));
-        assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-            ShapeBuilder.Orientation.RIGHT + "\""));
+        assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
     }
 
     public void testShapeArrayParsing() throws Exception {
@@ -203,18 +207,23 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         SourceToParse sourceToParse = source(b -> {
-                b.startArray("shape")
-                    .startObject()
-                    .field("type", "Point")
-                    .startArray("coordinates").value(176.0).value(15.0).endArray()
-                    .endObject()
-                    .startObject()
-                    .field("type", "Point")
-                    .startArray("coordinates").value(76.0).value(-15.0).endArray()
-                    .endObject()
-                    .endArray();
-            }
-        );
+            b.startArray("shape")
+                .startObject()
+                .field("type", "Point")
+                .startArray("coordinates")
+                .value(176.0)
+                .value(15.0)
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("type", "Point")
+                .startArray("coordinates")
+                .value(76.0)
+                .value(-15.0)
+                .endArray()
+                .endObject()
+                .endArray();
+        });
 
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
@@ -231,7 +240,23 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         }
     }
 
-    public String toXContentString(ShapeFieldMapper mapper)  {
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [shape] mappers has no effect and will be forbidden in future");
+    }
+
+    public String toXContentString(ShapeFieldMapper mapper) {
         return toXContentString(mapper, true);
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

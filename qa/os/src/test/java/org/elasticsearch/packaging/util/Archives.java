@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -47,9 +36,9 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
-import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
@@ -65,19 +54,27 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
+    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "25";
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
-        return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
+        return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion(), false);
     }
 
-    public static Installation installArchive(Shell sh, Distribution distribution, Path fullInstallPath, String version) throws Exception {
+    public static Installation installArchive(
+        Shell sh,
+        Distribution distribution,
+        Path fullInstallPath,
+        String version,
+        boolean allowMultiple
+    ) throws Exception {
         final Path distributionFile = getDistributionFile(distribution);
         final Path baseInstallPath = fullInstallPath.getParent();
         final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);
 
         assertThat("distribution file must exist: " + distributionFile.toString(), Files.exists(distributionFile), is(true));
-        assertThat("elasticsearch must not already be installed", lsGlob(baseInstallPath, "elasticsearch*"), empty());
+        if (allowMultiple == false) {
+            assertThat("elasticsearch must not already be installed", lsGlob(baseInstallPath, "elasticsearch*"), empty());
+        }
 
         logger.info("Installing file: " + distributionFile);
         final String installCommand;
@@ -108,15 +105,20 @@ public class Archives {
         mv(extractedPath, fullInstallPath);
 
         assertThat("extracted archive moved to install location", Files.exists(fullInstallPath));
-        final List<Path> installations = lsGlob(baseInstallPath, "elasticsearch*");
-        assertThat("only the intended installation exists", installations, hasSize(1));
-        assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
+        if (allowMultiple == false) {
+            final List<Path> installations = lsGlob(baseInstallPath, "elasticsearch*");
+            assertThat("only the intended installation exists", installations, hasSize(1));
+            assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
+        }
 
         Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(sh, distribution, fullInstallPath);
+        Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
+        ServerUtils.disableGeoIpDownloader(installation);
+
+        return installation;
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {
@@ -158,9 +160,7 @@ public class Archives {
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
-        }
+        verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
@@ -211,6 +211,7 @@ public class Archives {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
@@ -231,12 +232,13 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
-        return runElasticsearchStartCommand(installation, sh, null, true);
-    }
-
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
-        throws Exception {
+    public static Shell.Result startElasticsearchWithTty(
+        Installation installation,
+        Shell sh,
+        String keystorePassword,
+        List<String> parameters,
+        boolean daemonize
+    ) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -245,6 +247,10 @@ public class Archives {
         command.add("sudo -E -u %s %s -p %s");
         if (daemonize) {
             command.add("-d");
+        }
+        command.add("-v"); // verbose auto-configuration
+        if (parameters != null && parameters.isEmpty() == false) {
+            command.addAll(parameters);
         }
         String script = String.format(
             Locale.ROOT,
@@ -271,6 +277,7 @@ public class Archives {
         Installation installation,
         Shell sh,
         String keystorePassword,
+        List<String> parameters,
         boolean daemonize
     ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
@@ -297,8 +304,12 @@ public class Archives {
             if (daemonize) {
                 command.add("-d");
             }
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(pidFile.toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             if (keystorePassword != null) {
                 command.add("<<<'" + keystorePassword + "'");
             }
@@ -321,13 +332,15 @@ public class Archives {
                 powerShellProcessUserSetup = "";
             }
             // this starts the server in the background. the -d flag is unsupported on windows
+            final String parameterString = parameters != null && parameters.isEmpty() == false ? String.join(" ", parameters) : "";
             return sh.run(
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
                     + "$processInfo.FileName = '"
                     + bin.elasticsearch
                     + "'; "
-                    + "$processInfo.Arguments = '-p "
+                    + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
+                    + parameterString
                     + "'; "
                     + powerShellProcessUserSetup
                     + "$processInfo.RedirectStandardOutput = $true; "
@@ -372,8 +385,12 @@ public class Archives {
                 command.add("echo '" + keystorePassword + "' |");
             }
             command.add(bin.elasticsearch.toString());
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             return sh.runIgnoreExitCode(String.join(" ", command));
         }
     }
@@ -391,7 +408,7 @@ public class Archives {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
-        assertThat(pid, is(not(emptyOrNullString())));
+        assertThat("No PID found in " + pidFile, pid, is(not(emptyOrNullString())));
 
         final Shell sh = new Shell();
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + " && tail --pid=" + pid + " -f /dev/null"));
@@ -401,8 +418,8 @@ public class Archives {
             // Clear the asynchronous event handlers
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
-                    + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
-                    + "Unregister-EventSubscriber -Force"
+                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
+                    + "Unregister-Event -Force"
             );
         });
         if (Files.exists(pidFile)) {

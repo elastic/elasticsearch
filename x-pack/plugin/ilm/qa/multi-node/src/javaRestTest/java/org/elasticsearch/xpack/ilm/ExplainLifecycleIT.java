@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -14,9 +15,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -30,7 +31,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
@@ -71,40 +72,49 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         {
             // Create a "shrink-only-policy"
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17, null));
             Map<String, Phase> phases = new HashMap<>();
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
             LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-only-policy", phases);
             // PUT policy
             XContentBuilder builder = jsonBuilder();
             lifecyclePolicy.toXContent(builder, null);
-            final StringEntity entity = new StringEntity(
-                "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+            final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
             Request request = new Request("PUT", "_ilm/policy/shrink-only-policy");
             request.setEntity(entity);
             assertOK(client().performRequest(request));
         }
 
-        createIndexWithSettings(client(), goodIndex, alias, Settings.builder()
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        createIndexWithSettings(
+            client(),
+            goodIndex,
+            alias,
+            Settings.builder()
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
-        createIndexWithSettings(client(), errorIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-only-policy")
+        createIndexWithSettings(
+            client(),
+            errorIndex,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, "shrink-only-policy")
         );
-        createIndexWithSettings(client(), nonexistantPolicyIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(3, 10))));
-        createIndexWithSettings(client(), unmanagedIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndexWithSettings(
+            client(),
+            nonexistantPolicyIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(3, 10)))
+        );
+        createIndexWithSettings(client(), unmanagedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
 
         assertBusy(() -> {
             Map<String, Map<String, Object>> explainResponse = explain(client(), index + "*", false, false);
             assertNotNull(explainResponse);
-            assertThat(explainResponse,
-                allOf(hasKey(goodIndex), hasKey(errorIndex), hasKey(nonexistantPolicyIndex), hasKey(unmanagedIndex)));
+            assertThat(
+                explainResponse,
+                allOf(hasKey(goodIndex), hasKey(errorIndex), hasKey(nonexistantPolicyIndex), hasKey(unmanagedIndex))
+            );
 
             Map<String, Map<String, Object>> onlyManagedResponse = explain(client(), index + "*", false, true);
             assertNotNull(onlyManagedResponse);
@@ -113,7 +123,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
             Map<String, Map<String, Object>> onlyErrorsResponse = explain(client(), index + "*", true, true);
             assertNotNull(onlyErrorsResponse);
-            assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
+            assertThat(onlyErrorsResponse, hasKey(nonexistantPolicyIndex));
             assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
         });
     }
@@ -122,9 +132,10 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         createFullPolicy(client(), policy, TimeValue.ZERO);
 
         // create index without alias so the rollover action fails and is retried
-        createIndexWithSettings(client(), index, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        createIndexWithSettings(
+            client(),
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
 
         assertBusy(() -> {
@@ -136,27 +147,45 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExplainIndicesWildcard() throws Exception {
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueDays(100));
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueDays(100));
         String firstIndex = this.index + "-first";
         String secondIndex = this.index + "-second";
         String unmanagedIndex = this.index + "-unmanaged";
         String indexWithMissingPolicy = this.index + "-missing_policy";
-        createIndexWithSettings(client(), firstIndex, alias + firstIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
-        createIndexWithSettings(client(), secondIndex, alias + secondIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
-        createIndexWithSettings(client(), unmanagedIndex, alias + unmanagedIndex, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndexWithSettings(
+            client(),
+            firstIndex,
+            alias + firstIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        createIndexWithSettings(
+            client(),
+            secondIndex,
+            alias + secondIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        createIndexWithSettings(
+            client(),
+            unmanagedIndex,
+            alias + unmanagedIndex,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
         String missingPolicyName = "missing_policy_";
-        createIndexWithSettings(client(), indexWithMissingPolicy, alias + indexWithMissingPolicy, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, missingPolicyName));
+        createIndexWithSettings(
+            client(),
+            indexWithMissingPolicy,
+            alias + indexWithMissingPolicy,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, missingPolicyName)
+        );
 
         assertBusy(() -> {
             Map<String, Map<String, Object>> explain = explain(client(), this.index + "*", false, false);

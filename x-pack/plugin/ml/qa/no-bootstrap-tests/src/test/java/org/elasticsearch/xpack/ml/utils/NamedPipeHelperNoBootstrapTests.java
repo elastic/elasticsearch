@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils;
-
-import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import com.sun.jna.IntegerType;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.WString;
 import com.sun.jna.ptr.IntByReference;
+
+import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -30,7 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-
 
 /**
  * Covers positive test cases for create named pipes, which are not possible in Java with
@@ -79,8 +79,16 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     // https://msdn.microsoft.com/en-us/library/windows/desktop/aa365150(v=vs.85).aspx
-    private static native Pointer CreateNamedPipeW(WString name, DWord openMode, DWord pipeMode, DWord maxInstances, DWord outBufferSize,
-            DWord inBufferSize, DWord defaultTimeOut, Pointer securityAttributes);
+    private static native Pointer CreateNamedPipeW(
+        WString name,
+        DWord openMode,
+        DWord pipeMode,
+        DWord maxInstances,
+        DWord outBufferSize,
+        DWord inBufferSize,
+        DWord defaultTimeOut,
+        Pointer securityAttributes
+    );
 
     // https://msdn.microsoft.com/en-us/library/windows/desktop/aa365146(v=vs.85).aspx
     private static native boolean ConnectNamedPipe(Pointer handle, Pointer overlapped);
@@ -89,12 +97,22 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     private static native boolean CloseHandle(Pointer handle);
 
     // https://msdn.microsoft.com/en-us/library/windows/desktop/aa365467(v=vs.85).aspx
-    private static native boolean ReadFile(Pointer handle, Pointer buffer, DWord numberOfBytesToRead, IntByReference numberOfBytesRead,
-            Pointer overlapped);
+    private static native boolean ReadFile(
+        Pointer handle,
+        Pointer buffer,
+        DWord numberOfBytesToRead,
+        IntByReference numberOfBytesRead,
+        Pointer overlapped
+    );
 
     // https://msdn.microsoft.com/en-us/library/windows/desktop/aa365747(v=vs.85).aspx
-    private static native boolean WriteFile(Pointer handle, Pointer buffer, DWord numberOfBytesToWrite, IntByReference numberOfBytesWritten,
-            Pointer overlapped);
+    private static native boolean WriteFile(
+        Pointer handle,
+        Pointer buffer,
+        DWord numberOfBytesToWrite,
+        IntByReference numberOfBytesWritten,
+        Pointer overlapped
+    );
 
     private static Pointer createPipe(String pipeName, boolean forWrite) throws IOException, InterruptedException {
         if (Constants.WINDOWS) {
@@ -112,9 +130,16 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static Pointer createPipeWindows(String pipeName, boolean forWrite) throws IOException {
-        Pointer handle = CreateNamedPipeW(new WString(pipeName), new DWord(forWrite ? PIPE_ACCESS_OUTBOUND : PIPE_ACCESS_INBOUND),
-                new DWord(PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS), new DWord(1),
-                new DWord(BUFFER_SIZE), new DWord(BUFFER_SIZE), new DWord(NMPWAIT_USE_DEFAULT_WAIT), Pointer.NULL);
+        Pointer handle = CreateNamedPipeW(
+            new WString(pipeName),
+            new DWord(forWrite ? PIPE_ACCESS_OUTBOUND : PIPE_ACCESS_INBOUND),
+            new DWord(PIPE_TYPE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS),
+            new DWord(1),
+            new DWord(BUFFER_SIZE),
+            new DWord(BUFFER_SIZE),
+            new DWord(NMPWAIT_USE_DEFAULT_WAIT),
+            Pointer.NULL
+        );
         if (INVALID_HANDLE_VALUE.equals(handle)) {
             throw new IOException("CreateNamedPipeW failed for pipe " + pipeName + " with error " + Native.getLastError());
         }
@@ -133,7 +158,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static String readLineFromPipeWindows(String pipeName, Pointer handle) throws IOException {
-        if (!ConnectNamedPipe(handle, Pointer.NULL)) {
+        if (ConnectNamedPipe(handle, Pointer.NULL) == false) {
             // ERROR_PIPE_CONNECTED means the pipe was already connected so
             // there was no need to connect it again - not a problem
             if (Native.getLastError() != ERROR_PIPE_CONNECTED) {
@@ -142,7 +167,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         }
         IntByReference numberOfBytesRead = new IntByReference();
         ByteBuffer buf = ByteBuffer.allocateDirect(BUFFER_SIZE);
-        if (!ReadFile(handle, Native.getDirectBufferPointer(buf), new DWord(BUFFER_SIZE), numberOfBytesRead, Pointer.NULL)) {
+        if (ReadFile(handle, Native.getDirectBufferPointer(buf), new DWord(BUFFER_SIZE), numberOfBytesRead, Pointer.NULL) == false) {
             throw new IOException("ReadFile failed for pipe " + pipeName + " with error " + Native.getLastError());
         }
         byte[] content = new byte[numberOfBytesRead.getValue()];
@@ -168,7 +193,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static void writeLineToPipeWindows(String pipeName, Pointer handle, String line) throws IOException {
-        if (!ConnectNamedPipe(handle, Pointer.NULL)) {
+        if (ConnectNamedPipe(handle, Pointer.NULL) == false) {
             // ERROR_PIPE_CONNECTED means the pipe was already connected so
             // there was no need to connect it again - not a problem
             if (Native.getLastError() != ERROR_PIPE_CONNECTED) {
@@ -178,7 +203,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
         IntByReference numberOfBytesWritten = new IntByReference();
         ByteBuffer buf = ByteBuffer.allocateDirect(BUFFER_SIZE);
         buf.put((line + '\n').getBytes(StandardCharsets.UTF_8));
-        if (!WriteFile(handle, Native.getDirectBufferPointer(buf), new DWord(buf.position()), numberOfBytesWritten, Pointer.NULL)) {
+        if (WriteFile(handle, Native.getDirectBufferPointer(buf), new DWord(buf.position()), numberOfBytesWritten, Pointer.NULL) == false) {
             throw new IOException("WriteFile failed for pipe " + pipeName + " with error " + Native.getLastError());
         }
     }
@@ -196,7 +221,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
     }
 
     private static void deletePipeWindows(String pipeName, Pointer handle) throws IOException {
-        if (!CloseHandle(handle)) {
+        if (CloseHandle(handle) == false) {
             throw new IOException("CloseHandle failed for pipe " + pipeName + " with error " + Native.getLastError());
         }
     }
@@ -217,8 +242,7 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
             try {
                 handle = createPipe(pipeName, false);
                 line = readLineFromPipe(pipeName, handle);
-            }
-            catch (IOException | InterruptedException e) {
+            } catch (IOException | InterruptedException e) {
                 exception = e;
             }
             try {
@@ -277,14 +301,15 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 
     public void testOpenForInput() throws IOException, InterruptedException {
         Environment env = TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
         String pipeName = NAMED_PIPE_HELPER.getDefaultPipeDirectoryPrefix(env) + "inputPipe" + JvmInfo.jvmInfo().pid();
 
         PipeWriterServer server = new PipeWriterServer(pipeName, HELLO_WORLD);
         server.start();
         try {
             // Timeout is 10 seconds for the very rare case of Amazon EBS volumes created from snapshots
-            // being slow the first time a particular disk block is accessed.  The same problem as
+            // being slow the first time a particular disk block is accessed. The same problem as
             // https://github.com/elastic/x-pack-elasticsearch/issues/922, which was fixed by
             // https://github.com/elastic/x-pack-elasticsearch/pull/987, has been observed in CI tests.
             InputStream is = NAMED_PIPE_HELPER.openNamedPipeInputStream(pipeName, Duration.ofSeconds(10));
@@ -308,14 +333,15 @@ public class NamedPipeHelperNoBootstrapTests extends LuceneTestCase {
 
     public void testOpenForOutput() throws IOException, InterruptedException {
         Environment env = TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
         String pipeName = NAMED_PIPE_HELPER.getDefaultPipeDirectoryPrefix(env) + "outputPipe" + JvmInfo.jvmInfo().pid();
 
         PipeReaderServer server = new PipeReaderServer(pipeName);
         server.start();
         try {
             // Timeout is 10 seconds for the very rare case of Amazon EBS volumes created from snapshots
-            // being slow the first time a particular disk block is accessed.  The same problem as
+            // being slow the first time a particular disk block is accessed. The same problem as
             // https://github.com/elastic/x-pack-elasticsearch/issues/922, which was fixed by
             // https://github.com/elastic/x-pack-elasticsearch/pull/987, has been observed in CI tests.
             OutputStream os = NAMED_PIPE_HELPER.openNamedPipeOutputStream(pipeName, Duration.ofSeconds(10));

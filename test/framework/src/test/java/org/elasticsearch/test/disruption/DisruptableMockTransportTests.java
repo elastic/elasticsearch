@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,6 +57,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
 
+    private Runnable deliverBlackholedRequests;
+
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> disconnectedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedRequestLinks;
@@ -100,8 +91,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         List<DisruptableMockTransport> transports = new ArrayList<>();
 
-        deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
 
         final DisruptableMockTransport transport1 = new DisruptableMockTransport(node1, logger, deterministicTaskQueue) {
             @Override
@@ -140,27 +130,39 @@ public class DisruptableMockTransportTests extends ESTestCase {
         transports.add(transport1);
         transports.add(transport2);
 
-        service1 = transport1.createTransportService(Settings.EMPTY, deterministicTaskQueue.getThreadPool(),
-            NOOP_TRANSPORT_INTERCEPTOR, a -> node1, null, Collections.emptySet());
-        service2 = transport2.createTransportService(Settings.EMPTY, deterministicTaskQueue.getThreadPool(),
-            NOOP_TRANSPORT_INTERCEPTOR, a -> node2, null, Collections.emptySet());
+        service1 = transport1.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            a -> node1,
+            null,
+            Collections.emptySet()
+        );
+        service2 = transport2.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            a -> node2,
+            null,
+            Collections.emptySet()
+        );
 
         service1.start();
         service2.start();
 
-        final PlainActionFuture<Void> fut1 = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> fut1 = new PlainActionFuture<>();
         service1.connectToNode(node2, fut1);
-        final PlainActionFuture<Void> fut2 = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> fut2 = new PlainActionFuture<>();
         service2.connectToNode(node1, fut2);
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(fut1.isDone());
         assertTrue(fut2.isDone());
+
+        deliverBlackholedRequests = () -> transports.forEach(DisruptableMockTransport::deliverBlackholedRequests);
     }
 
     private TransportRequestHandler<TransportRequest.Empty> requestHandlerShouldNotBeCalled() {
-        return (request, channel, task) -> {
-            throw new AssertionError("should not be called");
-        };
+        return (request, channel, task) -> { throw new AssertionError("should not be called"); };
     }
 
     private TransportRequestHandler<TransportRequest.Empty> requestHandlerRepliesNormally() {
@@ -240,8 +242,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
         transportService.registerRequestHandler("internal:dummy", ThreadPool.Names.GENERIC, TransportRequest.Empty::new, handler);
     }
 
-    private void send(TransportService transportService, DiscoveryNode destinationNode,
-                      TransportResponseHandler<? extends TransportResponse> responseHandler) {
+    private void send(
+        TransportService transportService,
+        DiscoveryNode destinationNode,
+        TransportResponseHandler<? extends TransportResponse> responseHandler
+    ) {
         transportService.sendRequest(destinationNode, "internal:dummy", TransportRequest.Empty.INSTANCE, responseHandler);
     }
 
@@ -307,6 +312,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
         deterministicTaskQueue.runAllTasks();
+        deliverBlackholedRequests.run();
+        deterministicTaskQueue.runAllTasks();
+
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
@@ -324,6 +332,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(new Exception());
         deterministicTaskQueue.runAllTasks();
+        deliverBlackholedRequests.run();
+        deterministicTaskQueue.runAllTasks();
+
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
@@ -399,25 +410,34 @@ public class DisruptableMockTransportTests extends ESTestCase {
         service1.disconnectFromNode(node2);
 
         disconnectedLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class,
-            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2)).getMessage(),
-            endsWith("is [DISCONNECTED] not [CONNECTED]"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
+                .getMessage(),
+            endsWith("is [DISCONNECTED] not [CONNECTED]")
+        );
         disconnectedLinks.clear();
 
         blackholedLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class,
-            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2)).getMessage(),
-            endsWith("is [BLACK_HOLE] not [CONNECTED]"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
+                .getMessage(),
+            endsWith("is [BLACK_HOLE] not [CONNECTED]")
+        );
         blackholedLinks.clear();
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
-        assertThat(expectThrows(ConnectTransportException.class,
-            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2)).getMessage(),
-            endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
+                .getMessage(),
+            endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]")
+        );
         blackholedRequestLinks.clear();
 
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT);
-        assertThat(expectThrows(ConnectTransportException.class,
-            () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3)).getMessage(), endsWith("does not exist"));
+        assertThat(
+            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3))
+                .getMessage(),
+            endsWith("does not exist")
+        );
     }
 }

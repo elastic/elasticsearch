@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.service;
@@ -26,9 +15,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -40,16 +29,17 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -73,6 +63,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -96,6 +87,11 @@ public class MasterServiceTests extends ESTestCase {
             public long relativeTimeInMillis() {
                 return relativeTimeInMillis;
             }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
+                return relativeTimeInMillis();
+            }
         };
     }
 
@@ -113,21 +109,25 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     private MasterService createMasterService(boolean makeMaster) {
-        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
-            emptySet(), Version.CURRENT);
-        final MasterService masterService = new MasterService(Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-            .build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
+        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final MasterService masterService = new MasterService(
+            Settings.builder()
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+                .build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder()
-                .add(localNode)
-                .localNodeId(localNode.getId())
-                .masterNodeId(makeMaster ? localNode.getId() : null))
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+            .nodes(
+                DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(makeMaster ? localNode.getId() : null)
+            )
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            clusterStateRef.set(event.state());
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            clusterStateRef.set(clusterStatePublicationEvent.getNewState());
+            ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
             publishListener.onResponse(null);
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
@@ -138,7 +138,7 @@ public class MasterServiceTests extends ESTestCase {
     public void testMasterAwareExecution() throws Exception {
         final MasterService nonMaster = createMasterService(false);
 
-        final boolean[] taskFailed = {false};
+        final boolean[] taskFailed = { false };
         final CountDownLatch latch1 = new CountDownLatch(1);
         nonMaster.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
@@ -184,8 +184,10 @@ public class MasterServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
             final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
-            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap("testResponse",
-                Collections.singletonList("testResponse"));
+            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap(
+                "testResponse",
+                Collections.singletonList("testResponse")
+            );
             threadPool.getThreadContext().putHeader(expectedHeaders);
 
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
@@ -253,10 +255,10 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     /*
-   * test that a listener throwing an exception while handling a
-   * notification does not prevent publication notification to the
-   * executor
-   */
+    * test that a listener throwing an exception while handling a
+    * notification does not prevent publication notification to the
+    * executor
+    */
     public void testClusterStateTaskListenerThrowingExceptionIsOkay() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean published = new AtomicBoolean();
@@ -274,7 +276,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+                    public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
                         published.set(true);
                         latch.countDown();
                     }
@@ -286,8 +288,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
-                    }
+                    public void onFailure(String source, Exception e) {}
                 }
             );
 
@@ -305,70 +306,92 @@ public class MasterServiceTests extends ESTestCase {
                 "test1 start",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "executing cluster state update for [test1]"));
+                "executing cluster state update for [test1]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1 computation",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "took [1s] to compute cluster state update for [test1]"));
+                "took [1s] to compute cluster state update for [test1]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1 notification",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "took [0s] to notify listeners on unchanged cluster state for [test1]"));
+                "took [0s] to notify listeners on unchanged cluster state for [test1]"
+            )
+        );
 
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2 start",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "executing cluster state update for [test2]"));
+                "executing cluster state update for [test2]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2 failure",
                 MasterService.class.getCanonicalName(),
                 Level.TRACE,
-                "failed to execute cluster state update (on version: [*], uuid: [*]) for [test2]*"));
+                "failed to execute cluster state update (on version: [*], uuid: [*]) for [test2]*"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2 computation",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "took [2s] to compute cluster state update for [test2]"));
+                "took [2s] to compute cluster state update for [test2]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2 notification",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "took [0s] to notify listeners on unchanged cluster state for [test2]"));
+                "took [0s] to notify listeners on unchanged cluster state for [test2]"
+            )
+        );
 
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3 start",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "executing cluster state update for [test3]"));
+                "executing cluster state update for [test3]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3 computation",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "took [3s] to compute cluster state update for [test3]"));
+                "took [3s] to compute cluster state update for [test3]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3 notification",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [test3]"));
+                "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [test3]"
+            )
+        );
 
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
-                "executing cluster state update for [test4]"));
+                "executing cluster state update for [test4]"
+            )
+        );
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
@@ -381,7 +404,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) { }
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -401,7 +424,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) { }
+                public void onFailure(String source, Exception e) {}
             });
             masterService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                 @Override
@@ -427,7 +450,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) { }
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -452,7 +475,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             public void execute() {
-                if (!state.compareAndSet(false, true)) {
+                if (state.compareAndSet(false, true) == false) {
                     throw new IllegalStateException();
                 } else {
                     counter.incrementAndGet();
@@ -502,8 +525,11 @@ public class MasterServiceTests extends ESTestCase {
             public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
                 for (Set<Task> expectedSet : taskGroups) {
                     long count = tasks.stream().filter(expectedSet::contains).count();
-                    assertThat("batched set should be executed together or not at all. Expected " + expectedSet + "s. Executing " + tasks,
-                        count, anyOf(equalTo(0L), equalTo((long) expectedSet.size())));
+                    assertThat(
+                        "batched set should be executed together or not at all. Expected " + expectedSet + "s. Executing " + tasks,
+                        count,
+                        anyOf(equalTo(0L), equalTo((long) expectedSet.size()))
+                    );
                 }
                 tasks.forEach(Task::execute);
                 counter.addAndGet(tasks.size());
@@ -517,7 +543,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStatePublished(ClusterStatePublicationEvent clusterPublicationEvent) {
                 published.incrementAndGet();
                 semaphore.release();
             }
@@ -587,13 +613,15 @@ public class MasterServiceTests extends ESTestCase {
                                     tasks.stream().findFirst().get(),
                                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                                     executor,
-                                    listener);
+                                    listener
+                                );
                             } else {
                                 Map<Task, ClusterStateTaskListener> taskListeners = new HashMap<>();
                                 tasks.forEach(t -> taskListeners.put(t, listener));
                                 masterService.submitStateUpdateTasks(
                                     threadName,
-                                    taskListeners, ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                                    taskListeners,
+                                    ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                                     executor
                                 );
                             }
@@ -630,8 +658,11 @@ public class MasterServiceTests extends ESTestCase {
             // assert the correct number of clusterStateProcessed events were triggered
             for (Map.Entry<String, AtomicInteger> entry : processedStates.entrySet()) {
                 assertThat(submittedTasksPerThread, hasKey(entry.getKey()));
-                assertEquals("not all tasks submitted by " + entry.getKey() + " received a processed event",
-                    entry.getValue().get(), submittedTasksPerThread.get(entry.getKey()).get());
+                assertEquals(
+                    "not all tasks submitted by " + entry.getKey() + " received a processed event",
+                    entry.getValue().get(),
+                    submittedTasksPerThread.get(entry.getKey()).get()
+                );
             }
         }
     }
@@ -670,8 +701,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
-                    }
+                    public void onFailure(String source, Exception e) {}
                 }
             );
 
@@ -690,62 +720,87 @@ public class MasterServiceTests extends ESTestCase {
                 "test1 shouldn't log because it was fast enough",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took*test1*"));
+                "*took*test1*"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test2]"));
+                "*took [*] to compute cluster state update for [test2], which exceeds the warn threshold of [10s]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test3]"));
+                "*took [*] to compute cluster state update for [test3], which exceeds the warn threshold of [10s]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test4]"));
+                "*took [*] to compute cluster state update for [test4], which exceeds the warn threshold of [10s]"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "test5 should not log despite publishing slowly",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took*test5*"));
+                "*took*test5*"
+            )
+        );
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test6 should log due to slow and failing publication",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [test6]:*"));
+                "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [test6]:*"
+            )
+        );
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
-        try (MasterService masterService = new MasterService(Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-            .build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool)) {
+        try (
+            MasterService masterService = new MasterService(
+                Settings.builder()
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+                    .build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool
+            )
+        ) {
 
-            final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
-                emptySet(), Version.CURRENT);
+            final DiscoveryNode localNode = new DiscoveryNode(
+                "node1",
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                emptySet(),
+                Version.CURRENT
+            );
             final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
                 .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                .build();
             final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-            masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-                if (event.source().contains("test5")) {
+            masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
+                if (clusterStatePublicationEvent.getSummary().contains("test5")) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
                 }
-                if (event.source().contains("test6")) {
+                if (clusterStatePublicationEvent.getSummary().contains("test6")) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
                     throw new ElasticsearchException("simulated error during slow publication which should trigger logging");
                 }
-                clusterStateRef.set(event.state());
+                clusterStateRef.set(clusterStatePublicationEvent.getNewState());
                 publishListener.onResponse(null);
             });
             masterService.setClusterStateSupplier(clusterStateRef::get);
@@ -756,8 +811,10 @@ public class MasterServiceTests extends ESTestCase {
             masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    relativeTimeInMillis += randomLongBetween(0L,
-                        MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis());
+                    relativeTimeInMillis += randomLongBetween(
+                        0L,
+                        MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
+                    );
                     return currentState;
                 }
 
@@ -890,21 +947,26 @@ public class MasterServiceTests extends ESTestCase {
         final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        try (MasterService masterService = new MasterService(Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-            .build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool)) {
+        try (
+            MasterService masterService = new MasterService(
+                Settings.builder()
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+                    .build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool
+            )
+        ) {
 
             final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
-                .nodes(DiscoveryNodes.builder()
-                    .add(node1)
-                    .add(node2)
-                    .add(node3)
-                    .localNodeId(node1.getId())
-                    .masterNodeId(node1.getId()))
-                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+                .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                .build();
             final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
-            masterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
+            masterService.setClusterStatePublisher((e, pl, al) -> {
+                ClusterServiceUtils.setAllElapsedMillis(e);
+                publisherRef.get().publish(e, pl, al);
+            });
             masterService.setClusterStateSupplier(() -> initialClusterState);
             masterService.start();
 
@@ -912,8 +974,11 @@ public class MasterServiceTests extends ESTestCase {
             {
                 final CountDownLatch latch = new CountDownLatch(1);
 
-                publisherRef.set((clusterChangedEvent, publishListener, ackListener) ->
-                    publishListener.onFailure(new FailedToCommitClusterStateException("mock exception")));
+                publisherRef.set(
+                    (clusterChangedEvent, publishListener, ackListener) -> publishListener.onFailure(
+                        new FailedToCommitClusterStateException("mock exception")
+                    )
+                );
 
                 masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask(ackedRequest(TimeValue.ZERO, null), null) {
                     @Override
@@ -990,6 +1055,127 @@ public class MasterServiceTests extends ESTestCase {
 
                 latch.await();
             }
+        }
+    }
+
+    @TestLogging(value = "org.elasticsearch.cluster.service.MasterService:WARN", reason = "testing WARN logging")
+    public void testStarvationLogging() throws Exception {
+        final long warnThresholdMillis = MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis();
+        relativeTimeInMillis = randomLongBetween(0, Long.MAX_VALUE - warnThresholdMillis * 3);
+        final long startTimeMillis = relativeTimeInMillis;
+        final long taskDurationMillis = TimeValue.timeValueSeconds(1).millis();
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+
+        Logger clusterLogger = LogManager.getLogger(MasterService.class);
+        Loggers.addAppender(clusterLogger, mockAppender);
+        try (MasterService masterService = createMasterService(true)) {
+            final AtomicBoolean keepRunning = new AtomicBoolean(true);
+
+            final Runnable await = new Runnable() {
+                private final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
+
+                @Override
+                public void run() {
+                    try {
+                        cyclicBarrier.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                        throw new AssertionError("unexpected", e);
+                    }
+                }
+            };
+            final Runnable awaitNextTask = () -> {
+                await.run();
+                await.run();
+            };
+
+            final ClusterStateUpdateTask starvationCausingTask = new ClusterStateUpdateTask(Priority.HIGH) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    await.run();
+                    relativeTimeInMillis += taskDurationMillis;
+                    if (keepRunning.get()) {
+                        masterService.submitStateUpdateTask("starvation-causing task", this);
+                    }
+                    await.run();
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    fail();
+                }
+            };
+            masterService.submitStateUpdateTask("starvation-causing task", starvationCausingTask);
+
+            final CountDownLatch starvedTaskExecuted = new CountDownLatch(1);
+            masterService.submitStateUpdateTask("starved task", new ClusterStateUpdateTask(Priority.NORMAL) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    assertFalse(keepRunning.get());
+                    starvedTaskExecuted.countDown();
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    fail();
+                }
+            });
+
+            // check that a warning is logged after 5m
+            final MockLogAppender.EventuallySeenEventExpectation expectation1 = new MockLogAppender.EventuallySeenEventExpectation(
+                "starvation warning",
+                MasterService.class.getCanonicalName(),
+                Level.WARN,
+                "pending task queue has been nonempty for [5m/300000ms] which is longer than the warn threshold of [300000ms];"
+                    + " there are currently [2] pending tasks, the oldest of which has age [*"
+            );
+            mockAppender.addExpectation(expectation1);
+
+            while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis) {
+                awaitNextTask.run();
+                mockAppender.assertAllExpectationsMatched();
+            }
+
+            expectation1.setExpectSeen();
+            awaitNextTask.run();
+            // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
+            // logging happens, so we must wait for another task to run too to ensure that the message was logged
+            awaitNextTask.run();
+            mockAppender.assertAllExpectationsMatched();
+
+            // check that another warning is logged after 10m
+            final MockLogAppender.EventuallySeenEventExpectation expectation2 = new MockLogAppender.EventuallySeenEventExpectation(
+                "starvation warning",
+                MasterService.class.getCanonicalName(),
+                Level.WARN,
+                "pending task queue has been nonempty for [10m/600000ms] which is longer than the warn threshold of [300000ms];"
+                    + " there are currently [2] pending tasks, the oldest of which has age [*"
+            );
+            mockAppender.addExpectation(expectation2);
+
+            while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis * 2) {
+                awaitNextTask.run();
+                mockAppender.assertAllExpectationsMatched();
+            }
+
+            expectation2.setExpectSeen();
+            awaitNextTask.run();
+            // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
+            // logging happens, so we must wait for another task to run too to ensure that the message was logged
+            awaitNextTask.run();
+            mockAppender.assertAllExpectationsMatched();
+
+            // now stop the starvation and clean up
+            keepRunning.set(false);
+            awaitNextTask.run();
+            assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
+
+        } finally {
+            Loggers.removeAppender(clusterLogger, mockAppender);
+            mockAppender.stop();
         }
     }
 

@@ -1,70 +1,70 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 
 /**
  * Checks whether all shards in a shrunken index have been successfully allocated.
  */
 public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
     public static final String NAME = "shrunk-shards-allocated";
-    private String shrunkIndexPrefix;
 
-    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
+    private static final Logger logger = LogManager.getLogger(ShrunkShardsAllocatedStep.class);
+
+    public ShrunkShardsAllocatedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
 
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        if (indexMetadata == null) {
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return new Result(false, null);
+        }
+
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
+
         // We only want to make progress if all shards of the shrunk index are
         // active
-        boolean indexExists = clusterState.metadata().index(shrunkIndexPrefix + index.getName()) != null;
+        boolean indexExists = clusterState.metadata().index(shrunkenIndexName) != null;
         if (indexExists == false) {
             return new Result(false, new Info(false, -1, false));
         }
-        boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkIndexPrefix + index.getName());
-        int numShrunkIndexShards = clusterState.metadata().index(shrunkIndexPrefix + index.getName()).getNumberOfShards();
+        boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(clusterState, shrunkenIndexName);
+        int numShrunkIndexShards = clusterState.metadata().index(shrunkenIndexName).getNumberOfShards();
         if (allShardsActive) {
             return new Result(true, null);
         } else {
             return new Result(false, new Info(true, numShrunkIndexShards, allShardsActive));
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        ShrunkShardsAllocatedStep other = (ShrunkShardsAllocatedStep) obj;
-        return super.equals(obj) && Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 
     public static final class Info implements ToXContentObject {
@@ -78,8 +78,10 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         static final ParseField SHRUNK_INDEX_EXISTS = new ParseField("shrunk_index_exists");
         static final ParseField ALL_SHARDS_ACTIVE = new ParseField("all_shards_active");
         static final ParseField MESSAGE = new ParseField("message");
-        static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>("shrunk_shards_allocated_step_info",
-                a -> new Info((boolean) a[0], (int) a[1], (boolean) a[2]));
+        static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>(
+            "shrunk_shards_allocated_step_info",
+            a -> new Info((boolean) a[0], (int) a[1], (boolean) a[2])
+        );
         static {
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SHRUNK_INDEX_EXISTS);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), ACTUAL_SHARDS);
@@ -137,9 +139,9 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
                 return false;
             }
             Info other = (Info) obj;
-            return Objects.equals(shrunkIndexExists, other.shrunkIndexExists) &&
-                    Objects.equals(actualShards, other.actualShards) &&
-                    Objects.equals(allShardsActive, other.allShardsActive);
+            return Objects.equals(shrunkIndexExists, other.shrunkIndexExists)
+                && Objects.equals(actualShards, other.actualShards)
+                && Objects.equals(allShardsActive, other.allShardsActive);
         }
 
         @Override

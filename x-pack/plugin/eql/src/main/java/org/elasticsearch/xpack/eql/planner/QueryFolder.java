@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.planner;
@@ -39,19 +40,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch fold = new Batch("Fold queries",
-                new FoldProject(),
-                new FoldFilter(),
-                new FoldOrderBy(),
-                new FoldLimit()
-        );
-        Batch finish = new Batch("Finish query", Limiter.ONCE,
-                new PlanOutputToQueryRef()
-        );
-        
+        Batch fold = new Batch("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
+        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
+
         return Arrays.asList(fold, finish);
     }
-    
 
     private static class FoldProject extends QueryFoldingRule<ProjectExec> {
 
@@ -76,7 +69,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return exec.with(qContainer);
         }
     }
-    
+
     private static class FoldOrderBy extends QueryFoldingRule<OrderExec> {
 
         @Override
@@ -143,7 +136,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, typeToken());
+            return plan.transformUp(typeToken(), this::rule);
         }
 
         @Override

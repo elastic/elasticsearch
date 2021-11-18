@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -175,6 +165,7 @@ public class LinearizabilityChecker {
         public List<Event> copyEvents() {
             return new ArrayList<>(events);
         }
+
         /**
          * Completes the history with response events for invocations that are missing corresponding responses
          *
@@ -211,10 +202,7 @@ public class LinearizabilityChecker {
 
         @Override
         public String toString() {
-            return "History{" +
-                "events=" + events +
-                ", nextId=" + nextId +
-                '}';
+            return "History{" + "events=" + events + ", nextId=" + nextId + '}';
         }
 
     }
@@ -240,8 +228,12 @@ public class LinearizabilityChecker {
      * @param terminateEarly a condition upon which to terminate early
      * @return true iff the history is linearizable w.r.t. the given spec
      */
-    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator,
-                                  BooleanSupplier terminateEarly) {
+    public boolean isLinearizable(
+        SequentialSpec spec,
+        History history,
+        Function<Object, Object> missingResponseGenerator,
+        BooleanSupplier terminateEarly
+    ) {
         history = history.clone(); // clone history before completing it
         history.complete(missingResponseGenerator); // complete history
         final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
@@ -300,9 +292,7 @@ public class LinearizabilityChecker {
      * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
     public boolean isLinearizable(SequentialSpec spec, History history) {
-        return isLinearizable(spec, history, o -> {
-            throw new IllegalArgumentException("history is not complete");
-        });
+        return isLinearizable(spec, history, o -> { throw new IllegalArgumentException("history is not complete"); });
     }
 
     /**
@@ -315,9 +305,10 @@ public class LinearizabilityChecker {
         StringBuilder builder = new StringBuilder();
         partitions.forEach(new Consumer<List<Event>>() {
             int index = 0;
+
             @Override
             public void accept(List<Event> events) {
-                builder.append("Partition " ).append(index++).append("\n");
+                builder.append("Partition ").append(index++).append("\n");
                 builder.append(visualizePartition(events));
             }
         });
@@ -348,9 +339,14 @@ public class LinearizabilityChecker {
         int beginIndex = eventToPosition.get(Tuple.tuple(EventType.INVOCATION, id));
         int endIndex = eventToPosition.get(Tuple.tuple(EventType.RESPONSE, id));
         input = input.substring(0, Math.min(beginIndex + 25, input.length()));
-        return Strings.padStart(input, beginIndex + 25, ' ') +
-            "   "  + Strings.padStart("", endIndex-beginIndex, 'X') + "   "
-            + output + "  (" + entry.event.id + ")";
+        return Strings.padStart(input, beginIndex + 25, ' ')
+            + "   "
+            + Strings.padStart("", endIndex - beginIndex, 'X')
+            + "   "
+            + output
+            + "  ("
+            + entry.event.id
+            + ")";
     }
 
     /**
@@ -418,11 +414,7 @@ public class LinearizabilityChecker {
 
         @Override
         public String toString() {
-            return "Event{" +
-                "type=" + type +
-                ", value=" + value +
-                ", id=" + id +
-                '}';
+            return "Event{" + "type=" + type + ", value=" + value + ", id=" + id + '}';
         }
     }
 
@@ -459,7 +451,6 @@ public class LinearizabilityChecker {
             next.prev = this;
         }
     }
-
 
     /**
      * A cache optimized for small bit-counts (less than 64) and small number of unique permutations of state objects.
@@ -498,10 +489,8 @@ public class LinearizabilityChecker {
 
         private boolean addInternal(Object state, FixedBitSet bitSet) {
             long[] bits = bitSet.getBits();
-            if (bits.length == 1)
-                return addSmall(state, bits[0]);
-            else
-                return addLarge(state, bitSet);
+            if (bits.length == 1) return addSmall(state, bits[0]);
+            else return addLarge(state, bitSet);
         }
 
         private boolean addSmall(Object state, long bits) {
@@ -511,8 +500,7 @@ public class LinearizabilityChecker {
                 states = Collections.singleton(state);
             } else {
                 Set<Object> oldStates = smallMap.indexGet(index);
-                if (oldStates.contains(state))
-                    return false;
+                if (oldStates.contains(state)) return false;
                 states = new HashSet<>(oldStates.size() + 1);
                 states.addAll(oldStates);
                 states.add(state);

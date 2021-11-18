@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.support;
@@ -69,20 +70,21 @@ public class SecondaryAuthenticator {
      *                 If the secondary authentication credentials are found in the thread context, but fail to be authenticated, then
      *                 the failure is returned through {@link ActionListener#onFailure(Exception)}.
      */
-  public void authenticateAndAttachToContext(RestRequest request, ActionListener<SecondaryAuthentication> listener) {
-      final ThreadContext threadContext = securityContext.getThreadContext();
-      // We never want the secondary authentication to fallback to anonymous.
-      // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
-      // auth is provided, so in that case we do no want to set anything in the context
-      authenticate(authListener -> authenticationService.authenticate(request, false, authListener),
-          ActionListener.wrap(secondaryAuthentication -> {
-                  if (secondaryAuthentication != null) {
-                      secondaryAuthentication.writeToContext(threadContext);
-                  }
-                  listener.onResponse(secondaryAuthentication);
-              },
-              listener::onFailure));
-  }
+    public void authenticateAndAttachToContext(RestRequest request, ActionListener<SecondaryAuthentication> listener) {
+        final ThreadContext threadContext = securityContext.getThreadContext();
+        // We never want the secondary authentication to fallback to anonymous.
+        // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
+        // auth is provided, so in that case we do no want to set anything in the context
+        authenticate(
+            authListener -> authenticationService.authenticate(request, false, authListener),
+            ActionListener.wrap(secondaryAuthentication -> {
+                if (secondaryAuthentication != null) {
+                    secondaryAuthentication.writeToContext(threadContext);
+                }
+                listener.onResponse(secondaryAuthentication);
+            }, listener::onFailure)
+        );
+    }
 
     private void authenticate(Consumer<ActionListener<Authentication>> authenticate, ActionListener<SecondaryAuthentication> listener) {
         final ThreadContext threadContext = securityContext.getThreadContext();
@@ -94,25 +96,26 @@ public class SecondaryAuthenticator {
         }
 
         final Supplier<ThreadContext.StoredContext> originalContext = threadContext.newRestorableContext(false);
-        final ActionListener<Authentication> authenticationListener = new ContextPreservingActionListener<>(originalContext,
-            ActionListener.wrap(
-                authentication -> {
-                    if (authentication == null) {
-                        logger.debug("secondary authentication failed - authentication service returned a null authentication object");
-                        listener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user"));
-                    } else {
-                        logger.debug("secondary authentication succeeded [{}]", authentication);
-                        listener.onResponse(new SecondaryAuthentication(securityContext, authentication));
-                    }
-                },
-                e -> {
-                    logger.debug("secondary authentication failed - authentication service responded with failure", e);
-                    listener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user", e));
+        final ActionListener<Authentication> authenticationListener = new ContextPreservingActionListener<>(
+            originalContext,
+            ActionListener.wrap(authentication -> {
+                if (authentication == null) {
+                    logger.debug("secondary authentication failed - authentication service returned a null authentication object");
+                    listener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user"));
+                } else {
+                    logger.debug("secondary authentication succeeded [{}]", authentication);
+                    listener.onResponse(new SecondaryAuthentication(securityContext, authentication));
                 }
-            ));
+            }, e -> {
+                logger.debug("secondary authentication failed - authentication service responded with failure", e);
+                listener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user", e));
+            })
+        );
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            logger.trace("found secondary authentication credentials, placing them in the internal [{}] header for authentication",
-                UsernamePasswordToken.BASIC_AUTH_HEADER);
+            logger.trace(
+                "found secondary authentication credentials, placing them in the internal [{}] header for authentication",
+                UsernamePasswordToken.BASIC_AUTH_HEADER
+            );
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
             authenticate.accept(authenticationListener);
         }

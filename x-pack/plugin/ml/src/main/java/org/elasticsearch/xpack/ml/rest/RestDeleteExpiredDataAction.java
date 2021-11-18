@@ -1,30 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, MachineLearning.BASE_PATH + "_delete_expired_data/{" + Job.ID.getPreferredName() + "}"),
-            new Route(DELETE, MachineLearning.BASE_PATH + "_delete_expired_data")
+            Route.builder(DELETE, BASE_PATH + "_delete_expired_data/{" + Job.ID + "}")
+                .replaces(DELETE, PRE_V7_BASE_PATH + "_delete_expired_data/{" + Job.ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(DELETE, BASE_PATH + "_delete_expired_data")
+                .replaces(DELETE, PRE_V7_BASE_PATH + "_delete_expired_data", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -49,9 +56,14 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
                 try {
                     request.setRequestsPerSecond(Float.parseFloat(perSecondParam));
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Failed to parse float parameter [" +
-                        DeleteExpiredDataAction.Request.REQUESTS_PER_SECOND.getPreferredName() +
-                        "] with value [" + perSecondParam + "]", e);
+                    throw new IllegalArgumentException(
+                        "Failed to parse float parameter ["
+                            + DeleteExpiredDataAction.Request.REQUESTS_PER_SECOND.getPreferredName()
+                            + "] with value ["
+                            + perSecondParam
+                            + "]",
+                        e
+                    );
                 }
             }
 

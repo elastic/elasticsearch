@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -21,9 +22,9 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -32,7 +33,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
     private Job job;
     private JobDataCountsPersister jobDataCountsPersister;
-    private TimeValue bucketSpan = TimeValue.timeValueSeconds(300);
+    private final TimeValue bucketSpan = TimeValue.timeValueSeconds(300);
 
     @Before
     public void setUpMocks() {
@@ -40,7 +41,6 @@ public class DataCountsReporterTests extends ESTestCase {
         acBuilder.setBucketSpan(bucketSpan);
         acBuilder.setLatency(TimeValue.ZERO);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
-
 
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
@@ -58,8 +58,25 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testComplexConstructor() {
-        DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, 6L, 7L, 8L,
-                new Date(), new Date(), new Date(), new Date(), new Date(), Instant.now());
+        DataCounts counts = new DataCounts(
+            "foo",
+            1L,
+            1L,
+            2L,
+            0L,
+            3L,
+            4L,
+            5L,
+            6L,
+            7L,
+            8L,
+            new Date(),
+            new Date(),
+            new Date(),
+            new Date(),
+            new Date(),
+            Instant.now()
+        );
 
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, counts, jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
@@ -85,8 +102,8 @@ public class DataCountsReporterTests extends ESTestCase {
 
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
-        dataCountsReporter.reportRecordWritten(5, 1000);
-        dataCountsReporter.reportRecordWritten(5, 1000);
+        dataCountsReporter.reportRecordWritten(5, 1000, 1000);
+        dataCountsReporter.reportRecordWritten(5, 1000, 1000);
         assertEquals(2, dataCountsReporter.incrementalStats().getInputRecordCount());
         assertEquals(10, dataCountsReporter.incrementalStats().getInputFieldCount());
         assertEquals(2, dataCountsReporter.incrementalStats().getProcessedRecordCount());
@@ -103,8 +120,8 @@ public class DataCountsReporterTests extends ESTestCase {
         // write some more data
         // skip a bucket so there is a non-zero empty bucket count
         long timeStamp = bucketSpan.millis() * 2 + 2000;
-        dataCountsReporter.reportRecordWritten(5, timeStamp);
-        dataCountsReporter.reportRecordWritten(5, timeStamp);
+        dataCountsReporter.reportRecordWritten(5, timeStamp, timeStamp);
+        dataCountsReporter.reportRecordWritten(5, timeStamp, timeStamp);
         assertEquals(2, dataCountsReporter.incrementalStats().getInputRecordCount());
         assertEquals(10, dataCountsReporter.incrementalStats().getInputFieldCount());
         assertEquals(2, dataCountsReporter.incrementalStats().getProcessedRecordCount());
@@ -140,14 +157,14 @@ public class DataCountsReporterTests extends ESTestCase {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
-        dataCountsReporter.reportRecordWritten(5, 2000);
+        dataCountsReporter.reportRecordWritten(5, 2000, 2000);
         assertEquals(1, dataCountsReporter.incrementalStats().getInputRecordCount());
         assertEquals(5, dataCountsReporter.incrementalStats().getInputFieldCount());
         assertEquals(1, dataCountsReporter.incrementalStats().getProcessedRecordCount());
         assertEquals(3, dataCountsReporter.incrementalStats().getProcessedFieldCount());
         assertEquals(2000, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
 
-        dataCountsReporter.reportRecordWritten(5, 3000);
+        dataCountsReporter.reportRecordWritten(5, 3000, 3000);
         dataCountsReporter.reportMissingField();
         assertEquals(2, dataCountsReporter.incrementalStats().getInputRecordCount());
         assertEquals(10, dataCountsReporter.incrementalStats().getInputFieldCount());
@@ -165,7 +182,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 9999; i++) {
-            dataCountsReporter.reportRecordWritten(5, i);
+            dataCountsReporter.reportRecordWritten(5, i, i);
         }
 
         assertEquals(9999, dataCountsReporter.incrementalStats().getInputRecordCount());
@@ -182,7 +199,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 30001; i++) {
-            dataCountsReporter.reportRecordWritten(5, i);
+            dataCountsReporter.reportRecordWritten(5, i, i);
         }
 
         assertEquals(30001, dataCountsReporter.incrementalStats().getInputRecordCount());
@@ -199,7 +216,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 100000; i++) {
-            dataCountsReporter.reportRecordWritten(5, i);
+            dataCountsReporter.reportRecordWritten(5, i, i);
         }
 
         assertEquals(100000, dataCountsReporter.incrementalStats().getInputRecordCount());
@@ -216,7 +233,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 1_000_000; i++) {
-            dataCountsReporter.reportRecordWritten(5, i);
+            dataCountsReporter.reportRecordWritten(5, i, i);
         }
 
         assertEquals(1_000_000, dataCountsReporter.incrementalStats().getInputRecordCount());
@@ -233,7 +250,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
         for (int i = 1; i <= 2_000_000; i++) {
-            dataCountsReporter.reportRecordWritten(5, i);
+            dataCountsReporter.reportRecordWritten(5, i, i);
         }
 
         assertEquals(2000000, dataCountsReporter.incrementalStats().getInputRecordCount());
@@ -245,25 +262,42 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(20, dataCountsReporter.getLogStatusCallCount());
     }
 
-
     public void testFinishReporting() {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
 
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
         Date now = new Date();
-        DataCounts dc = new DataCounts(job.getId(), 2L, 5L, 0L, 10L, 0L, 1L, 0L, 0L, 0L, 0L, new Date(2000), new Date(3000),
-                now, (Date) null, (Date) null, (Instant) null);
-        dataCountsReporter.reportRecordWritten(5, 2000);
-        dataCountsReporter.reportRecordWritten(5, 3000);
+        DataCounts dc = new DataCounts(
+            job.getId(),
+            2L,
+            5L,
+            0L,
+            10L,
+            0L,
+            1L,
+            0L,
+            0L,
+            0L,
+            0L,
+            new Date(2000),
+            new Date(3000),
+            now,
+            (Date) null,
+            (Date) null,
+            (Instant) null
+        );
+        dataCountsReporter.reportRecordWritten(5, 2000, 2000);
+        dataCountsReporter.reportRecordWritten(5, 3000, 3000);
         dataCountsReporter.reportMissingField();
         dataCountsReporter.finishReporting();
 
         long lastReportedTimeMs = dataCountsReporter.incrementalStats().getLastDataTimeStamp().getTime();
         // check last data time is equal to now give or take a second
-        assertTrue(lastReportedTimeMs >= now.getTime()
-                && lastReportedTimeMs <= now.getTime() + TimeUnit.SECONDS.toMillis(1));
-        assertEquals(dataCountsReporter.incrementalStats().getLastDataTimeStamp(),
-                dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
+        assertTrue(lastReportedTimeMs >= now.getTime() && lastReportedTimeMs <= now.getTime() + TimeUnit.SECONDS.toMillis(1));
+        assertEquals(
+            dataCountsReporter.incrementalStats().getLastDataTimeStamp(),
+            dataCountsReporter.runningTotalStats().getLastDataTimeStamp()
+        );
 
         dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
         verify(jobDataCountsPersister, times(1)).persistDataCounts(eq("sr"), eq(dc));

@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,7 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The allowable types, languages and their corresponding contexts.  When serialized there is a top level <code>types_allowed</code> list,
@@ -85,11 +74,11 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     private static final ParseField CONTEXTS = new ParseField("contexts");
 
     public final Set<String> typesAllowed;
-    public final Map<String,Set<String>> languageContexts;
+    public final Map<String, Set<String>> languageContexts;
 
-    public ScriptLanguagesInfo(Set<String> typesAllowed, Map<String,Set<String>> languageContexts) {
-        this.typesAllowed = typesAllowed != null ? Set.copyOf(typesAllowed): Collections.emptySet();
-        this.languageContexts = languageContexts != null ? Map.copyOf(languageContexts): Collections.emptyMap();
+    public ScriptLanguagesInfo(Set<String> typesAllowed, Map<String, Set<String>> languageContexts) {
+        this.typesAllowed = typesAllowed != null ? Set.copyOf(typesAllowed) : Collections.emptySet();
+        this.languageContexts = languageContexts != null ? Map.copyOf(languageContexts) : Collections.emptyMap();
     }
 
     public ScriptLanguagesInfo(StreamInput in) throws IOException {
@@ -98,19 +87,18 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ScriptLanguagesInfo,Void> PARSER =
-        new ConstructingObjectParser<>("script_languages_info", true,
-            (a) -> new ScriptLanguagesInfo(
-                new HashSet<>((List<String>)a[0]),
-                ((List<Tuple<String,Set<String>>>)a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
-            )
-        );
+    public static final ConstructingObjectParser<ScriptLanguagesInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "script_languages_info",
+        true,
+        (a) -> new ScriptLanguagesInfo(
+            new HashSet<>((List<String>) a[0]),
+            ((List<Tuple<String, Set<String>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+        )
+    );
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Tuple<String,Set<String>>,Void> LANGUAGE_CONTEXT_PARSER =
-        new ConstructingObjectParser<>("language_contexts", true,
-            (m, name) -> new Tuple<>((String)m[0], Set.copyOf((List<String>)m[1]))
-        );
+    private static final ConstructingObjectParser<Tuple<String, Set<String>>, Void> LANGUAGE_CONTEXT_PARSER =
+        new ConstructingObjectParser<>("language_contexts", true, (m, name) -> new Tuple<>((String) m[0], Set.copyOf((List<String>) m[1])));
 
     static {
         PARSER.declareStringArray(constructorArg(), TYPES_ALLOWED);
@@ -131,13 +119,10 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ScriptLanguagesInfo that = (ScriptLanguagesInfo) o;
-        return Objects.equals(typesAllowed, that.typesAllowed) &&
-            Objects.equals(languageContexts, that.languageContexts);
+        return Objects.equals(typesAllowed, that.typesAllowed) && Objects.equals(languageContexts, that.languageContexts);
     }
 
     @Override
@@ -148,18 +133,19 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().startArray(TYPES_ALLOWED.getPreferredName());
-        for (String type: typesAllowed.stream().sorted().collect(Collectors.toList())) {
+        for (String type : typesAllowed.stream().sorted().collect(Collectors.toList())) {
             builder.value(type);
         }
 
         builder.endArray().startArray(LANGUAGE_CONTEXTS.getPreferredName());
-        List<Map.Entry<String,Set<String>>> languagesByName = languageContexts.entrySet().stream().sorted(
-            Map.Entry.comparingByKey()
-        ).collect(Collectors.toList());
+        List<Map.Entry<String, Set<String>>> languagesByName = languageContexts.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.toList());
 
-        for (Map.Entry<String,Set<String>> languageContext: languagesByName) {
+        for (Map.Entry<String, Set<String>> languageContext : languagesByName) {
             builder.startObject().field(LANGUAGE.getPreferredName(), languageContext.getKey()).startArray(CONTEXTS.getPreferredName());
-            for (String context: languageContext.getValue().stream().sorted().collect(Collectors.toList())) {
+            for (String context : languageContext.getValue().stream().sorted().collect(Collectors.toList())) {
                 builder.value(context);
             }
             builder.endArray().endObject();

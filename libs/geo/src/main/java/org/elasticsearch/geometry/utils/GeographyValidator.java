@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.geometry.utils;
@@ -38,6 +27,9 @@ import org.elasticsearch.geometry.Rectangle;
  */
 public class GeographyValidator implements GeometryValidator {
 
+    private static final GeometryValidator TRUE = new GeographyValidator(true);
+    private static final GeometryValidator FALSE = new GeographyValidator(false);
+
     /**
      * Minimum longitude value.
      */
@@ -60,8 +52,12 @@ public class GeographyValidator implements GeometryValidator {
 
     private final boolean ignoreZValue;
 
-    public GeographyValidator(boolean ignoreZValue) {
+    protected GeographyValidator(boolean ignoreZValue) {
         this.ignoreZValue = ignoreZValue;
+    }
+
+    public static GeometryValidator instance(boolean ignoreZValue) {
+        return ignoreZValue ? TRUE : FALSE;
     }
 
     /**
@@ -70,7 +66,8 @@ public class GeographyValidator implements GeometryValidator {
     protected void checkLatitude(double latitude) {
         if (Double.isNaN(latitude) || latitude < MIN_LAT_INCL || latitude > MAX_LAT_INCL) {
             throw new IllegalArgumentException(
-                "invalid latitude " + latitude + "; must be between " + MIN_LAT_INCL + " and " + MAX_LAT_INCL);
+                "invalid latitude " + latitude + "; must be between " + MIN_LAT_INCL + " and " + MAX_LAT_INCL
+            );
         }
     }
 
@@ -80,14 +77,16 @@ public class GeographyValidator implements GeometryValidator {
     protected void checkLongitude(double longitude) {
         if (Double.isNaN(longitude) || longitude < MIN_LON_INCL || longitude > MAX_LON_INCL) {
             throw new IllegalArgumentException(
-                "invalid longitude " + longitude + "; must be between " + MIN_LON_INCL + " and " + MAX_LON_INCL);
+                "invalid longitude " + longitude + "; must be between " + MIN_LON_INCL + " and " + MAX_LON_INCL
+            );
         }
     }
 
     protected void checkAltitude(double zValue) {
         if (ignoreZValue == false && Double.isNaN(zValue) == false) {
-            throw new IllegalArgumentException("found Z value [" + zValue + "] but [ignore_z_value] "
-                + "parameter is [" + ignoreZValue + "]");
+            throw new IllegalArgumentException(
+                "found Z value [" + zValue + "] but [ignore_z_value] " + "parameter is [" + ignoreZValue + "]"
+            );
         }
     }
 

@@ -9,20 +9,19 @@ lines, circles, polygons, multi-polygons, etc.
 The queries in this group are:
 
 <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query::
-Finds documents with geo-points that fall into the specified rectangle.
+Finds documents with geopoints that fall into the specified rectangle.
 
 <<query-dsl-geo-distance-query,`geo_distance`>> query::
-Finds documents with geo-points within the specified distance of a central point.
+Finds documents with geopoints within the specified distance of a central point.
 
 <<query-dsl-geo-polygon-query,`geo_polygon`>> query::
-Find documents with geo-points within the specified polygon.
+Find documents with geopoints within the specified polygon.
 
 <<query-dsl-geo-shape-query,`geo_shape`>> query::
 Finds documents with:
-* `geo-shapes` which either intersect, are contained by, or do not intersect
-with the specified geo-shape
-* `geo-points` which intersect the specified
-geo-shape
+* Geoshapes which either intersect, are contained by, or do not intersect
+with the specified geoshape
+* Geopoints which intersect the specified geoshape
 
 include::geo-bounding-box-query.asciidoc[]
 

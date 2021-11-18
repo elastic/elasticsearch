@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[migration-api-deprecation]]
 === Deprecation info APIs
 ++++
@@ -22,6 +21,12 @@ be removed or changed in the next major version.
 
 `GET /<target>/_migration/deprecations`
 
+[[migration-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[migration-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -32,6 +37,22 @@ expressions are supported.
 +
 When you specify this parameter, only deprecations for the specified
 data streams or indices are returned.
+
+[[migration-api-settings]]
+==== Settings
+
+You can use the following settings to control the behavior of the deprecation info API:
+
+[[skip_deprecated_settings]]
+NOTE: This setting is designed for indirect use by {ess-trial}[{ess}], {ece-ref}[{ece}], and {eck-ref}[{eck}].
+Direct use is not supported.
+
+// tag::skip_deprecated_settings-tag[]
+`deprecation.skip_deprecated_settings`
+(<<dynamic-cluster-setting,Dynamic>>)
+Defaults to an empty list. Set to a list of setting names to be ignored by the deprecation info API. Any
+deprecations related to settings in this list will not be returned by the API. Simple wildcard matching is supported.
+// end::skip_deprecated_settings-tag[]
 
 [[migration-api-example]]
 ==== {api-examples-title}

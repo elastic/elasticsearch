@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
@@ -41,49 +30,50 @@ public class JavaDateMathParserTests extends ESTestCase {
     private final DateFormatter formatter = DateFormatter.forPattern("date_optional_time||epoch_millis");
     private final DateMathParser parser = formatter.toDateMathParser();
 
-
     public void testRoundUpParserBasedOnList() {
-        DateFormatter formatter = new JavaDateFormatter("test", new DateTimeFormatterBuilder()
-            .appendPattern("uuuu-MM-dd")
-            .toFormatter(Locale.ROOT),
-            new DateTimeFormatterBuilder()
-                .appendPattern("uuuu-MM-dd'T'HH:mm:ss.S").appendZoneOrOffsetId().toFormatter(Locale.ROOT)
+        DateFormatter formatter = new JavaDateFormatter(
+            "test",
+            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd").toFormatter(Locale.ROOT),
+            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
+                .appendZoneOrOffsetId()
+                .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT),
-            new DateTimeFormatterBuilder()
-                .appendPattern("uuuu-MM-dd'T'HH:mm:ss.S").appendOffset("+HHmm", "Z").toFormatter(Locale.ROOT)
-                .withResolverStyle(ResolverStyle.STRICT));
+            new DateTimeFormatterBuilder().appendPattern("uuuu-MM-dd'T'HH:mm:ss.S")
+                .appendOffset("+HHmm", "Z")
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        );
         Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+0000", () -> 0L, true, (ZoneId) null);
         assertThat(parsed.toEpochMilli(), equalTo(0L));
     }
 
     public void testMergingOfMultipleParsers() {
-        //date_time has 2 parsers, date_time_no_millis has 4. Parsing with rounding should be able to use all of them
+        // date_time has 2 parsers, date_time_no_millis has 4. Parsing with rounding should be able to use all of them
         DateFormatter formatter = DateFormatter.forPattern("date_time||date_time_no_millis");
-        //date_time 2 parsers
+        // date_time 2 parsers
         Instant parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+00:00", () -> 0L, true, (ZoneId) null);
         assertThat(parsed.toEpochMilli(), equalTo(0L));
-
 
         parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00.0+0000", () -> 0L, true, (ZoneId) null);
         assertThat(parsed.toEpochMilli(), equalTo(0L));
 
-        //date_time_no_millis  4 parsers
+        // date_time_no_millis 4 parsers
         parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00+00:00", () -> 0L, true, (ZoneId) null);
-        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+        assertThat(parsed.toEpochMilli(), equalTo(999L));// defaulting millis
 
         parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00+0000", () -> 0L, true, (ZoneId) null);
-        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+        assertThat(parsed.toEpochMilli(), equalTo(999L));// defaulting millis
 
         parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00UTC+00:00", () -> 0L, true, (ZoneId) null);
-        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+        assertThat(parsed.toEpochMilli(), equalTo(999L));// defaulting millis
 
         // this one is actually still using parser number 3. I don't see a combination to use parser number 4
         parsed = formatter.toDateMathParser().parse("1970-01-01T00:00:00", () -> 0L, true, (ZoneId) null);
-        assertThat(parsed.toEpochMilli(), equalTo(999L));//defaulting millis
+        assertThat(parsed.toEpochMilli(), equalTo(999L));// defaulting millis
     }
 
     public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
-        //the pattern has to be composite and the match should not be on the first one
+        // the pattern has to be composite and the match should not be on the first one
         DateFormatter formatter = DateFormatter.forPattern("date||epoch_millis").withLocale(randomLocale(random()));
         DateMathParser parser = formatter.toDateMathParser();
         long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
@@ -242,7 +232,8 @@ public class JavaDateMathParserTests extends ESTestCase {
         DateMathParser parser = formatter.toDateMathParser();
         Instant time = parser.parse("2011-10-09+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
-        time = DateFormatter.forPattern("strict_date_optional_time_nanos").toDateMathParser()
+        time = DateFormatter.forPattern("strict_date_optional_time_nanos")
+            .toDateMathParser()
             .parse("2011-10-09T23:59:59.999+01:00", () -> 0, false, (ZoneId) null);
         assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
     }
@@ -317,10 +308,10 @@ public class JavaDateMathParserTests extends ESTestCase {
         long datetime = parser.parse("1418248078", () -> 0).toEpochMilli();
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
-        // a timestamp before 100000 is a year
+        // for date_optional_time a timestamp with more than 9digits is epoch
         assertDateMathEquals("9999", "9999-01-01T00:00:00.000");
         assertDateMathEquals("10000", "10000-01-01T00:00:00.000");
-        assertDateMathEquals("100000", "1970-01-01T00:01:40.000");
+        assertDateMathEquals("1000000000", "1970-01-12T13:46:40.000Z");
 
         // but 10000 with T is still a date format
         assertDateMathEquals("10000-01-01T", "10000-01-01T00:00:00.000");
@@ -364,8 +355,14 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateMathEquals(parser, toTest, expected, now, roundUp, timeZone);
     }
 
-    private void assertDateMathEquals(DateMathParser parser, String toTest, String expected, final long now,
-                                      boolean roundUp, ZoneId timeZone) {
+    private void assertDateMathEquals(
+        DateMathParser parser,
+        String toTest,
+        String expected,
+        final long now,
+        boolean roundUp,
+        ZoneId timeZone
+    ) {
         long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
         assertDateEquals(gotMillis, toTest, expected);
     }
@@ -374,12 +371,24 @@ public class JavaDateMathParserTests extends ESTestCase {
         long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
-            fail("Date math not equal\n" +
-                "Original              : " + original + "\n" +
-                "Parsed                : " + formatter.format(zonedDateTime) + "\n" +
-                "Expected              : " + expected + "\n" +
-                "Expected milliseconds : " + expectedMillis + "\n" +
-                "Actual milliseconds   : " + gotMillis + "\n");
+            fail(
+                "Date math not equal\n"
+                    + "Original              : "
+                    + original
+                    + "\n"
+                    + "Parsed                : "
+                    + formatter.format(zonedDateTime)
+                    + "\n"
+                    + "Expected              : "
+                    + expected
+                    + "\n"
+                    + "Expected milliseconds : "
+                    + expectedMillis
+                    + "\n"
+                    + "Actual milliseconds   : "
+                    + gotMillis
+                    + "\n"
+            );
         }
     }
 }

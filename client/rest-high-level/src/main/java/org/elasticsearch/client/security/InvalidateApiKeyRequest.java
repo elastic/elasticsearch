@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,24 +30,24 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     private final String name;
     private final boolean ownedByAuthenticatedUser;
 
-    // pkg scope for testing
-    @Deprecated
-    InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
-                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
-        this(realmName, userName, apiKeyName, ownedByAuthenticatedUser, apiKeyIdToIds(apiKeyId));
-    }
-
-    InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName,
-                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser, @Nullable List<String> apiKeyIds) {
+    InvalidateApiKeyRequest(
+        @Nullable String realmName,
+        @Nullable String userName,
+        @Nullable String apiKeyName,
+        boolean ownedByAuthenticatedUser,
+        @Nullable List<String> apiKeyIds
+    ) {
         validateApiKeyIds(apiKeyIds);
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && apiKeyIds == null
-            && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
+        if (Strings.hasText(realmName) == false
+            && Strings.hasText(userName) == false
+            && apiKeyIds == null
+            && Strings.hasText(apiKeyName) == false
+            && ownedByAuthenticatedUser == false) {
             throwValidationError("One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false");
         }
         if (apiKeyIds != null || Strings.hasText(apiKeyName)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
-                throwValidationError(
-                    "username or realm name must not be specified when the api key id(s) or api key name is specified");
+                throwValidationError("username or realm name must not be specified when the api key id(s) or api key name is specified");
             }
         }
         if (ownedByAuthenticatedUser) {
@@ -82,12 +71,17 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
                 throwValidationError("Argument [apiKeyIds] cannot be an empty array");
             } else {
                 final int[] idxOfBlankIds = IntStream.range(0, apiKeyIds.size())
-                    .filter(i -> Strings.hasText(apiKeyIds.get(i)) == false).toArray();
+                    .filter(i -> Strings.hasText(apiKeyIds.get(i)) == false)
+                    .toArray();
                 if (idxOfBlankIds.length > 0) {
-                    throwValidationError("Argument [apiKeyIds] must not contain blank id, but got blank "
-                        + (idxOfBlankIds.length == 1 ? "id" : "ids") + " at index "
-                        + (idxOfBlankIds.length == 1 ? "position" : "positions") + ": "
-                        + Arrays.toString(idxOfBlankIds));
+                    throwValidationError(
+                        "Argument [apiKeyIds] must not contain blank id, but got blank "
+                            + (idxOfBlankIds.length == 1 ? "id" : "ids")
+                            + " at index "
+                            + (idxOfBlankIds.length == 1 ? "position" : "positions")
+                            + ": "
+                            + Arrays.toString(idxOfBlankIds)
+                    );
                 }
             }
         }
@@ -112,8 +106,9 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         } else if (ids.size() == 1) {
             return ids.get(0);
         } else {
-            throw new IllegalArgumentException("Cannot get a single api key id when multiple ids have been set ["
-                + Strings.collectionToCommaDelimitedString(ids) + "]");
+            throw new IllegalArgumentException(
+                "Cannot get a single api key id when multiple ids have been set [" + Strings.collectionToCommaDelimitedString(ids) + "]"
+            );
         }
     }
 
@@ -144,7 +139,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingUserName(String userName) {
-        return new InvalidateApiKeyRequest(null, userName,  null, false, null);
+        return new InvalidateApiKeyRequest(null, userName, null, false, null);
     }
 
     /**

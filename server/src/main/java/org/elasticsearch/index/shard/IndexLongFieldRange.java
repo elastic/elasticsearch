@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -118,10 +107,10 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         return max;
     }
 
-    private static final byte WIRE_TYPE_OTHER = (byte)0;
-    private static final byte WIRE_TYPE_NO_SHARDS = (byte)1;
-    private static final byte WIRE_TYPE_UNKNOWN = (byte)2;
-    private static final byte WIRE_TYPE_EMPTY = (byte)3;
+    private static final byte WIRE_TYPE_OTHER = (byte) 0;
+    private static final byte WIRE_TYPE_NO_SHARDS = (byte) 1;
+    private static final byte WIRE_TYPE_UNKNOWN = (byte) 2;
+    private static final byte WIRE_TYPE_EMPTY = (byte) 3;
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -249,19 +238,19 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         }
 
         if (Boolean.TRUE.equals(isUnknown)) {
-            //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
+            // noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
             assert min == null && max == null && shardsList == null && Boolean.FALSE.equals(isEmpty);
             return UNKNOWN;
         } else if (Boolean.TRUE.equals(isEmpty)) {
-            //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
+            // noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
             assert min == null && max == null && shardsList == null && Boolean.FALSE.equals(isUnknown);
             return EMPTY;
         } else if (shardsList != null && shardsList.isEmpty()) {
-            //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
+            // noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
             assert min == null && max == null && Boolean.FALSE.equals(isEmpty) && Boolean.FALSE.equals(isUnknown);
             return NO_SHARDS;
         } else if (min != null) {
-            //noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
+            // noinspection ConstantConditions this assertion is always true but left here for the benefit of readers
             assert Boolean.FALSE.equals(isUnknown) && Boolean.FALSE.equals(isEmpty);
             if (max == null) {
                 throw new IllegalArgumentException("field 'max' unexpectedly missing");
@@ -281,9 +270,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     public IndexLongFieldRange extendWithShardRange(int shardId, int shardCount, ShardLongFieldRange shardFieldRange) {
         if (shardFieldRange == ShardLongFieldRange.UNKNOWN) {
-            assert shards == null
-                    ? this == UNKNOWN
-                    : Arrays.stream(shards).noneMatch(i -> i == shardId);
+            assert shards == null ? this == UNKNOWN : Arrays.stream(shards).noneMatch(i -> i == shardId);
             return UNKNOWN;
         }
         if (shards == null || Arrays.stream(shards).anyMatch(i -> i == shardId)) {
@@ -293,7 +280,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         final int[] newShards;
         if (shards.length == shardCount - 1) {
             assert Arrays.equals(shards, IntStream.range(0, shardCount).filter(i -> i != shardId).toArray())
-                    : Arrays.toString(shards) + " + " + shardId;
+                : Arrays.toString(shards) + " + " + shardId;
             if (shardFieldRange == ShardLongFieldRange.EMPTY && min == EMPTY.min && max == EMPTY.max) {
                 return EMPTY;
             }
@@ -329,9 +316,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         if (o == null || getClass() != o.getClass()) return false;
         if (this == EMPTY || this == UNKNOWN || this == NO_SHARDS || o == EMPTY || o == UNKNOWN || o == NO_SHARDS) return false;
         IndexLongFieldRange that = (IndexLongFieldRange) o;
-        return min == that.min &&
-                max == that.max &&
-                Arrays.equals(shards, that.shards);
+        return min == that.min && max == that.max && Arrays.equals(shards, that.shards);
     }
 
     @Override

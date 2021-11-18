@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
@@ -36,13 +37,20 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlTranslateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                       SqlLicenseChecker sqlLicenseChecker) {
+    public TransportSqlTranslateAction(
+        Settings settings,
+        ClusterService clusterService,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor,
+        SqlLicenseChecker sqlLicenseChecker
+    ) {
         super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new);
 
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-                new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
@@ -52,13 +60,33 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     protected void doExecute(Task task, SqlTranslateRequest request, ActionListener<SqlTranslateResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
 
-        SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.fetchSize(),
-                request.requestTimeout(), request.pageTimeout(), request.filter(),
-                request.mode(), request.clientId(),
-                username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY,
-                Protocol.INDEX_INCLUDE_FROZEN);
+        SqlConfiguration cfg = new SqlConfiguration(
+            request.zoneId(),
+            request.catalog(),
+            request.fetchSize(),
+            request.requestTimeout(),
+            request.pageTimeout(),
+            request.filter(),
+            request.runtimeMappings(),
+            request.mode(),
+            request.clientId(),
+            request.version(),
+            username(securityContext),
+            clusterName(clusterService),
+            Protocol.FIELD_MULTI_VALUE_LENIENCY,
+            Protocol.INDEX_INCLUDE_FROZEN,
+            null,
+            null
+        );
 
-        planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(
-                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));
+        planExecutor.searchSource(
+            cfg,
+            request.query(),
+            request.params(),
+            ActionListener.wrap(
+                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)),
+                listener::onFailure
+            )
+        );
     }
 }

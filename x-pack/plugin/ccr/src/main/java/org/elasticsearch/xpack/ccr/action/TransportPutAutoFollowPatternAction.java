@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -43,29 +44,40 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<PutAutoFollowPatternAction.Request> {
-
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
     public TransportPutAutoFollowPatternAction(
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final ActionFilters actionFilters,
-            final Client client,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final CcrLicenseChecker ccrLicenseChecker) {
-        super(PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutAutoFollowPatternAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final ActionFilters actionFilters,
+        final Client client,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final CcrLicenseChecker ccrLicenseChecker
+    ) {
+        super(
+            PutAutoFollowPatternAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutAutoFollowPatternAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
     }
 
     @Override
-    protected void masterOperation(Task task, PutAutoFollowPatternAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        PutAutoFollowPatternAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -88,13 +100,15 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
             ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {
-                    clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
+                    clusterService.submitStateUpdateTask(
+                        "put-auto-follow-pattern-" + request.getRemoteCluster(),
                         new AckedClusterStateUpdateTask(request, listener) {
                             @Override
                             public ClusterState execute(ClusterState currentState) {
                                 return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
                             }
-                        });
+                        }
+                    );
                 } else {
                     listener.onFailure(e);
                 }
@@ -105,15 +119,22 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         clusterStateRequest.clear();
         clusterStateRequest.metadata(true);
 
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, request.getRemoteCluster(),
-            clusterStateRequest, listener::onFailure, consumer);
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+            client,
+            request.getRemoteCluster(),
+            clusterStateRequest,
+            listener::onFailure,
+            consumer
+        );
 
     }
 
-    static ClusterState innerPut(PutAutoFollowPatternAction.Request request,
-                                 Map<String, String> filteredHeaders,
-                                 ClusterState localState,
-                                 ClusterState remoteClusterState) {
+    static ClusterState innerPut(
+        PutAutoFollowPatternAction.Request request,
+        Map<String, String> filteredHeaders,
+        ClusterState localState,
+        ClusterState remoteClusterState
+    ) {
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
@@ -141,10 +162,20 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metadata(),
-                previousPattern, followedIndexUUIDs);
+            markExistingIndicesAsAutoFollowedForNewPatterns(
+                request.getLeaderIndexPatterns(),
+                request.getLeaderIndexExclusionPatterns(),
+                remoteClusterState.metadata(),
+                previousPattern,
+                followedIndexUUIDs
+            );
         } else {
-            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metadata(), followedIndexUUIDs);
+            markExistingIndicesAsAutoFollowed(
+                request.getLeaderIndexPatterns(),
+                request.getLeaderIndexExclusionPatterns(),
+                remoteClusterState.metadata(),
+                followedIndexUUIDs
+            );
         }
 
         if (filteredHeaders != null) {
@@ -154,6 +185,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
+            request.getLeaderIndexExclusionPatterns(),
             request.getFollowIndexNamePattern(),
             request.getSettings(),
             true,
@@ -166,36 +198,42 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             request.getParameters().getMaxWriteBufferCount(),
             request.getParameters().getMaxWriteBufferSize(),
             request.getParameters().getMaxRetryDelay(),
-            request.getParameters().getReadPollTimeout());
+            request.getParameters().getReadPollTimeout()
+        );
         patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
-        newState.metadata(Metadata.builder(localState.getMetadata())
-            .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
-            .build());
+        newState.metadata(
+            Metadata.builder(localState.getMetadata())
+                .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
+                .build()
+        );
         return newState.build();
     }
 
     private static void markExistingIndicesAsAutoFollowedForNewPatterns(
         List<String> leaderIndexPatterns,
+        List<String> leaderIndexExclusionPatterns,
         Metadata leaderMetadata,
         AutoFollowPattern previousPattern,
-        List<String> followedIndexUUIDS) {
+        List<String> followedIndexUUIDS
+    ) {
 
-        final List<String> newPatterns = leaderIndexPatterns
-            .stream()
+        final List<String> newPatterns = leaderIndexPatterns.stream()
             .filter(p -> previousPattern.getLeaderIndexPatterns().contains(p) == false)
             .collect(Collectors.toList());
-        markExistingIndicesAsAutoFollowed(newPatterns, leaderMetadata, followedIndexUUIDS);
+        markExistingIndicesAsAutoFollowed(newPatterns, leaderIndexExclusionPatterns, leaderMetadata, followedIndexUUIDS);
     }
 
     private static void markExistingIndicesAsAutoFollowed(
         List<String> patterns,
+        List<String> exclusionPatterns,
         Metadata leaderMetadata,
-        List<String> followedIndexUUIDS) {
+        List<String> followedIndexUUIDS
+    ) {
 
         for (final IndexMetadata indexMetadata : leaderMetadata) {
             IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
-            if (AutoFollowPattern.match(patterns, indexAbstraction)) {
+            if (AutoFollowPattern.match(patterns, exclusionPatterns, indexAbstraction)) {
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }
         }

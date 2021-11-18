@@ -1,20 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
 
 package org.elasticsearch.xpack.vectors.query;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 
 public class ScoreScriptUtils {
@@ -24,9 +20,7 @@ public class ScoreScriptUtils {
         final float[] queryVector;
         final DenseVectorScriptDocValues docValues;
 
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   String field) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field) {
             this(scoreScript, queryVector, field, false);
         }
 
@@ -37,12 +31,19 @@ public class ScoreScriptUtils {
          * @param queryVector The query vector.
          * @param normalizeQuery Whether the provided query should be normalized to unit length.
          */
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   String field,
-                                   boolean normalizeQuery) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field, boolean normalizeQuery) {
             this.scoreScript = scoreScript;
             this.docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(field);
+
+            if (docValues.dims() != queryVector.size()) {
+                throw new IllegalArgumentException(
+                    "The query vector has a different number of dimensions ["
+                        + queryVector.size()
+                        + "] than the document vectors ["
+                        + docValues.dims()
+                        + "]."
+                );
+            }
 
             this.queryVector = new float[queryVector.size()];
             double queryMagnitude = 0.0;
@@ -60,25 +61,15 @@ public class ScoreScriptUtils {
             }
         }
 
-        BytesRef getEncodedVector() {
+        void setNextVector() {
             try {
                 docValues.setNextDocId(scoreScript._getDocId());
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
-
-            // Validate the encoded vector's length.
-            BytesRef vector = docValues.getEncodedValue();
-            if (vector == null) {
+            if (docValues.size() == 0) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
             }
-
-            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
-            if (queryVector.length != vectorLength) {
-                throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
-                    queryVector.length + "] than the document vectors [" + vectorLength + "].");
-            }
-            return vector;
         }
     }
 
@@ -90,15 +81,8 @@ public class ScoreScriptUtils {
         }
 
         public double l1norm() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
-            double l1norm = 0;
-
-            for (float queryValue : queryVector) {
-                l1norm += Math.abs(queryValue - byteBuffer.getFloat());
-            }
-            return l1norm;
+            setNextVector();
+            return docValues.l1Norm(queryVector);
         }
     }
 
@@ -110,15 +94,8 @@ public class ScoreScriptUtils {
         }
 
         public double l2norm() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
-            double l2norm = 0;
-            for (float queryValue : queryVector) {
-                double diff = queryValue - byteBuffer.getFloat();
-                l2norm += diff * diff;
-            }
-            return Math.sqrt(l2norm);
+            setNextVector();
+            return docValues.l2Norm(queryVector);
         }
     }
 
@@ -130,14 +107,8 @@ public class ScoreScriptUtils {
         }
 
         public double dotProduct() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
-            double dotProduct = 0;
-            for (float queryValue : queryVector) {
-                dotProduct += queryValue * byteBuffer.getFloat();
-            }
-            return dotProduct;
+            setNextVector();
+            return docValues.dotProduct(queryVector);
         }
     }
 
@@ -149,25 +120,8 @@ public class ScoreScriptUtils {
         }
 
         public double cosineSimilarity() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
-            double dotProduct = 0.0;
-            double vectorMagnitude = 0.0f;
-            if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_5_0)) {
-                for (float queryValue : queryVector) {
-                    dotProduct += queryValue * byteBuffer.getFloat();
-                }
-                vectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
-            } else {
-                for (float queryValue : queryVector) {
-                    float docValue = byteBuffer.getFloat();
-                    dotProduct += queryValue * docValue;
-                    vectorMagnitude += docValue * docValue;
-                }
-                vectorMagnitude = (float) Math.sqrt(vectorMagnitude);
-            }
-            return dotProduct / vectorMagnitude;
+            setNextVector();
+            return docValues.dotProduct(queryVector) / docValues.getMagnitude();
         }
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -33,21 +22,23 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -63,7 +54,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -71,11 +62,19 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
+    public static final String IGNORE_THROTTLED_DEPRECATION_WARNING = "[ignore_throttled] parameter is deprecated because frozen "
+        + "indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
+
+    protected static final RequestOptions IGNORE_THROTTLED_WARNING = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> List.of(IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false)
+        .build();
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
 
     private static RestHighLevelClient restHighLevelClient;
+    private static RestHighLevelClient adminRestHighLevelClient;
     private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
 
     @Before
@@ -84,31 +83,50 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         if (restHighLevelClient == null) {
             restHighLevelClient = new HighLevelClient(client());
         }
+        if (adminRestHighLevelClient == null) {
+            adminRestHighLevelClient = new HighLevelClient(adminClient());
+        }
     }
 
     @AfterClass
     public static void cleanupClient() throws IOException {
         IOUtils.close(restHighLevelClient);
+        IOUtils.close(adminRestHighLevelClient);
         restHighLevelClient = null;
+        adminRestHighLevelClient = null;
     }
 
     protected static RestHighLevelClient highLevelClient() {
         return restHighLevelClient;
     }
 
+    @Override
+    protected Settings restAdminSettings() {
+        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    protected static RestHighLevelClient adminHighLevelClient() {
+        return adminRestHighLevelClient;
+    }
+
     /**
      * Executes the provided request using either the sync method or its async variant, both provided as functions
      */
-    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
-                                       AsyncMethod<Req, Resp> asyncMethod) throws IOException {
+    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod, AsyncMethod<Req, Resp> asyncMethod)
+        throws IOException {
         return execute(request, syncMethod, asyncMethod, RequestOptions.DEFAULT);
     }
 
     /**
      * Executes the provided request using either the sync method or its async variant, both provided as functions
      */
-    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
-                                       AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
+    protected static <Req, Resp> Resp execute(
+        Req request,
+        SyncMethod<Req, Resp> syncMethod,
+        AsyncMethod<Req, Resp> asyncMethod,
+        RequestOptions options
+    ) throws IOException {
         if (async == false) {
             return syncMethod.execute(request, options);
         } else {
@@ -123,8 +141,11 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      * variant, both provided as functions. This variant is used when the call does
      * not have a request object (only headers and the request path).
      */
-    protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
-            RequestOptions requestOptions) throws IOException {
+    protected static <Resp> Resp execute(
+        SyncMethodNoRequest<Resp> syncMethodNoRequest,
+        AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
+        RequestOptions requestOptions
+    ) throws IOException {
         if (async == false) {
             return syncMethodNoRequest.execute(requestOptions);
         } else {
@@ -168,16 +189,12 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             {
                 pipelineBuilder.startObject().startObject("set");
                 {
-                    pipelineBuilder
-                        .field("field", "foo")
-                        .field("value", "bar");
+                    pipelineBuilder.field("field", "foo").field("value", "bar");
                 }
                 pipelineBuilder.endObject().endObject();
                 pipelineBuilder.startObject().startObject("convert");
                 {
-                    pipelineBuilder
-                        .field("field", "rank")
-                        .field("type", "integer");
+                    pipelineBuilder.field("field", "rank").field("type", "integer");
                 }
                 pipelineBuilder.endObject().endObject();
             }
@@ -194,16 +211,15 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     protected static void createFieldAddingPipleine(String id, String fieldName, String value) throws IOException {
-        XContentBuilder pipeline = jsonBuilder()
+        XContentBuilder pipeline = jsonBuilder().startObject()
+            .startArray("processors")
             .startObject()
-                .startArray("processors")
-                    .startObject()
-                        .startObject("set")
-                            .field("field", fieldName)
-                            .field("value", value)
-                        .endObject()
-                    .endObject()
-                .endArray()
+            .startObject("set")
+            .field("field", fieldName)
+            .field("value", value)
+            .endObject()
+            .endObject()
+            .endArray()
             .endObject();
 
         createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), XContentType.JSON));
@@ -215,39 +231,45 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        assertTrue(execute(
-            putPipelineRequest, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync).isAcknowledged());
+        assertTrue(
+            execute(putPipelineRequest, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync)
+                .isAcknowledged()
+        );
     }
 
-    protected static void clusterUpdateSettings(Settings persistentSettings,
-                                                Settings transientSettings) throws IOException {
+    protected static void clusterUpdateSettings(Settings persistentSettings, Settings transientSettings) throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(persistentSettings);
         request.transientSettings(transientSettings);
-        assertTrue(execute(
-            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
+        assertTrue(
+            execute(request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync, options)
+                .isAcknowledged()
+        );
     }
 
     protected void putConflictPipeline() throws IOException {
-        final XContentBuilder pipelineBuilder = jsonBuilder()
+        final XContentBuilder pipelineBuilder = jsonBuilder().startObject()
+            .startArray("processors")
             .startObject()
-                .startArray("processors")
-                    .startObject()
-                        .startObject("set")
-                            .field("field", "_version")
-                            .field("value", 1)
-                        .endObject()
-                    .endObject()
-                    .startObject()
-                        .startObject("set")
-                            .field("field", "_id")
-                            .field("value", "1")
-                        .endObject()
-                    .endObject()
-                .endArray()
+            .startObject("set")
+            .field("field", "_version")
+            .field("value", 1)
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("set")
+            .field("field", "_id")
+            .field("value", "1")
+            .endObject()
+            .endObject()
+            .endArray()
             .endObject();
-        final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(CONFLICT_PIPELINE_ID, BytesReference.bytes(pipelineBuilder),
-            pipelineBuilder.contentType());
+        final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(
+            CONFLICT_PIPELINE_ID,
+            BytesReference.bytes(pipelineBuilder),
+            pipelineBuilder.contentType()
+        );
         assertTrue(highLevelClient().ingest().putPipeline(putPipelineRequest, RequestOptions.DEFAULT).isAcknowledged());
     }
 
@@ -256,10 +278,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         final String user = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
         final String pass = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password"));
         final String token = "Basic " + Base64.getEncoder().encodeToString((user + ":" + pass).getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-            .put(super.restClientSettings())
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     protected Iterable<SearchHit> searchAll(String... indices) throws IOException {
@@ -274,19 +293,15 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     protected void refreshIndexes(String... indices) throws IOException {
-        String joinedIndices = Arrays.stream(indices)
-            .collect(Collectors.joining(","));
+        String joinedIndices = Arrays.stream(indices).collect(Collectors.joining(","));
         Response refreshResponse = client().performRequest(new Request("POST", "/" + joinedIndices + "/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
     }
 
     protected void createIndexWithMultipleShards(String index) throws IOException {
         CreateIndexRequest indexRequest = new CreateIndexRequest(index);
-        int shards = randomIntBetween(8,10);
-        indexRequest.settings(Settings.builder()
-            .put("index.number_of_shards", shards)
-            .put("index.number_of_replicas", 0)
-        );
+        int shards = randomIntBetween(8, 10);
+        indexRequest.settings(Settings.builder().put("index.number_of_shards", shards).put("index.number_of_replicas", 0));
         highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
     }
 
@@ -300,9 +315,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         String transportAddress = (String) nodesResponse.get("transport_address");
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
-        ClusterUpdateSettingsResponse updateSettingsResponse =
-                restHighLevelClient.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
+        updateSettingsRequest.persistentSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
+        ClusterUpdateSettingsResponse updateSettingsResponse = restHighLevelClient.cluster().putSettings(updateSettingsRequest, options);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {
@@ -324,21 +339,27 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         do {
             ListTasksResponse list = highLevelClient().tasks().list(request, RequestOptions.DEFAULT);
             list.rethrowFailures("Finding tasks to rethrottle");
-            List<TaskGroup> taskGroups =
-                list.getTaskGroups().stream()
-                    .filter(taskGroup -> taskGroup.getTaskInfo().getDescription().equals(description)).collect(Collectors.toList());
-            assertThat("tasks are left over from the last execution of this test",
-                taskGroups, hasSize(lessThan(2)));
+            List<TaskGroup> taskGroups = list.getTaskGroups()
+                .stream()
+                .filter(taskGroup -> taskGroup.getTaskInfo().getDescription().equals(description))
+                .collect(Collectors.toList());
+            assertThat("tasks are left over from the last execution of this test", taskGroups, hasSize(lessThan(2)));
             if (0 == taskGroups.size()) {
                 // The parent task hasn't started yet
                 continue;
             }
             TaskGroup taskGroup = taskGroups.get(0);
             assertThat(taskGroup.getChildTasks(), empty());
-            return taskGroup.getTaskInfo().getTaskId();
+            // check that the task initialized enough that it can rethrottle too.
+            Map<String, Object> statusMap = ((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap();
+            if (statusMap.get("batches").equals(1)) {
+                return taskGroup.getTaskInfo().getTaskId();
+            }
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
-        throw new AssertionError("Couldn't find tasks to rethrottle. Here are the running tasks " +
-            highLevelClient().tasks().list(request, RequestOptions.DEFAULT));
+        throw new AssertionError(
+            "Couldn't find tasks to rethrottle. Here are the running tasks "
+                + highLevelClient().tasks().list(request, RequestOptions.DEFAULT)
+        );
     }
 
     protected static CheckedRunnable<Exception> checkTaskCompletionStatus(RestClient client, String taskId) {

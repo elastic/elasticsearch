@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -29,16 +30,16 @@ class JdbcStatement implements Statement, JdbcWrapper {
     protected JdbcResultSet rs;
     final RequestMeta requestMeta;
 
-    JdbcStatement(JdbcConnection jdbcConnection, JdbcConfiguration info) {
+    JdbcStatement(JdbcConnection jdbcConnection) {
         this.con = jdbcConnection;
-        this.cfg = info;
-        this.requestMeta = new RequestMeta(info.pageSize(), info.pageTimeout(), info.queryTimeout());
+        this.cfg = con.config();
+        this.requestMeta = new RequestMeta(cfg.pageSize(), cfg.pageTimeout(), cfg.queryTimeout());
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        if (!execute(sql)) {
-            throw new SQLException("Invalid sql query [" +  sql + "]");
+        if (execute(sql) == false) {
+            throw new SQLException("Invalid sql query [" + sql + "]");
         }
         return rs;
     }
@@ -51,7 +52,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
             closeResultSet();
         }
@@ -79,7 +80,6 @@ class JdbcStatement implements Statement, JdbcWrapper {
         }
         return Math.toIntExact(result);
     }
-
 
     @Override
     public long getLargeMaxRows() throws SQLException {
@@ -189,9 +189,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkOpen();
-        if (ResultSet.FETCH_REVERSE != direction
-                || ResultSet.FETCH_FORWARD != direction
-                || ResultSet.FETCH_UNKNOWN != direction) {
+        if (ResultSet.FETCH_REVERSE != direction || ResultSet.FETCH_FORWARD != direction || ResultSet.FETCH_UNKNOWN != direction) {
             throw new SQLException("Invalid direction specified");
         }
     }
@@ -396,7 +394,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     }
 
     final void resultSetWasClosed() throws SQLException {
-        if (closeOnCompletion && !ignoreResultSetClose) {
+        if (closeOnCompletion && ignoreResultSetClose == false) {
             close();
         }
     }

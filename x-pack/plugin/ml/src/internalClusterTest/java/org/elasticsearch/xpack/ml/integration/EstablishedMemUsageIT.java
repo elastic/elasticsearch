@@ -1,19 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -22,9 +22,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
@@ -39,29 +38,34 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
-    private long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
+    private final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
 
     private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
 
     @Before
     public void createComponents() {
-        Settings settings = nodeSettings(0);
+        Settings settings = nodeSettings(0, Settings.EMPTY);
         ThreadPool tp = mockThreadPool();
-        ClusterSettings clusterSettings = new ClusterSettings(settings,
-            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ClusterService.USER_DEFINED_METADATA,
-                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            new HashSet<>(
+                Arrays.asList(
+                    InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    ClusterService.USER_DEFINED_METADATA,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
-        jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
-        jobResultsPersister = new JobResultsPersister(
-            originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), clusterService));
+        jobResultsProvider = new JobResultsProvider(client(), settings, TestIndexNameExpressionResolver.newInstance());
+        jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
     }
 
     public void testEstablishedMem_givenNoResults() throws Exception {
@@ -259,10 +263,10 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
     }
 
     private ModelSizeStats createModelSizeStats(String jobId, int bucketNum, long modelBytes) {
-        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder(jobId)
-                .setTimestamp(new Date(bucketSpan * bucketNum))
-                .setLogTime(new Date(bucketSpan * bucketNum + randomIntBetween(1, 1000)))
-                .setModelBytes(modelBytes).build();
+        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder(jobId).setTimestamp(new Date(bucketSpan * bucketNum))
+            .setLogTime(new Date(bucketSpan * bucketNum + randomIntBetween(1, 1000)))
+            .setModelBytes(modelBytes)
+            .build();
         jobResultsPersister.persistModelSizeStats(modelSizeStats, () -> true);
         return modelSizeStats;
     }
@@ -271,8 +275,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         return queryEstablishedMemoryUsage(jobId, null, null);
     }
 
-    private Long queryEstablishedMemoryUsage(String jobId, Integer bucketNum, ModelSizeStats latestModelSizeStats)
-            throws Exception {
+    private Long queryEstablishedMemoryUsage(String jobId, Integer bucketNum, ModelSizeStats latestModelSizeStats) throws Exception {
         AtomicReference<Long> establishedModelMemoryUsage = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
 
@@ -280,12 +283,12 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         Date latestBucketTimestamp = (bucketNum != null) ? new Date(bucketSpan * bucketNum) : null;
         jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, latestModelSizeStats, memUse -> {
-                    establishedModelMemoryUsage.set(memUse);
-                    latch.countDown();
-                }, e -> {
-                    exception.set(e);
-                    latch.countDown();
-                });
+            establishedModelMemoryUsage.set(memUse);
+            latch.countDown();
+        }, e -> {
+            exception.set(e);
+            latch.countDown();
+        });
 
         latch.await();
 

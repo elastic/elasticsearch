@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action;
@@ -29,6 +18,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -69,9 +59,7 @@ public class RestCancellableNodeClient extends FilterClient {
      * Returns the number of tasks tracked globally.
      */
     static int getNumTasks() {
-        return httpChannels.values().stream()
-            .mapToInt(CloseListener::getNumTasks)
-            .sum();
+        return httpChannels.values().stream().mapToInt(CloseListener::getNumTasks).sum();
     }
 
     /**
@@ -84,38 +72,39 @@ public class RestCancellableNodeClient extends FilterClient {
 
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-        ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener());
         TaskHolder taskHolder = new TaskHolder();
-        Task task = client.executeLocally(action, request,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        closeListener.unregisterTask(taskHolder);
-                    } finally {
-                        listener.onResponse(response);
-                    }
+        Task task = client.executeLocally(action, request, new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    closeListener.unregisterTask(taskHolder);
+                } finally {
+                    listener.onResponse(response);
                 }
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        closeListener.unregisterTask(taskHolder);
-                    } finally {
-                        listener.onFailure(e);
-                    }
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    closeListener.unregisterTask(taskHolder);
+                } finally {
+                    listener.onFailure(e);
                 }
-            });
+            }
+        });
+        assert task instanceof CancellableTask : action.name() + " is not cancellable";
         final TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
         closeListener.registerTask(taskHolder, taskId);
         closeListener.maybeRegisterChannel(httpChannel);
     }
 
     private void cancelTask(TaskId taskId) {
-        CancelTasksRequest req = new CancelTasksRequest()
-            .setTaskId(taskId)
-            .setReason("channel closed");
+        CancelTasksRequest req = new CancelTasksRequest().setTaskId(taskId).setReason("http channel [" + httpChannel + "] closed");
         // force the origin to execute the cancellation as a system user
         new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }
@@ -124,8 +113,7 @@ public class RestCancellableNodeClient extends FilterClient {
         private final AtomicReference<HttpChannel> channel = new AtomicReference<>();
         private final Set<TaskId> tasks = new HashSet<>();
 
-        CloseListener() {
-        }
+        CloseListener() {}
 
         synchronized int getNumTasks() {
             return tasks.size();
@@ -133,10 +121,10 @@ public class RestCancellableNodeClient extends FilterClient {
 
         void maybeRegisterChannel(HttpChannel httpChannel) {
             if (channel.compareAndSet(null, httpChannel)) {
-                //In case the channel is already closed when we register the listener, the listener will be immediately executed which will
-                //remove the channel from the map straight-away. That is why we first create the CloseListener and later we associate it
-                //with the channel. This guarantees that the close listener is already in the map when it gets registered to its
-                //corresponding channel, hence it is always found in the map when it gets invoked if the channel gets closed.
+                // In case the channel is already closed when we register the listener, the listener will be immediately executed which will
+                // remove the channel from the map straight-away. That is why we first create the CloseListener and later we associate it
+                // with the channel. This guarantees that the close listener is already in the map when it gets registered to its
+                // corresponding channel, hence it is always found in the map when it gets invoked if the channel gets closed.
                 httpChannel.addCloseListener(this);
             }
         }

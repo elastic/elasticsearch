@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.ec2;
@@ -24,15 +13,16 @@ import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.InstanceState;
 import com.amazonaws.services.ec2.model.InstanceStateName;
 import com.amazonaws.services.ec2.model.Tag;
+
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
@@ -70,13 +60,19 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     private Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
 
     protected MockTransportService createTransportService() {
-        final Transport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
-            new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, writableRegistry(),
-            new NoneCircuitBreakerService()) {
+        final Transport transport = new MockNioTransport(
+            Settings.EMPTY,
+            Version.CURRENT,
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            writableRegistry(),
+            new NoneCircuitBreakerService()
+        ) {
             @Override
             public TransportAddress[] addressesFromString(String address) {
                 // we just need to ensure we don't resolve DNS here
-                return new TransportAddress[] {poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())};
+                return new TransportAddress[] { poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress()) };
             }
         };
         return new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
@@ -102,21 +98,20 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                         // Simulate an EC2 DescribeInstancesResponse
                         final Map<String, List<String>> tagsIncluded = new HashMap<>();
                         final String[] params = request.split("&");
-                        Arrays.stream(params).filter(entry -> entry.startsWith("Filter.") && entry.contains("=tag%3A"))
-                            .forEach(entry -> {
-                                    final int startIndex = "Filter.".length();
-                                    final int filterId = Integer.parseInt(entry.substring(startIndex, entry.indexOf(".", startIndex)));
-                                    tagsIncluded.put(entry.substring(entry.indexOf("=tag%3A") + "=tag%3A".length()),
-                                        Arrays.stream(params)
-                                            .filter(param -> param.startsWith("Filter." + filterId + ".Value."))
-                                            .map(param -> param.substring(param.indexOf("=") + 1))
-                                            .collect(Collectors.toList()));
-                                }
+                        Arrays.stream(params).filter(entry -> entry.startsWith("Filter.") && entry.contains("=tag%3A")).forEach(entry -> {
+                            final int startIndex = "Filter.".length();
+                            final int filterId = Integer.parseInt(entry.substring(startIndex, entry.indexOf(".", startIndex)));
+                            tagsIncluded.put(
+                                entry.substring(entry.indexOf("=tag%3A") + "=tag%3A".length()),
+                                Arrays.stream(params)
+                                    .filter(param -> param.startsWith("Filter." + filterId + ".Value."))
+                                    .map(param -> param.substring(param.indexOf("=") + 1))
+                                    .collect(Collectors.toList())
                             );
+                        });
                         final List<Instance> instances = IntStream.range(1, nodes + 1).mapToObj(node -> {
                             final String instanceId = "node" + node;
-                            final Instance instance = new Instance()
-                                .withInstanceId(instanceId)
+                            final Instance instance = new Instance().withInstanceId(instanceId)
                                 .withState(new InstanceState().withName(InstanceStateName.Running))
                                 .withPrivateDnsName(PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS)
                                 .withPublicDnsName(PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS)
@@ -126,12 +121,19 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                                 instance.setTags(tagsList.get(node - 1));
                             }
                             return instance;
-                        }).filter(instance ->
-                            tagsIncluded.entrySet().stream().allMatch(entry -> instance.getTags().stream()
-                                .filter(t -> t.getKey().equals(entry.getKey()))
-                                .map(Tag::getValue)
-                                .collect(Collectors.toList())
-                                .containsAll(entry.getValue())))
+                        })
+                            .filter(
+                                instance -> tagsIncluded.entrySet()
+                                    .stream()
+                                    .allMatch(
+                                        entry -> instance.getTags()
+                                            .stream()
+                                            .filter(t -> t.getKey().equals(entry.getKey()))
+                                            .map(Tag::getValue)
+                                            .collect(Collectors.toList())
+                                            .containsAll(entry.getValue())
+                                    )
+                            )
                             .collect(Collectors.toList());
                         for (NameValuePair parse : URLEncodedUtils.parse(request, UTF_8)) {
                             if ("Action".equals(parse.getName())) {
@@ -157,8 +159,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
 
     public void testDefaultSettings() throws InterruptedException {
         int nodes = randomInt(10);
-        Settings nodeSettings = Settings.builder()
-                .build();
+        Settings nodeSettings = Settings.builder().build();
         List<TransportAddress> discoveryNodes = buildDynamicHosts(nodeSettings, nodes);
         assertThat(discoveryNodes, hasSize(nodes));
     }
@@ -166,11 +167,9 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     public void testPrivateIp() throws InterruptedException {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
-            poorMansDNS.put(PREFIX_PRIVATE_IP + (i+1), buildNewFakeTransportAddress());
+            poorMansDNS.put(PREFIX_PRIVATE_IP + (i + 1), buildNewFakeTransportAddress());
         }
-        Settings nodeSettings = Settings.builder()
-                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_ip")
-                .build();
+        Settings nodeSettings = Settings.builder().put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_ip").build();
         List<TransportAddress> transportAddresses = buildDynamicHosts(nodeSettings, nodes);
         assertThat(transportAddresses, hasSize(nodes));
         // We check that we are using here expected address
@@ -184,11 +183,9 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     public void testPublicIp() throws InterruptedException {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
-            poorMansDNS.put(PREFIX_PUBLIC_IP + (i+1), buildNewFakeTransportAddress());
+            poorMansDNS.put(PREFIX_PUBLIC_IP + (i + 1), buildNewFakeTransportAddress());
         }
-        Settings nodeSettings = Settings.builder()
-                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_ip")
-                .build();
+        Settings nodeSettings = Settings.builder().put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_ip").build();
         List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes);
         assertThat(dynamicHosts, hasSize(nodes));
         // We check that we are using here expected address
@@ -202,21 +199,17 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     public void testPrivateDns() throws InterruptedException {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
-            String instanceId = "node" + (i+1);
-            poorMansDNS.put(PREFIX_PRIVATE_DNS + instanceId +
-                SUFFIX_PRIVATE_DNS, buildNewFakeTransportAddress());
+            String instanceId = "node" + (i + 1);
+            poorMansDNS.put(PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS, buildNewFakeTransportAddress());
         }
-        Settings nodeSettings = Settings.builder()
-                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_dns")
-                .build();
+        Settings nodeSettings = Settings.builder().put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "private_dns").build();
         List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes);
         assertThat(dynamicHosts, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
         for (TransportAddress address : dynamicHosts) {
             String instanceId = "node" + node++;
-            TransportAddress expected = poorMansDNS.get(
-                    PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS);
+            TransportAddress expected = poorMansDNS.get(PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS);
             assertEquals(address, expected);
         }
     }
@@ -224,41 +217,31 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     public void testPublicDns() throws InterruptedException {
         int nodes = randomInt(10);
         for (int i = 0; i < nodes; i++) {
-            String instanceId = "node" + (i+1);
-            poorMansDNS.put(PREFIX_PUBLIC_DNS + instanceId
-                + SUFFIX_PUBLIC_DNS, buildNewFakeTransportAddress());
+            String instanceId = "node" + (i + 1);
+            poorMansDNS.put(PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS, buildNewFakeTransportAddress());
         }
-        Settings nodeSettings = Settings.builder()
-                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_dns")
-                .build();
+        Settings nodeSettings = Settings.builder().put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "public_dns").build();
         List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes);
         assertThat(dynamicHosts, hasSize(nodes));
         // We check that we are using here expected address
         int node = 1;
         for (TransportAddress address : dynamicHosts) {
             String instanceId = "node" + node++;
-            TransportAddress expected = poorMansDNS.get(
-                    PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS);
+            TransportAddress expected = poorMansDNS.get(PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS);
             assertEquals(address, expected);
         }
     }
 
     public void testInvalidHostType() throws InterruptedException {
-        Settings nodeSettings = Settings.builder()
-                .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "does_not_exist")
-                .build();
+        Settings nodeSettings = Settings.builder().put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "does_not_exist").build();
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            buildDynamicHosts(nodeSettings, 1);
-        });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { buildDynamicHosts(nodeSettings, 1); });
         assertThat(exception.getMessage(), containsString("does_not_exist is unknown for discovery.ec2.host_type"));
     }
 
     public void testFilterByTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
-        Settings nodeSettings = Settings.builder()
-                .put(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod")
-                .build();
+        Settings nodeSettings = Settings.builder().put(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod").build();
 
         int prodInstances = 0;
         List<List<Tag>> tagsList = new ArrayList<>();
@@ -281,9 +264,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
 
     public void testFilterByMultipleTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
-        Settings nodeSettings = Settings.builder()
-                .putList(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod", "preprod")
-                .build();
+        Settings nodeSettings = Settings.builder().putList(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod", "preprod").build();
 
         int prodInstances = 0;
         List<List<Tag>> tagsList = new ArrayList<>();
@@ -320,9 +301,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
             poorMansDNS.put("node" + (node + 1), new TransportAddress(InetAddress.getByName(addresses[node]), 9300));
         }
 
-        Settings nodeSettings = Settings.builder()
-            .put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "tag:foo")
-            .build();
+        Settings nodeSettings = Settings.builder().put(AwsEc2Service.HOST_TYPE_SETTING.getKey(), "tag:foo").build();
 
         List<List<Tag>> tagsList = new ArrayList<>();
 
@@ -344,6 +323,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
 
     abstract static class DummyEc2SeedHostsProvider extends AwsEc2SeedHostsProvider {
         public int fetchCount = 0;
+
         DummyEc2SeedHostsProvider(Settings settings, TransportService transportService, AwsEc2Service service) {
             super(settings, transportService, service);
         }

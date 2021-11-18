@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
@@ -23,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 
@@ -67,8 +56,13 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
     private final Iterator<Source> remainingSources;
     private Tuple<Source, Request> readAheadRequest = null;
 
-    protected MultiChunkTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
-                                 int maxConcurrentChunks, List<Source> sources) {
+    protected MultiChunkTransfer(
+        Logger logger,
+        ThreadContext threadContext,
+        ActionListener<Void> listener,
+        int maxConcurrentChunks,
+        List<Source> sources
+    ) {
         this.logger = logger;
         this.maxConcurrentChunks = maxConcurrentChunks;
         this.listener = listener;
@@ -93,8 +87,14 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
         if (status != Status.PROCESSING) {
             assert status == Status.FAILED : "must not receive any response after the transfer was completed";
             // These exceptions will be ignored as we record only the first failure, log them for debugging purpose.
-            items.stream().filter(item -> item.v1().failure != null).forEach(item ->
-                logger.debug(new ParameterizedMessage("failed to transfer a chunk request {}", item.v1().source), item.v1().failure));
+            items.stream()
+                .filter(item -> item.v1().failure != null)
+                .forEach(
+                    item -> logger.debug(
+                        new ParameterizedMessage("failed to transfer a chunk request {}", item.v1().source),
+                        item.v1().failure
+                    )
+                );
             return;
         }
         try {
@@ -120,9 +120,10 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
                     return;
                 }
                 final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                executeChunkRequest(request.v2(), ActionListener.wrap(
-                    r -> addItem(requestSeqId, request.v1(), null),
-                    e -> addItem(requestSeqId, request.v1(), e)));
+                executeChunkRequest(
+                    request.v2(),
+                    ActionListener.wrap(r -> addItem(requestSeqId, request.v1(), null), e -> addItem(requestSeqId, request.v1(), e))
+                );
             }
             // While we are waiting for the responses, we can prepare the next request in advance
             // so we can send it immediately when the responses arrive to reduce the transfer time.
@@ -134,11 +135,16 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
         }
     }
 
+    protected boolean assertOnSuccess() {
+        return true;
+    }
+
     private void onCompleted(Exception failure) {
         if (Assertions.ENABLED && status != Status.PROCESSING) {
             throw new AssertionError("invalid status: expected [" + Status.PROCESSING + "] actual [" + status + "]", failure);
         }
         status = failure == null ? Status.SUCCESS : Status.FAILED;
+        assert status != Status.SUCCESS || assertOnSuccess();
         try {
             IOUtils.close(failure, this);
         } catch (Exception e) {

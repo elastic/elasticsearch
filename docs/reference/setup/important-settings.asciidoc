@@ -1,5 +1,5 @@
 [[important-settings]]
-== Important Elasticsearch configuration
+=== Important {es} configuration
 
 {es} requires very little configuration to get started, but there are a number
 of items which *must* be considered before using your cluster in production:
@@ -9,7 +9,7 @@ of items which *must* be considered before using your cluster in production:
 * <<node-name,Node name setting>>
 * <<network.host,Network host settings>>
 * <<discovery-settings,Discovery settings>>
-* <<heap-size,Heap size settings>>
+* <<heap-size-settings,Heap size settings>>
 * <<heap-dump-path,JVM heap dump path setting>>
 * <<gc-logging,GC logging settings>>
 * <<es-tmpdir,Temporary directory settings>>

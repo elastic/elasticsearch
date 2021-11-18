@@ -1,22 +1,16 @@
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 tasks.named("test").configure { enabled = false }
 
 import org.elasticsearch.gradle.testclusters.RunTask
-
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'indices', 'snapshot'
-    includeXpack 'eql', 'indices'
-  }
-}
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
   javaRestTestImplementation project(':test:framework')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(xpackModule('ql:test'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
+  javaRestTestImplementation project(":client:rest-high-level")
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 
@@ -31,8 +25,12 @@ Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
   .map { s -> Boolean.parseBoolean(s) }
   .getOrElse(false)
 
-testClusters {
-  all {
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{ enabled = false }
+}
+
+testClusters.configureEach {
     plugin ':plugins:repository-gcs'
     if (serviceAccountFile) {
       keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
@@ -43,10 +41,12 @@ testClusters {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'basic'
     jvmArgs '-Xms4g', '-Xmx4g'
-  }
-  runTask {
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
+def runTaskCluster = testClusters.register('runTask') {
     jvmArgs '-Xms8g', '-Xmx8g'
-  }
 }
 
 tasks.named('javaRestTest').configure {
@@ -58,6 +58,6 @@ tasks.named('javaRestTest').configure {
 }
 
 tasks.register("runEqlCorrectnessNode", RunTask) {
-  useCluster testClusters.runTask
+  useCluster runTaskCluster
   description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
 }

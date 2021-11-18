@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -70,7 +72,7 @@ class XContentRecordReader {
         clearNestedLevel();
 
         XContentParser.Token token = tryNextTokenOrReadToEndOnError();
-        while (!(token == XContentParser.Token.END_OBJECT && nestedLevel == 0)) {
+        while ((token == XContentParser.Token.END_OBJECT && nestedLevel == 0) == false) {
             if (token == null) {
                 break;
             }
@@ -133,7 +135,7 @@ class XContentRecordReader {
     private String parseSingleFieldValue(XContentParser.Token token) throws IOException {
         if (token == XContentParser.Token.START_ARRAY) {
             // Convert any scalar values in the array to a comma delimited
-            // string.  (Arrays of more complex objects are ignored.)
+            // string. (Arrays of more complex objects are ignored.)
             StringBuilder strBuilder = new StringBuilder();
             boolean needComma = false;
             while (token != XContentParser.Token.END_ARRAY) {
@@ -166,16 +168,15 @@ class XContentRecordReader {
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     ++arrayDepth;
                 }
-            }
-            while (token != null && arrayDepth > 0);
+            } while (token != null && arrayDepth > 0);
         }
     }
 
     /**
      * Get the text representation of the current token unless it's a null.
-     * Nulls are replaced with empty strings to match the way the rest of the
-     * product treats them (which in turn is shaped by the fact that CSV
-     * cannot distinguish empty string and null).
+     * Nulls are replaced with empty strings to match the way the C++ process
+     * treats them (which, for historical interest, was originally shaped by
+     * the fact that CSV cannot distinguish empty string and null).
      */
     private String tokenToString(XContentParser.Token token) throws IOException {
         if (token == null || token == XContentParser.Token.VALUE_NULL) {

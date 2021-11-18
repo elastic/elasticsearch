@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
+
+import reactor.core.publisher.Flux;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -26,7 +17,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscription;
-import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,12 +46,10 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
 
     public void testConsumeAllElements() {
         Set<Integer> cleanedElements = new HashSet<>();
-        CancellableRateLimitedFluxIterator<Integer> iterator =
-            new CancellableRateLimitedFluxIterator<>(2, cleanedElements::add);
+        CancellableRateLimitedFluxIterator<Integer> iterator = new CancellableRateLimitedFluxIterator<>(2, cleanedElements::add);
 
         List<Integer> numbers = randomList(randomIntBetween(1, 20), ESTestCase::randomInt);
-        Flux.fromIterable(numbers)
-            .subscribe(iterator);
+        Flux.fromIterable(numbers).subscribe(iterator);
 
         int consumedElements = 0;
         while (iterator.hasNext()) {
@@ -79,8 +67,10 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
     public void testItRequestsUpstreamInBatches() {
         final int elementsPerBatch = randomIntBetween(4, 10);
         final Set<Integer> cleanedElements = new HashSet<>();
-        final CancellableRateLimitedFluxIterator<Integer> iterator =
-            new CancellableRateLimitedFluxIterator<>(elementsPerBatch, cleanedElements::add);
+        final CancellableRateLimitedFluxIterator<Integer> iterator = new CancellableRateLimitedFluxIterator<>(
+            elementsPerBatch,
+            cleanedElements::add
+        );
 
         final int providedElements = randomIntBetween(0, elementsPerBatch - 1);
         Publisher<Integer> publisher = s -> runOnNewThread(() -> {
@@ -144,15 +134,14 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         });
 
         Set<Integer> cleaning = new HashSet<>();
-        CancellableRateLimitedFluxIterator<Integer> iterator =
-            new CancellableRateLimitedFluxIterator<>(2, cleaning::add);
+        CancellableRateLimitedFluxIterator<Integer> iterator = new CancellableRateLimitedFluxIterator<>(2, cleaning::add);
         publisher.subscribe(iterator);
 
         assertThat(iterator.hasNext(), equalTo(true));
         assertThat(iterator.next(), equalTo(1));
 
         latch.countDown();
-        //noinspection ResultOfMethodCallIgnored
+        // noinspection ResultOfMethodCallIgnored
         assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
         assertThat(cleaning, equalTo(Set.of(2)));
         assertThat(iterator.getQueue(), is(empty()));
@@ -165,6 +154,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         Publisher<Integer> publisher = s -> runOnNewThread(() -> {
             s.onSubscribe(new Subscription() {
                 final CountDownLatch cancellationLatch = new CountDownLatch(1);
+
                 @Override
                 public void request(long n) {
                     assertThat(n, equalTo((long) requestedElements));
@@ -175,7 +165,6 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
                     } catch (InterruptedException e) {
                         assert false;
                     }
-
 
                     runOnNewThread(() -> {
                         // It's possible that extra elements are emitted after cancellation
@@ -194,8 +183,10 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         });
 
         Set<Integer> cleanedElements = new HashSet<>();
-        CancellableRateLimitedFluxIterator<Integer> iterator =
-            new CancellableRateLimitedFluxIterator<>(requestedElements, cleanedElements::add);
+        CancellableRateLimitedFluxIterator<Integer> iterator = new CancellableRateLimitedFluxIterator<>(
+            requestedElements,
+            cleanedElements::add
+        );
         publisher.subscribe(iterator);
 
         assertThat(iterator.hasNext(), equalTo(true));
@@ -226,7 +217,6 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
                         assert false;
                     }
 
-
                     runOnNewThread(() -> {
                         // It's still possible that an error is emitted after cancelling the subscription
                         s.onNext(3);
@@ -243,15 +233,17 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         });
 
         Set<Integer> cleanedElements = new HashSet<>();
-        CancellableRateLimitedFluxIterator<Integer> iterator =
-            new CancellableRateLimitedFluxIterator<>(requestedElements, cleanedElements::add);
+        CancellableRateLimitedFluxIterator<Integer> iterator = new CancellableRateLimitedFluxIterator<>(
+            requestedElements,
+            cleanedElements::add
+        );
         publisher.subscribe(iterator);
 
         assertThat(iterator.hasNext(), equalTo(true));
         assertThat(iterator.next(), equalTo(1));
         assertThat(iterator.next(), equalTo(2));
         iterator.cancel();
-        //noinspection ResultOfMethodCallIgnored
+        // noinspection ResultOfMethodCallIgnored
         assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
         assertBusy(() -> assertThat(cleanedElements, equalTo(Set.of(3))));
         assertThat(iterator.getQueue(), is(empty()));

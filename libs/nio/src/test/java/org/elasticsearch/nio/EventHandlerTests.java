@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
@@ -94,18 +83,18 @@ public class EventHandlerTests extends ESTestCase {
     }
 
     public void testActiveNonServerAddsOP_CONNECTAndOP_READInterest() throws IOException {
-        SocketChannelContext context = mock(SocketChannelContext.class);
-        when(context.getSelectionKey()).thenReturn(new TestSelectionKey(0));
-        handler.handleActive(context);
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, context.getSelectionKey().interestOps());
+        SocketChannelContext mockContext = mock(SocketChannelContext.class);
+        when(mockContext.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        handler.handleActive(mockContext);
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, mockContext.getSelectionKey().interestOps());
     }
 
     public void testHandleServerActiveSetsOP_ACCEPTInterest() throws IOException {
-        ServerChannelContext serverContext = mock(ServerChannelContext.class);
-        when(serverContext.getSelectionKey()).thenReturn(new TestSelectionKey(0));
-        handler.handleActive(serverContext);
+        ServerChannelContext mockServerContext = mock(ServerChannelContext.class);
+        when(mockServerContext.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        handler.handleActive(mockServerContext);
 
-        assertEquals(SelectionKey.OP_ACCEPT, serverContext.getSelectionKey().interestOps());
+        assertEquals(SelectionKey.OP_ACCEPT, mockServerContext.getSelectionKey().interestOps());
     }
 
     public void testHandleAcceptAccept() throws IOException {
@@ -157,9 +146,9 @@ public class EventHandlerTests extends ESTestCase {
     }
 
     public void testHandleReadDelegatesToContext() throws IOException {
-        SocketChannelContext context = mock(SocketChannelContext.class);
-        handler.handleRead(context);
-        verify(context).read();
+        SocketChannelContext mockContext = mock(SocketChannelContext.class);
+        handler.handleRead(mockContext);
+        verify(mockContext).read();
     }
 
     public void testReadExceptionCallsExceptionHandler() {
@@ -176,54 +165,53 @@ public class EventHandlerTests extends ESTestCase {
 
     public void testPostHandlingCallWillCloseTheChannelIfReady() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        SocketChannelContext context = mock(SocketChannelContext.class);
+        SocketChannelContext mockContext = mock(SocketChannelContext.class);
 
-        when(channel.getContext()).thenReturn(context);
-        when(context.selectorShouldClose()).thenReturn(true);
-        handler.postHandling(context);
+        when(channel.getContext()).thenReturn(mockContext);
+        when(mockContext.selectorShouldClose()).thenReturn(true);
+        handler.postHandling(mockContext);
 
-        verify(context).closeFromSelector();
+        verify(mockContext).closeFromSelector();
     }
 
     public void testPostHandlingCallWillNotCloseTheChannelIfNotReady() throws IOException {
-        SocketChannelContext context = mock(SocketChannelContext.class);
-        when(context.getSelectionKey()).thenReturn(new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE));
-        when(context.selectorShouldClose()).thenReturn(false);
+        SocketChannelContext mockContext = mock(SocketChannelContext.class);
+        when(mockContext.getSelectionKey()).thenReturn(new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE));
+        when(mockContext.selectorShouldClose()).thenReturn(false);
 
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        when(channel.getContext()).thenReturn(context);
+        when(channel.getContext()).thenReturn(mockContext);
 
-        handler.postHandling(context);
+        handler.postHandling(mockContext);
 
-        verify(context, times(0)).closeFromSelector();
+        verify(mockContext, times(0)).closeFromSelector();
     }
 
     public void testPostHandlingWillAddWriteIfNecessary() throws IOException {
         TestSelectionKey selectionKey = new TestSelectionKey(SelectionKey.OP_READ);
-        SocketChannelContext context = mock(SocketChannelContext.class);
-        when(context.getSelectionKey()).thenReturn(selectionKey);
-        when(context.readyForFlush()).thenReturn(true);
+        SocketChannelContext mockContext = mock(SocketChannelContext.class);
+        when(mockContext.getSelectionKey()).thenReturn(selectionKey);
+        when(mockContext.readyForFlush()).thenReturn(true);
 
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        when(channel.getContext()).thenReturn(context);
+        when(channel.getContext()).thenReturn(mockContext);
 
         assertEquals(SelectionKey.OP_READ, selectionKey.interestOps());
-        handler.postHandling(context);
+        handler.postHandling(mockContext);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
     }
 
     public void testPostHandlingWillRemoveWriteIfNecessary() throws IOException {
         TestSelectionKey key = new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-        SocketChannelContext context = mock(SocketChannelContext.class);
-        when(context.getSelectionKey()).thenReturn(key);
-        when(context.readyForFlush()).thenReturn(false);
+        SocketChannelContext mockContext = mock(SocketChannelContext.class);
+        when(mockContext.getSelectionKey()).thenReturn(key);
+        when(mockContext.readyForFlush()).thenReturn(false);
 
         NioSocketChannel channel = mock(NioSocketChannel.class);
-        when(channel.getContext()).thenReturn(context);
-
+        when(channel.getContext()).thenReturn(mockContext);
 
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, key.interestOps());
-        handler.postHandling(context);
+        handler.postHandling(mockContext);
         assertEquals(SelectionKey.OP_READ, key.interestOps());
     }
 
@@ -241,9 +229,12 @@ public class EventHandlerTests extends ESTestCase {
 
     private class DoNotRegisterSocketContext extends BytesChannelContext {
 
-
-        DoNotRegisterSocketContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   NioChannelHandler handler) {
+        DoNotRegisterSocketContext(
+            NioSocketChannel channel,
+            NioSelector selector,
+            Consumer<Exception> exceptionHandler,
+            NioChannelHandler handler
+        ) {
             super(channel, selector, getSocketConfig(), exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
         }
 
@@ -256,7 +247,6 @@ public class EventHandlerTests extends ESTestCase {
     }
 
     private class DoNotRegisterServerContext extends ServerChannelContext {
-
 
         @SuppressWarnings("unchecked")
         DoNotRegisterServerContext(NioServerSocketChannel channel, NioSelector selector, Consumer<NioSocketChannel> acceptor) {
@@ -276,7 +266,17 @@ public class EventHandlerTests extends ESTestCase {
     }
 
     private static Config.Socket getSocketConfig() {
-        return new Config.Socket(randomBoolean(), randomBoolean(), -1, -1, -1, randomBoolean(), -1, -1, mock(InetSocketAddress.class),
-            randomBoolean());
+        return new Config.Socket(
+            randomBoolean(),
+            randomBoolean(),
+            -1,
+            -1,
+            -1,
+            randomBoolean(),
+            -1,
+            -1,
+            mock(InetSocketAddress.class),
+            randomBoolean()
+        );
     }
 }

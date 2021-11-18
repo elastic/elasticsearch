@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression.LossFunction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
@@ -35,7 +36,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -51,18 +52,20 @@ public class MeanSquaredLogarithmicError implements EvaluationMetric {
     public static final ParseField OFFSET = new ParseField("offset");
     private static final double DEFAULT_OFFSET = 1.0;
 
-    private static final String PAINLESS_TEMPLATE =
-        "def offset = {2};" +
-        "def diff = Math.log(doc[''{0}''].value + offset) - Math.log(doc[''{1}''].value + offset);" +
-        "return diff * diff;";
+    private static final String PAINLESS_TEMPLATE = "def offset = {2};"
+        + "def diff = Math.log(doc[''{0}''].value + offset) - Math.log(doc[''{1}''].value + offset);"
+        + "return diff * diff;";
     private static final String AGG_NAME = "regression_" + NAME.getPreferredName();
 
-    private static String buildScript(Object...args) {
+    private static String buildScript(Object... args) {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 
-    private static final ConstructingObjectParser<MeanSquaredLogarithmicError, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(), true, args -> new MeanSquaredLogarithmicError((Double) args[0]));
+    private static final ConstructingObjectParser<MeanSquaredLogarithmicError, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        true,
+        args -> new MeanSquaredLogarithmicError((Double) args[0])
+    );
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), OFFSET);
@@ -94,8 +97,10 @@ public class MeanSquaredLogarithmicError implements EvaluationMetric {
     }
 
     @Override
-    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                  EvaluationFields fields) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+        EvaluationParameters parameters,
+        EvaluationFields fields
+    ) {
         if (result != null) {
             return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
@@ -103,7 +108,8 @@ public class MeanSquaredLogarithmicError implements EvaluationMetric {
         String predictedField = fields.getPredictedField();
         return Tuple.tuple(
             Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField, offset)))),
-            Collections.emptyList());
+            Collections.emptyList()
+        );
     }
 
     @Override
@@ -192,7 +198,7 @@ public class MeanSquaredLogarithmicError implements EvaluationMetric {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Result other = (Result)o;
+            Result other = (Result) o;
             return value == other.value;
         }
 

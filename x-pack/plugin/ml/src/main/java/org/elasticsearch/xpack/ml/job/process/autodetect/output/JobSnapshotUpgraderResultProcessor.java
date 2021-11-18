@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
@@ -10,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -37,7 +38,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-
 /**
  * A runnable class that reads the autodetect process output in the
  * {@link #process()} method and persists parsed
@@ -58,10 +58,12 @@ public class JobSnapshotUpgraderResultProcessor {
     private volatile boolean processKilled;
     private volatile boolean failed;
 
-    public JobSnapshotUpgraderResultProcessor(String jobId,
-                                              String snapshotId,
-                                              JobResultsPersister persister,
-                                              AutodetectProcess autodetectProcess) {
+    public JobSnapshotUpgraderResultProcessor(
+        String jobId,
+        String snapshotId,
+        JobResultsPersister persister,
+        AutodetectProcess autodetectProcess
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.persister = Objects.requireNonNull(persister);
@@ -82,32 +84,32 @@ public class JobSnapshotUpgraderResultProcessor {
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage(
-                    "[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
+                LOGGER.warn(new ParameterizedMessage("[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
             }
         } catch (Exception e) {
             failed = true;
 
             if (processKilled) {
-                // Don't log the stack trace in this case.  Log just enough to hint
+                // Don't log the stack trace in this case. Log just enough to hint
                 // that it would have been better to close jobs before shutting down,
                 // but we now fully expect jobs to move between nodes without doing
                 // all their graceful close activities.
                 LOGGER.warn(
                     "[{}] [{}] some model snapshot upgrade results not processed due to the process being killed",
                     jobId,
-                    snapshotId);
+                    snapshotId
+                );
             } else if (process.isProcessAliveAfterWaiting() == false) {
                 // Don't log the stack trace to not shadow the root cause.
                 LOGGER.warn(
                     "[{}] [{}] some model snapshot upgrade results not processed due to the termination of autodetect",
                     jobId,
-                    snapshotId);
+                    snapshotId
+                );
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(new ParameterizedMessage(
-                    "[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId), e);
+                LOGGER.error(new ParameterizedMessage("[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId), e);
             }
         } finally {
             completionLatch.countDown();
@@ -125,9 +127,7 @@ public class JobSnapshotUpgraderResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(
-                        new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId),
-                        e);
+                    LOGGER.warn(new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId), e);
                 }
             }
         } finally {
@@ -139,14 +139,12 @@ public class JobSnapshotUpgraderResultProcessor {
         processKilled = true;
     }
 
+    public boolean isProcessKilled() {
+        return processKilled;
+    }
+
     private void logUnexpectedResult(String resultType) {
-        String msg = "["
-            + jobId
-            + "] ["
-            + snapshotId
-            + "] unexpected result read ["
-            + resultType
-            + "]";
+        String msg = "[" + jobId + "] [" + snapshotId + "] unexpected result read [" + resultType + "]";
         // This should never happen, but we definitely want to fail if -ea is provided (e.g. during tests)
         assert true : msg;
         LOGGER.info(msg);
@@ -162,11 +160,11 @@ public class JobSnapshotUpgraderResultProcessor {
             logUnexpectedResult(Bucket.RESULT_TYPE_VALUE);
         }
         List<AnomalyRecord> records = result.getRecords();
-        if (records != null && !records.isEmpty()) {
+        if (records != null && records.isEmpty() == false) {
             logUnexpectedResult(AnomalyRecord.RESULT_TYPE_VALUE);
         }
         List<Influencer> influencers = result.getInfluencers();
-        if (influencers != null && !influencers.isEmpty()) {
+        if (influencers != null && influencers.isEmpty() == false) {
             logUnexpectedResult(Influencer.RESULT_TYPE_VALUE);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
@@ -240,13 +238,13 @@ public class JobSnapshotUpgraderResultProcessor {
         try {
             // Although the results won't take 30 minutes to finish, the pipe won't be closed
             // until the state is persisted, and that can take a while
-            if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(),
-                TimeUnit.MINUTES) == false) {
+            if (completionLatch.await(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
                 throw new TimeoutException(
                     "Timed out waiting for model snapshot upgrader results processor to complete for job "
                         + jobId
                         + " and snapshot "
-                        + snapshotId);
+                        + snapshotId
+                );
             }
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
@@ -273,6 +271,5 @@ public class JobSnapshotUpgraderResultProcessor {
         }
         return process.isProcessAliveAfterWaiting();
     }
-
 
 }

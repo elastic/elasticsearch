@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -39,44 +39,44 @@ public class RestClientBuilderTests extends RestClientTestCase {
 
     public void testBuild() throws IOException {
         try {
-            RestClient.builder((HttpHost[])null);
+            RestClient.builder((HttpHost[]) null);
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("hosts must not be null nor empty", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost[] {});
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("hosts must not be null nor empty", e.getMessage());
         }
 
         try {
-            RestClient.builder((Node[])null);
+            RestClient.builder((Node[]) null);
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("nodes must not be null or empty", e.getMessage());
         }
 
         try {
             RestClient.builder(new Node[] {});
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("nodes must not be null or empty", e.getMessage());
         }
 
         try {
             RestClient.builder(new Node(new HttpHost("localhost", 9200)), null);
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("node cannot be null", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost("localhost", 9200), null);
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
 
@@ -87,35 +87,35 @@ public class RestClientBuilderTests extends RestClientTestCase {
         try {
             RestClient.builder(new HttpHost("localhost", 9200)).setDefaultHeaders(null);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("defaultHeaders must not be null", e.getMessage());
         }
 
         try {
-            RestClient.builder(new HttpHost("localhost", 9200)).setDefaultHeaders(new Header[]{null});
+            RestClient.builder(new HttpHost("localhost", 9200)).setDefaultHeaders(new Header[] { null });
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("default header must not be null", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost("localhost", 9200)).setFailureListener(null);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("failureListener must not be null", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost("localhost", 9200)).setHttpClientConfigCallback(null);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("httpClientConfigCallback must not be null", e.getMessage());
         }
 
         try {
             RestClient.builder(new HttpHost("localhost", 9200)).setRequestConfigCallback(null);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("requestConfigCallback must not be null", e.getMessage());
         }
 
@@ -257,7 +257,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
             public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
                 RequestConfig requestConfig = requestConfigBuilder.build();
                 assertEquals(RequestConfig.DEFAULT.getConnectionRequestTimeout(), requestConfig.getConnectionRequestTimeout());
-                //this way we get notified if the default ever changes
+                // this way we get notified if the default ever changes
                 assertEquals(-1, requestConfig.getConnectionRequestTimeout());
                 return requestConfigBuilder;
             }

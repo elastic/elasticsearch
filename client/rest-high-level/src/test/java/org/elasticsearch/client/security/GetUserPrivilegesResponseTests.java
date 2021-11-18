@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
@@ -23,9 +12,9 @@ import org.elasticsearch.client.security.user.privileges.GlobalOperationPrivileg
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Iterator;
 import java.util.List;
@@ -41,32 +30,32 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testParse() throws Exception {
-        String json = "{" +
-            "\"cluster\":[\"manage\",\"manage_security\",\"monitor\"]," +
-            "\"global\":[" +
-            " {\"application\":{\"manage\":{\"applications\":[\"test-*\"]}}}," +
-            " {\"application\":{\"manage\":{\"applications\":[\"apps-*\"]}}}" +
-            "]," +
-            "\"indices\":[" +
-            " {\"names\":[\"test-1-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false}," +
-            " {\"names\":[\"test-4-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true," +
-            "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"private-*\"]}]}," +
-            " {\"names\":[\"test-6-*\",\"test-7-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true," +
-            "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\"]}," +
-            " {\"names\":[\"test-2-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false," +
-            "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"secret-*\",\"private-*\"]},{\"grant\":[\"apps-*\"]}]," +
-            "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\",\"{\\\"term\\\":{\\\"apps\\\":true}}\"]}," +
-            " {\"names\":[\"test-3-*\",\"test-6-*\"],\"privileges\":[\"read\",\"write\"],\"allow_restricted_indices\": true}," +
-            " {\"names\":[\"test-3-*\",\"test-4-*\",\"test-5-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false," +
-            "  \"field_security\":[{\"grant\":[\"test-*\"]}]}," +
-            " {\"names\":[\"test-1-*\",\"test-9-*\"],\"privileges\":[\"all\"],\"allow_restricted_indices\": true}" +
-            "]," +
-            "\"applications\":[" +
-            " {\"application\":\"app-dne\",\"privileges\":[\"all\"],\"resources\":[\"*\"]}," +
-            " {\"application\":\"test-app\",\"privileges\":[\"read\"],\"resources\":[\"object/1\",\"object/2\"]}," +
-            " {\"application\":\"test-app\",\"privileges\":[\"user\",\"dne\"],\"resources\":[\"*\"]}" +
-            "]," +
-            "\"run_as\":[\"app-*\",\"test-*\"]}";
+        String json = "{"
+            + "\"cluster\":[\"manage\",\"manage_security\",\"monitor\"],"
+            + "\"global\":["
+            + " {\"application\":{\"manage\":{\"applications\":[\"test-*\"]}}},"
+            + " {\"application\":{\"manage\":{\"applications\":[\"apps-*\"]}}}"
+            + "],"
+            + "\"indices\":["
+            + " {\"names\":[\"test-1-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false},"
+            + " {\"names\":[\"test-4-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true,"
+            + "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"private-*\"]}]},"
+            + " {\"names\":[\"test-6-*\",\"test-7-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true,"
+            + "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\"]},"
+            + " {\"names\":[\"test-2-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false,"
+            + "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"secret-*\",\"private-*\"]},{\"grant\":[\"apps-*\"]}],"
+            + "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\",\"{\\\"term\\\":{\\\"apps\\\":true}}\"]},"
+            + " {\"names\":[\"test-3-*\",\"test-6-*\"],\"privileges\":[\"read\",\"write\"],\"allow_restricted_indices\": true},"
+            + " {\"names\":[\"test-3-*\",\"test-4-*\",\"test-5-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false,"
+            + "  \"field_security\":[{\"grant\":[\"test-*\"]}]},"
+            + " {\"names\":[\"test-1-*\",\"test-9-*\"],\"privileges\":[\"all\"],\"allow_restricted_indices\": true}"
+            + "],"
+            + "\"applications\":["
+            + " {\"application\":\"app-dne\",\"privileges\":[\"all\"],\"resources\":[\"*\"]},"
+            + " {\"application\":\"test-app\",\"privileges\":[\"read\"],\"resources\":[\"object/1\",\"object/2\"]},"
+            + " {\"application\":\"test-app\",\"privileges\":[\"user\",\"dne\"],\"resources\":[\"*\"]}"
+            + "],"
+            + "\"run_as\":[\"app-*\",\"test-*\"]}";
         final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
         final GetUserPrivilegesResponse response = GetUserPrivilegesResponse.fromXContent(parser);
 

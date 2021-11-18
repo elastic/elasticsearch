@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,7 +70,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             throw new IllegalArgumentException("Expected start object but got [" + parser.currentToken() + "]");
         }
         if (parser.nextToken() != XContentParser.Token.FIELD_NAME
-                || CATEGORIZATION_ANALYZER.match(parser.currentName(), parser.getDeprecationHandler()) == false) {
+            || CATEGORIZATION_ANALYZER.match(parser.currentName(), parser.getDeprecationHandler()) == false) {
             throw new IllegalArgumentException("Expected [" + CATEGORIZATION_ANALYZER + "] field but got [" + parser.currentToken() + "]");
         }
         parser.nextToken();
@@ -85,8 +86,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      *
      * The parser is strict when parsing config and lenient when parsing cluster state.
      */
-    static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-
+    public static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, boolean ignoreUnknownFields)
+        throws IOException {
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
 
         XContentParser.Token token = parser.currentToken();
@@ -100,43 +101,71 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (CHAR_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
-                        && token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            builder.addCharFilter(parser.text());
-                        } else if (token == XContentParser.Token.START_OBJECT) {
-                            builder.addCharFilter(parser.map());
-                        } else {
-                            throw new IllegalArgumentException("[" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
-                                    "] array element should contain char_filter's name or settings [" + token + "]");
+                    && token == XContentParser.Token.START_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                builder.addCharFilter(parser.text());
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                builder.addCharFilter(parser.map());
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "["
+                                        + currentFieldName
+                                        + "] in ["
+                                        + CATEGORIZATION_ANALYZER
+                                        + "] array element should contain char_filter's name or settings ["
+                                        + token
+                                        + "]"
+                                );
+                            }
                         }
-                    }
-                } else if (TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        builder.setTokenizer(parser.text());
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        builder.setTokenizer(parser.map());
-                    } else {
-                        throw new IllegalArgumentException("[" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
-                                "] should be tokenizer's name or settings [" + token + "]");
-                    }
-                } else if (TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
-                        && token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    } else if (TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.VALUE_STRING) {
-                            builder.addTokenFilter(parser.text());
+                            builder.setTokenizer(parser.text());
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            builder.addTokenFilter(parser.map());
+                            builder.setTokenizer(parser.map());
                         } else {
-                            throw new IllegalArgumentException("[" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
-                                    "] array element should contain token_filter's name or settings [" + token + "]");
+                            throw new IllegalArgumentException(
+                                "["
+                                    + currentFieldName
+                                    + "] in ["
+                                    + CATEGORIZATION_ANALYZER
+                                    + "] should be tokenizer's name or settings ["
+                                    + token
+                                    + "]"
+                            );
                         }
-                    }
-                // Be lenient when parsing cluster state - assume unknown fields are from future versions
-                } else if (ignoreUnknownFields == false) {
-                    throw new IllegalArgumentException("Parameter [" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
-                            "] is unknown or of the wrong type [" + token + "]");
-                }
+                    } else if (TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
+                        && token == XContentParser.Token.START_ARRAY) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                if (token == XContentParser.Token.VALUE_STRING) {
+                                    builder.addTokenFilter(parser.text());
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    builder.addTokenFilter(parser.map());
+                                } else {
+                                    throw new IllegalArgumentException(
+                                        "["
+                                            + currentFieldName
+                                            + "] in ["
+                                            + CATEGORIZATION_ANALYZER
+                                            + "] array element should contain token_filter's name or settings ["
+                                            + token
+                                            + "]"
+                                    );
+                                }
+                            }
+                            // Be lenient when parsing cluster state - assume unknown fields are from future versions
+                        } else if (ignoreUnknownFields == false) {
+                            throw new IllegalArgumentException(
+                                "Parameter ["
+                                    + currentFieldName
+                                    + "] in ["
+                                    + CATEGORIZATION_ANALYZER
+                                    + "] is unknown or of the wrong type ["
+                                    + token
+                                    + "]"
+                            );
+                        }
             }
         }
 
@@ -144,38 +173,37 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     }
 
     /**
-     * Create a <code>categorization_analyzer</code> that mimics what the tokenizer and filters built into the ML C++
-     * code do.  This is the default analyzer for categorization to ensure that people upgrading from previous versions
+     * Create a <code>categorization_analyzer</code> that mimics what the tokenizer and filters built into the original ML
+     * C++ code do.  This is the default analyzer for categorization to ensure that people upgrading from old versions
      * get the same behaviour from their categorization jobs before and after upgrade.
      * @param categorizationFilters Categorization filters (if any) from the <code>analysis_config</code>.
      * @return The default categorization analyzer.
      */
     public static CategorizationAnalyzerConfig buildDefaultCategorizationAnalyzer(List<String> categorizationFilters) {
 
-        CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
+        return new CategorizationAnalyzerConfig.Builder().addCategorizationFilters(categorizationFilters)
+            .setTokenizer("ml_classic")
+            .addDateWordsTokenFilter()
+            .build();
+    }
 
-        if (categorizationFilters != null) {
-            for (String categorizationFilter : categorizationFilters) {
-                Map<String, Object> charFilter = new HashMap<>();
-                charFilter.put("type", "pattern_replace");
-                charFilter.put("pattern", categorizationFilter);
-                builder.addCharFilter(charFilter);
-            }
-        }
+    /**
+     * Create a <code>categorization_analyzer</code> that will be used for newly created jobs where no categorization
+     * analyzer is explicitly provided.  This analyzer differs from the default one in that it uses the <code>ml_standard</code>
+     * tokenizer instead of the <code>ml_classic</code> tokenizer, and it only considers the first non-blank line of each message.
+     * This analyzer is <em>not</em> used for jobs that specify no categorization analyzer, as that would break jobs that were
+     * originally run in older versions.  Instead, this analyzer is explicitly added to newly created jobs once the entire cluster
+     * is upgraded to version 7.14 or above.
+     * @param categorizationFilters Categorization filters (if any) from the <code>analysis_config</code>.
+     * @return The standard categorization analyzer.
+     */
+    public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
-        builder.setTokenizer("ml_classic");
-
-        Map<String, Object> tokenFilter = new HashMap<>();
-        tokenFilter.put("type", "stop");
-        tokenFilter.put("stopwords", Arrays.asList(
-                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
-                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
-                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-                "GMT", "UTC"));
-        builder.addTokenFilter(tokenFilter);
-
-        return builder.build();
+        return new CategorizationAnalyzerConfig.Builder().addCharFilter("first_line_with_letters")
+            .addCategorizationFilters(categorizationFilters)
+            .setTokenizer("ml_standard")
+            .addDateWordsTokenFilter()
+            .build();
     }
 
     private final String analyzer;
@@ -183,8 +211,12 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     private final NameOrDefinition tokenizer;
     private final List<NameOrDefinition> tokenFilters;
 
-    private CategorizationAnalyzerConfig(String analyzer, List<NameOrDefinition> charFilters, NameOrDefinition tokenizer,
-                                         List<NameOrDefinition> tokenFilters) {
+    private CategorizationAnalyzerConfig(
+        String analyzer,
+        List<NameOrDefinition> charFilters,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> tokenFilters
+    ) {
         this.analyzer = analyzer;
         this.charFilters = Objects.requireNonNull(charFilters);
         this.tokenizer = tokenizer;
@@ -267,10 +299,10 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CategorizationAnalyzerConfig that = (CategorizationAnalyzerConfig) o;
-        return Objects.equals(analyzer, that.analyzer) &&
-                Objects.equals(charFilters, that.charFilters) &&
-                Objects.equals(tokenizer, that.tokenizer) &&
-                Objects.equals(tokenFilters, that.tokenFilters);
+        return Objects.equals(analyzer, that.analyzer)
+            && Objects.equals(charFilters, that.charFilters)
+            && Objects.equals(tokenizer, that.tokenizer)
+            && Objects.equals(tokenFilters, that.tokenFilters);
     }
 
     @Override
@@ -285,8 +317,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         private NameOrDefinition tokenizer;
         private List<NameOrDefinition> tokenFilters = new ArrayList<>();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
             this.analyzer = categorizationAnalyzerConfig.analyzer;
@@ -310,6 +341,18 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             return this;
         }
 
+        public Builder addCategorizationFilters(List<String> categorizationFilters) {
+            if (categorizationFilters != null) {
+                for (String categorizationFilter : categorizationFilters) {
+                    Map<String, Object> charFilter = new HashMap<>();
+                    charFilter.put("type", "pattern_replace");
+                    charFilter.put("pattern", categorizationFilter);
+                    addCharFilter(charFilter);
+                }
+            }
+            return this;
+        }
+
         public Builder setTokenizer(String tokenizer) {
             this.tokenizer = new NameOrDefinition(tokenizer);
             return this;
@@ -330,25 +373,81 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             return this;
         }
 
+        Builder addDateWordsTokenFilter() {
+            Map<String, Object> tokenFilter = new HashMap<>();
+            tokenFilter.put("type", "stop");
+            tokenFilter.put(
+                "stopwords",
+                Arrays.asList(
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday",
+                    "Sunday",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu",
+                    "Fri",
+                    "Sat",
+                    "Sun",
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                    "GMT",
+                    "UTC"
+                )
+            );
+            addTokenFilter(tokenFilter);
+            return this;
+        }
+
         /**
          * Create a config validating only structure, not exact analyzer/tokenizer/filter names
          */
         public CategorizationAnalyzerConfig build() {
             if (analyzer == null && tokenizer == null) {
-                throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is not a global analyzer must specify a ["
-                        + TOKENIZER + "] field");
+                throw new IllegalArgumentException(
+                    CATEGORIZATION_ANALYZER + " that is not a global analyzer must specify a [" + TOKENIZER + "] field"
+                );
             }
             if (analyzer != null && charFilters.isEmpty() == false) {
-                throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a ["
-                        + CHAR_FILTERS + "] field");
+                throw new IllegalArgumentException(
+                    CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a [" + CHAR_FILTERS + "] field"
+                );
             }
             if (analyzer != null && tokenizer != null) {
-                throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a ["
-                        + TOKENIZER + "] field");
+                throw new IllegalArgumentException(
+                    CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a [" + TOKENIZER + "] field"
+                );
             }
             if (analyzer != null && tokenFilters.isEmpty() == false) {
-                throw new IllegalArgumentException(CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a ["
-                        + TOKEN_FILTERS + "] field");
+                throw new IllegalArgumentException(
+                    CATEGORIZATION_ANALYZER + " that is a global analyzer cannot also specify a [" + TOKEN_FILTERS + "] field"
+                );
             }
             return new CategorizationAnalyzerConfig(analyzer, charFilters, tokenizer, tokenFilters);
         }

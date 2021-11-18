@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -27,8 +28,12 @@ public class ScrollCursorTests extends AbstractSqlWireSerializingTestCase<Scroll
         for (int i = 0; i < extractorsSize; i++) {
             extractors.add(randomHitExtractor(0));
         }
-        return new ScrollCursor(randomAlphaOfLength(5), extractors, CompositeAggregationCursorTests.randomBitSet(extractorsSize),
-                randomIntBetween(10, 1024));
+        return new ScrollCursor(
+            randomAlphaOfLength(5),
+            extractors,
+            CompositeAggregationCursorTests.randomBitSet(extractorsSize),
+            randomIntBetween(10, 1024)
+        );
     }
 
     static HitExtractor randomHitExtractor(int depth) {
@@ -42,9 +47,12 @@ public class ScrollCursorTests extends AbstractSqlWireSerializingTestCase<Scroll
 
     @Override
     protected ScrollCursor mutateInstance(ScrollCursor instance) throws IOException {
-        return new ScrollCursor(instance.scrollId(), instance.extractors(),
-                randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomBitSet(instance.extractors().size())),
-                randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024)));
+        return new ScrollCursor(
+            instance.scrollId(),
+            instance.extractors(),
+            randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomBitSet(instance.extractors().size())),
+            randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024))
+        );
     }
 
     @Override

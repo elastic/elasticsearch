@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test;
 
@@ -10,13 +11,13 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ActionThrottler;
@@ -69,17 +70,16 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public final class WatcherTestUtils {
 
-    private WatcherTestUtils() {
-    }
+    private WatcherTestUtils() {}
 
     public static XContentSource xContentSource(BytesReference bytes) {
         XContent xContent = XContentFactory.xContent(XContentHelper.xContentType(bytes));
@@ -90,69 +90,87 @@ public final class WatcherTestUtils {
         return templateRequest(sourceBuilder, SearchType.DEFAULT, indices);
     }
 
-    public static WatcherSearchTemplateRequest templateRequest(SearchSourceBuilder sourceBuilder, SearchType searchType,
-                                                               String... indices) {
+    public static WatcherSearchTemplateRequest templateRequest(
+        SearchSourceBuilder sourceBuilder,
+        SearchType searchType,
+        String... indices
+    ) {
         try {
             XContentBuilder xContentBuilder = jsonBuilder();
             xContentBuilder.value(sourceBuilder);
-            return new WatcherSearchTemplateRequest(indices, searchType,
-                    WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, BytesReference.bytes(xContentBuilder));
+            return new WatcherSearchTemplateRequest(
+                indices,
+                searchType,
+                WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS,
+                BytesReference.bytes(xContentBuilder)
+            );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     public static WatchExecutionContextMockBuilder mockExecutionContextBuilder(String watchId) {
-        return new WatchExecutionContextMockBuilder(watchId)
-                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)));
+        return new WatchExecutionContextMockBuilder(watchId).wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)));
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchId, Payload payload) {
-        return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
-                .payload(payload)
-                .buildMock();
+        return mockExecutionContextBuilder(watchId).wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC))).payload(payload).buildMock();
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchId, ZonedDateTime time, Payload payload) {
-        return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
-                .payload(payload)
-                .time(watchId, time)
-                .buildMock();
+        return mockExecutionContextBuilder(watchId).wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
+            .payload(payload)
+            .time(watchId, time)
+            .buildMock();
     }
 
-    public static WatchExecutionContext mockExecutionContext(String watchId, ZonedDateTime executionTime, TriggerEvent event,
-                                                             Payload payload) {
-        return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
-                .payload(payload)
-                .executionTime(executionTime)
-                .triggerEvent(event)
-                .buildMock();
+    public static WatchExecutionContext mockExecutionContext(
+        String watchId,
+        ZonedDateTime executionTime,
+        TriggerEvent event,
+        Payload payload
+    ) {
+        return mockExecutionContextBuilder(watchId).wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
+            .payload(payload)
+            .executionTime(executionTime)
+            .triggerEvent(event)
+            .buildMock();
     }
 
     public static WatchExecutionContext createWatchExecutionContext() throws Exception {
         ZonedDateTime EPOCH_UTC = Instant.EPOCH.atZone(ZoneOffset.UTC);
-        Watch watch = new Watch("test-watch",
-                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple())),
-                InternalAlwaysCondition.INSTANCE,
-                null,
-                null,
-                new ArrayList<>(),
-                null,
+        Watch watch = new Watch(
+            "test-watch",
+            new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
+            new ExecutableSimpleInput(new SimpleInput(new Payload.Simple())),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            new ArrayList<>(),
+            null,
 
-                new WatchStatus(EPOCH_UTC, emptyMap()), 1L, 1L);
-        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), EPOCH_UTC,
-            new ScheduleTriggerEvent(watch.id(), EPOCH_UTC, EPOCH_UTC), TimeValue.timeValueSeconds(5));
+            new WatchStatus(EPOCH_UTC, emptyMap()),
+            1L,
+            1L
+        );
+        TriggeredExecutionContext context = new TriggeredExecutionContext(
+            watch.id(),
+            EPOCH_UTC,
+            new ScheduleTriggerEvent(watch.id(), EPOCH_UTC, EPOCH_UTC),
+            TimeValue.timeValueSeconds(5)
+        );
         context.ensureWatchExists(() -> watch);
         return context;
     }
 
-
-    public static Watch createTestWatch(String watchName, Client client, HttpClient httpClient, EmailService emailService,
-                                        WatcherSearchTemplateService searchTemplateService, Logger logger) {
+    public static Watch createTestWatch(
+        String watchName,
+        Client client,
+        HttpClient httpClient,
+        EmailService emailService,
+        WatcherSearchTemplateService searchTemplateService,
+        Logger logger
+    ) {
         ActionThrottler actionThrottler = new ActionThrottler(Clock.systemUTC(), null, mock(XPackLicenseState.class));
         List<ActionWrapper> actions = new ArrayList<>();
         TextTemplateEngine engine = new MockTextTemplateEngine();
@@ -161,15 +179,29 @@ public final class WatcherTestUtils {
         httpRequest.method(HttpMethod.POST);
         httpRequest.path(new TextTemplate("/foobarbaz/{{ctx.watch_id}}"));
         httpRequest.body(new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits"));
-        actions.add(new ActionWrapper("_webhook", actionThrottler, null, null,
-            new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine), null, null));
-
+        actions.add(
+            new ActionWrapper(
+                "_webhook",
+                actionThrottler,
+                null,
+                null,
+                new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine),
+                null,
+                null
+            )
+        );
 
         EmailTemplate email = EmailTemplate.builder().from("from@test.com").to("to@test.com").build();
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null, null);
-        ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, engine,
-                new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
+        ExecutableEmailAction executale = new ExecutableEmailAction(
+            action,
+            logger,
+            emailService,
+            engine,
+            new HtmlSanitizer(Settings.EMPTY),
+            Collections.emptyMap()
+        );
         actions.add(new ActionWrapper("_email", actionThrottler, null, null, executale, null, null));
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
@@ -181,15 +213,18 @@ public final class WatcherTestUtils {
         SearchTransform searchTransform = new SearchTransform(transformRequest, null, null);
 
         return new Watch(
-                watchName,
-                new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo")))),
-                InternalAlwaysCondition.INSTANCE,
-                new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
-                new TimeValue(0),
-                actions,
-                Collections.singletonMap("foo", "bar"),
-                new WatchStatus(now, statuses), 1L, 1L);
+            watchName,
+            new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
+            new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo")))),
+            InternalAlwaysCondition.INSTANCE,
+            new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
+            new TimeValue(0),
+            actions,
+            Collections.singletonMap("foo", "bar"),
+            new WatchStatus(now, statuses),
+            1L,
+            1L
+        );
     }
 
     public static SearchType getRandomSupportedSearchType() {

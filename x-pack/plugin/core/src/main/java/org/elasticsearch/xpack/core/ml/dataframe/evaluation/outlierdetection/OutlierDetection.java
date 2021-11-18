@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
@@ -37,14 +38,20 @@ public class OutlierDetection implements Evaluation {
 
     private static final ParseField METRICS = new ParseField("metrics");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<OutlierDetection, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(), a -> new OutlierDetection((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
+        NAME.getPreferredName(),
+        a -> new OutlierDetection((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PREDICTED_PROBABILITY_FIELD);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c), METRICS);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c),
+            METRICS
+        );
     }
 
     public static OutlierDetection fromXContent(XContentParser parser) {
@@ -68,17 +75,15 @@ public class OutlierDetection implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
-    public OutlierDetection(String actualField,
-                            String predictedProbabilityField,
-                            @Nullable List<EvaluationMetric> metrics) {
-        this.fields =
-            new EvaluationFields(
-                ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
-                null,
-                null,
-                null,
-                ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD),
-                false);
+    public OutlierDetection(String actualField, String predictedProbabilityField, @Nullable List<EvaluationMetric> metrics) {
+        this.fields = new EvaluationFields(
+            ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
+            null,
+            null,
+            null,
+            ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD),
+            false
+        );
         this.metrics = initMetrics(metrics, OutlierDetection::defaultMetrics);
     }
 
@@ -87,7 +92,8 @@ public class OutlierDetection implements Evaluation {
             new AucRoc(false),
             new Precision(Arrays.asList(0.25, 0.5, 0.75)),
             new Recall(Arrays.asList(0.25, 0.5, 0.75)),
-            new ConfusionMatrix(Arrays.asList(0.25, 0.5, 0.75)));
+            new ConfusionMatrix(Arrays.asList(0.25, 0.5, 0.75))
+        );
     }
 
     public OutlierDetection(StreamInput in) throws IOException {
@@ -143,8 +149,7 @@ public class OutlierDetection implements Evaluation {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OutlierDetection that = (OutlierDetection) o;
-        return Objects.equals(fields, that.fields)
-            && Objects.equals(metrics, that.metrics);
+        return Objects.equals(fields, that.fields) && Objects.equals(metrics, that.metrics);
     }
 
     @Override

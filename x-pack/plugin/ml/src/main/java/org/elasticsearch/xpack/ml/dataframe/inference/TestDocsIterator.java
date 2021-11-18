@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.inference;
@@ -32,10 +33,11 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
     private Long lastDocId;
     private final Map<String, String> docValueFieldAndFormatPairs;
 
-    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields) {
+    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields, Long lastIncrementalId) {
         super(client, config.getDest().getIndex(), true);
         this.config = Objects.requireNonNull(config);
         this.docValueFieldAndFormatPairs = buildDocValueFieldAndFormatPairs(extractedFields);
+        this.lastDocId = lastIncrementalId;
     }
 
     private static Map<String, String> buildDocValueFieldAndFormatPairs(ExtractedFields extractedFields) {
@@ -48,8 +50,8 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected QueryBuilder getQuery() {
-        return QueryBuilders.boolQuery().mustNot(
-            QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, true));
+        return QueryBuilders.boolQuery()
+            .mustNot(QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, true));
     }
 
     @Override
@@ -64,7 +66,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected Object[] searchAfterFields() {
-        return lastDocId == null ? null : new Object[] {lastDocId};
+        return lastDocId == null ? null : new Object[] { lastDocId };
     }
 
     @Override
@@ -74,8 +76,12 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected SearchResponse executeSearchRequest(SearchRequest searchRequest) {
-        return ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client(),
-            () -> client().search(searchRequest).actionGet());
+        return ClientHelper.executeWithHeaders(
+            config.getHeaders(),
+            ClientHelper.ML_ORIGIN,
+            client(),
+            () -> client().search(searchRequest).actionGet()
+        );
     }
 
     @Override

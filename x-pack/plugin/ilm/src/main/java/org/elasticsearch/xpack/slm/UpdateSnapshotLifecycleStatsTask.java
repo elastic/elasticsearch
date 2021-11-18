@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -39,19 +40,26 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
         }
 
         SnapshotLifecycleStats newMetrics = currentSlmMeta.getStats().merge(runStats);
-        SnapshotLifecycleMetadata newSlmMeta = new SnapshotLifecycleMetadata(currentSlmMeta.getSnapshotConfigurations(),
-            currentSlmMeta.getOperationMode(), newMetrics);
+        SnapshotLifecycleMetadata newSlmMeta = new SnapshotLifecycleMetadata(
+            currentSlmMeta.getSnapshotConfigurations(),
+            currentSlmMeta.getOperationMode(),
+            newMetrics
+        );
 
         return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentMeta)
-                .putCustom(SnapshotLifecycleMetadata.TYPE, newSlmMeta))
+            .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, newSlmMeta))
             .build();
     }
 
     @Override
     public void onFailure(String source, Exception e) {
-        logger.error(new ParameterizedMessage("failed to update cluster state with snapshot lifecycle stats, " +
-            "source: [{}], missing stats: [{}]", source, runStats),
-            e);
+        logger.error(
+            new ParameterizedMessage(
+                "failed to update cluster state with snapshot lifecycle stats, " + "source: [{}], missing stats: [{}]",
+                source,
+                runStats
+            ),
+            e
+        );
     }
 }

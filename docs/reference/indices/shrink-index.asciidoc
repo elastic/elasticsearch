@@ -25,11 +25,14 @@ POST /my-index-000001/_shrink/shrunk-my-index-000001
 [[shrink-index-api-prereqs]]
 ==== {api-prereq-title}
 
-Before you can shrink an index:
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index.
 
-* The index must be read-only.
-* All primary shards for the index must reside on the same node.
-* The index must have a `green` <<cluster-health,health status>>.
+* Before you can shrink an index:
+
+** The index must be read-only.
+** All primary shards for the index must reside on the same node.
+** The index must have a `green` <<cluster-health,health status>>.
 
 To make shard allocation easier, we recommend you also remove the index's
 replica shards. You can later re-add replica shards as part of the shrink
@@ -53,13 +56,13 @@ PUT /my_source_index/_settings
 // TEST[s/^/PUT my_source_index\n{"settings":{"index.number_of_shards":2}}\n/]
 
 <1> Removes replica shards for the index.
-<2> Relocates the index's shards to the `shrink_node_name` node. 
+<2> Relocates the index's shards to the `shrink_node_name` node.
     See <<shard-allocation-filtering>>.
 <3> Prevents write operations to this index. Metadata changes, such as deleting
     the index, are still allowed.
 
 
-It can take a while to relocate the source index.  Progress can be tracked
+It can take a while to relocate the source index. Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 `cluster health` API>> can be used to wait until all shards have relocated
 with the `wait_for_no_relocating_shards` parameter.
@@ -79,7 +82,7 @@ in the index must be present on the same node.
 
 The current write index on a data stream cannot be shrunk. In order to shrink
 the current write index, the data stream must first be
-<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+<<data-streams-rollover,rolled over>> so that a new write index is created
 and then the previous write index can be shrunk.
 
 [[how-shrink-works]]
@@ -130,9 +133,9 @@ the cluster state -- it doesn't wait for the shrink operation to start.
 
 Indices can only be shrunk if they satisfy the following requirements:
 
-* the target index must not exist
+* The target index must not exist.
 
-* The index must have more primary shards than the target index.
+* The source index must have more primary shards than the target index.
 
 * The number of primary shards in the target index must be a factor of the
   number of primary shards in the source index. The source index must have
@@ -192,7 +195,7 @@ can't be allocated on the shrink node, its primary shard will remain
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 shrink process begins. When the shrink operation completes, the shard will
-become `active`. At that  point, Elasticsearch will try to allocate any
+become `active`. At that point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 
@@ -220,10 +223,25 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[shrink-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
+
+`max_primary_shard_size`::
+(Optional, <<byte-units, byte units>>)
+The max primary shard size for the target index. Used to find the optimum number of shards for the target index.
+When this parameter is set, each shard's storage in the target index will not be greater than the parameter.
+The shards count of the target index will still be a factor of the source index's shards count, but if the parameter
+is less than the single shard size in the source index, the shards count for the target index will be equal to the source index's shards count.
+For example, when this parameter is set to 50gb, if the source index has 60 primary shards with totaling 100gb, then the
+target index will have 2 primary shards, with each shard size of 50gb; if the source index has 60 primary shards
+with totaling 1000gb, then the target index will have 20 primary shards; if the source index has 60 primary shards
+with totaling 4000gb, then the target index will still have 60 primary shards. This parameter conflicts
+with `number_of_shards` in the `settings`, only one of them may be set.

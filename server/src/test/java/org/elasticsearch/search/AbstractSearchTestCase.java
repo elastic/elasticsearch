@@ -1,34 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -38,6 +24,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescorerBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,7 +66,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         Supplier<List<SearchExtBuilder>> randomExtBuilders = () -> {
             Set<String> elementNames = new HashSet<>(searchExtPlugin.getSupportedElements().keySet());
             int numSearchExts = randomIntBetween(1, elementNames.size());
-            while(elementNames.size() > numSearchExts) {
+            while (elementNames.size() > numSearchExts) {
                 elementNames.remove(randomFrom(elementNames));
             }
             List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
@@ -87,12 +76,13 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             return searchExtBuilders;
         };
         return RandomSearchRequestGenerator.randomSearchSourceBuilder(
-                HighlightBuilderTests::randomHighlighterBuilder,
-                SuggestBuilderTests::randomSuggestBuilder,
-                QueryRescorerBuilderTests::randomRescoreBuilder,
-                randomExtBuilders,
-                CollapseBuilderTests::randomCollapseBuilder,
-                AbstractSearchTestCase::randomRuntimeMappings);
+            HighlightBuilderTests::randomHighlighterBuilder,
+            SuggestBuilderTests::randomSuggestBuilder,
+            QueryRescorerBuilderTests::randomRescoreBuilder,
+            randomExtBuilders,
+            CollapseBuilderTests::randomCollapseBuilder,
+            AbstractSearchTestCase::randomRuntimeMappings
+        );
     }
 
     public static Map<String, Object> randomRuntimeMappings() {
@@ -125,20 +115,35 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                 switch (randomIntBetween(0, 2)) {
                     case 0:
                         if (this.supportedElements.put(TestSearchExtBuilder1.NAME, TestSearchExtBuilder1::new) == null) {
-                            this.searchExtSpecs.add(new SearchExtSpec<>(TestSearchExtBuilder1.NAME, TestSearchExtBuilder1::new,
-                                    new TestSearchExtParser<>(TestSearchExtBuilder1::new)));
+                            this.searchExtSpecs.add(
+                                new SearchExtSpec<>(
+                                    TestSearchExtBuilder1.NAME,
+                                    TestSearchExtBuilder1::new,
+                                    new TestSearchExtParser<>(TestSearchExtBuilder1::new)
+                                )
+                            );
                         }
                         break;
                     case 1:
                         if (this.supportedElements.put(TestSearchExtBuilder2.NAME, TestSearchExtBuilder2::new) == null) {
-                            this.searchExtSpecs.add(new SearchExtSpec<>(TestSearchExtBuilder2.NAME, TestSearchExtBuilder2::new,
-                                    new TestSearchExtParser<>(TestSearchExtBuilder2::new)));
+                            this.searchExtSpecs.add(
+                                new SearchExtSpec<>(
+                                    TestSearchExtBuilder2.NAME,
+                                    TestSearchExtBuilder2::new,
+                                    new TestSearchExtParser<>(TestSearchExtBuilder2::new)
+                                )
+                            );
                         }
                         break;
                     case 2:
                         if (this.supportedElements.put(TestSearchExtBuilder3.NAME, TestSearchExtBuilder3::new) == null) {
-                            this.searchExtSpecs.add(new SearchExtSpec<>(TestSearchExtBuilder3.NAME, TestSearchExtBuilder3::new,
-                                    new TestSearchExtParser<>(TestSearchExtBuilder3::new)));
+                            this.searchExtSpecs.add(
+                                new SearchExtSpec<>(
+                                    TestSearchExtBuilder3.NAME,
+                                    TestSearchExtBuilder3::new,
+                                    new TestSearchExtParser<>(TestSearchExtBuilder3::new)
+                                )
+                            );
                         }
                         break;
                     default:
@@ -190,9 +195,9 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         }
     }
 
-    //Would be nice to have a single builder that gets its name as a parameter, but the name wouldn't get a value when the object
-    //is created reading from the stream (constructor that takes a StreamInput) which is a problem as we check that after reading
-    //a named writeable its name is the expected one. That's why we go for the following less dynamic approach.
+    // Would be nice to have a single builder that gets its name as a parameter, but the name wouldn't get a value when the object
+    // is created reading from the stream (constructor that takes a StreamInput) which is a problem as we check that after reading
+    // a named writeable its name is the expected one. That's why we go for the following less dynamic approach.
     private static class TestSearchExtBuilder1 extends TestSearchExtBuilder {
         private static final String NAME = "name1";
 
@@ -257,8 +262,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                 return false;
             }
             TestSearchExtBuilder that = (TestSearchExtBuilder) o;
-            return Objects.equals(objectName, that.objectName) &&
-                    Objects.equals(name, that.name);
+            return Objects.equals(objectName, that.objectName) && Objects.equals(name, that.name);
         }
 
         @Override

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.owasp.html.CssSchema;
 import org.owasp.html.ElementPolicy;
 import org.owasp.html.HtmlPolicyBuilder;
@@ -28,36 +29,63 @@ import java.util.function.UnaryOperator;
 public class HtmlSanitizer {
 
     static final String[] FORMATTING_TAGS = new String[] {
-            "b", "i", "s", "u", "o", "sup", "sub", "ins", "del", "strong",
-            "strike", "tt", "code", "big", "small", "br", "span", "em", "hr"
-    };
-    static final String[] BLOCK_TAGS = new String[] {
-            "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote"
-    };
-    static final String[] TABLE_TAGS = new String[] {
-            "table", "th", "tr", "td", "caption", "col", "colgroup", "thead", "tbody", "tfoot"
-    };
+        "b",
+        "i",
+        "s",
+        "u",
+        "o",
+        "sup",
+        "sub",
+        "ins",
+        "del",
+        "strong",
+        "strike",
+        "tt",
+        "code",
+        "big",
+        "small",
+        "br",
+        "span",
+        "em",
+        "hr" };
+    static final String[] BLOCK_TAGS = new String[] { "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote" };
+    static final String[] TABLE_TAGS = new String[] { "table", "th", "tr", "td", "caption", "col", "colgroup", "thead", "tbody", "tfoot" };
     static final List<String> DEFAULT_ALLOWED = Arrays.asList(
-            "body", "head", "_tables", "_links", "_blocks", "_formatting", "img:embedded"
+        "body",
+        "head",
+        "_tables",
+        "_links",
+        "_blocks",
+        "_formatting",
+        "img:embedded"
     );
 
-    private static Setting<Boolean> SETTING_SANITIZATION_ENABLED =
-            Setting.boolSetting("xpack.notification.email.html.sanitization.enabled", true, Property.NodeScope);
+    private static Setting<Boolean> SETTING_SANITIZATION_ENABLED = Setting.boolSetting(
+        "xpack.notification.email.html.sanitization.enabled",
+        true,
+        Property.NodeScope
+    );
 
-    private static Setting<List<String>> SETTING_SANITIZATION_ALLOW =
-            Setting.listSetting("xpack.notification.email.html.sanitization.allow", DEFAULT_ALLOWED, Function.identity(),
-                    Property.NodeScope);
+    private static Setting<List<String>> SETTING_SANITIZATION_ALLOW = Setting.listSetting(
+        "xpack.notification.email.html.sanitization.allow",
+        DEFAULT_ALLOWED,
+        Function.identity(),
+        Property.NodeScope
+    );
 
-    private static Setting<List<String>> SETTING_SANITIZATION_DISALLOW =
-            Setting.listSetting("xpack.notification.email.html.sanitization.disallow", Collections.emptyList(), Function.identity(),
-                    Property.NodeScope);
+    private static Setting<List<String>> SETTING_SANITIZATION_DISALLOW = Setting.listSetting(
+        "xpack.notification.email.html.sanitization.disallow",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
     private static final MethodHandle sanitizeHandle;
     static {
         try {
             MethodHandles.Lookup methodLookup = MethodHandles.publicLookup();
             MethodType sanitizeSignature = MethodType.methodType(String.class, String.class);
             sanitizeHandle = methodLookup.findVirtual(PolicyFactory.class, "sanitize", sanitizeSignature);
-        } catch (NoSuchMethodException|IllegalAccessException e) {
+        } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException("Missing guava on runtime classpath", e);
         }
     }
@@ -84,31 +112,35 @@ public class HtmlSanitizer {
     }
 
     public String sanitize(String html) {
-        if (!enabled) {
+        if (enabled == false) {
             return html;
         }
         return sanitizer.apply(html);
     }
 
-    @SuppressForbidden( reason = "PolicyFactory uses guava Function")
+    @SuppressForbidden(reason = "PolicyFactory uses guava Function")
     static PolicyFactory createCommonPolicy(List<String> allow, List<String> disallow) {
         HtmlPolicyBuilder policyBuilder = new HtmlPolicyBuilder();
 
         if (allow.stream().anyMatch("_all"::equals)) {
-            return policyBuilder
-                    .allowElements(TABLE_TAGS)
-                    .allowAttributes("span").onElements("col")
-                    .allowElements(BLOCK_TAGS)
-                    .allowElements(FORMATTING_TAGS)
-                    .allowWithoutAttributes("span")
-                    .allowStyling(CssSchema.DEFAULT)
-                    .allowStandardUrlProtocols().allowElements("a")
-                    .allowAttributes("href").onElements("a").requireRelNofollowOnLinks()
-                    .allowElements("img")
-                    .allowAttributes("src").onElements("img")
-                    .allowStandardUrlProtocols()
-                    .allowUrlProtocols("cid")
-                    .toFactory();
+            return policyBuilder.allowElements(TABLE_TAGS)
+                .allowAttributes("span")
+                .onElements("col")
+                .allowElements(BLOCK_TAGS)
+                .allowElements(FORMATTING_TAGS)
+                .allowWithoutAttributes("span")
+                .allowStyling(CssSchema.DEFAULT)
+                .allowStandardUrlProtocols()
+                .allowElements("a")
+                .allowAttributes("href")
+                .onElements("a")
+                .requireRelNofollowOnLinks()
+                .allowElements("img")
+                .allowAttributes("src")
+                .onElements("img")
+                .allowStandardUrlProtocols()
+                .allowUrlProtocols("cid")
+                .toFactory();
         }
 
         EnumSet<Images> images = EnumSet.noneOf(Images.class);
@@ -124,16 +156,16 @@ public class HtmlSanitizer {
                     break;
                 case "_links":
                     policyBuilder.allowElements("a")
-                            .allowAttributes("href").onElements("a")
-                            .allowStandardUrlProtocols()
-                            .requireRelNofollowOnLinks();
+                        .allowAttributes("href")
+                        .onElements("a")
+                        .allowStandardUrlProtocols()
+                        .requireRelNofollowOnLinks();
                     break;
                 case "_blocks":
                     policyBuilder.allowElements(BLOCK_TAGS);
                     break;
                 case "_formatting":
-                    policyBuilder.allowElements(FORMATTING_TAGS)
-                            .allowWithoutAttributes("span");
+                    policyBuilder.allowElements(FORMATTING_TAGS).allowWithoutAttributes("span");
                     break;
                 case "_styles":
                     policyBuilder.allowStyling(CssSchema.DEFAULT);
@@ -179,7 +211,7 @@ public class HtmlSanitizer {
             }
         }
 
-        if (!images.isEmpty()) {
+        if (images.isEmpty() == false) {
             policyBuilder.allowAttributes("src").onElements("img").allowUrlProtocols("cid");
             if (images.contains(Images.ALL)) {
                 policyBuilder.allowElements("img");
@@ -193,8 +225,6 @@ public class HtmlSanitizer {
         return policyBuilder.toFactory();
     }
 
-
-
     /**
      * An {@code img} tag policy that only accept {@code cid:} values in its {@code src} attribute.
      * If such value is found, the content id is verified against the available attachements of the
@@ -206,7 +236,7 @@ public class HtmlSanitizer {
 
         @Override
         public String apply(String elementName, List<String> attrs) {
-            if (!"img".equals(elementName) || attrs.size() == 0) {
+            if ("img".equals(elementName) == false || attrs.isEmpty()) {
                 return elementName;
             }
             String attrName = null;
@@ -216,7 +246,7 @@ public class HtmlSanitizer {
                     continue;
                 }
                 // reject external image source (only allow embedded ones)
-                if ("src".equals(attrName) && !attr.startsWith("cid:")) {
+                if ("src".equals(attrName) && attr.startsWith("cid:") == false) {
                     return null;
                 }
             }

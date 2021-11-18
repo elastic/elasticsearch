@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.extractor;
 
@@ -39,12 +40,15 @@ public class ExtractedFieldsTests extends ESTestCase {
         ExtractedFields extractedFields = new ExtractedFields(
             Arrays.asList(docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2),
             Collections.emptyList(),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
 
         assertThat(extractedFields.getAllFields().size(), equalTo(6));
-        assertThat(extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
-            equalTo(new String[] {"doc1", "doc2"}));
-        assertThat(extractedFields.getSourceFields(), equalTo(new String[] {"src1", "src2"}));
+        assertThat(
+            extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
+            equalTo(new String[] { "doc1", "doc2" })
+        );
+        assertThat(extractedFields.getSourceFields(), equalTo(new String[] { "src1", "src2" }));
     }
 
     public void testBuildGivenMixtureOfTypes() {
@@ -60,18 +64,20 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("value")).thenReturn(valueCaps);
         when(fieldCapabilitiesResponse.getField("airline")).thenReturn(airlineCaps);
 
-        ExtractedFields extractedFields = ExtractedFields.build(new TreeSet<>(Arrays.asList("time", "value", "airline", "airport")),
+        ExtractedFields extractedFields = ExtractedFields.build(
+            new TreeSet<>(Arrays.asList("time", "value", "airline", "airport")),
             new HashSet<>(Collections.singletonList("airport")),
             fieldCapabilitiesResponse,
             Collections.emptyMap(),
-            Collections.emptyList());
+            Collections.emptyList()
+        );
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(2));
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
         assertThat(extractedFields.getDocValueFields().get(0).getDocValueFormat(), equalTo("epoch_millis"));
         assertThat(extractedFields.getDocValueFields().get(1).getName(), equalTo("value"));
         assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(null));
-        assertThat(extractedFields.getSourceFields(), equalTo(new String[] {"airline"}));
+        assertThat(extractedFields.getSourceFields(), equalTo(new String[] { "airline" }));
         assertThat(extractedFields.getAllFields().size(), equalTo(4));
     }
 
@@ -86,8 +92,13 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("airport")).thenReturn(text);
         when(fieldCapabilitiesResponse.getField("airport.keyword")).thenReturn(keyword);
 
-        ExtractedFields extractedFields = ExtractedFields.build(new TreeSet<>(Arrays.asList("airline.text", "airport.keyword")),
-                Collections.emptySet(), fieldCapabilitiesResponse, Collections.emptyMap(), Collections.emptyList());
+        ExtractedFields extractedFields = ExtractedFields.build(
+            new TreeSet<>(Arrays.asList("airline.text", "airport.keyword")),
+            Collections.emptySet(),
+            fieldCapabilitiesResponse,
+            Collections.emptyMap(),
+            Collections.emptyList()
+        );
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(1));
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("airport.keyword"));
@@ -128,12 +139,16 @@ public class ExtractedFieldsTests extends ESTestCase {
     public void testBuildGivenFieldWithoutMappings() {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ExtractedFields.build(
-            Collections.singleton("value"),
-            Collections.emptySet(),
-            fieldCapabilitiesResponse,
-            Collections.emptyMap(),
-            Collections.emptyList()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ExtractedFields.build(
+                Collections.singleton("value"),
+                Collections.emptySet(),
+                fieldCapabilitiesResponse,
+                Collections.emptyMap(),
+                Collections.emptyList()
+            )
+        );
         assertThat(e.getMessage(), equalTo("cannot retrieve field [value] because it has no mappings"));
     }
 
@@ -152,10 +167,11 @@ public class ExtractedFieldsTests extends ESTestCase {
         ExtractedFields extractedFields = new ExtractedFields(
             Arrays.asList(docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2),
             Arrays.asList(
-                new ProcessedField(new NGram("doc1", "f", new int[] {1 , 2}, 0, 2, true)),
-                new ProcessedField(new OneHotEncoding("src1", hotMap, true))),
-            Collections.emptyMap());
-
+                new ProcessedField(new NGram("doc1", "f", new int[] { 1, 2 }, 0, 2, true)),
+                new ProcessedField(new OneHotEncoding("src1", hotMap, true))
+            ),
+            Collections.emptyMap()
+        );
 
         String[] organic = extractedFields.extractOrganicFeatureNames();
         assertThat(organic, arrayContaining("doc2", "scripted1", "scripted2", "src2"));

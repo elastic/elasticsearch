@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -9,12 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
@@ -35,6 +36,11 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndexMetadata indexMetadata = metadata.index(index);
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
@@ -44,9 +50,12 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         }
 
         FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
-        request.setIndices(new String[]{index.getName()});
-        getClient().execute(FollowStatsAction.INSTANCE, request,
-            ActionListener.wrap(r -> handleResponse(r, listener), listener::onFailure));
+        request.setIndices(new String[] { index.getName() });
+        getClient().execute(
+            FollowStatsAction.INSTANCE,
+            request,
+            ActionListener.wrap(r -> handleResponse(r, listener), listener::onFailure)
+        );
     }
 
     void handleResponse(FollowStatsAction.StatsResponses responses, Listener listener) {
@@ -61,10 +70,15 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         if (conditionMet) {
             listener.onResponse(true, null);
         } else {
-            List<Info.ShardFollowTaskInfo> shardFollowTaskInfos = unSyncedShardFollowStatuses
-                .stream()
-                .map(status -> new Info.ShardFollowTaskInfo(status.followerIndex(), status.getShardId(),
-                    status.leaderGlobalCheckpoint(), status.followerGlobalCheckpoint()))
+            List<Info.ShardFollowTaskInfo> shardFollowTaskInfos = unSyncedShardFollowStatuses.stream()
+                .map(
+                    status -> new Info.ShardFollowTaskInfo(
+                        status.followerIndex(),
+                        status.getShardId(),
+                        status.leaderGlobalCheckpoint(),
+                        status.followerGlobalCheckpoint()
+                    )
+                )
                 .collect(Collectors.toList());
             listener.onResponse(false, new Info(shardFollowTaskInfos));
         }
@@ -88,7 +102,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(SHARD_FOLLOW_TASKS.getPreferredName(), shardFollowTaskInfos);
+            builder.xContentList(SHARD_FOLLOW_TASKS.getPreferredName(), shardFollowTaskInfos);
             String message;
             if (shardFollowTaskInfos.size() > 0) {
                 message = "Waiting for [" + shardFollowTaskInfos.size() + "] shard follow tasks to be in sync";
@@ -141,7 +155,6 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
                 return followerIndex;
             }
 
-
             int getShardId() {
                 return shardId;
             }
@@ -170,10 +183,10 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 ShardFollowTaskInfo that = (ShardFollowTaskInfo) o;
-                return shardId == that.shardId &&
-                    leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
-                    followerGlobalCheckpoint == that.followerGlobalCheckpoint &&
-                    Objects.equals(followerIndex, that.followerIndex);
+                return shardId == that.shardId
+                    && leaderGlobalCheckpoint == that.leaderGlobalCheckpoint
+                    && followerGlobalCheckpoint == that.followerGlobalCheckpoint
+                    && Objects.equals(followerIndex, that.followerIndex);
             }
 
             @Override

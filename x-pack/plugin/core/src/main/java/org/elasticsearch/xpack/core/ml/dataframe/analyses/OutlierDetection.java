@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -68,7 +68,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         Map<String, Object> mapping = new HashMap<>();
         mapping.put("dynamic", false);
-        mapping.put("type", ObjectMapper.NESTED_CONTENT_TYPE);
+        mapping.put("type", NestedObjectMapper.CONTENT_TYPE);
         mapping.put("properties", properties);
 
         FEATURE_INFLUENCE_MAPPING = Collections.unmodifiableMap(mapping);
@@ -107,8 +107,14 @@ public class OutlierDetection implements DataFrameAnalysis {
      */
     private final boolean standardizationEnabled;
 
-    private OutlierDetection(Integer nNeighbors, Method method, Double featureInfluenceThreshold, boolean computeFeatureInfluence,
-                             double outlierFraction, boolean standardizationEnabled) {
+    private OutlierDetection(
+        Integer nNeighbors,
+        Method method,
+        Double featureInfluenceThreshold,
+        boolean computeFeatureInfluence,
+        double outlierFraction,
+        boolean standardizationEnabled
+    ) {
         if (nNeighbors != null && nNeighbors <= 0) {
             throw ExceptionsHelper.badRequestException("[{}] must be a positive integer", N_NEIGHBORS.getPreferredName());
         }
@@ -133,15 +139,9 @@ public class OutlierDetection implements DataFrameAnalysis {
         nNeighbors = in.readOptionalVInt();
         method = in.readBoolean() ? in.readEnum(Method.class) : null;
         featureInfluenceThreshold = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            computeFeatureInfluence = in.readBoolean();
-            outlierFraction = in.readDouble();
-            standardizationEnabled = in.readBoolean();
-        } else {
-            computeFeatureInfluence = true;
-            outlierFraction = 0.05;
-            standardizationEnabled = true;
-        }
+        computeFeatureInfluence = in.readBoolean();
+        outlierFraction = in.readDouble();
+        standardizationEnabled = in.readBoolean();
     }
 
     @Override
@@ -162,11 +162,9 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         out.writeOptionalDouble(featureInfluenceThreshold);
 
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeBoolean(computeFeatureInfluence);
-            out.writeDouble(outlierFraction);
-            out.writeBoolean(standardizationEnabled);
-        }
+        out.writeBoolean(computeFeatureInfluence);
+        out.writeDouble(outlierFraction);
+        out.writeBoolean(standardizationEnabled);
     }
 
     @Override
@@ -203,8 +201,14 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nNeighbors, method, featureInfluenceThreshold, computeFeatureInfluence, outlierFraction,
-            standardizationEnabled);
+        return Objects.hash(
+            nNeighbors,
+            method,
+            featureInfluenceThreshold,
+            computeFeatureInfluence,
+            outlierFraction,
+            standardizationEnabled
+        );
     }
 
     @Override
@@ -248,8 +252,10 @@ public class OutlierDetection implements DataFrameAnalysis {
     @Override
     public Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
-        additionalProperties.put(resultsFieldName + ".outlier_score",
-            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        additionalProperties.put(
+            resultsFieldName + ".outlier_score",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName())
+        );
         additionalProperties.put(resultsFieldName + ".feature_influence", FEATURE_INFLUENCE_MAPPING);
         return additionalProperties;
     }
@@ -285,7 +291,10 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     public enum Method {
-        LOF, LDOF, DISTANCE_KTH_NN, DISTANCE_KNN;
+        LOF,
+        LDOF,
+        DISTANCE_KTH_NN,
+        DISTANCE_KNN;
 
         public static Method fromString(String value) {
             return Method.valueOf(value.toUpperCase(Locale.ROOT));
@@ -348,8 +357,14 @@ public class OutlierDetection implements DataFrameAnalysis {
         }
 
         public OutlierDetection build() {
-            return new OutlierDetection(nNeighbors, method, featureInfluenceThreshold, computeFeatureInfluence, outlierFraction,
-                standardizationEnabled);
+            return new OutlierDetection(
+                nNeighbors,
+                method,
+                featureInfluenceThreshold,
+                computeFeatureInfluence,
+                outlierFraction,
+                standardizationEnabled
+            );
         }
     }
 }

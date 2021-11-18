@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
@@ -58,22 +59,21 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse)
+        );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(),
-            containsString("cannot merge [properties] mappings because of differences for field [field_1]; "));
+        assertThat(e.getMessage(), containsString("cannot merge [properties] mappings because of differences for field [field_1]; "));
         assertThat(e.getMessage(), containsString("mapped as [different_field_1_mappings] in index [index_2]"));
         assertThat(e.getMessage(), containsString("mapped as [field_1_mappings] in index [index_1]"));
     }
 
     public void testMergeMappings_GivenIndicesWithDifferentPropertiesButNoConflicts() {
-        Map<String, Object> index1Mappings = Map.of("properties",
-            Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
+        Map<String, Object> index1Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
         MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", index1Mappings);
 
-        Map<String, Object> index2Mappings = Map.of("properties",
-            Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
+        Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
         ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
@@ -131,22 +131,21 @@ public class MappingsMergerTests extends ESTestCase {
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse)
+        );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(),
-            containsString("cannot merge [runtime] mappings because of differences for field [field_1]; "));
+        assertThat(e.getMessage(), containsString("cannot merge [runtime] mappings because of differences for field [field_1]; "));
         assertThat(e.getMessage(), containsString("mapped as [different_field_1_mappings] in index [index_2]"));
         assertThat(e.getMessage(), containsString("mapped as [field_1_mappings] in index [index_1]"));
     }
 
     public void testMergeMappings_GivenIndicesWithDifferentRuntimeFieldsButNoConflicts() {
-        Map<String, Object> index1Mappings = Map.of("runtime",
-            Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
+        Map<String, Object> index1Mappings = Map.of("runtime", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
         MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", index1Mappings);
 
-        Map<String, Object> index2Mappings = Map.of("runtime",
-            Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
+        Map<String, Object> index2Mappings = Map.of("runtime", Map.of("field_1", "field_1_mappings", "field_3", "field_3_mappings"));
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", index2Mappings);
 
         ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
@@ -236,7 +235,9 @@ public class MappingsMergerTests extends ESTestCase {
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
         MappingMetadata mergedMappings = MappingsMerger.mergeMappings(
-            newSourceWithExcludes("field_1", "runtime_field_2"), getMappingsResponse);
+            newSourceWithExcludes("field_1", "runtime_field_2"),
+            getMappingsResponse
+        );
 
         Map<String, Object> mappingsAsMap = mergedMappings.getSourceAsMap();
 
@@ -250,11 +251,10 @@ public class MappingsMergerTests extends ESTestCase {
     }
 
     private static DataFrameAnalyticsSource newSource() {
-        return new DataFrameAnalyticsSource(new String[] {"index"}, null, null);
+        return new DataFrameAnalyticsSource(new String[] { "index" }, null, null, null);
     }
 
     private static DataFrameAnalyticsSource newSourceWithExcludes(String... excludes) {
-        return new DataFrameAnalyticsSource(new String[] {"index"}, null,
-            new FetchSourceContext(true, null, excludes));
+        return new DataFrameAnalyticsSource(new String[] { "index" }, null, new FetchSourceContext(true, null, excludes), null);
     }
 }

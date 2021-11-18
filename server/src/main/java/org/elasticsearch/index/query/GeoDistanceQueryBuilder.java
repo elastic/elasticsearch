@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -32,11 +20,12 @@ import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -226,24 +215,26 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext shardContext) throws IOException {
-        MappedFieldType fieldType = shardContext.getFieldType(fieldName);
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(shardContext, "failed to find geo field [" + fieldName + "]");
+                throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
 
-        if (!(fieldType instanceof GeoShapeQueryable)) {
-            throw new QueryShardException(shardContext,
-                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
+        if ((fieldType instanceof GeoShapeQueryable) == false) {
+            throw new QueryShardException(
+                context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+            );
         }
 
         QueryValidationException exception = checkLatLon();
         if (exception != null) {
-            throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
+            throw new QueryShardException(context, "couldn't validate latitude/ longitude values", exception);
         }
 
         if (GeoValidationMethod.isCoerce(validationMethod)) {
@@ -251,10 +242,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         }
 
         final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
-        final Circle circle =
-            new Circle(center.lon(), center.lat(), this.distance);
-        return geoShapeQueryable.geoShapeQuery(circle, fieldType.name(),
-            SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, shardContext);
+        final Circle circle = new Circle(center.lon(), center.lat(), this.distance);
+        return geoShapeQueryable.geoShapeQuery(circle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
     }
 
     @Override
@@ -305,8 +294,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                         } else if (currentName.equals("geohash")) {
                             point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[geo_distance] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[geo_distance] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -340,8 +331,12 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                         point.resetFromString(parser.text());
                         fieldName = currentFieldName;
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
-                            NAME, currentFieldName);
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "failed to parse [{}] query. unexpected field [{}]",
+                            NAME,
+                            currentFieldName
+                        );
                     }
                 }
             }
@@ -375,12 +370,12 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     @Override
     protected boolean doEquals(GeoDistanceQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                (distance == other.distance) &&
-                Objects.equals(validationMethod, other.validationMethod) &&
-                Objects.equals(center, other.center) &&
-                Objects.equals(geoDistance, other.geoDistance) &&
-                Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
+        return Objects.equals(fieldName, other.fieldName)
+            && (distance == other.distance)
+            && Objects.equals(validationMethod, other.validationMethod)
+            && Objects.equals(center, other.center)
+            && Objects.equals(geoDistance, other.geoDistance)
+            && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     private QueryValidationException checkLatLon() {

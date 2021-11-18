@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -9,8 +10,10 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 
-public class GetLicenseRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetLicenseRequest, GetLicenseResponse,
-        GetLicenseRequestBuilder> {
+public class GetLicenseRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    GetLicenseRequest,
+    GetLicenseResponse,
+    GetLicenseRequestBuilder> {
 
     public GetLicenseRequestBuilder(ElasticsearchClient client) {
         this(client, GetLicenseAction.INSTANCE);

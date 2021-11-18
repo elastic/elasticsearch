@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -53,17 +42,26 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
  */
 public final class MergeSchedulerConfig {
 
-    public static final Setting<Integer> MAX_THREAD_COUNT_SETTING =
-        new Setting<>("index.merge.scheduler.max_thread_count",
-            (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
-            (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"), Property.Dynamic,
-            Property.IndexScope);
-    public static final Setting<Integer> MAX_MERGE_COUNT_SETTING =
-        new Setting<>("index.merge.scheduler.max_merge_count",
-            (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + 5),
-            (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_merge_count"), Property.Dynamic, Property.IndexScope);
-    public static final Setting<Boolean> AUTO_THROTTLE_SETTING =
-        Setting.boolSetting("index.merge.scheduler.auto_throttle", true, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>(
+        "index.merge.scheduler.max_thread_count",
+        (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
+        (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<Integer> MAX_MERGE_COUNT_SETTING = new Setting<>(
+        "index.merge.scheduler.max_merge_count",
+        (s) -> Integer.toString(MAX_THREAD_COUNT_SETTING.get(s) + 5),
+        (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_merge_count"),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<Boolean> AUTO_THROTTLE_SETTING = Setting.boolSetting(
+        "index.merge.scheduler.auto_throttle",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     private volatile boolean autoThrottle;
     private volatile int maxThreadCount;
@@ -111,8 +109,9 @@ public final class MergeSchedulerConfig {
             throw new IllegalArgumentException("maxMergeCount should be at least 1");
         }
         if (maxThreadCount > maxMergeCount) {
-            throw new IllegalArgumentException("maxThreadCount (= " + maxThreadCount +
-                ") should be <= maxMergeCount (= " + maxMergeCount + ")");
+            throw new IllegalArgumentException(
+                "maxThreadCount (= " + maxThreadCount + ") should be <= maxMergeCount (= " + maxMergeCount + ")"
+            );
         }
         this.maxThreadCount = maxThreadCount;
         this.maxMergeCount = maxMergeCount;

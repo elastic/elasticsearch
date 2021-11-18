@@ -1,32 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,6 +31,16 @@ import java.util.function.Function;
  */
 final class S3ClientSettings {
 
+    static {
+        // Make sure repository plugin class is loaded before this class is used to trigger static initializer for that class which applies
+        // necessary Jackson workaround
+        try {
+            Class.forName("org.elasticsearch.repositories.s3.S3RepositoryPlugin");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     // prefix for s3 client settings
     private static final String PREFIX = "s3.client.";
 
@@ -48,68 +48,116 @@ final class S3ClientSettings {
     private static final String PLACEHOLDER_CLIENT = "placeholder";
 
     /** The access key (ie login id) for connecting to s3. */
-    static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(PREFIX, "access_key",
-        key -> SecureSetting.secureString(key, null));
+    static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "access_key",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** The secret key (ie password) for connecting to s3. */
-    static final Setting.AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
-        key -> SecureSetting.secureString(key, null));
+    static final Setting.AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "secret_key",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** The secret key (ie password) for connecting to s3. */
-    static final Setting.AffixSetting<SecureString> SESSION_TOKEN_SETTING = Setting.affixKeySetting(PREFIX, "session_token",
-        key -> SecureSetting.secureString(key, null));
+    static final Setting.AffixSetting<SecureString> SESSION_TOKEN_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "session_token",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** An override for the s3 endpoint to connect to. */
-    static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
-        key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope));
+    static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "endpoint",
+        key -> new Setting<>(key, "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope)
+    );
 
     /** The protocol to use to connect to s3. */
-    static final Setting.AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(PREFIX, "protocol",
-        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope));
+    static final Setting.AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "protocol",
+        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+    );
 
     /** The host name of a proxy to connect to s3 through. */
-    static final Setting.AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(PREFIX, "proxy.host",
-        key -> Setting.simpleString(key, Property.NodeScope));
+    static final Setting.AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.host",
+        key -> Setting.simpleString(key, Property.NodeScope)
+    );
 
     /** The port of a proxy to connect to s3 through. */
-    static final Setting.AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(PREFIX, "proxy.port",
-        key -> Setting.intSetting(key, 80, 0, 1<<16, Property.NodeScope));
+    static final Setting.AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.port",
+        key -> Setting.intSetting(key, 80, 0, 1 << 16, Property.NodeScope)
+    );
 
     /** The username of a proxy to connect to s3 through. */
-    static final Setting.AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(PREFIX, "proxy.username",
-        key -> SecureSetting.secureString(key, null));
+    static final Setting.AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.username",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** The password of a proxy to connect to s3 through. */
-    static final Setting.AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(PREFIX, "proxy.password",
-        key -> SecureSetting.secureString(key, null));
+    static final Setting.AffixSetting<SecureString> PROXY_PASSWORD_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.password",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** The socket timeout for connecting to s3. */
-    static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(PREFIX, "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope));
+    static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "read_timeout",
+        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope)
+    );
 
     /** The number of retries to use when an s3 request fails. */
-    static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "max_retries",
-        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry(), 0, Property.NodeScope));
+    static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "max_retries",
+        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry(), 0, Property.NodeScope)
+    );
 
     /** Whether retries should be throttled (ie use backoff). */
-    static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "use_throttle_retries",
-        key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope));
+    static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "use_throttle_retries",
+        key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope)
+    );
 
     /** Whether the s3 client should use path style access. */
-    static final Setting.AffixSetting<Boolean> USE_PATH_STYLE_ACCESS = Setting.affixKeySetting(PREFIX, "path_style_access",
-        key -> Setting.boolSetting(key, false, Property.NodeScope));
+    static final Setting.AffixSetting<Boolean> USE_PATH_STYLE_ACCESS = Setting.affixKeySetting(
+        PREFIX,
+        "path_style_access",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
 
     /** Whether chunked encoding should be disabled or not (Default is false). */
-    static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(PREFIX, "disable_chunked_encoding",
-        key -> Setting.boolSetting(key, false, Property.NodeScope));
+    static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(
+        PREFIX,
+        "disable_chunked_encoding",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
 
     /** An override for the s3 region to use for signing requests. */
-    static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(PREFIX, "region",
-        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope));
+    static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(
+        PREFIX,
+        "region",
+        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
+    );
 
     /** An override for the signer to use. */
-    static final Setting.AffixSetting<String> SIGNER_OVERRIDE = Setting.affixKeySetting(PREFIX, "signer_override",
-        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope));
+    static final Setting.AffixSetting<String> SIGNER_OVERRIDE = Setting.affixKeySetting(
+        PREFIX,
+        "signer_override",
+        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
+    );
 
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
@@ -155,10 +203,22 @@ final class S3ClientSettings {
     /** Signer override to use or empty string to use default. */
     final String signerOverride;
 
-    private S3ClientSettings(S3BasicCredentials credentials, String endpoint, Protocol protocol,
-                             String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
-                             int readTimeoutMillis, int maxRetries, boolean throttleRetries,
-                             boolean pathStyleAccess, boolean disableChunkedEncoding, String region, String signerOverride) {
+    private S3ClientSettings(
+        S3BasicCredentials credentials,
+        String endpoint,
+        Protocol protocol,
+        String proxyHost,
+        int proxyPort,
+        String proxyUsername,
+        String proxyPassword,
+        int readTimeoutMillis,
+        int maxRetries,
+        boolean throttleRetries,
+        boolean pathStyleAccess,
+        boolean disableChunkedEncoding,
+        String region,
+        String signerOverride
+    ) {
         this.credentials = credentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
@@ -183,28 +243,39 @@ final class S3ClientSettings {
      */
     S3ClientSettings refine(Settings repositorySettings) {
         // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
-        final Settings normalizedSettings =
-            Settings.builder().put(repositorySettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
+        final Settings normalizedSettings = Settings.builder()
+            .put(repositorySettings)
+            .normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.')
+            .build();
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
         final int newProxyPort = getRepoSettingOrDefault(PROXY_PORT_SETTING, normalizedSettings, proxyPort);
         final int newReadTimeoutMillis = Math.toIntExact(
-            getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis());
+            getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis()
+        );
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
-            DISABLE_CHUNKED_ENCODING, normalizedSettings, disableChunkedEncoding);
+            DISABLE_CHUNKED_ENCODING,
+            normalizedSettings,
+            disableChunkedEncoding
+        );
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
         final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
-        if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
-            && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
+        if (Objects.equals(endpoint, newEndpoint)
+            && protocol == newProtocol
+            && Objects.equals(proxyHost, newProxyHost)
+            && proxyPort == newProxyPort
+            && newReadTimeoutMillis == readTimeoutMillis
+            && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
-            && Objects.equals(region, newRegion) && Objects.equals(signerOverride, newSignerOverride)) {
+            && Objects.equals(region, newRegion)
+            && Objects.equals(signerOverride, newSignerOverride)) {
             return this;
         }
         return new S3ClientSettings(
@@ -245,9 +316,11 @@ final class S3ClientSettings {
     }
 
     private static S3BasicCredentials loadCredentials(Settings settings, String clientName) {
-        try (SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
-             SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
-             SecureString sessionToken = getConfigValue(settings, clientName, SESSION_TOKEN_SETTING)) {
+        try (
+            SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
+            SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
+            SecureString sessionToken = getConfigValue(settings, clientName, SESSION_TOKEN_SETTING)
+        ) {
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
                     if (sessionToken.length() != 0) {
@@ -273,8 +346,10 @@ final class S3ClientSettings {
     // pkg private for tests
     /** Parse settings for a single client. */
     static S3ClientSettings getClientSettings(final Settings settings, final String clientName) {
-        try (SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
-             SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
+        try (
+            SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
+            SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)
+        ) {
             return new S3ClientSettings(
                 S3ClientSettings.loadCredentials(settings, clientName),
                 getConfigValue(settings, clientName, ENDPOINT_SETTING),
@@ -303,29 +378,41 @@ final class S3ClientSettings {
             return false;
         }
         final S3ClientSettings that = (S3ClientSettings) o;
-        return proxyPort == that.proxyPort &&
-            readTimeoutMillis == that.readTimeoutMillis &&
-            maxRetries == that.maxRetries &&
-            throttleRetries == that.throttleRetries &&
-            Objects.equals(credentials, that.credentials) &&
-            Objects.equals(endpoint, that.endpoint) &&
-            protocol == that.protocol &&
-            Objects.equals(proxyHost, that.proxyHost) &&
-            Objects.equals(proxyUsername, that.proxyUsername) &&
-            Objects.equals(proxyPassword, that.proxyPassword) &&
-            Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding) &&
-            Objects.equals(region, that.region) &&
-            Objects.equals(signerOverride, that.signerOverride);
+        return proxyPort == that.proxyPort
+            && readTimeoutMillis == that.readTimeoutMillis
+            && maxRetries == that.maxRetries
+            && throttleRetries == that.throttleRetries
+            && Objects.equals(credentials, that.credentials)
+            && Objects.equals(endpoint, that.endpoint)
+            && protocol == that.protocol
+            && Objects.equals(proxyHost, that.proxyHost)
+            && Objects.equals(proxyUsername, that.proxyUsername)
+            && Objects.equals(proxyPassword, that.proxyPassword)
+            && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
+            && Objects.equals(region, that.region)
+            && Objects.equals(signerOverride, that.signerOverride);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(credentials, endpoint, protocol, proxyHost, proxyPort, proxyUsername, proxyPassword,
-            readTimeoutMillis, maxRetries, throttleRetries, disableChunkedEncoding, region, signerOverride);
+        return Objects.hash(
+            credentials,
+            endpoint,
+            protocol,
+            proxyHost,
+            proxyPort,
+            proxyUsername,
+            proxyPassword,
+            readTimeoutMillis,
+            maxRetries,
+            throttleRetries,
+            disableChunkedEncoding,
+            region,
+            signerOverride
+        );
     }
 
-    private static <T> T getConfigValue(Settings settings, String clientName,
-                                        Setting.AffixSetting<T> clientSetting) {
+    private static <T> T getConfigValue(Settings settings, String clientName, Setting.AffixSetting<T> clientSetting) {
         final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
     }

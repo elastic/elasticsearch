@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -49,15 +38,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -71,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
+@SuppressWarnings("removal")
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private static RestHighLevelClient restHighLevelClient;
@@ -98,37 +90,65 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     }
 
     private static MockTransportService startTransport(
-            final String id,
-            final List<DiscoveryNode> knownNodes,
-            final Version version,
-            final ThreadPool threadPool) {
+        final String id,
+        final List<DiscoveryNode> knownNodes,
+        final Version version,
+        final ThreadPool threadPool
+    ) {
         boolean success = false;
         final Settings s = Settings.builder().put("node.name", id).build();
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
         MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
         try {
-            newService.registerRequestHandler(ClusterSearchShardsAction.NAME, ThreadPool.Names.SAME, ClusterSearchShardsRequest::new,
+            newService.registerRequestHandler(
+                ClusterSearchShardsAction.NAME,
+                ThreadPool.Names.SAME,
+                ClusterSearchShardsRequest::new,
                 (request, channel, task) -> {
-                        channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
-                                knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
-                    });
-            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new,
+                    channel.sendResponse(
+                        new ClusterSearchShardsResponse(
+                            new ClusterSearchShardsGroup[0],
+                            knownNodes.toArray(new DiscoveryNode[0]),
+                            Collections.emptyMap()
+                        )
+                    );
+                }
+            );
+            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
+                InternalSearchResponse response = new InternalSearchResponse(
+                    new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                    InternalAggregations.EMPTY,
+                    null,
+                    null,
+                    false,
+                    null,
+                    1
+                );
+                SearchResponse searchResponse = new SearchResponse(
+                    response,
+                    null,
+                    1,
+                    1,
+                    0,
+                    100,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                );
+                channel.sendResponse(searchResponse);
+            });
+            newService.registerRequestHandler(
+                ClusterStateAction.NAME,
+                ThreadPool.Names.SAME,
+                ClusterStateRequest::new,
                 (request, channel, task) -> {
-                    InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
-                        new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
-                    SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY);
-                    channel.sendResponse(searchResponse);
-                });
-            newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
-                (request, channel, task) -> {
-                        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-                        for (DiscoveryNode node : knownNodes) {
-                            builder.add(node);
-                        }
-                        ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                        channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
-                    });
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+                    for (DiscoveryNode node : knownNodes) {
+                        builder.add(node);
+                    }
+                    ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
+                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
+                }
+            );
             newService.start();
             newService.acceptIncomingRequests();
             success = true;
@@ -147,8 +167,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
 
             for (int i = 0; i < 10; i++) {
-                restHighLevelClient.index(
-                        new IndexRequest("index").id(String.valueOf(i)).source("field", "value"), RequestOptions.DEFAULT);
+                restHighLevelClient.index(new IndexRequest("index").id(String.valueOf(i)).source("field", "value"), RequestOptions.DEFAULT);
             }
             Response refreshResponse = client().performRequest(new Request("POST", "/index/_refresh"));
             assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
@@ -176,8 +195,10 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             }
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index").scroll("1m"),
-                        RequestOptions.DEFAULT);
+                SearchResponse response = restHighLevelClient.search(
+                    new SearchRequest("index", "remote1:index").scroll("1m"),
+                    RequestOptions.DEFAULT
+                );
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
@@ -211,8 +232,10 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             }
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index").scroll("1m"),
-                        RequestOptions.DEFAULT);
+                SearchResponse response = restHighLevelClient.search(
+                    new SearchRequest("index", "remote1:index").scroll("1m"),
+                    RequestOptions.DEFAULT
+                );
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
@@ -240,16 +263,17 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             {
-                //check that skip_unavailable alone cannot be set
+                // check that skip_unavailable alone cannot be set
                 Request request = new Request("PUT", "/_cluster/settings");
-                request.setEntity(buildUpdateSettingsRequestBody(
-                    Collections.singletonMap("skip_unavailable", randomBoolean())));
-                ResponseException responseException = expectThrows(ResponseException.class,
-                        () -> client().performRequest(request));
+                request.setEntity(buildUpdateSettingsRequestBody(Collections.singletonMap("skip_unavailable", randomBoolean())));
+                ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-                assertThat(responseException.getMessage(),
-                        containsString("Cannot configure setting [cluster.remote.remote1.skip_unavailable] if remote cluster is " +
-                            "not enabled."));
+                assertThat(
+                    responseException.getMessage(),
+                    containsString(
+                        "Cannot configure setting [cluster.remote.remote1.skip_unavailable] if remote cluster is " + "not enabled."
+                    )
+                );
             }
 
             Map<String, Object> settingsMap = new HashMap<>();
@@ -258,14 +282,17 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             updateRemoteClusterSettings(settingsMap);
 
             {
-                //check that seeds cannot be reset alone if skip_unavailable is set
+                // check that seeds cannot be reset alone if skip_unavailable is set
                 Request request = new Request("PUT", "/_cluster/settings");
                 request.setEntity(buildUpdateSettingsRequestBody(Collections.singletonMap("seeds", null)));
-                ResponseException responseException = expectThrows(ResponseException.class,
-                        () -> client().performRequest(request));
+                ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-                assertThat(responseException.getMessage(), containsString("Cannot configure setting " +
-                    "[cluster.remote.remote1.skip_unavailable] if remote cluster is not enabled."));
+                assertThat(
+                    responseException.getMessage(),
+                    containsString(
+                        "Cannot configure setting " + "[cluster.remote.remote1.skip_unavailable] if remote cluster is not enabled."
+                    )
+                );
             }
 
             if (randomBoolean()) {
@@ -282,26 +309,30 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private static void assertSearchConnectFailure() {
         {
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT));
-            ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () -> restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT)
+            );
+            ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT));
-            ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () -> restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT)
+            );
+            ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
         {
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> restHighLevelClient.search(new SearchRequest("remote1:index").scroll("1m"), RequestOptions.DEFAULT));
-            ElasticsearchException rootCause = (ElasticsearchException)exception.getRootCause();
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () -> restHighLevelClient.search(new SearchRequest("remote1:index").scroll("1m"), RequestOptions.DEFAULT)
+            );
+            ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
             assertThat(rootCause.getMessage(), containsString("connect_exception"));
         }
     }
-
-
 
     private static void updateRemoteClusterSettings(Map<String, Object> settings) throws IOException {
         Request request = new Request("PUT", "/_cluster/settings");
@@ -337,5 +368,11 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         private HighLevelClient(RestClient restClient) {
             super(restClient, (client) -> {}, Collections.emptyList());
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

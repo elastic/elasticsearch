@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
@@ -78,36 +67,37 @@ public class DateIntervalWrapperTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.NONE));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.NONE));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.FIXED));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.FIXED));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.CALENDAR));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.CALENDAR));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(3);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_INTERVAL));
+                assertThat(
+                    DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
+                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_INTERVAL)
+                );
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(4);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
-                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_DATE_HISTO));
+                assertThat(
+                    DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
+                    equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_DATE_HISTO)
+                );
             }
         }
     }
@@ -118,7 +108,7 @@ public class DateIntervalWrapperTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 DateIntervalWrapper.IntervalTypeEnum.fromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown IntervalTypeEnum ordinal ["));
             }
 

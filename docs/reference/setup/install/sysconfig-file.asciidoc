@@ -1,5 +1,5 @@
 [horizontal]
-`JAVA_HOME`::
+`ES_JAVA_HOME`::
 
   Set a custom Java path to be used.
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -78,8 +79,10 @@ public class InfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildren_ByType() {
-        expectThrows(UnsupportedOperationException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
-                .getChildren(Normalizable.ChildType.BUCKET_INFLUENCER));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> new InfluencerNormalizable(influencer, INDEX_NAME).getChildren(Normalizable.ChildType.BUCKET_INFLUENCER)
+        );
     }
 
     public void testGetChildren() {
@@ -87,8 +90,10 @@ public class InfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testSetMaxChildrenScore() {
-        expectThrows(UnsupportedOperationException.class, () -> new InfluencerNormalizable(influencer, INDEX_NAME)
-                .setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 42.0));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> new InfluencerNormalizable(influencer, INDEX_NAME).setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 42.0)
+        );
     }
 
     public void testSetParentScore() {

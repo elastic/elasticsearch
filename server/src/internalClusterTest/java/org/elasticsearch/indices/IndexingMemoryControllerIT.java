@@ -1,24 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -44,9 +32,11 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings())
+        return Settings.builder()
+            .put(super.nodeSettings())
             // small indexing buffer so that we can trigger refresh after buffering 100 deletes
-            .put("indices.memory.index_buffer_size", "1kb").build();
+            .put("indices.memory.index_buffer_size", "1kb")
+            .build();
     }
 
     @Override
@@ -58,17 +48,36 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
         EngineConfig engineConfigWithLargerIndexingMemory(EngineConfig config) {
             // We need to set a larger buffer for the IndexWriter; otherwise, it will flush before the IndexingMemoryController.
-            Settings settings = Settings.builder().put(config.getIndexSettings().getSettings())
-                .put("indices.memory.index_buffer_size", "10mb").build();
+            Settings settings = Settings.builder()
+                .put(config.getIndexSettings().getSettings())
+                .put("indices.memory.index_buffer_size", "10mb")
+                .build();
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
-            return new EngineConfig(config.getShardId(), config.getThreadPool(),
-                indexSettings, config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
-                config.getEventListener(), config.getQueryCache(),
-                config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
-                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
+            return new EngineConfig(
+                config.getShardId(),
+                config.getThreadPool(),
+                indexSettings,
+                config.getWarmer(),
+                config.getStore(),
+                config.getMergePolicy(),
+                config.getAnalyzer(),
+                config.getSimilarity(),
+                new CodecService(null),
+                config.getEventListener(),
+                config.getQueryCache(),
+                config.getQueryCachingPolicy(),
+                config.getTranslogConfig(),
+                config.getFlushMergesAfter(),
+                config.getExternalRefreshListener(),
+                config.getInternalRefreshListener(),
+                config.getIndexSort(),
+                config.getCircuitBreakerService(),
+                config.getGlobalCheckpointSupplier(),
+                config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(),
+                config.getSnapshotCommitSupplier(),
+                config.getLeafSorter()
+            );
         }
 
         @Override
@@ -79,8 +88,10 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
     // #10312
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        IndexService indexService = createIndex("index", Settings.builder().put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build());
+        IndexService indexService = createIndex(
+            "index",
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build()
+        );
         IndexShard shard = indexService.getShard(0);
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();

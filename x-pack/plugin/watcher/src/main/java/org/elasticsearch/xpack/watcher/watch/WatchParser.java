@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
@@ -45,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
 public class WatchParser {
@@ -57,12 +58,17 @@ public class WatchParser {
     private final InputRegistry inputRegistry;
     private final CryptoService cryptoService;
     private final Clock clock;
-    private final ExecutableInput defaultInput;
+    private final ExecutableInput<?, ?> defaultInput;
     private final ExecutableCondition defaultCondition;
     private final List<ActionWrapper> defaultActions;
 
-    public WatchParser(TriggerService triggerService, ActionRegistry actionRegistry, InputRegistry inputRegistry,
-                       @Nullable CryptoService cryptoService, Clock clock) {
+    public WatchParser(
+        TriggerService triggerService,
+        ActionRegistry actionRegistry,
+        InputRegistry inputRegistry,
+        @Nullable CryptoService cryptoService,
+        Clock clock
+    ) {
         this.triggerService = triggerService;
         this.actionRegistry = actionRegistry;
         this.inputRegistry = inputRegistry;
@@ -73,16 +79,28 @@ public class WatchParser {
         this.defaultActions = Collections.emptyList();
     }
 
-    public Watch parse(String name, boolean includeStatus, BytesReference source, XContentType xContentType,
-                       long sourceSeqNo, long sourcePrimaryTerm) throws IOException {
+    public Watch parse(
+        String name,
+        boolean includeStatus,
+        BytesReference source,
+        XContentType xContentType,
+        long sourceSeqNo,
+        long sourcePrimaryTerm
+    ) throws IOException {
 
-            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
-            return parse(name, includeStatus, false, source, now, xContentType, false,
-            sourceSeqNo, sourcePrimaryTerm);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
+        return parse(name, includeStatus, false, source, now, xContentType, false, sourceSeqNo, sourcePrimaryTerm);
     }
 
-    public Watch parse(String name, boolean includeStatus, BytesReference source, ZonedDateTime now,
-                       XContentType xContentType, long sourceSeqNo, long sourcePrimaryTerm) throws IOException {
+    public Watch parse(
+        String name,
+        boolean includeStatus,
+        BytesReference source,
+        ZonedDateTime now,
+        XContentType xContentType,
+        long sourceSeqNo,
+        long sourcePrimaryTerm
+    ) throws IOException {
         return parse(name, includeStatus, false, source, now, xContentType, false, sourceSeqNo, sourcePrimaryTerm);
     }
 
@@ -97,29 +115,55 @@ public class WatchParser {
      * of the watch in the system will be use secrets for sensitive data.
      *
      */
-    public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, ZonedDateTime now,
-                                  XContentType xContentType, boolean allowRedactedPasswords, long sourceSeqNo, long sourcePrimaryTerm
-                                  ) throws IOException {
+    public Watch parseWithSecrets(
+        String id,
+        boolean includeStatus,
+        BytesReference source,
+        ZonedDateTime now,
+        XContentType xContentType,
+        boolean allowRedactedPasswords,
+        long sourceSeqNo,
+        long sourcePrimaryTerm
+    ) throws IOException {
         return parse(id, includeStatus, true, source, now, xContentType, allowRedactedPasswords, sourceSeqNo, sourcePrimaryTerm);
     }
 
-
-    public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, ZonedDateTime now,
-                                  XContentType xContentType, long sourceSeqNo, long sourcePrimaryTerm) throws IOException {
+    public Watch parseWithSecrets(
+        String id,
+        boolean includeStatus,
+        BytesReference source,
+        ZonedDateTime now,
+        XContentType xContentType,
+        long sourceSeqNo,
+        long sourcePrimaryTerm
+    ) throws IOException {
         return parse(id, includeStatus, true, source, now, xContentType, false, sourceSeqNo, sourcePrimaryTerm);
     }
 
-    private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source, ZonedDateTime now,
-                        XContentType xContentType, boolean allowRedactedPasswords, long sourceSeqNo, long sourcePrimaryTerm)
-        throws IOException {
+    private Watch parse(
+        String id,
+        boolean includeStatus,
+        boolean withSecrets,
+        BytesReference source,
+        ZonedDateTime now,
+        XContentType xContentType,
+        boolean allowRedactedPasswords,
+        long sourceSeqNo,
+        long sourcePrimaryTerm
+    ) throws IOException {
         if (logger.isTraceEnabled()) {
             logger.trace("parsing watch [{}] ", source.utf8ToString());
         }
         // EMPTY is safe here because we never use namedObject
-        try (InputStream stream = source.streamInput();
-             WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, stream),
-                     now, withSecrets ? cryptoService : null, allowRedactedPasswords)) {
+        try (
+            InputStream stream = source.streamInput();
+            WatcherXContentParser parser = new WatcherXContentParser(
+                xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream),
+                now,
+                withSecrets ? cryptoService : null,
+                allowRedactedPasswords
+            )
+        ) {
             parser.nextToken();
             return parse(id, includeStatus, parser, sourceSeqNo, sourcePrimaryTerm);
         } catch (IOException ioe) {
@@ -130,10 +174,10 @@ public class WatchParser {
     public Watch parse(String id, boolean includeStatus, WatcherXContentParser parser, long sourceSeqNo, long sourcePrimaryTerm)
         throws IOException {
         Trigger trigger = null;
-        ExecutableInput input = defaultInput;
+        ExecutableInput<?, ?> input = defaultInput;
         ExecutableCondition condition = defaultCondition;
         List<ActionWrapper> actions = defaultActions;
-        ExecutableTransform transform = null;
+        ExecutableTransform<?, ?> transform = null;
         TimeValue throttlePeriod = null;
         Map<String, Object> metatdata = null;
         WatchStatus status = null;
@@ -141,11 +185,11 @@ public class WatchParser {
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == null ) {
+            if (token == null) {
                 throw new ElasticsearchParseException("could not parse watch [{}]. null token", id);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == null || currentFieldName == null) {
+            } else if (currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
             } else if (WatchField.TRIGGER.match(currentFieldName, parser.getDeprecationHandler())) {
                 trigger = triggerService.parseTrigger(id, parser);
@@ -162,8 +206,12 @@ public class WatchParser {
                 try {
                     throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, WatchField.THROTTLE_PERIOD_HUMAN.toString());
                 } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]",
-                            pe, id, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse watch [{}]. failed to parse time value for field [{}]",
+                        pe,
+                        id,
+                        currentFieldName
+                    );
                 }
             } else if (WatchField.ACTIONS.match(currentFieldName, parser.getDeprecationHandler())) {
                 actions = actionRegistry.parseActions(id, parser);
@@ -180,16 +228,22 @@ public class WatchParser {
             }
         }
         if (trigger == null) {
-            throw new ElasticsearchParseException("could not parse watch [{}]. missing required field [{}]", id,
-                    WatchField.TRIGGER.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse watch [{}]. missing required field [{}]",
+                id,
+                WatchField.TRIGGER.getPreferredName()
+            );
         }
 
         if (status != null) {
             // verify the status is valid (that every action indeed has a status)
             for (ActionWrapper action : actions) {
                 if (status.actionStatus(action.id()) == null) {
-                    throw new ElasticsearchParseException("could not parse watch [{}]. watch status in invalid state. action [{}] " +
-                            "status is missing", id, action.id());
+                    throw new ElasticsearchParseException(
+                        "could not parse watch [{}]. watch status in invalid state. action [{}] " + "status is missing",
+                        id,
+                        action.id()
+                    );
                 }
             }
         } else {
@@ -201,8 +255,18 @@ public class WatchParser {
             status = new WatchStatus(parser.getParseDateTime(), unmodifiableMap(actionsStatuses));
         }
 
-
         return new Watch(
-            id, trigger, input, condition, transform, throttlePeriod, actions,  metatdata, status, sourceSeqNo, sourcePrimaryTerm);
+            id,
+            trigger,
+            input,
+            condition,
+            transform,
+            throttlePeriod,
+            actions,
+            metatdata,
+            status,
+            sourceSeqNo,
+            sourcePrimaryTerm
+        );
     }
 }

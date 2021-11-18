@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -22,26 +23,29 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
+import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -65,15 +69,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         // This is defined as updateable because it can be updated once, from [null] to any value,
-        // by a dynamic mapping update.  Once it has been set, however, the value cannot be changed.
-        private final Parameter<String> value = new Parameter<>("value", true, () -> null,
-            (n, c, o) -> {
-                if (o instanceof Number == false && o instanceof CharSequence == false) {
-                    throw new MapperParsingException("Property [value] on field [" + n +
-                        "] must be a number or a string, but got [" + o + "]");
-                }
-                return o.toString();
-            }, m -> toType(m).fieldType().value);
+        // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
+        private final Parameter<String> value = new Parameter<>("value", true, () -> null, (n, c, o) -> {
+            if (o instanceof Number == false && o instanceof CharSequence == false) {
+                throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
+            }
+            return o.toString();
+        }, m -> toType(m).fieldType().value);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -88,9 +90,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ConstantKeywordFieldMapper build(ContentPath contentPath) {
+        public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
             return new ConstantKeywordFieldMapper(
-                    name, new ConstantKeywordFieldType(buildFullName(contentPath), value.getValue(), meta.getValue()));
+                name,
+                new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
+            );
         }
     }
 
@@ -126,22 +130,39 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null
-                ? lookup -> List.of()
-                : lookup -> List.of(value);
+            return value == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(value);
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            boolean matches = caseInsensitive
+                ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
+                : value.startsWith(string);
+            if (matches == false) {
+                return null;
+            }
+            if (searchAfter != null) {
+                if (searchAfter.compareTo(value) >= 0) {
+                    // The constant value is before the searchAfter value so must be ignored
+                    return null;
+                }
+            }
+            int docCount = queryShardContext.searcher().getIndexReader().maxDoc();
+            return new SimpleTermCountEnum(new TermCount(value, docCount));
+        }
+
+        @Override
+        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             if (value == null) {
                 return false;
             }
@@ -149,16 +170,21 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
         }
 
         @Override
         public Query rangeQuery(
-                Object lowerTerm, Object upperTerm,
-                boolean includeLower, boolean includeUpper,
-                ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
-                QueryShardContext context) {
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ShapeRelation relation,
+            ZoneId timeZone,
+            DateMathParser parser,
+            SearchExecutionContext context
+        ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -174,8 +200,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                boolean transpositions, QueryShardContext context) {
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            SearchExecutionContext context
+        ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -185,7 +217,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
             final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
             for (int cp, i = 0, j = 0; i < termAsString.length(); i += Character.charCount(cp)) {
-              termText[j++] = cp = termAsString.codePointAt(i);
+                termText[j++] = cp = termAsString.codePointAt(i);
             }
             final int termLength = termText.length;
 
@@ -204,8 +236,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -231,14 +269,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            XContentParser parser = context.parser();
-            value =  parser.textOrNull();
-        }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        final String value = parser.textOrNull();
 
         if (value == null) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() + "] doesn't accept [null] values");
@@ -249,9 +282,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {
-            throw new IllegalArgumentException("[constant_keyword] field [" + name() +
-                    "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
-                    "], but got [" + value + "]");
+            throw new IllegalArgumentException(
+                "[constant_keyword] field ["
+                    + name()
+                    + "] only accepts values that are equal to the value defined in the mappings ["
+                    + fieldType().value()
+                    + "], but got ["
+                    + value
+                    + "]"
+            );
         }
     }
 

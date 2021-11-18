@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -62,17 +51,20 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
     public void testParentTaskId() throws Exception {
         // Initialize dependencies of TransportMultiSearchAction
-        Settings settings = Settings.builder()
-            .put("node.name", TransportMultiSearchActionTests.class.getSimpleName())
-            .build();
+        Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
         try {
-            TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), threadPool,
+            TransportService transportService = new TransportService(
+                Settings.EMPTY,
+                mock(Transport.class),
+                threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
-                Collections.emptySet()) {
+                boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+                null,
+                Collections.emptySet()
+            ) {
                 @Override
                 public TaskManager getTaskManager() {
                     return taskManager;
@@ -103,8 +95,15 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     return localNodeId;
                 }
             };
-            TransportMultiSearchAction action =
-                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, 10, System::nanoTime, client);
+            TransportMultiSearchAction action = new TransportMultiSearchAction(
+                threadPool,
+                actionFilters,
+                transportService,
+                clusterService,
+                10,
+                System::nanoTime,
+                client
+            );
 
             PlainActionFuture<MultiSearchResponse> future = newFuture();
             action.execute(task, multiSearchRequest, future);
@@ -117,16 +116,19 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
     public void testBatchExecute() {
         // Initialize dependencies of TransportMultiSearchAction
-        Settings settings = Settings.builder()
-                .put("node.name", TransportMultiSearchActionTests.class.getSimpleName())
-                .build();
+        Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), threadPool,
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
-            Collections.emptySet()) {
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            null,
+            Collections.emptySet()
+        ) {
             @Override
             public TaskManager getTaskManager() {
                 return taskManager;
@@ -152,14 +154,31 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 requests.add(request);
                 int currentConcurrentSearches = counter.incrementAndGet();
                 if (currentConcurrentSearches > maxAllowedConcurrentSearches) {
-                    errorHolder.set(new AssertionError("Current concurrent search [" + currentConcurrentSearches +
-                        "] is higher than is allowed [" + maxAllowedConcurrentSearches + "]"));
+                    errorHolder.set(
+                        new AssertionError(
+                            "Current concurrent search ["
+                                + currentConcurrentSearches
+                                + "] is higher than is allowed ["
+                                + maxAllowedConcurrentSearches
+                                + "]"
+                        )
+                    );
                 }
                 final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L,
-                        ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));
+                    listener.onResponse(
+                        new SearchResponse(
+                            InternalSearchResponse.empty(),
+                            null,
+                            0,
+                            0,
+                            0,
+                            0L,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        )
+                    );
                 });
             }
 
@@ -169,8 +188,15 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             }
         };
 
-        TransportMultiSearchAction action =
-            new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, 10, System::nanoTime, client);
+        TransportMultiSearchAction action = new TransportMultiSearchAction(
+            threadPool,
+            actionFilters,
+            transportService,
+            clusterService,
+            10,
+            System::nanoTime,
+            client
+        );
 
         // Execute the multi search api and fail if we find an error after executing:
         try {
@@ -198,13 +224,34 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         int numDataNodes = randomIntBetween(1, 10);
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < numDataNodes; i++) {
-            builder.add(new DiscoveryNode("_id" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT));
+            builder.add(
+                new DiscoveryNode(
+                    "_id" + i,
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+                    Version.CURRENT
+                )
+            );
         }
-        builder.add(new DiscoveryNode("master", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT));
-        builder.add(new DiscoveryNode("ingest", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.INGEST_ROLE), Version.CURRENT));
+        builder.add(
+            new DiscoveryNode(
+                "master",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                Version.CURRENT
+            )
+        );
+        builder.add(
+            new DiscoveryNode(
+                "ingest",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Collections.singleton(DiscoveryNodeRole.INGEST_ROLE),
+                Version.CURRENT
+            )
+        );
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(builder).build();
         int result = TransportMultiSearchAction.defaultMaxConcurrentSearches(10, state);

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
@@ -18,8 +20,8 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -28,10 +30,9 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -68,12 +69,7 @@ public class Verifier {
         this.metrics = metrics;
     }
 
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan);
-        return failures.stream().collect(toMap(Failure::node, Failure::message));
-    }
-
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -92,7 +88,7 @@ public class Verifier {
             if (p instanceof Unresolvable) {
                 localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
             } else {
-                p.forEachExpressions(e -> {
+                p.forEachExpression(e -> {
                     // everything is fine, skip expression
                     if (e.resolved()) {
                         return;
@@ -150,12 +146,13 @@ public class Verifier {
 
             plan.forEachDown(p -> {
                 // if the children are unresolved, so will this node; counting it will only add noise
-                if (!p.childrenResolved()) {
+                if (p.childrenResolved() == false) {
                     return;
                 }
 
                 checkFilterConditionType(p, localFailures);
                 checkJoinKeyTypes(p, localFailures);
+                checkRemoteClusterOnSameVersion(p, versionIncompatibleClusters, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
@@ -187,14 +184,18 @@ public class Verifier {
 
                         int queriesCount = s.queries().size();
                         switch (queriesCount) {
-                            case 2:  b.set(SEQUENCE_QUERIES_TWO.ordinal());
-                                     break;
-                            case 3:  b.set(SEQUENCE_QUERIES_THREE.ordinal());
-                                     break;
-                            case 4:  b.set(SEQUENCE_QUERIES_FOUR.ordinal());
-                                     break;
-                            default: b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
-                                     break;
+                            case 2:
+                                b.set(SEQUENCE_QUERIES_TWO.ordinal());
+                                break;
+                            case 3:
+                                b.set(SEQUENCE_QUERIES_THREE.ordinal());
+                                break;
+                            case 4:
+                                b.set(SEQUENCE_QUERIES_FOUR.ordinal());
+                                break;
+                            default:
+                                b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
+                                break;
                         }
                         if (j.until().keys().isEmpty() == false) {
                             b.set(SEQUENCE_UNTIL.ordinal());
@@ -203,14 +204,18 @@ public class Verifier {
                         b.set(FeatureMetric.JOIN.ordinal());
                         int queriesCount = j.queries().size();
                         switch (queriesCount) {
-                            case 2:  b.set(JOIN_QUERIES_TWO.ordinal());
-                                     break;
-                            case 3:  b.set(JOIN_QUERIES_THREE.ordinal());
-                                     break;
-                            case 4:  b.set(JOIN_QUERIES_FOUR.ordinal());
-                                     break;
-                            default: b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
-                                     break;
+                            case 2:
+                                b.set(JOIN_QUERIES_TWO.ordinal());
+                                break;
+                            case 3:
+                                b.set(JOIN_QUERIES_THREE.ordinal());
+                                break;
+                            case 4:
+                                b.set(JOIN_QUERIES_FOUR.ordinal());
+                                break;
+                            default:
+                                b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
+                                break;
                         }
                         if (j.until().keys().isEmpty() == false) {
                             b.set(JOIN_UNTIL.ordinal());
@@ -219,18 +224,23 @@ public class Verifier {
 
                     int joinKeysCount = j.queries().get(0).keys().size();
                     switch (joinKeysCount) {
-                        case 1:  b.set(JOIN_KEYS_ONE.ordinal());
-                                 break;
-                        case 2:  b.set(JOIN_KEYS_TWO.ordinal());
-                                 break;
-                        case 3:  b.set(JOIN_KEYS_THREE.ordinal());
-                                 break;
-                        case 4:  b.set(JOIN_KEYS_FOUR.ordinal());
-                                 break;
-                        default: if (joinKeysCount >= 5) {
-                                     b.set(JOIN_KEYS_FIVE_OR_MORE.ordinal());
-                                 }
-                                 break;
+                        case 1:
+                            b.set(JOIN_KEYS_ONE.ordinal());
+                            break;
+                        case 2:
+                            b.set(JOIN_KEYS_TWO.ordinal());
+                            break;
+                        case 3:
+                            b.set(JOIN_KEYS_THREE.ordinal());
+                            break;
+                        case 4:
+                            b.set(JOIN_KEYS_FOUR.ordinal());
+                            break;
+                        default:
+                            if (joinKeysCount >= 5) {
+                                b.set(JOIN_KEYS_FIVE_OR_MORE.ordinal());
+                            }
+                            break;
                     }
                 }
             });
@@ -270,11 +280,39 @@ public class Verifier {
 
     private static void doCheckKeyTypes(Join join, Set<Failure> localFailures, NamedExpression expectedKey, NamedExpression currentKey) {
         if (DataTypes.areCompatible(expectedKey.dataType(), currentKey.dataType()) == false) {
-            localFailures.add(fail(currentKey, "{} key [{}] type [{}] is incompatible with key [{}] type [{}]",
-                join.nodeName(),
-                currentKey.name(), currentKey.dataType().esType(),
-                expectedKey.name(), expectedKey.dataType().esType()
-            ));
+            localFailures.add(
+                fail(
+                    currentKey,
+                    "{} key [{}] type [{}] is incompatible with key [{}] type [{}]",
+                    join.nodeName(),
+                    currentKey.name(),
+                    currentKey.dataType().esType(),
+                    expectedKey.name(),
+                    expectedKey.dataType().esType()
+                )
+            );
+        }
+    }
+
+    private void checkRemoteClusterOnSameVersion(
+        LogicalPlan plan,
+        Function<String, Collection<String>> versionIncompatibleClusters,
+        Collection<Failure> localFailures
+    ) {
+        if (plan instanceof EsRelation) {
+            EsRelation esRelation = (EsRelation) plan;
+            Collection<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());
+            if (incompatibleClusters.size() > 0) {
+                localFailures.add(
+                    fail(
+                        esRelation,
+                        "the following remote cluster{} incompatible, being on a version different than local " + "cluster's [{}]: {}",
+                        incompatibleClusters.size() > 1 ? "s are" : " is",
+                        Version.CURRENT,
+                        incompatibleClusters
+                    )
+                );
+            }
         }
     }
 }

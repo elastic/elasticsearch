@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,14 +27,15 @@ import static org.hamcrest.Matchers.containsString;
 public class AcknowledgedTasksResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
-                this::createTestInstance,
-                AcknowledgedTasksResponseTests::toXContent,
-                AcknowledgedTasksResponseTests::fromXContent)
-                .assertEqualsConsumer(AcknowledgedTasksResponseTests::assertEqualInstances)
-                .assertToXContentEquivalence(false)
-                .supportsUnknownFields(false)
-                .test();
+        xContentTester(
+            this::createParser,
+            this::createTestInstance,
+            AcknowledgedTasksResponseTests::toXContent,
+            AcknowledgedTasksResponseTests::fromXContent
+        ).assertEqualsConsumer(AcknowledgedTasksResponseTests::assertEqualInstances)
+            .assertToXContentEquivalence(false)
+            .supportsUnknownFields(false)
+            .test();
     }
 
     // Serialisation of TaskOperationFailure and ElasticsearchException changes
@@ -67,22 +57,22 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
         }
 
         assertEquals(expected.size(), actual.size());
-        for (int i=0; i<expected.size(); i++) {
+        for (int i = 0; i < expected.size(); i++) {
             assertTrue(comparator.test(expected.get(i), actual.get(i)));
         }
     }
 
-    public static void assertTaskOperationFailuresEqual(List<TaskOperationFailure> expected,
-                                                        List<TaskOperationFailure> actual) {
-        assertListEquals(expected, actual, (a, b) ->
-                Objects.equals(a.getNodeId(), b.getNodeId())
-                        && Objects.equals(a.getTaskId(), b.getTaskId())
-                        && Objects.equals(a.getStatus(), b.getStatus())
+    public static void assertTaskOperationFailuresEqual(List<TaskOperationFailure> expected, List<TaskOperationFailure> actual) {
+        assertListEquals(
+            expected,
+            actual,
+            (a, b) -> Objects.equals(a.getNodeId(), b.getNodeId())
+                && Objects.equals(a.getTaskId(), b.getTaskId())
+                && Objects.equals(a.getStatus(), b.getStatus())
         );
     }
 
-    public static void assertNodeFailuresEqual(List<ElasticsearchException> expected,
-                                               List<ElasticsearchException> actual) {
+    public static void assertNodeFailuresEqual(List<ElasticsearchException> expected, List<ElasticsearchException> actual) {
         // actualException is a wrapped copy of expectedException so the
         // error messages won't be the same but actualException should contain
         // the error message from expectedException
@@ -93,9 +83,8 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
     }
 
     private static AcknowledgedTasksResponse fromXContent(XContentParser parser) {
-        return AcknowledgedTasksResponse.generateParser("ack_tasks_response",
-                AcknowledgedTasksResponse::new, "acknowleged")
-                .apply(parser, null);
+        return AcknowledgedTasksResponse.generateParser("ack_tasks_response", AcknowledgedTasksResponse::new, "acknowleged")
+            .apply(parser, null);
     }
 
     private AcknowledgedTasksResponse createTestInstance() {
@@ -103,7 +92,7 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
         if (randomBoolean()) {
             taskFailures = new ArrayList<>();
             int numTaskFailures = randomIntBetween(1, 4);
-            for (int i=0; i<numTaskFailures; i++) {
+            for (int i = 0; i < numTaskFailures; i++) {
                 taskFailures.add(new TaskOperationFailure(randomAlphaOfLength(4), randomNonNegativeLong(), new IllegalStateException()));
             }
         }
@@ -111,7 +100,7 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
         if (randomBoolean()) {
             nodeFailures = new ArrayList<>();
             int numNodeFailures = randomIntBetween(1, 4);
-            for (int i=0; i<numNodeFailures; i++) {
+            for (int i = 0; i < numNodeFailures; i++) {
                 nodeFailures.add(new ElasticsearchException("AcknowledgedTasksResponseTest"));
             }
         }
@@ -153,5 +142,3 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
         }
     }
 }
-
-

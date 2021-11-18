@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.stats;
@@ -23,12 +12,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -49,11 +38,14 @@ public class IndicesStatsResponseTests extends ESTestCase {
         final IndicesStatsResponse response = new IndicesStatsResponse(null, 0, 0, 0, null);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> response.toXContent(JsonXContent.contentBuilder(), params));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> response.toXContent(JsonXContent.contentBuilder(), params)
+        );
         assertThat(
             e,
-            hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]")));
+            hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]"))
+        );
     }
 
     public void testGetIndices() {
@@ -73,8 +65,10 @@ public class IndicesStatsResponseTests extends ESTestCase {
                 ShardPath shardPath = new ShardPath(false, path, path, shId);
                 ShardRouting routing = createShardRouting(index, shId, (shardId == 0));
                 shards.add(new ShardStats(routing, shardPath, null, null, null, null));
-                AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(index.getName(),
-                        k -> new AtomicLong(0L));
+                AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(
+                    index.getName(),
+                    k -> new AtomicLong(0L)
+                );
                 if (routing.primary()) {
                     primaryShardsCounter.incrementAndGet();
                 }
@@ -82,8 +76,13 @@ public class IndicesStatsResponseTests extends ESTestCase {
                 shardsCounter.incrementAndGet();
             }
         }
-        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(shards.toArray(new ShardStats[shards.size()]), 0, 0, 0,
-                null);
+        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(
+            shards.toArray(new ShardStats[shards.size()]),
+            0,
+            0,
+            0,
+            null
+        );
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 
         assertThat(indexStats.size(), is(noOfIndexes));

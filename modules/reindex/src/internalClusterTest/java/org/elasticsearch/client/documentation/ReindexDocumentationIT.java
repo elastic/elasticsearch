@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -29,19 +18,19 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.CancelTests;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
-import org.elasticsearch.index.reindex.RethrottleAction;
-import org.elasticsearch.index.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.CancelTests;
+import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.RethrottleAction;
+import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
@@ -284,9 +273,14 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         final int numDocs = randomIntBetween(10, 100);
         ALLOWED_OPERATIONS.release(numDocs);
 
-        indexRandom(true, false, true, IntStream.range(0, numDocs)
-            .mapToObj(i -> client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
-            .collect(Collectors.toList()));
+        indexRandom(
+            true,
+            false,
+            true,
+            IntStream.range(0, numDocs)
+                .mapToObj(i -> client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
+                .collect(Collectors.toList())
+        );
 
         // Checks that the all documents have been indexed and correctly counted
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numDocs);
@@ -305,12 +299,10 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         builder.execute();
 
         // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertBusy(
-            () -> {
-                assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
-                assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
-            },
-            1, TimeUnit.MINUTES);
+        assertBusy(() -> {
+            assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
+            assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
+        }, 1, TimeUnit.MINUTES);
         return builder;
     }
 

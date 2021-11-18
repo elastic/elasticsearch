@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,7 +38,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class InternalAggregationsTests extends ESTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+    );
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();
@@ -57,28 +48,56 @@ public class InternalAggregationsTests extends ESTestCase {
         assertNull(InternalAggregations.reduce(aggs, reduceContext));
     }
 
-    public void testNonFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
-            10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+    public void testNonFinalReduceTopLevelPipelineAggs() {
+        InternalAggregation terms = new StringTerms(
+            "name",
+            BucketOrder.key(true),
+            BucketOrder.key(true),
+            10,
+            1,
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            10,
+            Collections.emptyList(),
+            0L
+        );
         List<InternalAggregations> aggs = singletonList(InternalAggregations.from(Collections.singletonList(terms)));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
         assertEquals(1, reducedAggs.aggregations.size());
     }
 
-    public void testFinalReduceTopLevelPipelineAggs()  {
-        InternalAggregation terms = new StringTerms("name", BucketOrder.key(true), BucketOrder.key(true),
-            10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+    public void testFinalReduceTopLevelPipelineAggs() {
+        InternalAggregation terms = new StringTerms(
+            "name",
+            BucketOrder.key(true),
+            BucketOrder.key(true),
+            10,
+            1,
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            10,
+            Collections.emptyList(),
+            0L
+        );
 
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
-        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(aggs),
-                maxBucketReduceContext().forFinalReduction());
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(
+            Collections.singletonList(aggs),
+            maxBucketReduceContext().forFinalReduction()
+        );
         assertEquals(2, reducedAggs.aggregations.size());
     }
 
     private InternalAggregation.ReduceContextBuilder maxBucketReduceContext() {
         MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
-        PipelineAggregator.PipelineTree tree =
-                new PipelineAggregator.PipelineTree(emptyMap(), singletonList(maxBucketPipelineAggregationBuilder.create()));
+        PipelineAggregator.PipelineTree tree = new PipelineAggregator.PipelineTree(
+            emptyMap(),
+            singletonList(maxBucketPipelineAggregationBuilder.create())
+        );
         return InternalAggregationTestCase.emptyReduceContextBuilder(tree);
     }
 
@@ -109,8 +128,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        assertThat(aggregations.getSerializedSize(),
-            equalTo((long) serialize(aggregations, Version.CURRENT).length));
+        assertThat(DelayableWriteable.getSerializedSize(aggregations), equalTo((long) serialize(aggregations, Version.CURRENT).length));
     }
 
     private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {

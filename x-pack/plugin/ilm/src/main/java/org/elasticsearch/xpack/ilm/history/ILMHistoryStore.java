@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.history;
@@ -23,11 +24,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -60,56 +61,68 @@ public class ILMHistoryStore implements Closeable {
         this.ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
         this.threadPool = threadPool;
 
-        this.processor = BulkProcessor.builder(
-            new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk,
-            new BulkProcessor.Listener() {
-                @Override
-                public void beforeBulk(long executionId, BulkRequest request) {
-                    if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
-                        ElasticsearchException e = new ElasticsearchException("no ILM history template");
-                        logger.warn(new ParameterizedMessage("unable to index the following ILM history items:\n{}",
-                            request.requests().stream()
+        this.processor = BulkProcessor.builder(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk, new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+                if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
+                    ElasticsearchException e = new ElasticsearchException("no ILM history template");
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "unable to index the following ILM history items:\n{}",
+                            request.requests()
+                                .stream()
                                 .filter(dwr -> (dwr instanceof IndexRequest))
                                 .map(dwr -> ((IndexRequest) dwr))
                                 .map(IndexRequest::sourceAsMap)
                                 .map(Object::toString)
-                                .collect(Collectors.joining("\n"))), e);
-                        throw new ElasticsearchException(e);
-                    }
-                    if (logger.isTraceEnabled()) {
-                        logger.info("about to index: {}",
-                            request.requests().stream()
-                                .map(dwr -> ((IndexRequest) dwr).sourceAsMap())
-                                .map(Objects::toString)
-                                .collect(Collectors.joining(",")));
-                    }
+                                .collect(Collectors.joining("\n"))
+                        ),
+                        e
+                    );
+                    throw new ElasticsearchException(e);
                 }
+                if (logger.isTraceEnabled()) {
+                    logger.info(
+                        "about to index: {}",
+                        request.requests()
+                            .stream()
+                            .map(dwr -> ((IndexRequest) dwr).sourceAsMap())
+                            .map(Objects::toString)
+                            .collect(Collectors.joining(","))
+                    );
+                }
+            }
 
-                @Override
-                public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                    long items = request.numberOfActions();
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("indexed [{}] items into ILM history index [{}]", items,
-                            Arrays.stream(response.getItems())
-                                .map(BulkItemResponse::getIndex)
-                                .distinct()
-                                .collect(Collectors.joining(",")));
-                    }
-                    if (response.hasFailures()) {
-                        Map<String, String> failures = Arrays.stream(response.getItems())
-                            .filter(BulkItemResponse::isFailed)
-                            .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage,
-                                    (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2));
-                        logger.error("failures: [{}]", failures);
-                    }
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                long items = request.numberOfActions();
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "indexed [{}] items into ILM history index [{}]",
+                        items,
+                        Arrays.stream(response.getItems()).map(BulkItemResponse::getIndex).distinct().collect(Collectors.joining(","))
+                    );
                 }
+                if (response.hasFailures()) {
+                    Map<String, String> failures = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .collect(
+                            Collectors.toMap(
+                                BulkItemResponse::getId,
+                                BulkItemResponse::getFailureMessage,
+                                (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2
+                            )
+                        );
+                    logger.error("failures: [{}]", failures);
+                }
+            }
 
-                @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                    long items = request.numberOfActions();
-                    logger.error(new ParameterizedMessage("failed to index {} items into ILM history index", items), failure);
-                }
-            })
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                long items = request.numberOfActions();
+                logger.error(new ParameterizedMessage("failed to index {} items into ILM history index", items), failure);
+            }
+        }, "ilm-history-store")
             .setBulkActions(100)
             .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
@@ -123,8 +136,11 @@ public class ILMHistoryStore implements Closeable {
      */
     public void putAsync(ILMHistoryItem item) {
         if (ilmHistoryEnabled == false) {
-            logger.trace("not recording ILM history item because [{}] is [false]: [{}]",
-                LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
+            logger.trace(
+                "not recording ILM history item because [{}] is [false]: [{}]",
+                LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(),
+                item
+            );
             return;
         }
         logger.trace("queueing ILM history item for indexing [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item);
@@ -132,19 +148,27 @@ public class ILMHistoryStore implements Closeable {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
             IndexRequest request = new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
             // TODO: remove the threadpool wrapping when the .add call is non-blocking
-            //  (it can currently execute the bulk request occasionally)
-            //  see: https://github.com/elastic/elasticsearch/issues/50440
+            // (it can currently execute the bulk request occasionally)
+            // see: https://github.com/elastic/elasticsearch/issues/50440
             threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                 try {
                     processor.add(request);
                 } catch (Exception e) {
-                    logger.error(new ParameterizedMessage("failed add ILM history item to queue for index [{}]: [{}]",
-                        ILM_HISTORY_DATA_STREAM, item), e);
+                    logger.error(
+                        new ParameterizedMessage(
+                            "failed add ILM history item to queue for index [{}]: [{}]",
+                            ILM_HISTORY_DATA_STREAM,
+                            item
+                        ),
+                        e
+                    );
                 }
             });
         } catch (IOException exception) {
-            logger.error(new ParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]",
-                ILM_HISTORY_DATA_STREAM, item), exception);
+            logger.error(
+                new ParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item),
+                exception
+            );
         }
     }
 

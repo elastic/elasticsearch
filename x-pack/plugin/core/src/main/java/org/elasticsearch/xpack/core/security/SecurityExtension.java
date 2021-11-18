@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security;
 
@@ -37,19 +38,26 @@ public interface SecurityExtension {
     interface SecurityComponents {
         /** Global settings for the current node */
         Settings settings();
+
         /** Provides access to key filesystem paths */
         Environment environment();
+
         /** An internal client for retrieving information/data from this cluster */
         Client client();
+
         /** The Elasticsearch thread pools */
         ThreadPool threadPool();
+
         /** Provides the ability to monitor files for changes */
         ResourceWatcherService resourceWatcherService();
+
         /** Access to listen to changes in cluster state and settings  */
         ClusterService clusterService();
+
         /** Provides support for mapping users' roles from groups and metadata */
         UserRoleMapper roleMapper();
     }
+
     /**
      * Returns authentication realm implementations added by this extension.
      *
@@ -98,8 +106,7 @@ public interface SecurityExtension {
      *
      * @param components Access to components that may be used to build roles
      */
-    default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-        getRolesProviders(SecurityComponents components) {
+    default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> getRolesProviders(SecurityComponents components) {
         return Collections.emptyList();
     }
 
@@ -113,5 +120,9 @@ public interface SecurityExtension {
      */
     default AuthorizationEngine getAuthorizationEngine(Settings settings) {
         return null;
+    }
+
+    default String extensionName() {
+        return getClass().getName();
     }
 }

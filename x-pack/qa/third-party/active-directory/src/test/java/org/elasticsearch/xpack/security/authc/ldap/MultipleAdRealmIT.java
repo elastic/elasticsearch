@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -28,13 +29,17 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
     public static void setupSecondaryRealm() {
         // Pick a secondary realm that has the inverse value for 'loginWithCommonName' compare with the primary realm
         final List<RealmConfig> configs = Arrays.stream(RealmConfig.values())
-                .filter(config -> config.loginWithCommonName != AbstractAdLdapRealmTestCase.realmConfig.loginWithCommonName)
-                .filter(config -> config.name().startsWith("AD"))
-                .collect(Collectors.toList());
+            .filter(config -> config.loginWithCommonName != AbstractAdLdapRealmTestCase.realmConfig.loginWithCommonName)
+            .filter(config -> config.name().startsWith("AD"))
+            .collect(Collectors.toList());
         secondaryRealmConfig = randomFrom(configs);
-        LogManager.getLogger(MultipleAdRealmIT.class).info(
+        LogManager.getLogger(MultipleAdRealmIT.class)
+            .info(
                 "running test with secondary realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",
-                secondaryRealmConfig, secondaryRealmConfig.mapGroupsAsRoles, secondaryRealmConfig.settings);
+                secondaryRealmConfig,
+                secondaryRealmConfig.mapGroupsAsRoles,
+                secondaryRealmConfig.settings
+            );
 
         // It's easier to test 2 realms when using file based role mapping, and for the purposes of
         // this test, there's no need to test native mappings.
@@ -42,13 +47,16 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder();
-        builder.put(super.nodeSettings(nodeOrdinal));
+        builder.put(super.nodeSettings(nodeOrdinal, otherSettings));
 
         final List<RoleMappingEntry> secondaryRoleMappings = secondaryRealmConfig.selectRoleMappings(() -> true);
-        final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings,
-            getNodeTrustedCertificates());
+        final Settings secondarySettings = super.buildRealmSettings(
+            secondaryRealmConfig,
+            secondaryRoleMappings,
+            getNodeTrustedCertificates()
+        );
         secondarySettings.keySet().forEach(name -> {
             final String newname;
             if (name.contains(LdapRealmSettings.AD_TYPE)) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 
@@ -9,8 +10,8 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,8 +25,13 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
 
     private final ZoneId zoneId;
 
-    protected InsensitiveBinaryComparison(Source source, Expression left, Expression right, InsensitiveBinaryComparisonOperation operation,
-                                          ZoneId zoneId) {
+    protected InsensitiveBinaryComparison(
+        Source source,
+        Expression left,
+        Expression right,
+        InsensitiveBinaryComparisonOperation operation,
+        ZoneId zoneId
+    ) {
         super(source, left, right, operation);
         this.zoneId = zoneId;
     }
@@ -39,8 +45,12 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
         String op = function().symbol();
         TypeResolution resolution = TypeResolutions.isString(e, op, paramOrdinal);
         if (resolution.unresolved()) {
-            String message = LoggerMessageFormat.format(null, "{}; consider using [{}] instead", resolution.message(),
-                regularOperatorSymbol());
+            String message = LoggerMessageFormat.format(
+                null,
+                "{}; consider using [{}] instead",
+                resolution.message(),
+                regularOperatorSymbol()
+            );
             resolution = new TypeResolution(message);
         }
         return resolution;
@@ -50,11 +60,6 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
      * Symbol of the regular
      */
     protected abstract String regularOperatorSymbol();
-
-    @Override
-    protected Expression canonicalize() {
-        return left().hashCode() > right().hashCode() ? swapLeftAndRight() : this;
-    }
 
     @Override
     public DataType dataType() {

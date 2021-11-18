@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
@@ -48,7 +49,7 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
                         List<Map<String, Object>> bodies = doSection.getApiCallSection().getBodies();
                         boolean containsInferenceAgg = false;
                         for (Map<String, Object> body : bodies) {
-                            Map<String, Object> aggs = (Map<String, Object>)body.get("aggs");
+                            Map<String, Object> aggs = (Map<String, Object>) body.get("aggs");
                             containsInferenceAgg = containsInferenceAgg || containsKey("inference", aggs);
                         }
 
@@ -60,25 +61,29 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
             }
 
         } catch (AssertionError ae) {
-            // Some tests assert on searches of wildcarded ML indices rather than on ML endpoints.  For these we expect no hits.
+            // Some tests assert on searches of wildcarded ML indices rather than on ML endpoints. For these we expect no hits.
             if (ae.getMessage().contains("hits.total didn't match expected value")) {
                 assertThat(ae.getMessage(), containsString("but was Integer [0]"));
             } else {
-                assertThat(ae.getMessage(),
-                    either(containsString("action [cluster:monitor/xpack/ml"))
-                        .or(containsString("action [cluster:admin/xpack/ml"))
-                        .or(containsString("security_exception")));
+                assertThat(
+                    ae.getMessage(),
+                    either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml"))
+                        .or(containsString("security_exception"))
+                );
                 assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
-                assertThat(ae.getMessage(),
-                    either(containsString("is unauthorized for user [no_ml]"))
-                        .or(containsString("user [no_ml] does not have the privilege to get trained models")));
+                assertThat(
+                    ae.getMessage(),
+                    either(containsString("is unauthorized for user [no_ml]")).or(
+                        containsString("user [no_ml] does not have the privilege to get trained models")
+                    )
+                );
             }
         }
     }
 
     @Override
     protected String[] getCredentials() {
-        return new String[]{"no_ml", "x-pack-test-password"};
+        return new String[] { "no_ml", "x-pack-test-password" };
     }
 
     @SuppressWarnings("unchecked")
@@ -89,8 +94,8 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
 
         Set<Map.Entry<String, Object>> entries = mapOfMaps.entrySet();
         for (Map.Entry<String, Object> entry : entries) {
-            if (entry.getValue() instanceof Map<?,?>) {
-                boolean isInNestedMap = containsKey(key, (Map<String, Object>)entry.getValue());
+            if (entry.getValue() instanceof Map<?, ?>) {
+                boolean isInNestedMap = containsKey(key, (Map<String, Object>) entry.getValue());
                 if (isInNestedMap) {
                     return true;
                 }
@@ -100,4 +105,3 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
         return false;
     }
 }
-

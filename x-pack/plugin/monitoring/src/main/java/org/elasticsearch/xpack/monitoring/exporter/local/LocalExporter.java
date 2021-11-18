@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
@@ -14,8 +15,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,24 +25,21 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -54,6 +50,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRespon
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -80,13 +77,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
-import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
@@ -101,14 +91,14 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     public static final Setting.AffixSetting<TimeValue> WAIT_MASTER_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "wait_master.timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        TYPE_DEPENDENCY
     );
 
     private final Client client;
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final CleanerService cleanerService;
-    private final boolean useIngest;
     private final DateFormatter dateTimeFormatter;
     private final List<String> clusterAlertBlacklist;
     private final boolean decommissionClusterAlerts;
@@ -121,13 +111,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private long stateInitializedTime;
 
-    public LocalExporter(Exporter.Config config, Client client, MonitoringMigrationCoordinator migrationCoordinator,
-                         CleanerService cleanerService) {
+    public LocalExporter(
+        Exporter.Config config,
+        Client client,
+        MonitoringMigrationCoordinator migrationCoordinator,
+        CleanerService cleanerService
+    ) {
         super(config);
         this.client = client;
         this.clusterService = config.clusterService();
         this.licenseState = config.licenseState();
-        this.useIngest = USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
         this.decommissionClusterAlerts = Monitoring.MIGRATION_DECOMMISSION_ALERTS.get(config.settings());
         this.migrationCoordinator = migrationCoordinator;
@@ -166,7 +159,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      *
      * @return {@code true} if it is ready. {@code false} if not.
      */
-    boolean isExporterReady() {
+    public boolean isExporterReady() {
         // forces the setup to occur if it hasn't already
         final boolean running = resolveBulk(clusterService.state(), false) != null;
         // Report on watcher readiness
@@ -277,7 +270,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             clusterService.removeListener(this);
         }
 
-        return new LocalBulk(name(), logger, client, dateTimeFormatter, useIngest);
+        return new LocalBulk(name(), logger, client, dateTimeFormatter);
     }
 
     /**
@@ -298,7 +291,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     /**
-     * When not on the elected master, we require all resources (mapping types, templates, and pipelines) to be available before we
+     * When not on the elected master, we require all resources (mapping types, templates) to be available before we
      * attempt to run the exporter. If those resources do not exist, then it means the elected master's exporter has not yet run, so the
      * monitoring cluster (this one, as the local exporter) is not setup yet.
      *
@@ -307,33 +300,21 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private boolean setupIfNotElectedMaster(final ClusterState clusterState) {
         // any required template is not yet installed in the given cluster state, we'll wait.
-        for (final String template : MonitoringTemplateUtils.TEMPLATE_IDS) {
-            if (hasTemplate(clusterState, MonitoringTemplateUtils.templateName(template)) == false) {
-                logger.debug("monitoring index template [{}] does not exist, so service cannot start (waiting on master)",
-                             template);
+        for (final String template : MonitoringTemplateRegistry.TEMPLATE_NAMES) {
+            if (hasTemplate(clusterState, template) == false) {
+                logger.debug("monitoring index template [{}] does not exist, so service cannot start (waiting on master)", template);
                 return false;
             }
         }
 
-        // if we don't have the ingest pipeline, then it's going to fail anyway
-        if (useIngest) {
-            for (final String pipelineId : PIPELINE_IDS) {
-                if (hasIngestPipeline(clusterState, pipelineId) == false) {
-                    logger.debug("monitoring ingest pipeline [{}] does not exist, so service cannot start (waiting on master)",
-                                 pipelineName(pipelineId));
-                    return false;
-                }
-            }
-        }
-
-        logger.trace("monitoring index templates and pipelines are installed, service can start");
+        logger.trace("monitoring index templates are installed, service can start");
 
         // everything is setup
         return true;
     }
 
     /**
-     * When on the elected master, we setup all resources (mapping types, templates, and pipelines) before we attempt to run the exporter.
+     * When on the elected master, we setup all resources (mapping types, templates) before we attempt to run the exporter.
      * If those resources do not exist, then we will create them.
      *
      * @param clusterState The current cluster state.
@@ -362,36 +343,23 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final List<Runnable> asyncActions = new ArrayList<>();
         final AtomicInteger pendingResponses = new AtomicInteger(0);
 
-        // Check that each required template exists, installing it if needed
-        final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .filter(id -> hasTemplate(clusterState, templateName(id)) == false)
-                .collect(Collectors.toList());
+        // Check that each required template exists. We can install the other resources needed while we wait for them to appear, so
+        // continue with the async installation and return the readiness at the end of the setup.
+        final List<String> missingTemplates = Arrays.stream(MonitoringTemplateRegistry.TEMPLATE_NAMES)
+            .filter(name -> hasTemplate(clusterState, name) == false)
+            .collect(Collectors.toList());
 
+        boolean templatesInstalled = false;
         if (missingTemplates.isEmpty() == false) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found", missingTemplates));
-            for (String templateId : missingTemplates) {
-                final String templateName = MonitoringTemplateUtils.templateName(templateId);
-                asyncActions.add(() -> putTemplate(templateName, MonitoringTemplateUtils.loadTemplate(templateId),
-                        new ResponseActionListener<>("template", templateName, pendingResponses)));
-            }
-        }
-
-        if (useIngest) {
-            final List<String> missingPipelines = Arrays.stream(PIPELINE_IDS)
-                    .filter(id -> hasIngestPipeline(clusterState, id) == false)
-                    .collect(Collectors.toList());
-
-            // if we don't have the ingest pipeline, then install it
-            if (missingPipelines.isEmpty() == false) {
-                for (final String pipelineId : missingPipelines) {
-                    final String pipelineName = pipelineName(pipelineId);
-                    logger.debug("pipeline [{}] not found", pipelineName);
-                    asyncActions.add(() -> putIngestPipeline(pipelineId,
-                        new ResponseActionListener<>("pipeline", pipelineName, pendingResponses)));
-                }
-            } else {
-                logger.trace("all pipelines found");
-            }
+            // Check to see if the template installation is disabled. If it isn't, then we should say so in the log.
+            logger.debug(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "monitoring index templates [{}] do not exist, so service " + "cannot start (waiting on registered templates)",
+                    missingTemplates
+                )
+            );
+        } else {
+            templatesInstalled = true;
         }
 
         // avoid constantly trying to setup Watcher, which requires a lot of overhead and avoid attempting to setup during a cluster state
@@ -409,16 +377,20 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 logger.trace("already installing something, waiting for install to complete");
                 return false;
             }
-        } else {
-            logger.debug("monitoring index templates and pipelines are installed on master node, service can start");
+        } else if (templatesInstalled) {
+            logger.debug("monitoring index templates are installed on master node, service can start");
         }
 
-        // everything is setup (or running)
-        return true;
+        // everything the exporter can do is setup (or running). Return status of templates.
+        return templatesInstalled;
     }
 
-    private void setupClusterAlertsTasks(ClusterState clusterState, boolean clusterStateChange, List<Runnable> asyncActions,
-                                         AtomicInteger pendingResponses) {
+    private void setupClusterAlertsTasks(
+        ClusterState clusterState,
+        boolean clusterStateChange,
+        List<Runnable> asyncActions,
+        AtomicInteger pendingResponses
+    ) {
         boolean shouldSetUpWatcher = state.get() == State.RUNNING && clusterStateChange == false;
         if (canUseWatcher()) {
             if (shouldSetUpWatcher) {
@@ -429,14 +401,36 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 if (watches != null && watches.allPrimaryShardsActive() == false) {
                     logger.trace("cannot manage cluster alerts because [.watches] index is not allocated");
                 } else if ((watches == null || indexExists) && watcherSetup.compareAndSet(false, true)) {
+                    logger.trace("installing monitoring watches");
                     getClusterAlertsInstallationAsyncActions(indexExists, asyncActions, pendingResponses);
+                } else {
+                    logger.trace(
+                        "skipping installing monitoring watches, watches=[{}], indexExists=[{}], watcherSetup=[{}]",
+                        watches,
+                        indexExists,
+                        watcherSetup.get()
+                    );
                 }
+            } else {
+                logger.trace("watches shouldn't be setup, because state=[{}] and clusterStateChange=[{}]", state.get(), clusterStateChange);
             }
+        } else {
+            logger.trace(
+                "watches will not be installed because xpack.watcher.enabled=[{}] and "
+                    + "xpack.monitoring.exporters._local.cluster_alerts.management.enabled=[{}]",
+                XPackSettings.WATCHER_ENABLED.get(config.settings()),
+                CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())
+            );
         }
     }
 
-    private void removeClusterAlertsTasks(ClusterState clusterState, Consumer<ExporterResourceStatus> setupListener,
-                                          List<Runnable> asyncActions, AtomicInteger pendingResponses, List<Exception> errors) {
+    private void removeClusterAlertsTasks(
+        ClusterState clusterState,
+        Consumer<ExporterResourceStatus> setupListener,
+        List<Runnable> asyncActions,
+        AtomicInteger pendingResponses,
+        List<Exception> errors
+    ) {
         if (canUseWatcher()) {
             if (state.get() != State.TERMINATED) {
                 final IndexRoutingTable watches = clusterState.routingTable().index(Watch.INDEX);
@@ -457,8 +451,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
     }
 
-    private void responseReceived(final AtomicInteger pendingResponses, final boolean success, final Runnable onComplete,
-                                  final @Nullable AtomicBoolean setup) {
+    private void responseReceived(
+        final AtomicInteger pendingResponses,
+        final boolean success,
+        final Runnable onComplete,
+        final @Nullable AtomicBoolean setup
+    ) {
         if (setup != null && success == false) {
             setup.set(false);
         }
@@ -472,69 +470,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
     }
 
-    /**
-     * Determine if the ingest pipeline for {@code pipelineId} exists in the cluster or not with an appropriate minimum version.
-     *
-     * @param clusterState The current cluster state
-     * @param pipelineId The ID of the pipeline to check (e.g., "3")
-     * @return {@code true} if the {@code clusterState} contains the pipeline with an appropriate minimum version
-     */
-    private boolean hasIngestPipeline(final ClusterState clusterState, final String pipelineId) {
-        final String pipelineName = MonitoringTemplateUtils.pipelineName(pipelineId);
-        final IngestMetadata ingestMetadata = clusterState.getMetadata().custom(IngestMetadata.TYPE);
-
-        // we ensure that we both have the pipeline and its version represents the current (or later) version
-        if (ingestMetadata != null) {
-            final PipelineConfiguration pipeline = ingestMetadata.getPipelines().get(pipelineName);
-
-            return pipeline != null && hasValidVersion(pipeline.getConfigAsMap().get("version"), LAST_UPDATED_VERSION);
-        }
-
-        return false;
-    }
-
-    /**
-     * Create the pipeline required to handle past data as well as to future-proof ingestion for <em>current</em> documents (the pipeline
-     * is initially empty, but it can be replaced later with one that translates it as-needed).
-     * <p>
-     * This should only be invoked by the <em>elected</em> master node.
-     * <p>
-     * Whenever we eventually make a backwards incompatible change, then we need to override any pipeline that already exists that is
-     * older than this one. This uses the Elasticsearch version, down to the alpha portion, to determine the version of the last change.
-     * <pre><code>
-     * {
-     *   "description": "...",
-     *   "pipelines" : [ ... ],
-     *   "version": 6000001
-     * }
-     * </code></pre>
-     */
-    private void putIngestPipeline(final String pipelineId, final ActionListener<AcknowledgedResponse> listener) {
-        final String pipelineName = pipelineName(pipelineId);
-        final BytesReference pipeline = BytesReference.bytes(loadPipeline(pipelineId, XContentType.JSON));
-        final PutPipelineRequest request = new PutPipelineRequest(pipelineName, pipeline, XContentType.JSON);
-
-        logger.debug("installing ingest pipeline [{}]", pipelineName);
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
-                client.admin().cluster()::putPipeline);
-    }
-
     private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
         final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
 
-        return template != null && hasValidVersion(template.getVersion(), LAST_UPDATED_VERSION);
-    }
-
-    // FIXME this should use the IndexTemplateMetadataUpgrader
-    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
-        logger.debug("installing template [{}]", template);
-
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
-        assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
-                client.admin().indices()::putTemplate);
+        return template != null && hasValidVersion(template.getVersion(), MonitoringTemplateRegistry.REGISTRY_VERSION);
     }
 
     /**
@@ -545,7 +484,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @return {@code true} if the version exists and it's &gt;= to the minimum version. {@code false} otherwise.
      */
     private boolean hasValidVersion(final Object version, final long minimumVersion) {
-        return version instanceof Number && ((Number)version).intValue() >= minimumVersion;
+        return version instanceof Number && ((Number) version).intValue() >= minimumVersion;
     }
 
     /**
@@ -554,29 +493,44 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @param asyncActions Asynchronous actions are added to for each Watch.
      * @param pendingResponses Pending response countdown we use to track completion.
      */
-    private void getClusterAlertsInstallationAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
-                                                          final AtomicInteger pendingResponses) {
-        final boolean canAddWatches = licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
+    private void getClusterAlertsInstallationAsyncActions(
+        final boolean indexExists,
+        final List<Runnable> asyncActions,
+        final AtomicInteger pendingResponses
+    ) {
+        final boolean canAddWatches = Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE.check(licenseState);
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
-            final boolean addWatch = canAddWatches && clusterAlertBlacklist.contains(watchId) == false &&
-                decommissionClusterAlerts == false;
+            final boolean addWatch = canAddWatches
+                && clusterAlertBlacklist.contains(watchId) == false
+                && decommissionClusterAlerts == false;
 
             // we aren't sure if no watches exist yet, so add them
             if (indexExists) {
                 if (addWatch) {
                     logger.trace("checking monitoring watch [{}]", uniqueWatchId);
 
-                    asyncActions.add(() -> client.execute(GetWatchAction.INSTANCE, new GetWatchRequest(uniqueWatchId),
-                        new GetAndPutWatchResponseActionListener(client, watchId, uniqueWatchId, pendingResponses)));
+                    asyncActions.add(
+                        () -> client.execute(
+                            GetWatchAction.INSTANCE,
+                            new GetWatchRequest(uniqueWatchId),
+                            new GetAndPutWatchResponseActionListener(client, watchId, uniqueWatchId, pendingResponses)
+                        )
+                    );
                 } else {
                     logger.trace("pruning monitoring watch [{}]", uniqueWatchId);
 
-                    asyncActions.add(() -> client.execute(DeleteWatchAction.INSTANCE, new DeleteWatchRequest(uniqueWatchId),
-                                                               new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses)));
+                    asyncActions.add(
+                        () -> client.execute(
+                            DeleteWatchAction.INSTANCE,
+                            new DeleteWatchRequest(uniqueWatchId),
+                            new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses)
+                        )
+                    );
                 }
             } else if (addWatch) {
+                logger.trace("adding monitoring watch [{}]", uniqueWatchId);
                 asyncActions.add(() -> putWatch(client, watchId, uniqueWatchId, pendingResponses));
             }
         }
@@ -591,15 +545,24 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @param setupListener The listener to call with the status of the watch if there are watches to remove.
      * @param errors A list to collect errors during the watch removal process.
      */
-    private void addClusterAlertsRemovalAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
-                                                          final AtomicInteger pendingResponses,
-                                                          Consumer<ExporterResourceStatus> setupListener, final List<Exception> errors) {
+    private void addClusterAlertsRemovalAsyncActions(
+        final boolean indexExists,
+        final List<Runnable> asyncActions,
+        final AtomicInteger pendingResponses,
+        Consumer<ExporterResourceStatus> setupListener,
+        final List<Exception> errors
+    ) {
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
             if (indexExists) {
                 logger.trace("pruning monitoring watch [{}]", uniqueWatchId);
-                asyncActions.add(() -> client.execute(DeleteWatchAction.INSTANCE, new DeleteWatchRequest(uniqueWatchId),
-                    new ErrorCapturingResponseListener<>("watch", uniqueWatchId, pendingResponses, setupListener, errors, this.name())));
+                asyncActions.add(
+                    () -> client.execute(
+                        DeleteWatchAction.INSTANCE,
+                        new DeleteWatchRequest(uniqueWatchId),
+                        new ErrorCapturingResponseListener<>("watch", uniqueWatchId, pendingResponses, setupListener, errors, this.name())
+                    )
+                );
             }
         }
     }
@@ -609,9 +572,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         logger.trace("adding monitoring watch [{}]", uniqueWatchId);
 
-        executeAsyncWithOrigin(client, MONITORING_ORIGIN, PutWatchAction.INSTANCE,
-                new PutWatchRequest(uniqueWatchId, new BytesArray(watch), XContentType.JSON),
-                new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses, watcherSetup));
+        executeAsyncWithOrigin(
+            client,
+            MONITORING_ORIGIN,
+            PutWatchAction.INSTANCE,
+            new PutWatchRequest(uniqueWatchId, new BytesArray(watch), XContentType.JSON),
+            new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses, watcherSetup)
+        );
     }
 
     /**
@@ -620,8 +587,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @return {@code true} to use Cluster Alerts.
      */
     private boolean canUseWatcher() {
-        return XPackSettings.WATCHER_ENABLED.get(config.settings()) &&
-                CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        return XPackSettings.WATCHER_ENABLED.get(config.settings())
+            && CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
     }
 
     @Override
@@ -641,23 +608,21 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (clusterState != null) {
                 final long expirationTimeMillis = expiration.toInstant().toEpochMilli();
                 final long currentTimeMillis = System.currentTimeMillis();
-                final boolean cleanUpWatcherHistory = clusterService.getClusterSettings().get(CLEAN_WATCHER_HISTORY);
 
-                // list of index patterns that we clean up; watcher history can be included
-                final String[] indexPatterns =
-                        cleanUpWatcherHistory ? new String[] { ".monitoring-*", ".watcher-history*" } : new String[] { ".monitoring-*" };
+                // list of index patterns that we clean up
+                final String[] indexPatterns = new String[] { ".monitoring-*" };
 
                 // Get the names of the current monitoring indices
                 final Set<String> currents = MonitoredSystem.allSystems()
-                                                    .map(s -> MonitoringTemplateUtils.indexName(dateTimeFormatter, s, currentTimeMillis))
-                                                    .collect(Collectors.toSet());
+                    .map(s -> MonitoringTemplateUtils.indexName(dateTimeFormatter, s, currentTimeMillis))
+                    .collect(Collectors.toSet());
 
                 // avoid deleting the current alerts index, but feel free to delete older ones
-                currents.add(".monitoring-alerts-" + TEMPLATE_VERSION);
+                currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
 
                 Set<String> indices = new HashSet<>();
                 for (ObjectObjectCursor<String, IndexMetadata> index : clusterState.getMetadata().indices()) {
-                    String indexName =  index.key;
+                    String indexName = index.key;
 
                     if (Regex.simpleMatch(indexPatterns, indexName)) {
                         // Never delete any "current" index (e.g., today's index or the most recent version no timestamp, like alerts)
@@ -668,15 +633,19 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                         long creationDate = index.value.getCreationDate();
                         if (creationDate <= expirationTimeMillis) {
                             if (logger.isDebugEnabled()) {
-                                logger.debug("detected expired index [name={}, created={}, expired={}]",
-                                        indexName, Instant.ofEpochMilli(creationDate).atZone(ZoneOffset.UTC), expiration);
+                                logger.debug(
+                                    "detected expired index [name={}, created={}, expired={}]",
+                                    indexName,
+                                    Instant.ofEpochMilli(creationDate).atZone(ZoneOffset.UTC),
+                                    expiration
+                                );
                             }
                             indices.add(indexName);
                         }
                     }
                 }
 
-                if (!indices.isEmpty()) {
+                if (indices.isEmpty() == false) {
                     logger.info("cleaning up [{}] old indices", indices.size());
                     deleteIndices(indices);
                 } else {
@@ -689,24 +658,29 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private void deleteIndices(Set<String> indices) {
         logger.trace("deleting {} indices: [{}]", indices.size(), collectionToCommaDelimitedString(indices));
         final DeleteIndexRequest request = new DeleteIndexRequest(indices.toArray(new String[indices.size()]));
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        if (response.isAcknowledged()) {
-                            logger.debug("{} indices deleted", indices.size());
-                        } else {
-                            // Probably means that the delete request has timed out,
-                            // the indices will survive until the next clean up.
-                            logger.warn("deletion of {} indices wasn't acknowledged", indices.size());
-                        }
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            MONITORING_ORIGIN,
+            request,
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    if (response.isAcknowledged()) {
+                        logger.debug("{} indices deleted", indices.size());
+                    } else {
+                        // Probably means that the delete request has timed out,
+                        // the indices will survive until the next clean up.
+                        logger.warn("deletion of {} indices wasn't acknowledged", indices.size());
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("failed to delete indices", e);
-                    }
-                }, client.admin().indices()::delete);
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("failed to delete indices", e);
+                }
+            },
+            client.admin().indices()::delete
+        );
     }
 
     enum State {
@@ -716,7 +690,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     /**
-     * Acknowledge success / failure for any given creation attempt (e.g., template or pipeline).
+     * Acknowledge success / failure for any given creation attempt (e.g., templates).
      */
     private class ResponseActionListener<Response> implements ActionListener<Response> {
 
@@ -738,8 +712,13 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             this(type, name, countDown, () -> {}, setup);
         }
 
-        private ResponseActionListener(String type, String name, AtomicInteger countDown, Runnable onComplete,
-                                       @Nullable AtomicBoolean setup) {
+        private ResponseActionListener(
+            String type,
+            String name,
+            AtomicInteger countDown,
+            Runnable onComplete,
+            @Nullable AtomicBoolean setup
+        ) {
             this.type = Objects.requireNonNull(type);
             this.name = Objects.requireNonNull(name);
             this.countDown = Objects.requireNonNull(countDown);
@@ -750,7 +729,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         @Override
         public void onResponse(Response response) {
             if (response instanceof AcknowledgedResponse) {
-                if (((AcknowledgedResponse)response).isAcknowledged()) {
+                if (((AcknowledgedResponse) response).isAcknowledged()) {
                     logger.trace("successfully set monitoring {} [{}]", type, name);
                 } else {
                     logger.error("failed to set monitoring {} [{}]", type, name);
@@ -771,8 +750,14 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private class ErrorCapturingResponseListener<Response> extends ResponseActionListener<Response> {
         private final List<Exception> errors;
 
-        ErrorCapturingResponseListener(String type, String name, AtomicInteger countDown,
-                                              Consumer<ExporterResourceStatus> setupListener, List<Exception> errors, String configName) {
+        ErrorCapturingResponseListener(
+            String type,
+            String name,
+            AtomicInteger countDown,
+            Consumer<ExporterResourceStatus> setupListener,
+            List<Exception> errors,
+            String configName
+        ) {
             super(type, name, countDown, () -> {
                 // Called on completion of all removal tasks
                 ExporterResourceStatus status = ExporterResourceStatus.determineReadiness(configName, TYPE, errors);
@@ -783,7 +768,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         @Override
         public void onResponse(Response response) {
-            if (response instanceof AcknowledgedResponse && ((AcknowledgedResponse)response).isAcknowledged() == false) {
+            if (response instanceof AcknowledgedResponse && ((AcknowledgedResponse) response).isAcknowledged() == false) {
                 errors.add(new ElasticsearchException("failed to set monitoring {} [{}]", type, name));
             }
             super.onResponse(response);
@@ -803,9 +788,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         private final String uniqueWatchId;
         private final AtomicInteger countDown;
 
-        private GetAndPutWatchResponseActionListener(final Client client,
-                                                     final String watchId, final String uniqueWatchId,
-                                                     final AtomicInteger countDown) {
+        private GetAndPutWatchResponseActionListener(
+            final Client client,
+            final String watchId,
+            final String uniqueWatchId,
+            final AtomicInteger countDown
+        ) {
             this.client = Objects.requireNonNull(client);
             this.watchId = Objects.requireNonNull(watchId);
             this.uniqueWatchId = Objects.requireNonNull(uniqueWatchId);
@@ -814,8 +802,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         @Override
         public void onResponse(GetWatchResponse response) {
-            if (response.isFound() &&
-                hasValidVersion(response.getSource().getValue("metadata.xpack.version_created"), ClusterAlertsUtil.LAST_UPDATED_VERSION)) {
+            if (response.isFound()
+                && hasValidVersion(
+                    response.getSource().getValue("metadata.xpack.version_created"),
+                    ClusterAlertsUtil.LAST_UPDATED_VERSION
+                )) {
                 logger.trace("found monitoring watch [{}]", uniqueWatchId);
                 responseReceived(countDown, true, () -> {}, watcherSetup);
             } else {
@@ -828,8 +819,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             responseReceived(countDown, false, () -> {}, watcherSetup);
 
             if ((e instanceof IndexNotFoundException) == false) {
-                logger.error((Supplier<?>) () ->
-                             new ParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
             }
         }
 

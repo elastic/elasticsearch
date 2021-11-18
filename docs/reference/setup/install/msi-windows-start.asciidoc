@@ -12,5 +12,9 @@ The command line terminal will display output similar to the following:
 
 image::images/msi_installer/elasticsearch_exe.png[]
 
-By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT` in addition
-to the `<cluster name>.log` file within `LOGSDIRECTORY`, and can be stopped by pressing `Ctrl-C`.
+By default {es} prints its logs to `STDOUT` and to the `<cluster name>.log`
+file within `LOGSDIRECTORY`. {es} logs some information while it is starting
+up, but once it has finished initializing it will continue to run in the
+foreground and won't log anything further until something happens that is worth
+recording. While {es} is running you can interact with it through its HTTP
+interface which is on port 9200 by default. To stop {es}, press `Ctrl-C`.

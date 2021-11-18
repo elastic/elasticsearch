@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -57,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,26 +54,33 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(FailedNodeRoutingTests.class);
 
     public void testSimpleFailedNodeTest() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start 4 nodes");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-            .add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("start all the primary shards, replicas will start initializing");
@@ -99,14 +95,15 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").numberOfShardsWithState(STARTED), equalTo(1));
         assertThat(routingNodes.node("node4").numberOfShardsWithState(STARTED), equalTo(1));
 
-
         logger.info("remove 2 nodes where primaries are allocated, reroute");
 
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .remove(clusterState.routingTable().index("test1").shard(0).primaryShard().currentNodeId())
-                .remove(clusterState.routingTable().index("test2").shard(0).primaryShard().currentNodeId())
-        )
-                .build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder(clusterState.nodes())
+                    .remove(clusterState.routingTable().index("test1").shard(0).primaryShard().currentNodeId())
+                    .remove(clusterState.routingTable().index("test2").shard(0).primaryShard().currentNodeId())
+            )
+            .build();
         clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         routingNodes = clusterState.getRoutingNodes();
 
@@ -125,16 +122,15 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         // randomly add nodes of mixed versions
         logger.info("--> adding random nodes");
         for (int i = 0; i < randomIntBetween(4, 8); i++) {
-            DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes())
-                .add(createNode()).build();
+            DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(createNode()).build();
             state = ClusterState.builder(state).nodes(newNodes).build();
             state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after adding node
         }
 
         // Log the node versions (for debugging if necessary)
-        for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
-            Version nodeVer = cursor.value.getVersion();
-            logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
+        for (DiscoveryNode discoveryNode : state.nodes().getDataNodes().values()) {
+            Version nodeVer = discoveryNode.getVersion();
+            logger.info("--> node [{}] has version [{}]", discoveryNode.getId(), nodeVer);
         }
 
         // randomly create some indices
@@ -150,23 +146,23 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("--> starting shards");
-        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+        state = cluster.applyStartedShards(state, shardsWithState(state.getRoutingNodes(), INITIALIZING));
         logger.info("--> starting replicas a random number of times");
-        for (int i = 0; i < randomIntBetween(1,10); i++) {
-            state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            state = cluster.applyStartedShards(state, shardsWithState(state.getRoutingNodes(), INITIALIZING));
         }
 
         boolean keepGoing = true;
         while (keepGoing) {
-            List<ShardRouting> primaries = state.getRoutingNodes().shardsWithState(STARTED)
-                .stream().filter(ShardRouting::primary).collect(Collectors.toList());
+            List<ShardRouting> primaries = shardsWithState(state.getRoutingNodes(), STARTED).stream()
+                .filter(ShardRouting::primary)
+                .collect(Collectors.toList());
 
             // Pick a random subset of primaries to fail
             List<FailedShard> shardsToFail = new ArrayList<>();
             List<ShardRouting> failedPrimaries = randomSubsetOf(primaries);
-            failedPrimaries.stream().forEach(sr -> {
-                shardsToFail.add(new  FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean()));
-            });
+            failedPrimaries.stream()
+                .forEach(sr -> { shardsToFail.add(new FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean())); });
 
             logger.info("--> state before failing shards: {}", state);
             state = cluster.applyFailedShards(state, shardsToFail);
@@ -175,22 +171,23 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             failedPrimaries.forEach(shardRouting -> {
                 logger.info("--> verifying version for {}", shardRouting);
 
-                ShardRouting newPrimary = compareState.routingTable().index(shardRouting.index())
-                    .shard(shardRouting.id()).primaryShard();
+                ShardRouting newPrimary = compareState.routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryShard();
                 Version newPrimaryVersion = getNodeVersion(newPrimary, compareState);
 
                 logger.info("--> new primary is on version {}: {}", newPrimaryVersion, newPrimary);
-                compareState.routingTable().shardRoutingTable(newPrimary.shardId()).shardsWithState(STARTED)
-                    .stream()
-                    .forEach(sr -> {
-                        Version candidateVer = getNodeVersion(sr, compareState);
-                        if (candidateVer != null) {
-                            logger.info("--> candidate on {} node; shard routing: {}", candidateVer, sr);
-                            assertTrue("candidate was not on the newest version, new primary is on " +
-                                    newPrimaryVersion + " and there is a candidate on " + candidateVer,
-                                candidateVer.onOrBefore(newPrimaryVersion));
-                        }
-                    });
+                compareState.routingTable().shardRoutingTable(newPrimary.shardId()).shardsWithState(STARTED).stream().forEach(sr -> {
+                    Version candidateVer = getNodeVersion(sr, compareState);
+                    if (candidateVer != null) {
+                        logger.info("--> candidate on {} node; shard routing: {}", candidateVer, sr);
+                        assertTrue(
+                            "candidate was not on the newest version, new primary is on "
+                                + newPrimaryVersion
+                                + " and there is a candidate on "
+                                + candidateVer,
+                            candidateVer.onOrBefore(newPrimaryVersion)
+                        );
+                    }
+                });
             });
 
             keepGoing = randomBoolean();
@@ -218,13 +215,18 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         return state;
     }
 
-
     protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
-        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
-            VersionUtils.randomIndexCompatibleVersion(random()));
+        return new DiscoveryNode(
+            id,
+            id,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            roles,
+            VersionUtils.randomIndexCompatibleVersion(random())
+        );
     }
 
 }

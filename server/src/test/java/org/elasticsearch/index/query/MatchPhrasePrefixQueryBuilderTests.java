@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -25,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -68,7 +56,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             matchQuery.maxExpansions(randomIntBetween(1, 10000));
         }
         if (randomBoolean()) {
-            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQuery.ALL, ZeroTermsQuery.NONE));
+            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQueryOption.ALL, ZeroTermsQueryOption.NONE));
         }
         return matchQuery;
     }
@@ -76,30 +64,37 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     @Override
     protected Map<String, MatchPhrasePrefixQueryBuilder> getAlternateVersions() {
         Map<String, MatchPhrasePrefixQueryBuilder> alternateVersions = new HashMap<>();
-        MatchPhrasePrefixQueryBuilder matchPhrasePrefixQuery = new MatchPhrasePrefixQueryBuilder(randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10));
-        String contentString = "{\n" +
-                "    \"match_phrase_prefix\" : {\n" +
-                "        \"" + matchPhrasePrefixQuery.fieldName() + "\" : \"" + matchPhrasePrefixQuery.value() + "\"\n" +
-                "    }\n" +
-                "}";
+        MatchPhrasePrefixQueryBuilder matchPhrasePrefixQuery = new MatchPhrasePrefixQueryBuilder(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        String contentString = "{\n"
+            + "    \"match_phrase_prefix\" : {\n"
+            + "        \""
+            + matchPhrasePrefixQuery.fieldName()
+            + "\" : \""
+            + matchPhrasePrefixQuery.value()
+            + "\"\n"
+            + "    }\n"
+            + "}";
         alternateVersions.put(contentString, matchPhrasePrefixQuery);
         return alternateVersions;
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchPhrasePrefixQueryBuilder queryBuilder, Query query, QueryShardContext context)
-            throws IOException {
+    protected void doAssertLuceneQuery(MatchPhrasePrefixQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         assertThat(query, notNullValue());
 
         if (query instanceof MatchAllDocsQuery) {
-            assertThat(queryBuilder.zeroTermsQuery(), equalTo(ZeroTermsQuery.ALL));
+            assertThat(queryBuilder.zeroTermsQuery(), equalTo(ZeroTermsQueryOption.ALL));
             return;
         }
 
-        assertThat(query, either(instanceOf(MultiPhrasePrefixQuery.class))
-            .or(instanceOf(SynonymQuery.class))
-            .or(instanceOf(MatchNoDocsQuery.class)));
+        assertThat(
+            query,
+            either(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(SynonymQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+        );
     }
 
     public void testIllegalValues() {
@@ -117,91 +112,86 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder("fieldName", "text");
         matchQuery.analyzer("bogusAnalyzer");
 
-        QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
     }
 
     public void testPhraseOnFieldWithNoTerms() {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
-        expectThrows(IllegalStateException.class, () -> matchQuery.doToQuery(createShardContext()));
+        expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixZeroTermsQuery() throws IOException {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
-        matchQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
-        assertEquals(new MatchNoDocsQuery(), matchQuery.doToQuery(createShardContext()));
+        matchQuery.zeroTermsQuery(ZeroTermsQueryOption.NONE);
+        assertEquals(new MatchNoDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
 
         matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
-        matchQuery.zeroTermsQuery(ZeroTermsQuery.ALL);
-        assertEquals(new MatchAllDocsQuery(), matchQuery.doToQuery(createShardContext()));
+        matchQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);
+        assertEquals(new MatchAllDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {
-        String json1 = "{\n" +
-                "    \"match_phrase_prefix\" : {\n" +
-                "        \"message\" : \"this is a test\"\n" +
-                "    }\n" +
-                "}";
+        String json1 = "{\n" + "    \"match_phrase_prefix\" : {\n" + "        \"message\" : \"this is a test\"\n" + "    }\n" + "}";
 
-        String expected = "{\n" +
-                "  \"match_phrase_prefix\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"this is a test\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"max_expansions\" : 50,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String expected = "{\n"
+            + "  \"match_phrase_prefix\" : {\n"
+            + "    \"message\" : {\n"
+            + "      \"query\" : \"this is a test\",\n"
+            + "      \"slop\" : 0,\n"
+            + "      \"max_expansions\" : 50,\n"
+            + "      \"zero_terms_query\" : \"NONE\",\n"
+            + "      \"boost\" : 1.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
         MatchPhrasePrefixQueryBuilder qb = (MatchPhrasePrefixQueryBuilder) parseQuery(json1);
         checkGeneratedJson(expected, qb);
 
-        String json3 = "{\n" +
-                "    \"match_phrase_prefix\" : {\n" +
-                "        \"message\" : {\n" +
-                "            \"query\" : \"this is a test\",\n" +
-                "            \"max_expansions\" : 10\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
-        expected = "{\n" +
-                "  \"match_phrase_prefix\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"this is a test\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"max_expansions\" : 10,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json3 = "{\n"
+            + "    \"match_phrase_prefix\" : {\n"
+            + "        \"message\" : {\n"
+            + "            \"query\" : \"this is a test\",\n"
+            + "            \"max_expansions\" : 10\n"
+            + "        }\n"
+            + "    }\n"
+            + "}";
+        expected = "{\n"
+            + "  \"match_phrase_prefix\" : {\n"
+            + "    \"message\" : {\n"
+            + "      \"query\" : \"this is a test\",\n"
+            + "      \"slop\" : 0,\n"
+            + "      \"max_expansions\" : 10,\n"
+            + "      \"zero_terms_query\" : \"NONE\",\n"
+            + "      \"boost\" : 1.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
         qb = (MatchPhrasePrefixQueryBuilder) parseQuery(json3);
         checkGeneratedJson(expected, qb);
     }
 
-
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n" +
-                "  \"match_phrase_prefix\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"query\" : \"this is a test\"\n" +
-                "    },\n" +
-                "    \"message2\" : {\n" +
-                "      \"query\" : \"this is a test\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"match_phrase_prefix\" : {\n"
+            + "    \"message1\" : {\n"
+            + "      \"query\" : \"this is a test\"\n"
+            + "    },\n"
+            + "    \"message2\" : {\n"
+            + "      \"query\" : \"this is a test\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n" +
-                "  \"match_phrase_prefix\" : {\n" +
-                "    \"message1\" : \"this is a test\",\n" +
-                "    \"message2\" : \"this is a test\"\n" +
-                "  }\n" +
-                "}";
+        String shortJson = "{\n"
+            + "  \"match_phrase_prefix\" : {\n"
+            + "    \"message1\" : \"this is a test\",\n"
+            + "    \"message2\" : \"this is a test\"\n"
+            + "  }\n"
+            + "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }

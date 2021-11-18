@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -52,14 +41,21 @@ public class RemoteClusterClientTests extends ESTestCase {
 
     public void testConnectAndExecuteRequest() throws Exception {
         Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
-        try (MockTransportService remoteTransport = startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
-            remoteSettings)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "remote_node",
+                Collections.emptyList(),
+                Version.CURRENT,
+                threadPool,
+                remoteSettings
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
-                .put("cluster.remote.test.seeds",
-                    remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
                 // following two log lines added to investigate #41745, can be removed once issue is closed
@@ -73,8 +69,10 @@ public class RemoteClusterClientTests extends ESTestCase {
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
                 // also test a failure, there is no handler for scroll registered
-                ActionNotFoundTransportException ex = expectThrows(ActionNotFoundTransportException.class,
-                    () -> client.prepareSearchScroll("").get());
+                ActionNotFoundTransportException ex = expectThrows(
+                    ActionNotFoundTransportException.class,
+                    () -> client.prepareSearchScroll("").get()
+                );
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
             }
         }
@@ -82,16 +80,24 @@ public class RemoteClusterClientTests extends ESTestCase {
 
     @TestLogging(
         value = "org.elasticsearch.transport.SniffConnectionStrategy:TRACE,org.elasticsearch.transport.ClusterConnectionManager:TRACE",
-        reason = "debug intermittent test failure")
+        reason = "debug intermittent test failure"
+    )
     public void testEnsureWeReconnect() throws Exception {
         Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
-        try (MockTransportService remoteTransport = startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
-            remoteSettings)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "remote_node",
+                Collections.emptyList(),
+                Version.CURRENT,
+                threadPool,
+                remoteSettings
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
-                .put("cluster.remote.test.seeds",
-                    remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
                 // this test is not perfect since we might reconnect concurrently but it will fail most of the time if we don't have
@@ -125,8 +131,10 @@ public class RemoteClusterClientTests extends ESTestCase {
             service.start();
             service.acceptIncomingRequests();
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-            final IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> remoteClusterService.getRemoteClusterClient(threadPool, "test"));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> remoteClusterService.getRemoteClusterClient(threadPool, "test")
+            );
             assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }
     }

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
@@ -34,9 +35,12 @@ public class MlDeprecationCheckerTests extends ESTestCase {
     public void testEnabled() {
         MlDeprecationChecker mlDeprecationChecker = new MlDeprecationChecker();
         assertThat(mlDeprecationChecker.enabled(Settings.EMPTY), is(true));
-        assertThat(mlDeprecationChecker.enabled(Settings.builder()
-            .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), Boolean.toString(false))
-            .build()), is(false));
+        assertThat(
+            mlDeprecationChecker.enabled(
+                Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), Boolean.toString(false)).build()
+            ),
+            is(false)
+        );
     }
 
     public void testCheckDataFeedQuery() {

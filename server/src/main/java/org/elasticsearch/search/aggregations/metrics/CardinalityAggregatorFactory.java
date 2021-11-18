@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -40,13 +29,16 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final Long precisionThreshold;
     private final CardinalityAggregatorSupplier aggregatorSupplier;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
-                                    Long precisionThreshold,
-                                    AggregationContext context,
-                                    AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata,
-                                    CardinalityAggregatorSupplier aggregatorSupplier) throws IOException {
+    CardinalityAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        Long precisionThreshold,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        CardinalityAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
@@ -54,7 +46,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY,
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.ALL_CORE,
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
                 // check global ords
@@ -64,19 +57,27 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                         final ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                         if (useGlobalOrds(context, source, precision)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
-                            return new GlobalOrdCardinalityAggregator(name, source, precision, Math.toIntExact(maxOrd),
-                                context, parent, metadata);
+                            return new GlobalOrdCardinalityAggregator(
+                                name,
+                                source,
+                                precision,
+                                Math.toIntExact(maxOrd),
+                                context,
+                                parent,
+                                metadata
+                            );
                         }
                     }
                 }
                 // fallback in the default aggregator
                 return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
-            }, true);
+            },
+            true
+        );
     }
 
-    private static boolean useGlobalOrds(AggregationContext context,
-                                         ValuesSource.Bytes.WithOrdinals source,
-                                         int precision) throws IOException {
+    private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+        throws IOException {
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         // we compute the total number of terms across all segments
         long total = 0;
@@ -96,17 +97,14 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(name, config, precision(), context, parent, metadata);
     }
 
     private int precision() {
         return precisionThreshold == null
-                ? HyperLogLogPlusPlus.DEFAULT_PRECISION
-                : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
+            ? HyperLogLogPlusPlus.DEFAULT_PRECISION
+            : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 }

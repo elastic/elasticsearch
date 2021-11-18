@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 
 import java.io.IOException;
@@ -24,7 +25,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
 
 public class TreeNode implements ToXContentObject, Writeable, Accountable {
 
@@ -46,15 +46,14 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
     private static final ObjectParser<TreeNode.Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<TreeNode.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<TreeNode.Builder, Void> parser = new ObjectParser<>(
-            NAME,
-            lenient,
-            TreeNode.Builder::new);
+        ObjectParser<TreeNode.Builder, Void> parser = new ObjectParser<>(NAME, lenient, TreeNode.Builder::new);
         parser.declareDouble(TreeNode.Builder::setThreshold, THRESHOLD);
-        parser.declareField(TreeNode.Builder::setOperator,
+        parser.declareField(
+            TreeNode.Builder::setOperator,
             p -> Operator.fromString(p.text()),
             DECISION_TYPE,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         parser.declareInt(TreeNode.Builder::setLeftChild, LEFT_CHILD);
         parser.declareInt(TreeNode.Builder::setRightChild, RIGHT_CHILD);
         parser.declareBoolean(TreeNode.Builder::setDefaultLeft, DEFAULT_LEFT);
@@ -81,25 +80,26 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
     private final int rightChild;
     private final long numberSamples;
 
-
-    private TreeNode(Operator operator,
-                     Double threshold,
-                     Integer splitFeature,
-                     int nodeIndex,
-                     Double splitGain,
-                     List<Double> leafValue,
-                     Boolean defaultLeft,
-                     Integer leftChild,
-                     Integer rightChild,
-                     long numberSamples) {
+    private TreeNode(
+        Operator operator,
+        Double threshold,
+        Integer splitFeature,
+        int nodeIndex,
+        Double splitGain,
+        List<Double> leafValue,
+        Boolean defaultLeft,
+        Integer leftChild,
+        Integer rightChild,
+        long numberSamples
+    ) {
         this.operator = operator == null ? Operator.LTE : operator;
-        this.threshold  = threshold == null ? Double.NaN : threshold;
+        this.threshold = threshold == null ? Double.NaN : threshold;
         this.splitFeature = splitFeature == null ? -1 : splitFeature;
         this.nodeIndex = nodeIndex;
-        this.splitGain  = splitGain == null ? Double.NaN : splitGain;
+        this.splitGain = splitGain == null ? Double.NaN : splitGain;
         this.leafValue = leafValue == null ? new double[0] : leafValue.stream().mapToDouble(Double::doubleValue).toArray();
         this.defaultLeft = defaultLeft == null ? false : defaultLeft;
-        this.leftChild  = leftChild == null ? -1 : leftChild;
+        this.leftChild = leftChild == null ? -1 : leftChild;
         this.rightChild = rightChild == null ? -1 : rightChild;
         if (numberSamples < 0) {
             throw new IllegalArgumentException("[" + NUMBER_SAMPLES.getPreferredName() + "] must be greater than or equal to 0");
@@ -228,7 +228,8 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(operator,
+        return Objects.hash(
+            operator,
             threshold,
             splitFeature,
             splitGain,
@@ -237,7 +238,8 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             defaultLeft,
             leftChild,
             rightChild,
-            numberSamples);
+            numberSamples
+        );
     }
 
     @Override
@@ -270,8 +272,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
             this.nodeIndex = nodeIndex;
         }
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder setOperator(Operator operator) {
             this.operator = operator;
@@ -365,7 +366,8 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
 
         public TreeNode build() {
             validate();
-            return new TreeNode(operator,
+            return new TreeNode(
+                operator,
                 threshold,
                 splitFeature,
                 nodeIndex,
@@ -374,7 +376,8 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
                 defaultLeft,
                 leftChild,
                 rightChild,
-                numberSamples);
+                numberSamples
+            );
         }
     }
 }

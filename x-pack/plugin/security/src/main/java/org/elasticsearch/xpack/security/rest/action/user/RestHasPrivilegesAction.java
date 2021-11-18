@@ -1,24 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
@@ -27,7 +29,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -48,21 +49,19 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(GET, "/_security/user/{username}/_has_privileges",
-                GET, "/_xpack/security/user/{username}/_has_privileges"),
-            new ReplacedRoute(POST, "/_security/user/{username}/_has_privileges",
-                POST, "/_xpack/security/user/{username}/_has_privileges"),
-            new ReplacedRoute(GET, "/_security/user/_has_privileges",
-                GET, "/_xpack/security/user/_has_privileges"),
-            new ReplacedRoute(POST, "/_security/user/_has_privileges",
-                POST, "/_xpack/security/user/_has_privileges")
+            Route.builder(GET, "/_security/user/{username}/_has_privileges")
+                .replaces(GET, "/_xpack/security/user/{username}/_has_privileges", RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/_security/user/{username}/_has_privileges")
+                .replaces(POST, "/_xpack/security/user/{username}/_has_privileges", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/_security/user/_has_privileges")
+                .replaces(GET, "/_xpack/security/user/_has_privileges", RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/_security/user/_has_privileges")
+                .replaces(POST, "/_xpack/security/user/_has_privileges", RestApiVersion.V_7)
+                .build()
         );
     }
 

@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 import org.elasticsearch.painless.action.PainlessContextInstanceBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -45,24 +34,25 @@ import java.util.stream.Collectors;
 public class ContextGeneratorCommon {
     @SuppressForbidden(reason = "retrieving data from an internal API not exposed as part of the REST client")
     public static List<PainlessContextInfo> getContextInfos() throws IOException {
-        URLConnection getContextNames = new URL(
-            "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context").openConnection();
+        URLConnection getContextNames = new URL("http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context")
+            .openConnection();
         XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextNames.getInputStream());
         parser.nextToken();
         parser.nextToken();
         @SuppressWarnings("unchecked")
-        List<String> contextNames = (List<String>)(Object)parser.list();
+        List<String> contextNames = (List<String>) (Object) parser.list();
         parser.close();
-        ((HttpURLConnection)getContextNames).disconnect();
+        ((HttpURLConnection) getContextNames).disconnect();
 
         List<PainlessContextInfo> contextInfos = new ArrayList<>();
 
         for (String contextName : contextNames) {
             URLConnection getContextInfo = new URL(
-                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName).openConnection();
+                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName
+            ).openConnection();
             parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
             contextInfos.add(PainlessContextInfo.fromXContent(parser));
-            ((HttpURLConnection)getContextInfo).disconnect();
+            ((HttpURLConnection) getContextInfo).disconnect();
         }
 
         contextInfos.sort(Comparator.comparing(PainlessContextInfo::getName));
@@ -71,48 +61,15 @@ public class ContextGeneratorCommon {
     }
 
     public static String getType(Map<String, String> javaNamesToDisplayNames, String javaType) {
-        int arrayDimensions = 0;
-
-        while (javaType.charAt(arrayDimensions) == '[') {
-            ++arrayDimensions;
+        if (javaType.endsWith("[]") == false) {
+            return javaNamesToDisplayNames.getOrDefault(javaType, javaType);
         }
-
-        if (arrayDimensions > 0) {
-            if (javaType.charAt(javaType.length() - 1) == ';') {
-                javaType = javaType.substring(arrayDimensions + 1, javaType.length() - 1);
-            } else {
-                javaType = javaType.substring(arrayDimensions);
-            }
+        int bracePosition = javaType.indexOf('[');
+        String braces = javaType.substring(bracePosition);
+        String type = javaType.substring(0, bracePosition);
+        if (javaNamesToDisplayNames.containsKey(type)) {
+            return javaNamesToDisplayNames.get(type) + braces;
         }
-
-        if ("Z".equals(javaType) || "boolean".equals(javaType)) {
-            javaType = "boolean";
-        } else if ("V".equals(javaType) || "void".equals(javaType)) {
-            javaType = "void";
-        } else if ("B".equals(javaType) || "byte".equals(javaType)) {
-            javaType = "byte";
-        } else if ("S".equals(javaType) || "short".equals(javaType)) {
-            javaType = "short";
-        } else if ("C".equals(javaType) || "char".equals(javaType)) {
-            javaType = "char";
-        } else if ("I".equals(javaType) || "int".equals(javaType)) {
-            javaType = "int";
-        } else if ("J".equals(javaType) || "long".equals(javaType)) {
-            javaType = "long";
-        } else if ("F".equals(javaType) || "float".equals(javaType)) {
-            javaType = "float";
-        } else if ("D".equals(javaType) || "double".equals(javaType)) {
-            javaType = "double";
-        } else if ("org.elasticsearch.painless.lookup.def".equals(javaType)) {
-            javaType = "def";
-        } else {
-            javaType = javaNamesToDisplayNames.get(javaType);
-        }
-
-        while (arrayDimensions-- > 0) {
-            javaType += "[]";
-        }
-
         return javaType;
     }
 
@@ -124,8 +81,7 @@ public class ContextGeneratorCommon {
                 String className = classInfo.getName();
                 if (javaNamesToDisplayNames.containsKey(className) == false) {
                     if (classInfo.isImported()) {
-                        javaNamesToDisplayNames.put(className,
-                            className.substring(className.lastIndexOf('.') + 1).replace('$', '.'));
+                        javaNamesToDisplayNames.put(className, className.substring(className.lastIndexOf('.') + 1).replace('$', '.'));
                     } else {
                         javaNamesToDisplayNames.put(className, className.replace('$', '.'));
                     }
@@ -138,12 +94,18 @@ public class ContextGeneratorCommon {
     public static List<PainlessContextClassInfo> sortClassInfos(Collection<PainlessContextClassInfo> unsortedClassInfos) {
 
         List<PainlessContextClassInfo> classInfos = new ArrayList<>(unsortedClassInfos);
-        classInfos.removeIf(v ->
-            "void".equals(v.getName())  || "boolean".equals(v.getName()) || "byte".equals(v.getName())   ||
-                "short".equals(v.getName()) || "char".equals(v.getName())    || "int".equals(v.getName())    ||
-                "long".equals(v.getName())  || "float".equals(v.getName())   || "double".equals(v.getName()) ||
-                "org.elasticsearch.painless.lookup.def".equals(v.getName())  ||
-                isInternalClass(v.getName())
+        classInfos.removeIf(
+            v -> "void".equals(v.getName())
+                || "boolean".equals(v.getName())
+                || "byte".equals(v.getName())
+                || "short".equals(v.getName())
+                || "char".equals(v.getName())
+                || "int".equals(v.getName())
+                || "long".equals(v.getName())
+                || "float".equals(v.getName())
+                || "double".equals(v.getName())
+                || "org.elasticsearch.painless.lookup.def".equals(v.getName())
+                || isInternalClass(v.getName())
         );
 
         classInfos.sort((c1, c2) -> {
@@ -174,15 +136,15 @@ public class ContextGeneratorCommon {
     }
 
     private static boolean isInternalClass(String javaName) {
-        return  javaName.equals("org.elasticsearch.script.ScoreScript") ||
-            javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape") ||
-            javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils") ||
-            javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime") ||
-            javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth") ||
-            javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils") ||
-            javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils") ||
-            javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils") ||
-            javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
+        return javaName.equals("org.elasticsearch.script.ScoreScript")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth")
+            || javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils")
+            || javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils")
+            || javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils")
+            || javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
     }
 
     public static List<PainlessContextClassInfo> excludeCommonClassInfos(
@@ -203,9 +165,14 @@ public class ContextGeneratorCommon {
         public final List<PainlessInfoJson.Context> contexts;
 
         public final Map<String, String> javaNamesToDisplayNames;
+        public final Map<String, String> javaNamesToJavadoc;
+        public final Map<String, List<String>> javaNamesToArgs;
 
         public PainlessInfos(List<PainlessContextInfo> contextInfos) {
             javaNamesToDisplayNames = getDisplayNames(contextInfos);
+
+            javaNamesToJavadoc = new HashMap<>();
+            javaNamesToArgs = new HashMap<>();
 
             Set<PainlessContextClassInfo> commonClassInfos = getCommon(contextInfos, PainlessContextInfo::getClasses);
             common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames);
@@ -221,16 +188,39 @@ public class ContextGeneratorCommon {
                 .collect(Collectors.toList());
         }
 
-        private <T> Set<T> getCommon(List<PainlessContextInfo> contexts, Function<PainlessContextInfo,List<T>> getter) {
+        public PainlessInfos(List<PainlessContextInfo> contextInfos, JavadocExtractor extractor) throws IOException {
+            javaNamesToDisplayNames = getDisplayNames(contextInfos);
+
+            javaNamesToJavadoc = new HashMap<>();
+            javaNamesToArgs = new HashMap<>();
+
+            Set<PainlessContextClassInfo> commonClassInfos = getCommon(contextInfos, PainlessContextInfo::getClasses);
+            common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames, extractor);
+
+            importedMethods = getCommon(contextInfos, PainlessContextInfo::getImportedMethods);
+
+            classBindings = getCommon(contextInfos, PainlessContextInfo::getClassBindings);
+
+            instanceBindings = getCommon(contextInfos, PainlessContextInfo::getInstanceBindings);
+
+            contexts = new ArrayList<>(contextInfos.size());
+            for (PainlessContextInfo contextInfo : contextInfos) {
+                contexts.add(new PainlessInfoJson.Context(contextInfo, commonClassInfos, javaNamesToDisplayNames, extractor));
+            }
+        }
+
+        private <T> Set<T> getCommon(List<PainlessContextInfo> contexts, Function<PainlessContextInfo, List<T>> getter) {
             Map<T, Integer> infoCounts = new HashMap<>();
             for (PainlessContextInfo contextInfo : contexts) {
                 for (T info : getter.apply(contextInfo)) {
                     infoCounts.merge(info, 1, Integer::sum);
                 }
             }
-            return infoCounts.entrySet().stream().filter(
-                e -> e.getValue() == contexts.size()
-            ).map(Map.Entry::getKey).collect(Collectors.toSet());
+            return infoCounts.entrySet()
+                .stream()
+                .filter(e -> e.getValue() == contexts.size())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         }
     }
 }

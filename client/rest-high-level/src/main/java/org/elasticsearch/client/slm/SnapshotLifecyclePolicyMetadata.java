@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.slm;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -57,20 +46,20 @@ public class SnapshotLifecyclePolicyMetadata implements ToXContentObject {
     private final SnapshotLifecycleStats.SnapshotPolicyStats policyStats;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_metadata",
-            a -> {
-                SnapshotLifecyclePolicy policy = (SnapshotLifecyclePolicy) a[0];
-                long version = (long) a[1];
-                long modifiedDate = (long) a[2];
-                SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[3];
-                SnapshotInvocationRecord lastFailure = (SnapshotInvocationRecord) a[4];
-                long nextExecution = (long) a[5];
-                SnapshotInProgress sip = (SnapshotInProgress) a[6];
-                SnapshotLifecycleStats.SnapshotPolicyStats stats = (SnapshotLifecycleStats.SnapshotPolicyStats) a[7];
-                return new SnapshotLifecyclePolicyMetadata(policy, version, modifiedDate, lastSuccess,
-                    lastFailure, nextExecution, sip, stats);
-            });
+    public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_policy_metadata",
+        a -> {
+            SnapshotLifecyclePolicy policy = (SnapshotLifecyclePolicy) a[0];
+            long version = (long) a[1];
+            long modifiedDate = (long) a[2];
+            SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[3];
+            SnapshotInvocationRecord lastFailure = (SnapshotInvocationRecord) a[4];
+            long nextExecution = (long) a[5];
+            SnapshotInProgress sip = (SnapshotInProgress) a[6];
+            SnapshotLifecycleStats.SnapshotPolicyStats stats = (SnapshotLifecycleStats.SnapshotPolicyStats) a[7];
+            return new SnapshotLifecyclePolicyMetadata(policy, version, modifiedDate, lastSuccess, lastFailure, nextExecution, sip, stats);
+        }
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotLifecyclePolicy::parse, POLICY);
@@ -80,8 +69,11 @@ public class SnapshotLifecyclePolicyMetadata implements ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_FAILURE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), NEXT_EXECUTION_MILLIS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInProgress::parse, SNAPSHOT_IN_PROGRESS);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> SnapshotLifecycleStats.SnapshotPolicyStats.parse(p, "policy"), POLICY_STATS);
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> SnapshotLifecycleStats.SnapshotPolicyStats.parse(p, "policy"),
+            POLICY_STATS
+        );
 
     }
 
@@ -89,11 +81,16 @@ public class SnapshotLifecyclePolicyMetadata implements ToXContentObject {
         return PARSER.apply(parser, id);
     }
 
-    public SnapshotLifecyclePolicyMetadata(SnapshotLifecyclePolicy policy, long version, long modifiedDate,
-                                           SnapshotInvocationRecord lastSuccess, SnapshotInvocationRecord lastFailure,
-                                           long nextExecution,
-                                           @Nullable SnapshotInProgress snapshotInProgress,
-                                           SnapshotLifecycleStats.SnapshotPolicyStats policyStats) {
+    public SnapshotLifecyclePolicyMetadata(
+        SnapshotLifecyclePolicy policy,
+        long version,
+        long modifiedDate,
+        SnapshotInvocationRecord lastSuccess,
+        SnapshotInvocationRecord lastFailure,
+        long nextExecution,
+        @Nullable SnapshotInProgress snapshotInProgress,
+        SnapshotLifecycleStats.SnapshotPolicyStats policyStats
+    ) {
         this.policy = policy;
         this.version = version;
         this.modifiedDate = modifiedDate;
@@ -178,13 +175,13 @@ public class SnapshotLifecyclePolicyMetadata implements ToXContentObject {
             return false;
         }
         SnapshotLifecyclePolicyMetadata other = (SnapshotLifecyclePolicyMetadata) obj;
-        return Objects.equals(policy, other.policy) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate) &&
-            Objects.equals(lastSuccess, other.lastSuccess) &&
-            Objects.equals(lastFailure, other.lastFailure) &&
-            Objects.equals(nextExecution, other.nextExecution) &&
-            Objects.equals(policyStats, other.policyStats);
+        return Objects.equals(policy, other.policy)
+            && Objects.equals(version, other.version)
+            && Objects.equals(modifiedDate, other.modifiedDate)
+            && Objects.equals(lastSuccess, other.lastSuccess)
+            && Objects.equals(lastFailure, other.lastFailure)
+            && Objects.equals(nextExecution, other.nextExecution)
+            && Objects.equals(policyStats, other.policyStats);
     }
 
     public static class SnapshotInProgress implements ToXContentObject {
@@ -194,14 +191,17 @@ public class SnapshotLifecyclePolicyMetadata implements ToXContentObject {
         private static final ParseField START_TIME = new ParseField("start_time_millis");
         private static final ParseField FAILURE = new ParseField("failure");
 
-        private static final ConstructingObjectParser<SnapshotInProgress, Void> PARSER =
-            new ConstructingObjectParser<>("snapshot_in_progress", true, a -> {
+        private static final ConstructingObjectParser<SnapshotInProgress, Void> PARSER = new ConstructingObjectParser<>(
+            "snapshot_in_progress",
+            true,
+            a -> {
                 SnapshotId id = new SnapshotId((String) a[0], (String) a[1]);
                 String state = (String) a[2];
                 long start = (long) a[3];
                 String failure = (String) a[4];
                 return new SnapshotInProgress(id, state, start, failure);
-            });
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
@@ -256,10 +256,10 @@ public class SnapshotLifecyclePolicyMetadata implements ToXContentObject {
                 return false;
             }
             SnapshotInProgress other = (SnapshotInProgress) obj;
-            return Objects.equals(snapshotId, other.snapshotId) &&
-                Objects.equals(state, other.state) &&
-                startTime == other.startTime &&
-                Objects.equals(failure, other.failure);
+            return Objects.equals(snapshotId, other.snapshotId)
+                && Objects.equals(state, other.state)
+                && startTime == other.startTime
+                && Objects.equals(failure, other.failure);
         }
 
         @Override

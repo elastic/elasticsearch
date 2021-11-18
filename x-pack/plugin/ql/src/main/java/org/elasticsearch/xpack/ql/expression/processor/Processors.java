@@ -1,7 +1,8 @@
 /*
-* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.processor;
 
@@ -52,7 +53,8 @@ public final class Processors {
         // arithmetic
         // binary arithmetics are pluggable
         entries.add(
-                new Entry(BinaryArithmeticOperation.class, DefaultBinaryArithmeticOperation.NAME, DefaultBinaryArithmeticOperation::read));
+            new Entry(BinaryArithmeticOperation.class, DefaultBinaryArithmeticOperation.NAME, DefaultBinaryArithmeticOperation::read)
+        );
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
         entries.add(new Entry(Processor.class, UnaryArithmeticProcessor.NAME, UnaryArithmeticProcessor::new));
         // comparators

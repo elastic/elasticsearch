@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
@@ -41,7 +42,7 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
             InferenceConfig applied = update.apply(config);
 
             assertThat(applied, instanceOf(ClassificationConfig.class));
-            ClassificationConfig appliedConfig = (ClassificationConfig)applied;
+            ClassificationConfig appliedConfig = (ClassificationConfig) applied;
             assertEquals(newResultsField, appliedConfig.getResultsField());
 
             assertEquals(appliedConfig, new ClassificationConfig.Builder(config).setResultsField(newResultsField).build());
@@ -52,7 +53,7 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
             InferenceConfig applied = update.apply(config);
 
             assertThat(applied, instanceOf(RegressionConfig.class));
-            RegressionConfig appliedConfig = (RegressionConfig)applied;
+            RegressionConfig appliedConfig = (RegressionConfig) applied;
             assertEquals(newResultsField, appliedConfig.getResultsField());
 
             assertEquals(appliedConfig, new RegressionConfig.Builder(config).setResultsField(newResultsField).build());

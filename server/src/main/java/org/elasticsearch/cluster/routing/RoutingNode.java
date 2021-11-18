@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -33,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -45,6 +35,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final String nodeId;
 
+    @Nullable
     private final DiscoveryNode node;
 
     private final LinkedHashMap<ShardId, ShardRouting> shards; // LinkedHashMap to preserve order
@@ -59,7 +50,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this(nodeId, node, buildShardRoutingMap(shards));
     }
 
-    RoutingNode(String nodeId, DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
+    RoutingNode(String nodeId, @Nullable DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
         this.nodeId = nodeId;
         this.node = node;
         this.shards = shards;
@@ -82,8 +73,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
         for (ShardRouting shardRouting : shardRoutings) {
             ShardRouting previousValue = shards.put(shardRouting.shardId(), shardRouting);
             if (previousValue != null) {
-                throw new IllegalArgumentException("Cannot have two different shards with same shard id " + shardRouting.shardId() +
-                    " on same node ");
+                throw new IllegalArgumentException(
+                    "Cannot have two different shards with same shard id " + shardRouting.shardId() + " on same node "
+                );
             }
         }
         return shards;
@@ -99,6 +91,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
      *
      * @return discoveryNode of this node
      */
+    @Nullable
     public DiscoveryNode node() {
         return this.node;
     }
@@ -127,8 +120,17 @@ public class RoutingNode implements Iterable<ShardRouting> {
     void add(ShardRouting shard) {
         assert invariant();
         if (shards.containsKey(shard.shardId())) {
-            throw new IllegalStateException("Trying to add a shard " + shard.shardId() + " to a node [" + nodeId
-                + "] where it already exists. current [" + shards.get(shard.shardId()) + "]. new [" + shard + "]");
+            throw new IllegalStateException(
+                "Trying to add a shard "
+                    + shard.shardId()
+                    + " to a node ["
+                    + nodeId
+                    + "] where it already exists. current ["
+                    + shards.get(shard.shardId())
+                    + "]. new ["
+                    + shard
+                    + "]"
+            );
         }
         shards.put(shard.shardId(), shard);
 
@@ -269,7 +271,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
 
         for (ShardRouting shardEntry : this) {
-            if (!shardEntry.getIndexName().equals(index)) {
+            if (shardEntry.getIndexName().equals(index) == false) {
                 continue;
             }
             for (ShardRoutingState state : states) {
@@ -309,13 +311,17 @@ public class RoutingNode implements Iterable<ShardRouting> {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("routingNode ([");
-        sb.append(node.getName());
-        sb.append("][");
-        sb.append(node.getId());
-        sb.append("][");
-        sb.append(node.getHostName());
-        sb.append("][");
-        sb.append(node.getHostAddress());
+        if (node != null) {
+            sb.append(node.getName());
+            sb.append("][");
+            sb.append(node.getId());
+            sb.append("][");
+            sb.append(node.getHostName());
+            sb.append("][");
+            sb.append(node.getHostAddress());
+        } else {
+            sb.append("null");
+        }
         sb.append("], [");
         sb.append(shards.size());
         sb.append(" assigned shards])");
@@ -331,23 +337,44 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     private boolean invariant() {
-
         // initializingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsInitializing =
-            shards.values().stream().filter(ShardRouting::initializing).collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsInitializing = shards.values()
+            .stream()
+            .filter(ShardRouting::initializing)
+            .collect(Collectors.toList());
         assert initializingShards.size() == shardRoutingsInitializing.size();
         assert initializingShards.containsAll(shardRoutingsInitializing);
 
         // relocatingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsRelocating =
-            shards.values().stream().filter(ShardRouting::relocating).collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsRelocating = shards.values()
+            .stream()
+            .filter(ShardRouting::relocating)
+            .collect(Collectors.toList());
         assert relocatingShards.size() == shardRoutingsRelocating.size();
         assert relocatingShards.containsAll(shardRoutingsRelocating);
 
-        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex =
-            shards.values().stream().collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
+        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex = shards.values()
+            .stream()
+            .collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
         assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RoutingNode that = (RoutingNode) o;
+        return nodeId.equals(that.nodeId) && Objects.equals(node, that.node) && shards.equals(that.shards);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId, node, shards);
     }
 }

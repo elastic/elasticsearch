@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -44,11 +34,9 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * Note that this method will be executed using system context.
      *
-     * @param clusterChangedEvent the change event for this cluster state change, containing
-     *                            both old and new states
+     * @param clusterStatePublicationEvent the change event for this cluster state publication, containing both old and new states
      */
-    default void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-    }
+    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {}
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
@@ -58,7 +46,16 @@ public interface ClusterStateTaskExecutor<T> {
      * This allows groupd task description but the submitting source.
      */
     default String describeTasks(List<T> tasks) {
-        return String.join(", ", tasks.stream().map(t -> (CharSequence)t.toString()).filter(t -> t.length() > 0)::iterator);
+        final StringBuilder output = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit(
+            (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
+            ", ",
+            "",
+            "",
+            1024,
+            output
+        );
+        return output.toString();
     }
 
     /**
@@ -120,8 +117,7 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
-                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState,
-                    executionResults);
+                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState, executionResults);
             }
         }
     }
@@ -148,7 +144,7 @@ public interface ClusterStateTaskExecutor<T> {
         }
 
         public Exception getFailure() {
-            assert !isSuccess();
+            assert isSuccess() == false;
             return failure;
         }
     }

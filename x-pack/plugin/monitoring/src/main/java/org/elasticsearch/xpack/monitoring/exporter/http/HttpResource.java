@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -102,9 +103,7 @@ public abstract class HttpResource {
                 return false;
             }
             ResourcePublishResult that = (ResourcePublishResult) o;
-            return success == that.success &&
-                Objects.equals(reason, that.reason) &&
-                resourceState == that.resourceState;
+            return success == that.success && Objects.equals(reason, that.reason) && resourceState == that.resourceState;
         }
 
         @Override
@@ -114,11 +113,15 @@ public abstract class HttpResource {
 
         @Override
         public String toString() {
-            return "ResourcePublishResult{" +
-                "success=" + success +
-                ", reason='" + reason + '\'' +
-                ", resourceState=" + resourceState +
-                '}';
+            return "ResourcePublishResult{"
+                + "success="
+                + success
+                + ", reason='"
+                + reason
+                + '\''
+                + ", resourceState="
+                + resourceState
+                + '}';
         }
     }
 

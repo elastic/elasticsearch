@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -45,8 +34,11 @@ import org.elasticsearch.client.transform.UpdateTransformResponse;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.NodeAttributes;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
+import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
@@ -57,11 +49,11 @@ import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
 
 import java.io.IOException;
@@ -70,10 +62,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@SuppressWarnings("removal")
 public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private List<String> transformsToClean = new ArrayList<>();
@@ -81,12 +74,12 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
     @After
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().transform()
+            adminHighLevelClient().transform()
                 .stopTransform(new StopTransformRequest(transformId, true, TimeValue.timeValueSeconds(20), false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
-            highLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
+            adminHighLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
         }
 
         transformsToClean = new ArrayList<>();
@@ -158,6 +151,18 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setMaxPageSearchSize(1000) // <1>
             .build();
         // end::put-transform-settings-config
+        // tag::put-transform-retention-policy-config
+        RetentionPolicyConfig retentionPolicy = TimeRetentionPolicyConfig.builder()
+            .setField("time-field") // <1>
+            .setMaxAge(TimeValue.timeValueDays(30)) // <2>
+            .build();
+        // end::put-transform-retention-policy-config
+        // tag::put-transform-sync-config
+        SyncConfig syncConfig = TimeSyncConfig.builder()
+            .setField("time-field") // <1>
+            .setDelay(TimeValue.timeValueSeconds(30)) // <2>
+            .build();
+        // end::put-transform-sync-config
         // tag::put-transform-config
         TransformConfig transformConfig = TransformConfig
             .builder()
@@ -168,6 +173,8 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setPivotConfig(pivotConfig) // <5>
             .setDescription("This is my test transform") // <6>
             .setSettings(settings) // <7>
+            .setRetentionPolicyConfig(retentionPolicy) // <8>
+            .setSyncConfig(syncConfig) // <9>
             .build();
         // end::put-transform-config
 
@@ -241,7 +248,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setSource(SourceConfig.builder().setIndex("source-data").setQueryConfig(queryConfig).build())
             .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
-            .setSyncConfig(new TimeSyncConfig("time-field", TimeValue.timeValueSeconds(120)))
+            .setSyncConfig(TimeSyncConfig.builder().setField("time-field").setDelay(TimeValue.timeValueSeconds(120)).build())
             .build();
 
         client.transform().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
@@ -257,9 +264,15 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setIndex("pivot-dest")
                 .build()) // <2>
             .setFrequency(TimeValue.timeValueSeconds(15)) // <3>
-            .setSyncConfig(new TimeSyncConfig("time-field",
-                TimeValue.timeValueSeconds(120))) // <4>
+            .setSyncConfig(TimeSyncConfig.builder()
+                .setField("time-field")
+                .setDelay(TimeValue.timeValueSeconds(120))
+                .build()) // <4>
             .setDescription("This is my updated transform") // <5>
+            .setRetentionPolicyConfig(TimeRetentionPolicyConfig.builder()
+                .setField("time-field")
+                .setMaxAge(TimeValue.timeValueDays(30))
+                .build()) // <6>
             .build();
         // end::update-transform-config
 
@@ -433,7 +446,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testDeleteDataFrameTransform() throws IOException, InterruptedException {
+    public void testDeleteTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
         RestHighLevelClient client = highLevelClient();
@@ -658,7 +671,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testGetDataFrameTransform() throws IOException, InterruptedException {
+    public void testGetTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();

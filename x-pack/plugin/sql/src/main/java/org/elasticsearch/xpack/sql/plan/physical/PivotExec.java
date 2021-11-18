@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
@@ -57,7 +58,6 @@ public class PivotExec extends UnaryExec implements Unexecutable {
 
         PivotExec other = (PivotExec) obj;
 
-        return Objects.equals(pivot, other.pivot)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(pivot, other.pivot) && Objects.equals(child(), other.child());
     }
 }

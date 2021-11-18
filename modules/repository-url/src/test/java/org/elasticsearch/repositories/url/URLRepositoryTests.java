@@ -1,35 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,14 +28,20 @@ import java.util.Collections;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class URLRepositoryTests extends ESTestCase {
 
     private URLRepository createRepository(Settings baseSettings, RepositoryMetadata repositoryMetadata) {
-        return new URLRepository(repositoryMetadata, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService(),
+        return new URLRepository(
+            repositoryMetadata,
+            TestEnvironment.newEnvironment(baseSettings),
+            new NamedXContentRegistry(Collections.emptyList()),
+            BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            mock(URLHttpClient.Factory.class)
+        ) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads
@@ -82,7 +78,8 @@ public class URLRepositoryTests extends ESTestCase {
             repository.blobContainer();
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
-            String msg = "[url] file url [" + repoPath
+            String msg = "[url] file url ["
+                + repoPath
                 + "] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls";
             assertEquals(msg, e.getMessage());
         }
@@ -104,7 +101,7 @@ public class URLRepositoryTests extends ESTestCase {
             repository.blobContainer();
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
-            assertEquals("[url] unsupported url protocol [file] from URL [" + repoPath +"]", e.getMessage());
+            assertEquals("[url] unsupported url protocol [file] from URL [" + repoPath + "]", e.getMessage());
         }
     }
 
@@ -112,7 +109,7 @@ public class URLRepositoryTests extends ESTestCase {
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(URLRepository.ALLOWED_URLS_SETTING.getKey(), "file:/tmp/")
-            .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), "file:/var/" )
+            .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), "file:/var/")
             .build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata("url", URLRepository.TYPE, baseSettings);
         final URLRepository repository = createRepository(baseSettings, repositoryMetadata);
@@ -121,9 +118,11 @@ public class URLRepositoryTests extends ESTestCase {
             repository.blobContainer();
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
-            assertEquals("[url] file url [file:/var/] doesn't match any of the locations "
-                + "specified by path.repo or repositories.url.allowed_urls",
-                e.getMessage());
+            assertEquals(
+                "[url] file url [file:/var/] doesn't match any of the locations "
+                    + "specified by path.repo or repositories.url.allowed_urls",
+                e.getMessage()
+            );
         }
     }
 

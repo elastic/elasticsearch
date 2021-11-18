@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -69,8 +58,11 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        IndexResponse index = client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                .get();
+        IndexResponse index = client().prepareIndex("test")
+            .setId("1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(RestStatus.CREATED, index.status());
         assertFalse("request shouldn't have forced a refresh", index.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
@@ -95,23 +87,28 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
         // Update with RefreshPolicy.WAIT_UNTIL
         UpdateResponse update = client().prepareUpdate("test", "1")
-            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                .get();
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
         // Upsert with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "2").setDocAsUpsert(true).setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "cat")
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
+        update = client().prepareUpdate("test", "2")
+            .setDocAsUpsert(true)
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "cat")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(1, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get(), "2");
 
         // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "2").setScript(
-            new Script(ScriptType.INLINE, "mockscript", "delete_plz", emptyMap()))
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
+        update = client().prepareUpdate("test", "2")
+            .setScript(new Script(ScriptType.INLINE, "mockscript", "delete_plz", emptyMap()))
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get());
@@ -148,8 +145,11 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
         client().admin().indices().prepareUpdateSettings("test").setSettings(singletonMap("index.refresh_interval", -1)).get();
-        ActionFuture<IndexResponse> index = client().prepareIndex("test").setId("1").setSource("foo", "bar")
-                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
+        ActionFuture<IndexResponse> index = client().prepareIndex("test")
+            .setId("1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+            .execute();
         while (false == index.isDone()) {
             client().admin().indices().prepareRefresh("test").get();
         }

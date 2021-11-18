@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -36,14 +26,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 public class AzureClientProviderTests extends ESTestCase {
-    private static final BiConsumer<String, URL> EMPTY_CONSUMER = (method, url) -> { };
+    private static final BiConsumer<String, URL> EMPTY_CONSUMER = (method, url) -> {};
 
     private ThreadPool threadPool;
     private AzureClientProvider azureClientProvider;
 
     @Before
     public void setUpThreadPool() {
-        threadPool = new TestThreadPool(getTestName(),
+        threadPool = new TestThreadPool(
+            getTestName(),
             AzureRepositoryPlugin.executorBuilder(),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
@@ -63,8 +54,8 @@ public class AzureClientProviderTests extends ESTestCase {
 
         final String endpoint;
         if (randomBoolean()) {
-            endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;" +
-                "BlobSecondaryEndpoint=https://myaccount1-secondary.blob.core.windows.net";
+            endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;"
+                + "BlobSecondaryEndpoint=https://myaccount1-secondary.blob.core.windows.net";
         } else {
             endpoint = "core.windows.net";
         }
@@ -101,9 +92,10 @@ public class AzureClientProviderTests extends ESTestCase {
 
         LocationMode locationMode = LocationMode.SECONDARY_ONLY;
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
-        expectThrows(IllegalArgumentException.class, () -> {
-            azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER);
-        });
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> { azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER); }
+        );
     }
 
     private static String encodeKey(final String value) {

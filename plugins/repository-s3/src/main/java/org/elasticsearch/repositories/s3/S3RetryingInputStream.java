@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.s3;
 
@@ -24,6 +13,7 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -89,8 +79,8 @@ class S3RetryingInputStream extends InputStream {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
             getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
-                assert start + currentOffset <= end :
-                    "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
+                assert start + currentOffset <= end
+                    : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
                 getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
             }
             final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
@@ -113,8 +103,8 @@ class S3RetryingInputStream extends InputStream {
             final Long[] range = metadata.getContentRange();
             if (range != null) {
                 assert range[1] >= range[0] : range[1] + " vs " + range[0];
-                assert range[0] == start + currentOffset :
-                    "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
+                assert range[0] == start + currentOffset
+                    : "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
                 assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
                 return range[1] - range[0] + 1L;
             }
@@ -170,12 +160,30 @@ class S3RetryingInputStream extends InputStream {
 
     private void reopenStreamOrFail(IOException e) throws IOException {
         if (attempt >= maxAttempts) {
-            logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], giving up",
-                blobStore.bucket(), blobKey, start + currentOffset, attempt, maxAttempts), e);
+            logger.debug(
+                new ParameterizedMessage(
+                    "failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], giving up",
+                    blobStore.bucket(),
+                    blobKey,
+                    start + currentOffset,
+                    attempt,
+                    maxAttempts
+                ),
+                e
+            );
             throw addSuppressedExceptions(e);
         }
-        logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
-            blobStore.bucket(), blobKey, start + currentOffset, attempt, maxAttempts), e);
+        logger.debug(
+            new ParameterizedMessage(
+                "failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
+                blobStore.bucket(),
+                blobKey,
+                start + currentOffset,
+                attempt,
+                maxAttempts
+            ),
+            e
+        );
         attempt += 1;
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);

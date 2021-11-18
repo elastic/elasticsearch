@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm.action;
@@ -42,8 +43,7 @@ public class RetryAction extends ActionType<AcknowledgedResponse> {
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         @Override
         public Request indices(String... indices) {
@@ -92,8 +92,7 @@ public class RetryAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.deepEquals(indices, other.indices)
-                && Objects.equals(indicesOptions, other.indicesOptions);
+            return Objects.deepEquals(indices, other.indices) && Objects.equals(indicesOptions, other.indicesOptions);
         }
 
     }

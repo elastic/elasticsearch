@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.support;
 
@@ -26,9 +27,10 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
         assertSecurityIndexActive();
         final int processors = Runtime.getRuntime().availableProcessors();
-        final int numThreads = scaledRandomIntBetween((processors + 1) / 2, 4 * processors);
-        final int maxNumRequests = 100 / numThreads; // bound to a maximum of 100 requests
+        final int numThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
+        final int maxNumRequests = 50 / numThreads; // bound to a maximum of 50 requests
         final int numRequests = scaledRandomIntBetween(Math.min(4, maxNumRequests), maxNumRequests);
+        logger.info("creating users with [{}] threads, each sending [{}] requests", numThreads, numRequests);
 
         final List<ActionFuture<PutUserResponse>> futures = new CopyOnWriteArrayList<>();
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();
@@ -45,12 +47,13 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     final List<PutUserRequestBuilder> requests = new ArrayList<>(numRequests);
-                    final SecureString password = new SecureString("password".toCharArray());
+                    final SecureString password = new SecureString("test-user-password".toCharArray());
                     for (int i = 0; i < numRequests; i++) {
-                        requests.add(new PutUserRequestBuilder(client())
-                            .username("user" + userNumber.getAndIncrement())
-                            .password(password, getFastStoredHashAlgoForTests())
-                            .roles(randomAlphaOfLengthBetween(1, 16)));
+                        requests.add(
+                            new PutUserRequestBuilder(client()).username("user" + userNumber.getAndIncrement())
+                                .password(password, getFastStoredHashAlgoForTests())
+                                .roles(randomAlphaOfLengthBetween(1, 16))
+                        );
                     }
 
                     barrier.await(10L, TimeUnit.SECONDS);
@@ -70,7 +73,10 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         assertThat(exceptions, Matchers.empty());
         assertEquals(futures.size(), numRequests * numThreads);
         for (ActionFuture<PutUserResponse> future : futures) {
-            assertTrue(future.actionGet().created());
+            // In rare cases, the user could be updated instead of created. For the purpose of
+            // this test, either created or updated is sufficient to prove that the security
+            // index is created. So we don't need to assert the value.
+            future.actionGet().created();
         }
     }
 

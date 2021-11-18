@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -75,7 +65,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -91,9 +81,11 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@SuppressWarnings("removal")
 public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutLifecyclePolicy() throws Exception {
@@ -103,7 +95,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         Map<String, Phase> phases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
         phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions)); // <1>
 
         Map<String, LifecycleAction> deleteActions =
@@ -130,11 +122,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Delete the policy so it can be added again
         {
-            DeleteLifecyclePolicyRequest deleteRequest =
-                    new DeleteLifecyclePolicyRequest("my_policy");
-            AcknowledgedResponse deleteResponse = client.indexLifecycle()
-                    .deleteLifecyclePolicy(deleteRequest,
-                            RequestOptions.DEFAULT);
+            DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest("my_policy");
+            AcknowledgedResponse deleteResponse = client.indexLifecycle().deleteLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
             assertTrue(deleteResponse.isAcknowledged());
         }
 
@@ -174,19 +163,13 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
-            hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
-            Map<String, LifecycleAction> deleteActions =
-                Collections.singletonMap(DeleteAction.NAME,
-                    new DeleteAction());
-            phases.put("delete",
-                new Phase("delete",
-                    new TimeValue(90, TimeUnit.DAYS), deleteActions));
+            Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+            phases.put("delete", new Phase("delete", new TimeValue(90, TimeUnit.DAYS), deleteActions));
             LifecyclePolicy myPolicy = new LifecyclePolicy("my_policy", phases);
             putRequest = new PutLifecyclePolicyRequest(myPolicy);
-            AcknowledgedResponse putResponse = client.indexLifecycle().
-                putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse putResponse = client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
             assertTrue(putResponse.isAcknowledged());
         }
 
@@ -208,8 +191,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Put the policy again so we can delete it again
         {
-            AcknowledgedResponse putResponse = client.indexLifecycle().
-                putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse putResponse = client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
             assertTrue(putResponse.isAcknowledged());
         }
 
@@ -249,32 +231,25 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
-            hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
 
-            Map<String, LifecycleAction> deleteActions =
-                Collections.singletonMap(DeleteAction.NAME,
-                    new DeleteAction());
-            phases.put("delete",
-                new Phase("delete",
-                    new TimeValue(90, TimeUnit.DAYS), deleteActions));
+            Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+            phases.put("delete", new Phase("delete", new TimeValue(90, TimeUnit.DAYS), deleteActions));
 
             myPolicyAsPut = new LifecyclePolicy("my_policy", phases);
             PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(myPolicyAsPut);
 
             Map<String, Phase> otherPolicyPhases = new HashMap<>(phases);
-            Map<String, LifecycleAction> warmActions = Collections.singletonMap(ShrinkAction.NAME, new ShrinkAction(1));
+            Map<String, LifecycleAction> warmActions = Collections.singletonMap(ShrinkAction.NAME, new ShrinkAction(1, null));
             otherPolicyPhases.put("warm", new Phase("warm", new TimeValue(30, TimeUnit.DAYS), warmActions));
             otherPolicyAsPut = new LifecyclePolicy("other_policy", otherPolicyPhases);
 
             PutLifecyclePolicyRequest putRequest2 = new PutLifecyclePolicyRequest(otherPolicyAsPut);
 
-            AcknowledgedResponse putResponse = client.indexLifecycle().
-                putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse putResponse = client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
             assertTrue(putResponse.isAcknowledged());
-            AcknowledgedResponse putResponse2 = client.indexLifecycle().
-                putLifecyclePolicy(putRequest2, RequestOptions.DEFAULT);
+            AcknowledgedResponse putResponse2 = client.indexLifecycle().putLifecyclePolicy(putRequest2, RequestOptions.DEFAULT);
             assertTrue(putResponse2.isAcknowledged());
         }
 
@@ -349,44 +324,44 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
-            hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null));
+            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
 
-            LifecyclePolicy policy = new LifecyclePolicy("my_policy",
-                phases);
-            PutLifecyclePolicyRequest putRequest =
-                new PutLifecyclePolicyRequest(policy);
+            LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases);
+            PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
             client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
 
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1")
-                .settings(Settings.builder()
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1").settings(
+                Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put("index.lifecycle.name", "my_policy")
                     .put("index.lifecycle.rollover_alias", "my_alias")
-                    .build());
+                    .build()
+            );
             createIndexRequest.alias(new Alias("my_alias").writeIndex(true));
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-            CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index")
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build());
+            CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index").settings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            );
             client.indices().create(createOtherIndexRequest, RequestOptions.DEFAULT);
 
-
             // wait for the policy to become active
-            assertBusy(() -> assertNotNull(client.indexLifecycle()
-                .explainLifecycle(new ExplainLifecycleRequest("my_index-1"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index-1").getAction()));
+            assertBusy(
+                () -> assertNotNull(
+                    client.indexLifecycle()
+                        .explainLifecycle(new ExplainLifecycleRequest("my_index-1"), RequestOptions.DEFAULT)
+                        .getIndexResponses()
+                        .get("my_index-1")
+                        .getAction()
+                )
+            );
         }
 
         // tag::ilm-explain-lifecycle-request
         ExplainLifecycleRequest request =
             new ExplainLifecycleRequest("my_index-1", "other_index"); // <1>
         // end::ilm-explain-lifecycle-request
-
 
         assertBusy(() -> {
             // tag::ilm-explain-lifecycle-execute
@@ -515,9 +490,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
         // Check that ILM is running again
-        LifecycleManagementStatusResponse response =
-            client.indexLifecycle()
-                .lifecycleManagementStatus(request, RequestOptions.DEFAULT);
+        LifecycleManagementStatusResponse response = client.indexLifecycle().lifecycleManagementStatus(request, RequestOptions.DEFAULT);
 
         OperationMode operationMode = response.getOperationMode();
         assertEquals(OperationMode.RUNNING, operationMode);
@@ -614,25 +587,21 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3, null));
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
 
-            LifecyclePolicy policy = new LifecyclePolicy("my_policy",
-                phases);
-            PutLifecyclePolicyRequest putRequest =
-                new PutLifecyclePolicyRequest(policy);
+            LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases);
+            PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
             client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
 
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
-                .settings(Settings.builder()
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index").settings(
+                Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put("index.lifecycle.name", "my_policy")
-                    .build());
+                    .build()
+            );
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-            assertBusy(() -> assertNotNull(client.indexLifecycle()
-                .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getFailedStep()), 15, TimeUnit.SECONDS);
         }
 
         // tag::ilm-retry-lifecycle-policy-request
@@ -640,17 +609,29 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             new RetryLifecyclePolicyRequest("my_index"); // <1>
         // end::ilm-retry-lifecycle-policy-request
 
+        try {
+            // tag::ilm-retry-lifecycle-policy-execute
+            AcknowledgedResponse response = client.indexLifecycle()
+                .retryLifecyclePolicy(request, RequestOptions.DEFAULT);
+            // end::ilm-retry-lifecycle-policy-execute
 
-        // tag::ilm-retry-lifecycle-policy-execute
-        AcknowledgedResponse response = client.indexLifecycle()
-            .retryLifecyclePolicy(request, RequestOptions.DEFAULT);
-        // end::ilm-retry-lifecycle-policy-execute
+            // tag::ilm-retry-lifecycle-policy-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            // end::ilm-retry-lifecycle-policy-response
 
-        // tag::ilm-retry-lifecycle-policy-response
-        boolean acknowledged = response.isAcknowledged(); // <1>
-        // end::ilm-retry-lifecycle-policy-response
-
-        assertTrue(acknowledged);
+            assertTrue(acknowledged);
+        } catch (ElasticsearchException e) {
+            // the retry API might fail as the shrink action steps are retryable (ILM will stuck in the `check-target-shards-count` step
+            // with no failure, the retry API will fail)
+            // assert that's the exception we encountered (we want to test to fail if there is an actual error with the retry api)
+            assertThat(
+                e.getMessage(),
+                containsStringIgnoringCase(
+                    "reason=cannot retry an action for an index [my_index] that has not "
+                        + "encountered an error when running a Lifecycle Policy"
+                )
+            );
+        }
 
         // tag::ilm-retry-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> listener =
@@ -684,21 +665,30 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // setup policy for index
         Map<String, Phase> phases = new HashMap<>();
-        phases.put("delete", new Phase("delete", TimeValue.timeValueHours(10L),
-            Collections.singletonMap(DeleteAction.NAME, new DeleteAction())));
+        phases.put(
+            "delete",
+            new Phase("delete", TimeValue.timeValueHours(10L), Collections.singletonMap(DeleteAction.NAME, new DeleteAction()))
+        );
         LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
-            .settings(Settings.builder()
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index").settings(
+            Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.lifecycle.name", "my_policy")
-                .build());
+                .build()
+        );
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-        assertBusy(() -> assertTrue(client.indexLifecycle()
-            .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-            .getIndexResponses().get("my_index").managedByILM()));
+        assertBusy(
+            () -> assertTrue(
+                client.indexLifecycle()
+                    .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
+                    .getIndexResponses()
+                    .get("my_index")
+                    .managedByILM()
+            )
+        );
 
         // tag::ilm-remove-lifecycle-policy-from-index-request
         List<String> indices = new ArrayList<>();
@@ -706,7 +696,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         RemoveIndexLifecyclePolicyRequest request =
             new RemoveIndexLifecyclePolicyRequest(indices); // <1>
         // end::ilm-remove-lifecycle-policy-from-index-request
-
 
         // tag::ilm-remove-lifecycle-policy-from-index-execute
         RemoveIndexLifecyclePolicyResponse response = client
@@ -727,9 +716,15 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // re-apply policy on index
         updateIndexSettings("my_index", Settings.builder().put("index.lifecycle.name", "my_policy"));
-        assertBusy(() -> assertTrue(client.indexLifecycle()
-            .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-            .getIndexResponses().get("my_index").managedByILM()));
+        assertBusy(
+            () -> assertTrue(
+                client.indexLifecycle()
+                    .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
+                    .getIndexResponses()
+                    .get("my_index")
+                    .managedByILM()
+            )
+        );
 
         // tag::ilm-remove-lifecycle-policy-from-index-execute-listener
         ActionListener<RemoveIndexLifecyclePolicyResponse> listener =
@@ -765,6 +760,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73317")
     public void testAddSnapshotLifecyclePolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -774,8 +770,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         repoRequest.settings(settingsBuilder);
         repoRequest.name("my_repository");
         repoRequest.type(FsRepository.TYPE);
-        org.elasticsearch.action.support.master.AcknowledgedResponse response =
-            client.snapshot().createRepository(repoRequest, RequestOptions.DEFAULT);
+        org.elasticsearch.action.support.master.AcknowledgedResponse response = client.snapshot()
+            .createRepository(repoRequest, RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
 
         //////// PUT
@@ -917,24 +913,23 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // We need a listener that will actually wait for the snapshot to be created
         CountDownLatch latch = new CountDownLatch(1);
-        executeListener =
-            new ActionListener<>() {
-                @Override
-                public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
-                    try {
-                        assertSnapshotExists(client, "my_repository", r.getSnapshotName());
-                    } catch (Exception e) {
-                        // Ignore
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+        executeListener = new ActionListener<>() {
+            @Override
+            public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
+                try {
+                    assertSnapshotExists(client, "my_repository", r.getSnapshotName());
+                } catch (Exception e) {
+                    // Ignore
+                } finally {
                     latch.countDown();
-                    fail("failed to execute slm execute: " + e);
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+                fail("failed to execute slm execute: " + e);
+            }
         };
 
         // tag::slm-execute-snapshot-lifecycle-policy-execute-async
@@ -956,9 +951,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         SnapshotLifecycleStats.SnapshotPolicyStats policyStats =
             stats.getMetrics().get("policy_id");
         // end::slm-get-snapshot-lifecycle-stats-execute
-        assertThat(
-            statsResp.getStats().getMetrics().get("policy_id").getSnapshotsTaken(),
-            greaterThanOrEqualTo(1L));
+        assertThat(statsResp.getStats().getMetrics().get("policy_id").getSnapshotsTaken(), greaterThanOrEqualTo(1L));
 
         //////// DELETE
         // tag::slm-delete-snapshot-lifecycle-policy-request
@@ -1041,10 +1034,10 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void assertSnapshotExists(final RestHighLevelClient client, final String repo, final String snapshotName) throws Exception {
         assertBusy(() -> {
-            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[]{repo}, new String[]{snapshotName});
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[] { repo }, new String[] { snapshotName });
             try {
                 final GetSnapshotsResponse snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
-                Optional<SnapshotInfo> info = snaps.getSnapshots(repo).stream().findFirst();
+                Optional<SnapshotInfo> info = snaps.getSnapshots().stream().findFirst();
                 if (info.isPresent()) {
                     info.ifPresent(si -> {
                         assertThat(si.snapshotId().getName(), equalTo(snapshotName));
@@ -1118,9 +1111,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
         // Check that SLM is running again
-        LifecycleManagementStatusResponse response =
-            client.indexLifecycle()
-                .getSLMStatus(request, RequestOptions.DEFAULT);
+        LifecycleManagementStatusResponse response = client.indexLifecycle().getSLMStatus(request, RequestOptions.DEFAULT);
 
         OperationMode operationMode = response.getOperationMode();
         assertEquals(OperationMode.RUNNING, operationMode);

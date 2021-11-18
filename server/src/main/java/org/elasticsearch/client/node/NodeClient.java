@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.node;
@@ -45,8 +34,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    @SuppressWarnings("rawtypes")
-    private Map<ActionType, TransportAction> actions;
+    private Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions;
 
     private TaskManager taskManager;
 
@@ -63,10 +51,14 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
-    @SuppressWarnings("rawtypes")
-    public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
-                           Transport.Connection localConnection, RemoteClusterService remoteClusterService,
-                           NamedWriteableRegistry namedWriteableRegistry) {
+    public void initialize(
+        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions,
+        TaskManager taskManager,
+        Supplier<String> localNodeId,
+        Transport.Connection localConnection,
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         this.actions = actions;
         this.taskManager = taskManager;
         this.localNodeId = localNodeId;
@@ -81,8 +73,11 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         // Discard the task because the Client interface doesn't use it.
         try {
             executeLocally(action, request, listener);
@@ -102,26 +97,27 @@ public class NodeClient extends AbstractClient {
      *
      * @throws TaskCancelledException if the request's parent task has been cancelled already
      */
-    public <    Request extends ActionRequest,
-                Response extends ActionResponse
-            > Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection,
-                (t, r) -> {
-                    try {
-                        listener.onResponse(r);
-                    } catch (Exception e) {
-                        assert false : new AssertionError("callback must handle its own exceptions", e);
-                        throw e;
-                    }
-                }, (t, e) -> {
-                    try {
-                        listener.onFailure(e);
-                    } catch (Exception ex) {
-                        ex.addSuppressed(e);
-                        assert false : new AssertionError("callback must handle its own exceptions", ex);
-                        throw ex;
-                    }
-                });
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, (t, r) -> {
+            try {
+                listener.onResponse(r);
+            } catch (Exception e) {
+                assert false : new AssertionError("callback must handle its own exceptions", e);
+                throw e;
+            }
+        }, (t, e) -> {
+            try {
+                listener.onFailure(e);
+            } catch (Exception ex) {
+                ex.addSuppressed(e);
+                assert false : new AssertionError("callback must handle its own exceptions", ex);
+                throw ex;
+            }
+        });
     }
 
     /**
@@ -130,11 +126,19 @@ public class NodeClient extends AbstractClient {
      *
      * @throws TaskCancelledException if the request's parent task has been cancelled already
      */
-    public <    Request extends ActionRequest,
-                Response extends ActionResponse
-            > Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection,
-            listener::onResponse, listener::onFailure);
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        TaskListener<Response> listener
+    ) {
+        return taskManager.registerAndExecute(
+            "transport",
+            transportAction(action),
+            request,
+            localConnection,
+            listener::onResponse,
+            listener::onFailure
+        );
     }
 
     /**
@@ -148,14 +152,14 @@ public class NodeClient extends AbstractClient {
     /**
      * Get the {@link TransportAction} for an {@link ActionType}, throwing exceptions if the action isn't available.
      */
-    @SuppressWarnings("unchecked")
-    private <    Request extends ActionRequest,
-                Response extends ActionResponse
-            > TransportAction<Request, Response> transportAction(ActionType<Response> action) {
+    private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
+        ActionType<Response> action
+    ) {
         if (actions == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        @SuppressWarnings("unchecked")
+        TransportAction<Request, Response> transportAction = (TransportAction<Request, Response>) actions.get(action);
         if (transportAction == null) {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }
@@ -166,7 +170,6 @@ public class NodeClient extends AbstractClient {
     public Client getRemoteClusterClient(String clusterAlias) {
         return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
     }
-
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return namedWriteableRegistry;

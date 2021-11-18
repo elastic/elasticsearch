@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Date;
@@ -19,8 +20,11 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
 
     @Override
     protected BucketInfluencer createTestInstance() {
-        BucketInfluencer bucketInfluencer = new BucketInfluencer(randomAlphaOfLengthBetween(1, 20), new Date(randomNonNegativeLong()),
-                randomNonNegativeLong());
+        BucketInfluencer bucketInfluencer = new BucketInfluencer(
+            randomAlphaOfLengthBetween(1, 20),
+            new Date(randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
         if (randomBoolean()) {
             bucketInfluencer.setAnomalyScore(randomDouble());
         }
@@ -146,8 +150,10 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     public void testStrictParser() throws IOException {
         String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> BucketInfluencer.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> BucketInfluencer.STRICT_PARSER.apply(parser, null)
+            );
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }

@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.slm;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -55,19 +44,20 @@ public class SnapshotLifecycleStats implements ToXContentObject {
     public static final ParseField TOTAL_DELETIONS = new ParseField("total_snapshots_deleted");
     public static final ParseField TOTAL_DELETION_FAILURES = new ParseField("total_snapshot_deletion_failures");
 
-
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SnapshotLifecycleStats, Void> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_stats", true,
-            a -> {
-                long runs = (long) a[0];
-                long failed = (long) a[1];
-                long timedOut = (long) a[2];
-                long timeMs = (long) a[3];
-                Map<String, SnapshotPolicyStats> policyStatsMap = ((List<SnapshotPolicyStats>) a[4]).stream()
-                    .collect(Collectors.toMap(m -> m.policyId, Function.identity()));
-                return new SnapshotLifecycleStats(runs, failed, timedOut, timeMs, policyStatsMap);
-            });
+    private static final ConstructingObjectParser<SnapshotLifecycleStats, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshot_policy_stats",
+        true,
+        a -> {
+            long runs = (long) a[0];
+            long failed = (long) a[1];
+            long timedOut = (long) a[2];
+            long timeMs = (long) a[3];
+            Map<String, SnapshotPolicyStats> policyStatsMap = ((List<SnapshotPolicyStats>) a[4]).stream()
+                .collect(Collectors.toMap(m -> m.policyId, Function.identity()));
+            return new SnapshotLifecycleStats(runs, failed, timedOut, timeMs, policyStatsMap);
+        }
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_RUNS);
@@ -78,8 +68,13 @@ public class SnapshotLifecycleStats implements ToXContentObject {
     }
 
     // Package visible for testing
-    private SnapshotLifecycleStats(long retentionRuns, long retentionFailed, long retentionTimedOut, long retentionTimeMs,
-                                   Map<String, SnapshotPolicyStats> policyStats) {
+    private SnapshotLifecycleStats(
+        long retentionRuns,
+        long retentionFailed,
+        long retentionTimedOut,
+        long retentionTimeMs,
+        Map<String, SnapshotPolicyStats> policyStats
+    ) {
         this.retentionRunCount = retentionRuns;
         this.retentionFailedCount = retentionFailed;
         this.retentionTimedOut = retentionTimedOut;
@@ -159,11 +154,11 @@ public class SnapshotLifecycleStats implements ToXContentObject {
             return false;
         }
         SnapshotLifecycleStats other = (SnapshotLifecycleStats) obj;
-        return retentionRunCount == other.retentionRunCount &&
-            retentionFailedCount == other.retentionFailedCount &&
-            retentionTimedOut == other.retentionTimedOut &&
-            retentionTimeMs == other.retentionTimeMs &&
-            Objects.equals(policyStats, other.policyStats);
+        return retentionRunCount == other.retentionRunCount
+            && retentionFailedCount == other.retentionFailedCount
+            && retentionTimedOut == other.retentionTimedOut
+            && retentionTimeMs == other.retentionTimeMs
+            && Objects.equals(policyStats, other.policyStats);
     }
 
     @Override
@@ -184,16 +179,18 @@ public class SnapshotLifecycleStats implements ToXContentObject {
         static final ParseField SNAPSHOTS_DELETED = new ParseField("snapshots_deleted");
         static final ParseField SNAPSHOT_DELETION_FAILURES = new ParseField("snapshot_deletion_failures");
 
-        private static final ConstructingObjectParser<SnapshotPolicyStats, Void> PARSER =
-            new ConstructingObjectParser<>("snapshot_policy_stats", true,
-                a -> {
-                    String id = (String) a[0];
-                    long taken = (long) a[1];
-                    long failed = (long) a[2];
-                    long deleted = (long) a[3];
-                    long deleteFailed = (long) a[4];
-                    return new SnapshotPolicyStats(id, taken, failed, deleted, deleteFailed);
-                });
+        private static final ConstructingObjectParser<SnapshotPolicyStats, Void> PARSER = new ConstructingObjectParser<>(
+            "snapshot_policy_stats",
+            true,
+            a -> {
+                String id = (String) a[0];
+                long taken = (long) a[1];
+                long failed = (long) a[2];
+                long deleted = (long) a[3];
+                long deleteFailed = (long) a[4];
+                return new SnapshotPolicyStats(id, taken, failed, deleted, deleteFailed);
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_ID);
@@ -249,11 +246,11 @@ public class SnapshotLifecycleStats implements ToXContentObject {
                 return false;
             }
             SnapshotPolicyStats other = (SnapshotPolicyStats) obj;
-            return Objects.equals(policyId, other.policyId) &&
-                snapshotsTaken == other.snapshotsTaken &&
-                snapshotsFailed == other.snapshotsFailed &&
-                snapshotsDeleted == other.snapshotsDeleted &&
-                snapshotDeleteFailures == other.snapshotDeleteFailures;
+            return Objects.equals(policyId, other.policyId)
+                && snapshotsTaken == other.snapshotsTaken
+                && snapshotsFailed == other.snapshotsFailed
+                && snapshotsDeleted == other.snapshotsDeleted
+                && snapshotDeleteFailures == other.snapshotDeleteFailures;
         }
 
         @Override

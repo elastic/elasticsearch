@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -18,10 +19,12 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Collections;
@@ -40,13 +43,27 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
     public void testInternalUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = new Authentication(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE),
-            new Authentication.RealmRef("native", "default_native", "node1"), null);
+        final Authentication authentication = new Authentication(
+            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE),
+            new Authentication.RealmRef("native", "default_native", "node1"),
+            null
+        );
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportAuthenticateAction action = new TransportAuthenticateAction(transportService,
-                mock(ActionFilters.class), securityContext, prepareAnonymousUser());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportAuthenticateAction action = new TransportAuthenticateAction(
+            transportService,
+            mock(ActionFilters.class),
+            securityContext,
+            prepareAnonymousUser()
+        );
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -69,10 +86,21 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
     public void testNullUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportAuthenticateAction action = new TransportAuthenticateAction(transportService,
-                mock(ActionFilters.class), securityContext, prepareAnonymousUser());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportAuthenticateAction action = new TransportAuthenticateAction(
+            transportService,
+            mock(ActionFilters.class),
+            securityContext,
+            prepareAnonymousUser()
+        );
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -93,19 +121,33 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         assertThat(throwableRef.get().getMessage(), containsString("did not find an authenticated user"));
     }
 
-    public void testValidAuthentication(){
+    public void testValidAuthentication() {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
-        final Authentication authentication = new Authentication(user, new Authentication.RealmRef("native_realm", "native", "node1"),
-            null);
+        final Authentication authentication = new Authentication(
+            user,
+            new Authentication.RealmRef("native_realm", "native", "node1"),
+            null
+        );
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(securityContext.getUser()).thenReturn(user);
 
         final AnonymousUser anonymousUser = prepareAnonymousUser();
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportAuthenticateAction action = new TransportAuthenticateAction(transportService,
-                mock(ActionFilters.class), securityContext, anonymousUser);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportAuthenticateAction action = new TransportAuthenticateAction(
+            transportService,
+            mock(ActionFilters.class),
+            securityContext,
+            anonymousUser
+        );
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -143,8 +185,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         final AnonymousUser anonymousUser = mock(AnonymousUser.class);
         if (randomBoolean()) {
             when(anonymousUser.enabled()).thenReturn(true);
-            when(anonymousUser.roles()).thenReturn(
-                randomList(1, 4, () -> randomAlphaOfLengthBetween(4, 12)).toArray(new String[0]));
+            when(anonymousUser.roles()).thenReturn(randomList(1, 4, () -> randomAlphaOfLengthBetween(4, 12)).toArray(new String[0]));
         } else {
             when(anonymousUser.enabled()).thenReturn(false);
         }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -68,8 +57,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear()
-                    .addMetric(NodesInfoRequest.Metric.PROCESS.metricName());
+                nodesInfoRequest.clear().addMetric(NodesInfoRequest.Metric.PROCESS.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(NodesInfoResponse nodesInfoResponse) throws Exception {
@@ -85,13 +73,13 @@ public class RestNodeAttrsAction extends AbstractCatAction {
         Table table = new Table();
         table.startHeaders();
         table.addCell("node", "default:true;alias:name;desc:node name");
-        table.addCell("id",   "default:false;alias:id,nodeId;desc:unique node id");
-        table.addCell("pid",  "default:false;alias:p;desc:process id");
+        table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
+        table.addCell("pid", "default:false;alias:p;desc:process id");
         table.addCell("host", "alias:h;desc:host name");
-        table.addCell("ip",   "alias:i;desc:ip address");
+        table.addCell("ip", "alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
         table.addCell("attr", "default:true;alias:attr.name;desc:attribute description");
-        table.addCell("value","default:true;alias:attr.value;desc:attribute value");
+        table.addCell("value", "default:true;alias:attr.value;desc:attribute value");
         table.endHeaders();
         return table;
     }

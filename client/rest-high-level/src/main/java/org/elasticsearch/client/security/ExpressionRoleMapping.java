@@ -1,38 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.parser.RoleMapperExpressionParser;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A representation of a single role-mapping.
@@ -43,13 +32,26 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public final class ExpressionRoleMapping {
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ExpressionRoleMapping, String> PARSER = new ConstructingObjectParser<>("role-mapping", true,
-        (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<String>) args[1],
-            (List<TemplateRoleName>) args[2], (Map<String, Object>) args[3], (boolean) args[4]));
+    static final ConstructingObjectParser<ExpressionRoleMapping, String> PARSER = new ConstructingObjectParser<>(
+        "role-mapping",
+        true,
+        (args, name) -> new ExpressionRoleMapping(
+            name,
+            (RoleMapperExpression) args[0],
+            (List<String>) args[1],
+            (List<TemplateRoleName>) args[2],
+            (Map<String, Object>) args[3],
+            (boolean) args[4]
+        )
+    );
 
     static {
-        PARSER.declareField(constructorArg(), (parser, context) -> RoleMapperExpressionParser.fromXContent(parser), Fields.RULES,
-                ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            constructorArg(),
+            (parser, context) -> RoleMapperExpressionParser.fromXContent(parser),
+            Fields.RULES,
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareStringArray(optionalConstructorArg(), Fields.ROLES);
         PARSER.declareObjectArray(optionalConstructorArg(), (parser, ctx) -> TemplateRoleName.fromXContent(parser), Fields.ROLE_TEMPLATES);
         PARSER.declareField(constructorArg(), XContentParser::map, Fields.METADATA, ObjectParser.ValueType.OBJECT);
@@ -73,8 +75,14 @@ public final class ExpressionRoleMapping {
      * to the user
      * @param enabled a flag when {@code true} signifies the role mapping is active
      */
-    public ExpressionRoleMapping(final String name, final RoleMapperExpression expr, final List<String> roles,
-                                 final List<TemplateRoleName> templates, final Map<String, Object> metadata, boolean enabled) {
+    public ExpressionRoleMapping(
+        final String name,
+        final RoleMapperExpression expr,
+        final List<String> roles,
+        final List<TemplateRoleName> templates,
+        final Map<String, Object> metadata,
+        boolean enabled
+    ) {
         this.name = name;
         this.expression = expr;
         this.roles = roles == null ? Collections.emptyList() : Collections.unmodifiableList(roles);
@@ -112,12 +120,12 @@ public final class ExpressionRoleMapping {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ExpressionRoleMapping that = (ExpressionRoleMapping) o;
-        return this.enabled == that.enabled &&
-            Objects.equals(this.name, that.name) &&
-            Objects.equals(this.expression, that.expression) &&
-            Objects.equals(this.roles, that.roles) &&
-            Objects.equals(this.roleTemplates, that.roleTemplates) &&
-            Objects.equals(this.metadata, that.metadata);
+        return this.enabled == that.enabled
+            && Objects.equals(this.name, that.name)
+            && Objects.equals(this.expression, that.expression)
+            && Objects.equals(this.roles, that.roles)
+            && Objects.equals(this.roleTemplates, that.roleTemplates)
+            && Objects.equals(this.metadata, that.metadata);
     }
 
     @Override

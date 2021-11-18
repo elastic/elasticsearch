@@ -55,7 +55,7 @@ The following snippet shows a simple `index` action definition:
 | `timeout`               | no         | 60s        | The timeout for waiting for the index api call to
                                                       return. If no response is returned within this time,
                                                       the index action times out and fails. This setting
-                                                      overrides  the default  timeouts.
+                                                      overrides the default timeouts.
 
 | `refresh`               | no         | -          | Optional setting of the {ref}/docs-refresh.html[refresh policy]
                                                       for the write request

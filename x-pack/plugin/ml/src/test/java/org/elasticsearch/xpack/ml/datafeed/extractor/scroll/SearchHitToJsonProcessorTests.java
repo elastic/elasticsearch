@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -28,14 +29,15 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
         ExtractedField missingField = new DocValueField("missing", Collections.singleton("float"));
         ExtractedField singleField = new DocValueField("single", Collections.singleton("keyword"));
         ExtractedField arrayField = new DocValueField("array", Collections.singleton("keyword"));
-        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
-                Arrays.asList(timeField, missingField, singleField, arrayField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(
+            timeField,
+            Arrays.asList(timeField, missingField, singleField, arrayField)
+        );
 
-        SearchHit hit = new SearchHitBuilder(8)
-                .addField("time", 1000L)
-                .addField("single", "a")
-                .addField("array", Arrays.asList("b", "c"))
-                .build();
+        SearchHit hit = new SearchHitBuilder(8).addField("time", 1000L)
+            .addField("single", "a")
+            .addField("array", Arrays.asList("b", "c"))
+            .build();
 
         String json = searchHitToString(extractedFields, hit);
 
@@ -47,25 +49,30 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
         ExtractedField missingField = new DocValueField("missing", Collections.singleton("float"));
         ExtractedField singleField = new DocValueField("single", Collections.singleton("keyword"));
         ExtractedField arrayField = new DocValueField("array", Collections.singleton("keyword"));
-        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
-                Arrays.asList(timeField, missingField, singleField, arrayField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(
+            timeField,
+            Arrays.asList(timeField, missingField, singleField, arrayField)
+        );
 
-        SearchHit hit1 = new SearchHitBuilder(8)
-                .addField("time", 1000L)
-                .addField("single", "a1")
-                .addField("array", Arrays.asList("b1", "c1"))
-                .build();
+        SearchHit hit1 = new SearchHitBuilder(8).addField("time", 1000L)
+            .addField("single", "a1")
+            .addField("array", Arrays.asList("b1", "c1"))
+            .build();
 
-        SearchHit hit2 = new SearchHitBuilder(8)
-                .addField("time", 2000L)
-                .addField("single", "a2")
-                .addField("array", Arrays.asList("b2", "c2"))
-                .build();
+        SearchHit hit2 = new SearchHitBuilder(8).addField("time", 2000L)
+            .addField("single", "a2")
+            .addField("array", Arrays.asList("b2", "c2"))
+            .build();
 
         String json = searchHitToString(extractedFields, hit1, hit2);
 
-        assertThat(json, equalTo("{\"time\":1000,\"single\":\"a1\",\"array\":[\"b1\",\"c1\"]} " +
-                "{\"time\":2000,\"single\":\"a2\",\"array\":[\"b2\",\"c2\"]}"));
+        assertThat(
+            json,
+            equalTo(
+                "{\"time\":1000,\"single\":\"a1\",\"array\":[\"b1\",\"c1\"]} "
+                    + "{\"time\":2000,\"single\":\"a2\",\"array\":[\"b2\",\"c2\"]}"
+            )
+        );
     }
 
     private String searchHitToString(ExtractedFields fields, SearchHit... searchHits) throws IOException {

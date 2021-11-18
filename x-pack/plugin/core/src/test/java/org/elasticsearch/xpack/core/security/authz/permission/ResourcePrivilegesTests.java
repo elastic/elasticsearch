@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
@@ -39,28 +40,33 @@ public class ResourcePrivilegesTests extends ESTestCase {
     public void testEqualsHashCode() {
         ResourcePrivileges instance = createInstance();
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
-            return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build();
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
-            return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build();
-        }, ResourcePrivilegesTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            instance,
+            (original) -> { return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build(); }
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            instance,
+            (original) -> { return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build(); },
+            ResourcePrivilegesTests::mutateTestItem
+        );
     }
 
     private ResourcePrivileges createInstance() {
-        ResourcePrivileges instance = ResourcePrivileges.builder("*").addPrivilege("read", true)
-                .addPrivileges(Collections.singletonMap("write", false)).build();
+        ResourcePrivileges instance = ResourcePrivileges.builder("*")
+            .addPrivilege("read", true)
+            .addPrivileges(Collections.singletonMap("write", false))
+            .build();
         return instance;
     }
 
     private static ResourcePrivileges mutateTestItem(ResourcePrivileges original) {
         switch (randomIntBetween(0, 1)) {
-        case 0:
-            return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(original.getPrivileges()).build();
-        case 1:
-            return ResourcePrivileges.builder(original.getResource()).addPrivileges(Collections.emptyMap()).build();
-        default:
-            return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(Collections.emptyMap()).build();
+            case 0:
+                return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(original.getPrivileges()).build();
+            case 1:
+                return ResourcePrivileges.builder(original.getResource()).addPrivileges(Collections.emptyMap()).build();
+            default:
+                return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(Collections.emptyMap()).build();
         }
     }
 

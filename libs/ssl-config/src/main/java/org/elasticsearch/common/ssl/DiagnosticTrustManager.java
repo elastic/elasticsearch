@@ -1,28 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
@@ -34,10 +19,14 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.X509ExtendedTrustManager;
+
 import static org.elasticsearch.common.ssl.SslDiagnostics.getTrustDiagnosticFailure;
 
 public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
-
 
     /**
      * This interface exists because the ssl-config library does not depend on log4j, however the whole purpose of this class is to log
@@ -47,7 +36,6 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
     public interface DiagnosticLogger {
         void warning(String message, GeneralSecurityException cause);
     }
-
 
     private final X509ExtendedTrustManager delegate;
     private final Supplier<String> contextName;
@@ -64,13 +52,18 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         this.contextName = contextName;
         this.logger = logger;
         this.issuers = Stream.of(delegate.getAcceptedIssuers())
-            .collect(Collectors.toMap(cert -> cert.getSubjectX500Principal().getName(), List::of,
-                (List<X509Certificate> a, List<X509Certificate> b) -> {
-                    final ArrayList<X509Certificate> list = new ArrayList<>(a.size() + b.size());
-                    list.addAll(a);
-                    list.addAll(b);
-                    return list;
-                }));
+            .collect(
+                Collectors.toMap(
+                    cert -> cert.getSubjectX500Principal().getName(),
+                    List::of,
+                    (List<X509Certificate> a, List<X509Certificate> b) -> {
+                        final ArrayList<X509Certificate> list = new ArrayList<>(a.size() + b.size());
+                        list.addAll(a);
+                        list.addAll(b);
+                        return list;
+                    }
+                )
+            );
     }
 
     @Override

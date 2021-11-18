@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
@@ -40,21 +43,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 /**
  * Indices clear cache action.
  */
-public class TransportReloadAnalyzersAction
-        extends TransportBroadcastByNodeAction<ReloadAnalyzersRequest, ReloadAnalyzersResponse, ReloadResult> {
+public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeAction<
+    ReloadAnalyzersRequest,
+    ReloadAnalyzersResponse,
+    ReloadResult> {
 
     private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
     private final IndicesService indicesService;
 
     @Inject
-    public TransportReloadAnalyzersAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ReloadAnalyzerAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ReloadAnalyzersRequest::new, ThreadPool.Names.MANAGEMENT, false);
+    public TransportReloadAnalyzersAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ReloadAnalyzerAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            ReloadAnalyzersRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            false
+        );
         this.indicesService = indicesService;
     }
 
@@ -64,12 +81,20 @@ public class TransportReloadAnalyzersAction
     }
 
     @Override
-    protected ReloadAnalyzersResponse newResponse(ReloadAnalyzersRequest request, int totalShards, int successfulShards, int failedShards,
-            List<ReloadResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected ReloadAnalyzersResponse newResponse(
+        ReloadAnalyzersRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ReloadResult> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<String, ReloadDetails>();
         for (ReloadResult result : responses) {
             if (reloadedIndicesDetails.containsKey(result.index)) {
-                reloadedIndicesDetails.get(result.index).merge(result);;
+                reloadedIndicesDetails.get(result.index).merge(result);
+                ;
             } else {
                 HashSet<String> nodeIds = new HashSet<String>();
                 nodeIds.add(result.nodeId);
@@ -86,11 +111,18 @@ public class TransportReloadAnalyzersAction
     }
 
     @Override
-    protected ReloadResult shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting) throws IOException {
-        logger.info("reloading analyzers for index shard " + shardRouting);
-        IndexService indexService = indicesService.indexService(shardRouting.index());
-        List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
-        return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
+    protected void shardOperation(
+        ReloadAnalyzersRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<ReloadResult> listener
+    ) {
+        ActionListener.completeWith(listener, () -> {
+            logger.info("reloading analyzers for index shard " + shardRouting);
+            IndexService indexService = indicesService.indexService(shardRouting.index());
+            List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
+            return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
+        });
     }
 
     static final class ReloadResult implements Writeable {

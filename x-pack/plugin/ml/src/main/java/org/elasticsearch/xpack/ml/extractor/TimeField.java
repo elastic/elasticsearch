@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.extractor;
 
@@ -23,7 +24,7 @@ public class TimeField extends AbstractField {
 
     public TimeField(String name, Method method) {
         // This class intentionally reports the possible types rather than the types reported by
-        // field caps at the point of construction.  This means that it will continue to work if,
+        // field caps at the point of construction. This means that it will continue to work if,
         // for example, a newly created index has a "date_nanos" time field when in all the indices
         // that matched the pattern when this constructor was called the field had type "date".
         super(name, TYPES);
@@ -45,7 +46,7 @@ public class TimeField extends AbstractField {
             return value;
         }
         if (value[0] instanceof String) { // doc_value field with the epoch_millis format
-            value[0] = TimeUtils.parseToEpochMs((String)value[0]);
+            value[0] = TimeUtils.parseToEpochMs((String) value[0]);
         } else if (value[0] instanceof Long == false) { // pre-6.0 field
             throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
         }

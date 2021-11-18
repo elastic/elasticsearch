@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
@@ -54,8 +55,16 @@ public class MergedGeoLinesTests extends ESTestCase {
         int maxLength = 10;
         SortOrder sortOrder = SortOrder.ASC;
         InternalGeoLine lineWithPoints = randomLine(sortOrder, maxLength, 0.0);
-        InternalGeoLine emptyLine = new InternalGeoLine("name", new long[]{}, new double[]{}, Collections.emptyMap(),
-            true, randomBoolean(), sortOrder, maxLength);
+        InternalGeoLine emptyLine = new InternalGeoLine(
+            "name",
+            new long[] {},
+            new double[] {},
+            Collections.emptyMap(),
+            true,
+            randomBoolean(),
+            sortOrder,
+            maxLength
+        );
         List<InternalGeoLine> geoLines = List.of(lineWithPoints, emptyLine);
         MergedGeoLines mergedGeoLines = new MergedGeoLines(geoLines, lineWithPoints.length(), sortOrder);
         mergedGeoLines.merge();

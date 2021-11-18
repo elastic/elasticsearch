@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
 import java.io.IOException;
@@ -63,8 +64,10 @@ public enum DataAttachment implements ToXContentObject {
 
     public static DataAttachment resolve(String format) {
         switch (format.toLowerCase(Locale.ROOT)) {
-            case "yaml": return YAML;
-            case "json": return JSON;
+            case "yaml":
+                return YAML;
+            case "json":
+                return JSON;
             default:
                 throw illegalArgument("unknown data attachment format [{}]", format);
         }
@@ -79,8 +82,10 @@ public enum DataAttachment implements ToXContentObject {
             return parser.booleanValue() ? DEFAULT : null;
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse data attachment. expected either a boolean value or an object but " +
-                    "found [{}] instead", token);
+            throw new ElasticsearchParseException(
+                "could not parse data attachment. expected either a boolean value or an object but " + "found [{}] instead",
+                token
+            );
         }
 
         DataAttachment dataAttachment = DEFAULT;
@@ -90,14 +95,20 @@ public enum DataAttachment implements ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new ElasticsearchParseException("could not parse data attachment. expected [{}] field but found [{}] instead",
-                        Field.FORMAT.getPreferredName(), token);
+                throw new ElasticsearchParseException(
+                    "could not parse data attachment. expected [{}] field but found [{}] instead",
+                    Field.FORMAT.getPreferredName(),
+                    token
+                );
             } else if (Field.FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but " +
-                            "found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse data attachment. expected string value for [{}] field but " + "found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else {
                 throw new ElasticsearchParseException("could not parse data attachment. unexpected field [{}]", currentFieldName);

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -34,10 +35,8 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
     private static final String TIME_FIELD = "time";
 
     @Before
-    public void setUpData()  {
-        client().admin().indices().prepareCreate(DATA_INDEX)
-            .setMapping(TIME_FIELD, "type=date,format=epoch_millis")
-            .get();
+    public void setUpData() {
+        client().admin().indices().prepareCreate(DATA_INDEX).setMapping(TIME_FIELD, "type=date,format=epoch_millis").get();
     }
 
     @After
@@ -88,21 +87,19 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
 
     private void runJob(String jobId, String datafeedId) throws Exception {
         Detector.Builder detector = new Detector.Builder().setFunction("count");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()))
-            .setBucketSpan(TimeValue.timeValueHours(1));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build())).setBucketSpan(
+            TimeValue.timeValueHours(1)
+        );
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField(TIME_FIELD);
-        Job.Builder job = new Job.Builder(jobId)
-            .setAnalysisConfig(analysisConfig)
-            .setDataDescription(dataDescription);
+        Job.Builder job = new Job.Builder(jobId).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
 
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, jobId);
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
         DatafeedConfig datafeedA = datafeedConfig.build();
-        registerDatafeed(datafeedA);
+
         putDatafeed(datafeedA);
 
         openJob(jobId);
@@ -115,8 +112,7 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
     private static IndexRequest randomAnnotationIndexRequest(String jobId, String createUsername) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setCreateUsername(createUsername).build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
-                .source(xContentBuilder)
+            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }

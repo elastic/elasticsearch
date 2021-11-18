@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -80,8 +69,8 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
 
     // package private for testing only
     void setQuery(BytesReference query) {
-        assert query == null || XContentHelper.xContentType(query) == XContentType.JSON :
-                "Only accepts JSON encoded query but received [" + Strings.toString(query) + "]";
+        assert query == null || XContentHelper.xContentType(query).canonical() == XContentType.JSON
+            : "Only accepts JSON encoded query but received [" + Strings.toString(query) + "]";
         this.query = query;
     }
 
@@ -107,12 +96,12 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
         {
             builder.startObject(type);
             {
-                builder.field(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
+                builder.stringListField(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
                 if (query != null) {
                     builder.field(NamedPolicy.QUERY_FIELD.getPreferredName(), asMap(query, XContentType.JSON));
                 }
                 builder.field(NamedPolicy.MATCH_FIELD_FIELD.getPreferredName(), matchField);
-                builder.field(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
+                builder.stringListField(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
             }
             builder.endObject();
         }
@@ -125,12 +114,12 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PutPolicyRequest that = (PutPolicyRequest) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(indices, that.indices) &&
-            Objects.equals(matchField, that.matchField) &&
-            Objects.equals(enrichFields, that.enrichFields);
+        return Objects.equals(name, that.name)
+            && Objects.equals(type, that.type)
+            && Objects.equals(query, that.query)
+            && Objects.equals(indices, that.indices)
+            && Objects.equals(matchField, that.matchField)
+            && Objects.equals(enrichFields, that.enrichFields);
     }
 
     @Override

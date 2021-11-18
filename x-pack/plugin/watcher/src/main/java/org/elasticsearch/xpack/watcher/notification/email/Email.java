@@ -1,24 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +28,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import javax.mail.MessagingException;
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -49,9 +51,20 @@ public class Email implements ToXContentObject {
     final String htmlBody;
     final Map<String, Attachment> attachments;
 
-    public Email(String id, Address from, AddressList replyTo, Priority priority, ZonedDateTime sentDate,
-                 AddressList to, AddressList cc, AddressList bcc, String subject, String textBody, String htmlBody,
-                 Map<String, Attachment> attachments) {
+    public Email(
+        String id,
+        Address from,
+        AddressList replyTo,
+        Priority priority,
+        ZonedDateTime sentDate,
+        AddressList to,
+        AddressList cc,
+        AddressList bcc,
+        String subject,
+        String textBody,
+        String htmlBody,
+        Map<String, Attachment> attachments
+    ) {
 
         this.id = id;
         this.from = from;
@@ -159,7 +172,7 @@ public class Email implements ToXContentObject {
 
         Email email = (Email) o;
 
-        if (!id.equals(email.id)) return false;
+        if (id.equals(email.id) == false) return false;
 
         return true;
     }
@@ -173,57 +186,60 @@ public class Email implements ToXContentObject {
         return new Builder();
     }
 
-    public static Email parse(XContentParser parser) throws IOException{
+    public static Email parse(XContentParser parser) throws IOException {
         Builder email = new Builder();
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) &&
-                    currentFieldName != null) {
-                if (Field.ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.id(parser.text());
-                } else if (Field.FROM.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.from(Address.parse(currentFieldName, token, parser));
-                } else if (Field.REPLY_TO.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.replyTo(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.TO.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.to(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.CC.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.cc(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.BCC.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.bcc(AddressList.parse(currentFieldName, token, parser));
-                } else if (Field.PRIORITY.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.priority(Email.Priority.resolve(parser.text()));
-                } else if (Field.SENT_DATE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.sentDate(DateFormatters.from(DATE_TIME_FORMATTER.parse(parser.text())));
-                } else if (Field.SUBJECT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.subject(parser.text());
-                } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
-                    String bodyField = currentFieldName;
-                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                        email.textBody(parser.text());
-                    } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (currentFieldName == null) {
-                                throw new ElasticsearchParseException("could not parse email. empty [{}] field", bodyField);
-                            } else if (Email.Field.BODY_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
-                                email.textBody(parser.text());
-                            } else if (Email.Field.BODY_HTML.match(currentFieldName, parser.getDeprecationHandler())) {
-                                email.htmlBody(parser.text());
-                            } else {
-                                throw new ElasticsearchParseException("could not parse email. unexpected field [{}.{}] field", bodyField,
-                                        currentFieldName);
+            } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY)
+                && currentFieldName != null) {
+                    if (Field.ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.id(parser.text());
+                    } else if (Field.FROM.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.from(Address.parse(currentFieldName, token, parser));
+                    } else if (Field.REPLY_TO.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.replyTo(AddressList.parse(currentFieldName, token, parser));
+                    } else if (Field.TO.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.to(AddressList.parse(currentFieldName, token, parser));
+                    } else if (Field.CC.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.cc(AddressList.parse(currentFieldName, token, parser));
+                    } else if (Field.BCC.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.bcc(AddressList.parse(currentFieldName, token, parser));
+                    } else if (Field.PRIORITY.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.priority(Email.Priority.resolve(parser.text()));
+                    } else if (Field.SENT_DATE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.sentDate(DateFormatters.from(DATE_TIME_FORMATTER.parse(parser.text())));
+                    } else if (Field.SUBJECT.match(currentFieldName, parser.getDeprecationHandler())) {
+                        email.subject(parser.text());
+                    } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
+                        String bodyField = currentFieldName;
+                        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                            email.textBody(parser.text());
+                        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (currentFieldName == null) {
+                                    throw new ElasticsearchParseException("could not parse email. empty [{}] field", bodyField);
+                                } else if (Email.Field.BODY_TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
+                                    email.textBody(parser.text());
+                                } else if (Email.Field.BODY_HTML.match(currentFieldName, parser.getDeprecationHandler())) {
+                                    email.htmlBody(parser.text());
+                                } else {
+                                    throw new ElasticsearchParseException(
+                                        "could not parse email. unexpected field [{}.{}] field",
+                                        bodyField,
+                                        currentFieldName
+                                    );
+                                }
                             }
                         }
+                    } else {
+                        throw new ElasticsearchParseException("could not parse email. unexpected field [{}]", currentFieldName);
                     }
-                } else {
-                    throw new ElasticsearchParseException("could not parse email. unexpected field [{}]", currentFieldName);
                 }
-            }
         }
         return email.build();
     }
@@ -243,8 +259,7 @@ public class Email implements ToXContentObject {
         private String htmlBody;
         private Map<String, Attachment> attachments = new HashMap<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder copyFrom(Email email) {
             id = email.id;
@@ -355,8 +370,20 @@ public class Email implements ToXContentObject {
          */
         public Email build() {
             assert id != null : "email id should not be null";
-            Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody,
-                    unmodifiableMap(attachments));
+            Email email = new Email(
+                id,
+                from,
+                replyTo,
+                priority,
+                sentDate,
+                to,
+                cc,
+                bcc,
+                subject,
+                textBody,
+                htmlBody,
+                unmodifiableMap(attachments)
+            );
             attachments = null;
             return email;
         }
@@ -400,11 +427,16 @@ public class Email implements ToXContentObject {
                 return defaultPriority;
             }
             switch (name.toLowerCase(Locale.ROOT)) {
-                case "highest": return HIGHEST;
-                case "high":    return HIGH;
-                case "normal":  return NORMAL;
-                case "low":     return LOW;
-                case "lowest":  return LOWEST;
+                case "highest":
+                    return HIGHEST;
+                case "high":
+                    return HIGH;
+                case "normal":
+                    return NORMAL;
+                case "low":
+                    return LOW;
+                case "lowest":
+                    return LOWEST;
                 default:
                     return defaultPriority;
             }
@@ -456,8 +488,9 @@ public class Email implements ToXContentObject {
                         } else if (ADDRESS_NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             name = parser.text();
                         } else {
-                            throw new ElasticsearchParseException("could not parse [" + field + "] object as address. unknown address " +
-                                    "field [" + currentFieldName + "]");
+                            throw new ElasticsearchParseException(
+                                "could not parse [" + field + "] object as address. unknown address " + "field [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -472,8 +505,11 @@ public class Email implements ToXContentObject {
                 }
 
             }
-            throw new ElasticsearchParseException("could not parse [{}] as address. address must either be a string (RFC822 encoded) or " +
-                    "an object specifying the address [name] and [email]", field);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] as address. address must either be a string (RFC822 encoded) or "
+                    + "an object specifying the address [name] and [email]",
+                field
+            );
         }
 
         public static Address parse(Settings settings, String name) {
@@ -558,8 +594,15 @@ public class Email implements ToXContentObject {
                 try {
                     return parse(parser.text());
                 } catch (AddressException ae) {
-                    throw new ElasticsearchParseException("could not parse field [" + field + "] with value [" + text + "] as address " +
-                            "list. address(es) must be RFC822 encoded", ae);
+                    throw new ElasticsearchParseException(
+                        "could not parse field ["
+                            + field
+                            + "] with value ["
+                            + text
+                            + "] as address "
+                            + "list. address(es) must be RFC822 encoded",
+                        ae
+                    );
                 }
             }
             if (token == XContentParser.Token.START_ARRAY) {
@@ -569,8 +612,12 @@ public class Email implements ToXContentObject {
                 }
                 return new Email.AddressList(addresses);
             }
-            throw new ElasticsearchParseException("could not parse [" + field + "] as address list. field must either be a string " +
-                    "(comma-separated list of RFC822 encoded addresses) or an array of objects representing addresses");
+            throw new ElasticsearchParseException(
+                "could not parse ["
+                    + field
+                    + "] as address list. field must either be a string "
+                    + "(comma-separated list of RFC822 encoded addresses) or an array of objects representing addresses"
+            );
         }
 
         @Override
@@ -580,7 +627,7 @@ public class Email implements ToXContentObject {
 
             AddressList addresses1 = (AddressList) o;
 
-            if (!addresses.equals(addresses1.addresses)) return false;
+            if (addresses.equals(addresses1.addresses) == false) return false;
 
             return true;
         }

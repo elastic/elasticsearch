@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
@@ -17,8 +18,7 @@ public class GeoShapeCoordinateEncoderTests extends ESTestCase {
 
     public void testLongitude() {
         double randomLon = randomDoubleBetween(-180, 180, true);
-        double randomInvalidLon = randomFrom(randomDoubleBetween(-1000, -180.01, true),
-            randomDoubleBetween(180.01, 1000, true));
+        double randomInvalidLon = randomFrom(randomDoubleBetween(-1000, -180.01, true), randomDoubleBetween(180.01, 1000, true));
 
         assertThat(CoordinateEncoder.GEO.encodeX(Double.POSITIVE_INFINITY), equalTo(Integer.MAX_VALUE));
         assertThat(CoordinateEncoder.GEO.encodeX(Double.NEGATIVE_INFINITY), equalTo(Integer.MIN_VALUE));
@@ -34,8 +34,7 @@ public class GeoShapeCoordinateEncoderTests extends ESTestCase {
 
     public void testLatitude() {
         double randomLat = randomDoubleBetween(-90, 90, true);
-        double randomInvalidLat = randomFrom(randomDoubleBetween(-1000, -90.01, true),
-            randomDoubleBetween(90.01, 1000, true));
+        double randomInvalidLat = randomFrom(randomDoubleBetween(-1000, -90.01, true), randomDoubleBetween(90.01, 1000, true));
 
         assertThat(CoordinateEncoder.GEO.encodeY(Double.POSITIVE_INFINITY), equalTo(Integer.MAX_VALUE));
         assertThat(CoordinateEncoder.GEO.encodeY(Double.NEGATIVE_INFINITY), equalTo(Integer.MIN_VALUE));

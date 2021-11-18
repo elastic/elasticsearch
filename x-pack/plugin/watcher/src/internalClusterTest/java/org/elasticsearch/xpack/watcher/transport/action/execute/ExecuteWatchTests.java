@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.action.execute;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
@@ -32,14 +33,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testExecuteAllDefaults() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? 2099")))
-                        .input(simpleInput("foo", "bar"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/5 * * * * ? 2099")))
+                    .input(simpleInput("foo", "bar"))
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("log", loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -72,15 +73,15 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testExecuteActionMode() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("1s"))) // run every second so we can ack it
-                        .input(simpleInput("foo", "bar"))
-                        .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("1s"))) // run every second so we can ack it
+                    .input(simpleInput("foo", "bar"))
+                    .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("log", loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -108,12 +109,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             // lets wait for the watch to be ackable
             timeWarp().trigger("_id");
 
-            String[] actionIds = randomFrom(
-                    new String[] { "_all" },
-                    new String[] { "log" },
-                    new String[] { "foo", "_all" },
-                    null
-            );
+            String[] actionIds = randomFrom(new String[] { "_all" }, new String[] { "log" }, new String[] { "foo", "_all" }, null);
             AckWatchRequestBuilder ackWatchRequestBuilder = new AckWatchRequestBuilder(client(), "_id");
             if (actionIds != null) {
                 ackWatchRequestBuilder.setActionIds(actionIds);
@@ -127,9 +123,10 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             assertThat(actionStatus.ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
         }
 
-        ExecuteWatchResponse response = new ExecuteWatchRequestBuilder(client(), "_id")
-                .setActionMode(randomBoolean() ? "log" : "_all", mode)
-                .get();
+        ExecuteWatchResponse response = new ExecuteWatchRequestBuilder(client(), "_id").setActionMode(
+            randomBoolean() ? "log" : "_all",
+            mode
+        ).get();
         assertThat(response, notNullValue());
         assertThat(response.getRecordId(), notNullValue());
         Wid wid = new Wid(response.getRecordId());

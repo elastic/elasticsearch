@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,17 +30,17 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCase<DelegatePkiAuthenticationRequest,
-        org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest> {
+public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCase<
+    DelegatePkiAuthenticationRequest,
+    org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest> {
 
     public void testEmptyOrNullCertificateChain() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            new DelegatePkiAuthenticationRequest((List<X509Certificate>)null);
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { new DelegatePkiAuthenticationRequest((List<X509Certificate>) null); }
+        );
         assertThat(e.getMessage(), is("certificate chain must not be empty or null"));
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            new DelegatePkiAuthenticationRequest(Collections.emptyList());
-        });
+        e = expectThrows(IllegalArgumentException.class, () -> { new DelegatePkiAuthenticationRequest(Collections.emptyList()); });
         assertThat(e.getMessage(), is("certificate chain must not be empty or null"));
     }
 
@@ -76,13 +65,15 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCa
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest doParseToServerInstance(XContentParser parser)
-            throws IOException {
+        throws IOException {
         return org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest.fromXContent(parser);
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest serverInstance,
-            DelegatePkiAuthenticationRequest clientTestInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest serverInstance,
+        DelegatePkiAuthenticationRequest clientTestInstance
+    ) {
         assertThat(serverInstance.getCertificateChain(), is(clientTestInstance.getCertificateChain()));
     }
 

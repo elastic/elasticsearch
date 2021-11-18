@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
@@ -20,8 +21,8 @@ import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 
 import java.io.IOException;
 
@@ -49,8 +50,13 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
         boolean isGeoPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
         boolean isGeoShape = fieldContext.indexFieldData() instanceof IndexGeoShapeFieldData;
         if (isGeoPoint == false && isGeoShape == false) {
-            throw new IllegalArgumentException("Expected geo_point or geo_shape type on field [" + fieldContext.field() +
-                "], but got [" + fieldContext.fieldType().typeName() + "]");
+            throw new IllegalArgumentException(
+                "Expected geo_point or geo_shape type on field ["
+                    + fieldContext.field()
+                    + "], but got ["
+                    + fieldContext.fieldType().typeName()
+                    + "]"
+            );
         }
         if (isGeoPoint) {
             return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
@@ -90,7 +96,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
 
                     @Override
                     public GeoShapeValue value() throws IOException {
-                        return exists ?  values.value() : missing;
+                        return exists ? values.value() : missing;
                     }
 
                     @Override

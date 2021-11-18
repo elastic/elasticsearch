@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -30,18 +31,33 @@ public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAc
     private final Exporters exporters;
 
     @Inject
-    public MonitoringUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          MonitoringUsageServices monitoringServices) {
-        super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool,
-            actionFilters, indexNameExpressionResolver);
+    public MonitoringUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MonitoringUsageServices monitoringServices
+    ) {
+        super(
+            XPackUsageFeatureAction.MONITORING.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.monitoringService = monitoringServices.monitoringService;
         this.exporters = monitoringServices.exporters;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         final boolean collectionEnabled = monitoringService != null && monitoringService.isMonitoringActive();
         var usage = new MonitoringFeatureSetUsage(collectionEnabled, exportersUsage(exporters));
         listener.onResponse(new XPackUsageFeatureResponse(usage));

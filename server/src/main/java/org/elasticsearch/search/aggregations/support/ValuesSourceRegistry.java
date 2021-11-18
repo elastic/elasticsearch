@@ -86,7 +86,13 @@ public class ValuesSourceRegistry {
             boolean registerUsage
         ) {
             if (duplicateRegistrationCheck.contains(valuesSourceType) == false) {
-                throw new IllegalStateException("Attempt to register aggregation mapping before registering ValuesSourceType");
+                throw new IllegalStateException(
+                    "Attempt to register aggregation ["
+                        + aggregatorSupplier.toString()
+                        + "] before registering ValuesSourceType ["
+                        + valuesSourceType.typeName()
+                        + "]"
+                );
             }
             if (aggregatorRegistry.containsKey(registryKey) == false) {
                 aggregatorRegistry.put(registryKey, new ArrayList<>());

@@ -51,6 +51,9 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
     private static final ValuesSourceRegistry REGISTRY;
     static {
         ValuesSourceRegistry.Builder registry = new ValuesSourceRegistry.Builder();
+        for (ValuesSourceType vst : CoreValuesSourceType.values()) {
+            registry.registerValuesSourceType(vst);
+        }
         TopMetricsAggregationBuilder.registerAggregators(registry);
         REGISTRY = registry.build();
     }

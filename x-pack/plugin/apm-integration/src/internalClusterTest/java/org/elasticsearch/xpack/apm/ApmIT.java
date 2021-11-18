@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.apm;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.trace.data.SpanData;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
@@ -38,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -54,7 +56,12 @@ public class ApmIT extends ESIntegTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(APMTracer.APM_ENDPOINT_SETTING.getKey(), System.getProperty("tests.apm.endpoint", ""));
         secureSettings.setString(APMTracer.APM_TOKEN_SETTING.getKey(), System.getProperty("tests.apm.token", ""));
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).setSecureSettings(secureSettings).build();
+
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(APMTracer.APM_ENABLED_SETTING.getKey(), true)
+            .setSecureSettings(secureSettings)
+            .build();
     }
 
     @After
@@ -168,5 +175,34 @@ public class ApmIT extends ESIntegTestCase {
 
         assertTrue(spanExporter.findSpanByName(SearchAction.NAME).findAny().isPresent());
         assertTrue(spanExporter.findSpanByName(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME).findAny().isPresent());
+    }
+
+    public void testDoesNotRecordSpansWhenDisabled() {
+
+        client().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(
+                    Settings.builder().put(APMTracer.APM_ENABLED_SETTING.getKey(), false).build()
+                )
+            )
+            .actionGet();
+
+        try {
+            APMTracer.CAPTURING_SPAN_EXPORTER.clear();
+
+            client().admin().cluster().prepareListTasks().get();
+
+            assertThat(APMTracer.CAPTURING_SPAN_EXPORTER.getCapturedSpans(), empty());
+        } finally {
+            client().admin()
+                .cluster()
+                .updateSettings(
+                    new ClusterUpdateSettingsRequest().persistentSettings(
+                        Settings.builder().put(APMTracer.APM_ENABLED_SETTING.getKey(), (String) null).build()
+                    )
+                )
+                .actionGet();
+        }
     }
 }

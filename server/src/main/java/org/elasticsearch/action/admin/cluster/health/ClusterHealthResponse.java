@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -172,7 +173,9 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        return200ForClusterHealthTimeout = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            return200ForClusterHealthTimeout = in.readBoolean();
+        }
     }
 
     /** needed for plugins BWC */
@@ -341,7 +344,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        out.writeBoolean(return200ForClusterHealthTimeout);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(return200ForClusterHealthTimeout);
+        } else if (return200ForClusterHealthTimeout) {
+            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());
+        }
     }
 
     @Override

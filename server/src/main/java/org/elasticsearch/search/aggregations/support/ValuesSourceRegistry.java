@@ -177,7 +177,8 @@ public class ValuesSourceRegistry {
     public ValuesSourceRegistry(
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry,
         AggregationUsageService usageService,
-        Map<String, ValuesSourceType> valueTypeLookup) {
+        Map<String, ValuesSourceType> valueTypeLookup
+    ) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.usageService = usageService;
         // TODO: Make an immutable copy blah blah blah

@@ -82,6 +82,12 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         100,
         Property.NodeScope
     );
+    public static final Setting<Float> GC_OOM_SAMPLING_THRESHOLD = Setting.floatSetting(
+        "monitor.jvm.gc.oom.sampling.threshold",
+        0.90f,
+        0.50f,
+        Property.NodeScope
+    );
 
     static class GcOverheadThreshold {
         final int warnThreshold;
@@ -182,6 +188,13 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             this.gcOverheadThreshold.infoThreshold,
             this.gcOverheadThreshold.debugThreshold
         );
+
+        if (enabled) {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                setupOOMMonitor(GC_OOM_SAMPLING_THRESHOLD.get(settings));
+                return null;
+            });
+        }
     }
 
     private static TimeValue getValidThreshold(Settings settings, String key, String level) {
@@ -235,14 +248,9 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
                 logGcOverhead(logger, threshold, current, elapsed, seq);
             }
         }, interval, Names.SAME);
-
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            setupOOMMonitor();
-            return null;
-        });
     }
 
-    private void setupOOMMonitor() {
+    private void setupOOMMonitor(float threshold) {
         MemoryPoolMXBean tenuredGen = ManagementFactory.getMemoryPoolMXBeans().stream()
             .filter(pool -> pool.getType() == MemoryType.HEAP)
             .filter(MemoryPoolMXBean::isUsageThresholdSupported)
@@ -250,9 +258,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             .orElseThrow(() -> new IllegalStateException(
                 "Unable to find tenured generation MemoryPoolMXBean. Unsupported JVM?"));
 
-        double threshold = 0.49;
         MemoryUsage usage = tenuredGen.getUsage();
-        tenuredGen.setCollectionUsageThreshold((int)Math.floor(usage.getMax() * threshold));
+        tenuredGen.setCollectionUsageThreshold((int)Math.floor(((float)usage.getMax()) * threshold));
 
         NotificationEmitter notificationEmitter =
             (NotificationEmitter) ManagementFactory.getMemoryMXBean();

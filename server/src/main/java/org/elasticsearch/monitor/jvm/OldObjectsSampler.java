@@ -19,13 +19,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class OldObjectsSampler {
     private static final int NUM_SAMPLES = 3;
     private static final int SAMPLER_DELAY = 3_000;
     private static final Logger logger = LogManager.getLogger(OldObjectsSampler.class);
-    private static final AtomicBoolean samplingOn = new AtomicBoolean();
 
     private static List<RecordedEvent> fromRecording(Recording recording) throws IOException {
         return RecordingFile.readAllEvents(dump(recording));
@@ -43,28 +41,20 @@ public class OldObjectsSampler {
     }
 
     public static void dumpMemoryHogSuspects() throws IOException {
-        if (samplingOn.compareAndSet(false, true) == false) {
-            // Already sampling from a previous OOM event
-            return;
-        }
-        try {
-            for (int counter = 0; counter < NUM_SAMPLES; counter++) {
-                try (Recording r = new Recording()) {
-                    r.enable("jdk.OldObjectSample").withStackTrace().with("cutoff", "infinity");
-                    r.start();
-                    try {
-                        Thread.sleep(SAMPLER_DELAY);
-                    } catch (Exception ignore) {}
-                    r.stop();
-                    List<RecordedEvent> events = fromRecording(r);
-                    if (events.isEmpty() == false) {
-                        logger.warn("Sampling result {}/{}", counter+1, NUM_SAMPLES);
-                        logger.warn(events);
-                    }
+        for (int counter = 0; counter < NUM_SAMPLES; counter++) {
+            try (Recording r = new Recording()) {
+                r.enable("jdk.OldObjectSample").withStackTrace().with("cutoff", "infinity");
+                r.start();
+                try {
+                    Thread.sleep(SAMPLER_DELAY);
+                } catch (Exception ignore) {}
+                r.stop();
+                List<RecordedEvent> events = fromRecording(r);
+                if (events.isEmpty() == false) {
+                    logger.warn("Sampling result {}/{}", counter+1, NUM_SAMPLES);
+                    logger.warn(events);
                 }
             }
-        } finally {
-            samplingOn.set(false);
         }
     }
 }

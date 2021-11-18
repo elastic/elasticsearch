@@ -11,7 +11,7 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.plugins.TracingPlugin;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -20,16 +20,16 @@ public class TaskTracer {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final List<TracingPlugin.Tracer> tracers = new CopyOnWriteArrayList<>();
+    private final List<Tracer> tracers = new CopyOnWriteArrayList<>();
 
-    public void addTracer(TracingPlugin.Tracer tracer) {
+    public void addTracer(Tracer tracer) {
         if (tracer != null) {
             tracers.add(tracer);
         }
     }
 
     public void onTaskRegistered(Task task) {
-        for (TracingPlugin.Tracer tracer : tracers) {
+        for (Tracer tracer : tracers) {
             try {
                 tracer.onTraceStarted(task);
             } catch (Exception e) {
@@ -48,7 +48,7 @@ public class TaskTracer {
     }
 
     public void onTaskUnregistered(Task task) {
-        for (TracingPlugin.Tracer tracer : tracers) {
+        for (Tracer tracer : tracers) {
             try {
                 tracer.onTraceStopped(task);
             } catch (Exception e) {

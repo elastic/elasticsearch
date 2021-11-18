@@ -38,9 +38,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -55,7 +55,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class APMTracer extends AbstractLifecycleComponent implements TracingPlugin.Tracer {
+public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
     public static final CapturingSpanExporter CAPTURING_SPAN_EXPORTER = new CapturingSpanExporter();
 
@@ -122,7 +122,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     protected void doClose() {}
 
     @Override
-    public void onTraceStarted(TracingPlugin.Traceable traceable) {
+    public void onTraceStarted(Traceable traceable) {
         final Tracer tracer = this.tracer;
         final OpenTelemetry openTelemetry = this.openTelemetry;
         if (openTelemetry != null && tracer != null) {
@@ -190,7 +190,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
     }
 
     @Override
-    public void onTraceStopped(TracingPlugin.Traceable traceable) {
+    public void onTraceStopped(Traceable traceable) {
         final Span span = spans.remove(traceable.getSpanId());
         if (span != null) {
             span.end();

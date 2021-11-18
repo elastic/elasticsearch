@@ -6,8 +6,7 @@
 <titleabbrev>Delete trained models</titleabbrev>
 ++++
 
-Deletes an existing trained {infer} model that is currently not referenced by an
-ingest pipeline.
+Deletes an existing trained {infer} model.
 
 
 [[ml-delete-trained-models-request]]
@@ -30,6 +29,12 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
+[[ml-delete-trained-models-query-parms]]
+== {api-query-parms-title}
+
+`force`::
+  (Optional, Boolean) Use to forcefully delete a trained model that is referenced
+  by ingest pipelines or has a started deployment.
 
 [[ml-delete-trained-models-response-codes]]
 == {api-response-codes-title}

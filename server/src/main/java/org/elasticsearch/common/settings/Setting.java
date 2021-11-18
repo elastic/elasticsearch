@@ -22,6 +22,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -1327,6 +1329,16 @@ public class Setting<T> implements ToXContentObject {
             key,
             (s) -> Long.toString(defaultValue),
             (s) -> parseLong(s, minValue, key, isFiltered(properties)),
+            properties
+        );
+    }
+
+    public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
+        return new Setting<>(
+            key,
+            defaultValue.toString(),
+            (s) -> Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)),
+            validator,
             properties
         );
     }

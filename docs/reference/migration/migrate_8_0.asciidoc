@@ -27,17 +27,17 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-include::migrate_8_0/_cluster-node-setting-changes.asciidoc[]
-include::migrate_8_0/_command-line-tool-changes.asciidoc[]
-include::migrate_8_0/_index-setting-changes.asciidoc[]
-include::migrate_8_0/_java-api-changes.asciidoc[]
-include::migrate_8_0/_jvm-option-changes.asciidoc[]
-include::migrate_8_0/_logging-changes.asciidoc[]
-include::migrate_8_0/_mapping-changes.asciidoc[]
-include::migrate_8_0/_packaging-changes.asciidoc[]
-include::migrate_8_0/_painless-changes.asciidoc[]
-include::migrate_8_0/_rest-api-changes.asciidoc[]
-include::migrate_8_0/_system-req-changes.asciidoc[]
+include::migrate_8_0/cluster-node-setting-changes.asciidoc[]
+include::migrate_8_0/command-line-tool-changes.asciidoc[]
+include::migrate_8_0/index-setting-changes.asciidoc[]
+include::migrate_8_0/java-api-changes.asciidoc[]
+include::migrate_8_0/jvm-option-changes.asciidoc[]
+include::migrate_8_0/logging-changes.asciidoc[]
+include::migrate_8_0/mapping-changes.asciidoc[]
+include::migrate_8_0/packaging-changes.asciidoc[]
+include::migrate_8_0/painless-changes.asciidoc[]
+include::migrate_8_0/rest-api-changes.asciidoc[]
+include::migrate_8_0/system-req-changes.asciidoc[]
 include::migrate_8_0/transform.asciidoc[]
 
 [discrete]
@@ -63,22 +63,19 @@ enable <<deprecation-logging, deprecation logging>>.
 ==== Cluster and node setting deprecations
 
 [[deprecate-transient-cluster-settings]]
-.Transient cluster settings are deprecated.
+.We no longer recommend using transient cluster settings.
 [%collapsible]
 ====
 *Details* +
-Starting in 7.16, transient cluster settings are deprecated and will be removed in a future release. This is because transient
-cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts or
-cluster instability. In these cases, {es} recovers the cluster state
-from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
-unexpectedly, leading to a potentially undesired cluster configuration.
+We no longer recommend using transient cluster settings. Use persistent cluster
+settings instead. If a cluster becomes unstable, transient settings can clear
+unexpectedly, resulting in an undesired cluster configuration.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of transient settings when modifying
-your cluster settings through the `PUT _cluster/settings` REST API. Use persistent
-settings instead. See the
+Transient cluster settings are not yet deprecated, but we plan to deprecate them
+in a future release. For migration steps, see the
 {ref}/transient-settings-migration-guide.html[Transient settings migration
-guide]. 
+guide].
 ====
 
 [discrete]

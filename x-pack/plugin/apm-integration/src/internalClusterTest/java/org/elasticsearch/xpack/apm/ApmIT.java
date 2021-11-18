@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskTracer;
@@ -80,7 +79,7 @@ public class ApmIT extends SecurityIntegTestCase {
     }
 
     public void testModule() {
-        List<TracingPlugin> plugins = internalCluster().getMasterNodeInstance(PluginsService.class).filterPlugins(TracingPlugin.class);
+        List<APM> plugins = internalCluster().getMasterNodeInstance(PluginsService.class).filterPlugins(APM.class);
         assertThat(plugins, hasSize(1));
 
         TransportService transportService = internalCluster().getInstance(TransportService.class);

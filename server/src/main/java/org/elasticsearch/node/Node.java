@@ -147,7 +147,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -171,6 +170,7 @@ import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.tasks.TaskTracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -754,8 +754,8 @@ public class Node implements Closeable {
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
             final TaskTracer taskTracer = transportService.getTaskManager().getTaskTracer();
-            final List<TracingPlugin.Tracer> tracers = pluginComponents.stream()
-                .map(c -> c instanceof TracingPlugin.Tracer ? (TracingPlugin.Tracer) c : null)
+            final List<Tracer> tracers = pluginComponents.stream()
+                .map(c -> c instanceof Tracer ? (Tracer) c : null)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableList());
             tracers.forEach(taskTracer::addTracer);
@@ -812,7 +812,6 @@ public class Node implements Closeable {
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
-                bigArrays,
                 transportService,
                 client,
                 namedWriteableRegistry,

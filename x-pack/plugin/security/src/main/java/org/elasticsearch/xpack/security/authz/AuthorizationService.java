@@ -38,8 +38,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
@@ -331,7 +331,7 @@ public class AuthorizationService {
         if (false == tracingEnabled || SystemUser.is(authentication.getUser())) {
             return () -> {};
         } else {
-            return authorizationTracer.startTracing(new TracingPlugin.Traceable() {
+            return authorizationTracer.startTracing(new Traceable() {
                 @Override
                 public String getSpanId() {
                     return "authorize_" + System.identityHashCode(originalRequest);

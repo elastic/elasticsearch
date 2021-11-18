@@ -15,11 +15,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -115,7 +115,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public void onTracers(List<TracingPlugin.Tracer> tracers) {
+    public void onTracers(List<Tracer> tracers) {
         plugins.forEach(plugin -> plugin.onTracers(tracers));
     }
 }

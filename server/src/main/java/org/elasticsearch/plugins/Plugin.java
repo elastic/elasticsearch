@@ -27,6 +27,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -208,5 +209,5 @@ public abstract class Plugin implements Closeable {
     /**
      * Called with a list of Tracers so that each plugin can have a chance to work with them.
      */
-    public void onTracers(List<TracingPlugin.Tracer> tracers) {}
+    public void onTracers(List<Tracer> tracers) {}
 }

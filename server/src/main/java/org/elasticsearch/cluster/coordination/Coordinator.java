@@ -47,7 +47,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -167,7 +166,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         String nodeName,
         Settings settings,
         ClusterSettings clusterSettings,
-        BigArrays bigArrays,
         TransportService transportService,
         Client client,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -228,7 +226,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             configuredHostsResolver
         );
         this.publicationHandler = new PublicationTransportHandler(
-            bigArrays,
             transportService,
             namedWriteableRegistry,
             this::handlePublishRequest,

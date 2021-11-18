@@ -97,11 +97,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     provided or better, i.e. `green` > `yellow` > `red`. By default, will not
     wait for any status.
 
-`return_200_for_cluster_health_timeout`::
-   (Optional, Boolean) A boolean value which controls whether to return HTTP 200
-   status code instead of HTTP 408 in case of a cluster health timeout from
-   the server side. Defaults to false.
-
 [[cluster-health-api-response-body]]
 ==== {api-response-body-title}
 

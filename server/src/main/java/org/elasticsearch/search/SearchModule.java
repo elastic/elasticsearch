@@ -346,7 +346,7 @@ public class SearchModule {
         ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
 
         for (ValuesSourceType coreVST : CoreValuesSourceType.values()) {
-
+            builder.registerValuesSourceType(coreVST);
         }
 
         registerAggregation(

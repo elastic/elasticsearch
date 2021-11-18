@@ -24,5 +24,7 @@ public interface TracingPlugin {
         void onTraceStarted(Traceable traceable);
 
         void onTraceStopped(Traceable traceable);
+
+        Map<String, String> getSpanHeadersById(String id);
     }
 }

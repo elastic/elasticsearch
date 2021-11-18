@@ -16,8 +16,11 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -27,9 +30,12 @@ import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskTracer;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 
 import java.util.Collection;
@@ -43,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ApmIT extends ESIntegTestCase {
+public class ApmIT extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -52,10 +58,22 @@ public class ApmIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(APMTracer.APM_ENDPOINT_SETTING.getKey(), System.getProperty("tests.apm.endpoint", ""));
-        secureSettings.setString(APMTracer.APM_TOKEN_SETTING.getKey(), System.getProperty("tests.apm.token", ""));
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).setSecureSettings(secureSettings).build();
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        ((MockSecureSettings) builder.getSecureSettings()).setString(
+            APMTracer.APM_ENDPOINT_SETTING.getKey(),
+            System.getProperty("tests.apm.endpoint", "")
+        );
+        ((MockSecureSettings) builder.getSecureSettings()).setString(
+            APMTracer.APM_TOKEN_SETTING.getKey(),
+            System.getProperty("tests.apm.token", "")
+        );
+        builder.put("xpack.security.authz.tracing", true);
+        return builder.build();
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
     }
 
     @After
@@ -160,12 +178,30 @@ public class ApmIT extends ESIntegTestCase {
         final APMTracer.CapturingSpanExporter spanExporter = APMTracer.CAPTURING_SPAN_EXPORTER;
         spanExporter.clear();
 
-        client().prepareSearch()
-            .setQuery(new RangeQueryBuilder("@timestamp").gt("2021-11-01"))
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreFilterShardSize(1)
-            .execute()
-            .actionGet(10, TimeUnit.SECONDS);
+        final Request searchRequest = new Request("GET", "_search");
+        searchRequest.addParameter("search_type", "query_then_fetch");
+        searchRequest.addParameter("pre_filter_shard_size", "1");
+        searchRequest.setJsonEntity("{\"query\":{\"range\":{\"@timestamp\":{\"gt\":\"2021-11-01\"}}}}");
+        searchRequest.setOptions(
+            searchRequest.getOptions()
+                .toBuilder()
+                .addHeader(
+                    "Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(
+                        SecuritySettingsSource.TEST_USER_NAME,
+                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+                    )
+                )
+        );
+
+        final Response searchResponse = getRestClient().performRequest(searchRequest);
+//
+//        client().prepareSearch()
+//            .setQuery(new RangeQueryBuilder("@timestamp").gt("2021-11-01"))
+//            .setSearchType(SearchType.QUERY_THEN_FETCH)
+//            .setPreFilterShardSize(1)
+//            .execute()
+//            .actionGet(10, TimeUnit.SECONDS);
 
         assertTrue(spanExporter.findSpanByName(SearchAction.NAME).findAny().isPresent());
         assertTrue(spanExporter.findSpanByName(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME).findAny().isPresent());

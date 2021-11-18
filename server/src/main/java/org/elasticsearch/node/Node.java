@@ -195,6 +195,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -753,9 +754,13 @@ public class Node implements Closeable {
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
             final TaskTracer taskTracer = transportService.getTaskManager().getTaskTracer();
-            pluginComponents.stream()
+            final List<TracingPlugin.Tracer> tracers = pluginComponents.stream()
                 .map(c -> c instanceof TracingPlugin.Tracer ? (TracingPlugin.Tracer) c : null)
-                .forEach(taskTracer::addTracer);
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableList());
+            tracers.forEach(taskTracer::addTracer);
+
+            pluginsService.filterPlugins(Plugin.class).forEach(plugin -> plugin.onTracers(tracers));
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(

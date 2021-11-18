@@ -150,6 +150,10 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
                         );
                     }
                 }
+                final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID);
+                if (xOpaqueId != null) {
+                    spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
+                }
                 return spanBuilder.startSpan();
             });
         }
@@ -176,6 +180,7 @@ public class APMTracer extends AbstractLifecycleComponent implements TracingPlug
         return null;
     }
 
+    @Override
     public Map<String, String> getSpanHeadersById(String id) {
         var span = spans.get(id);
         if (span == null) {

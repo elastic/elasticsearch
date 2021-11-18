@@ -66,6 +66,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.TracingPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -470,6 +471,7 @@ public class Security extends Plugin
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
+    private final SetOnce<AuthorizationTracer> authorizationTracerReference = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
@@ -810,6 +812,7 @@ public class Security extends Plugin
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
+        authorizationTracerReference.set(new AuthorizationTracer(threadContext.get()));
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -822,7 +825,8 @@ public class Security extends Plugin
             requestInterceptors,
             getLicenseState(),
             expressionResolver,
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            authorizationTracerReference.get()
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1600,6 +1604,12 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+    }
+
+    @Override
+    public void onTracers(List<TracingPlugin.Tracer> tracers) {
+        assert authorizationTracerReference.get() != null : "authorizationTracer should have been initialised";
+        tracers.forEach(t -> authorizationTracerReference.get().addTracer(t));
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {

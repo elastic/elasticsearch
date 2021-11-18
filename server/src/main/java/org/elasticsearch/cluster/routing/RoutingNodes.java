@@ -472,9 +472,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             assert relocationSourceShard.isRelocationSourceOf(initializingShard);
             assert relocationSourceShard.getTargetRelocatingShard() == initializingShard
                 : "relocation target mismatch, expected: "
-                + initializingShard
-                + " but was: "
-                + relocationSourceShard.getTargetRelocatingShard();
+                    + initializingShard
+                    + " but was: "
+                    + relocationSourceShard.getTargetRelocatingShard();
             remove(relocationSourceShard);
             routingChangesObserver.relocationCompleted(relocationSourceShard);
 
@@ -536,9 +536,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert indexMetadata.getIndex().equals(failedShard.index()) : "shard failed for unknown index (shard entry: " + failedShard + ")";
         assert getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId()) == failedShard
             : "shard routing to fail does not exist in routing table, expected: "
-            + failedShard
-            + " but was: "
-            + getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId());
+                + failedShard
+                + " but was: "
+                + getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId());
 
         logger.debug("{} failing shard {} with unassigned info ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
 
@@ -1077,7 +1077,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[unassigned.size()]);
             unassigned.clear();
             primaries = 0;
-            return mutableShardRoutings;shuffle()
+            return mutableShardRoutings;
         }
 
         @Override
@@ -1201,28 +1201,28 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         assert unassignedPrimaryCount == routingNodes.unassignedShards.getNumPrimaries()
             : "Unassigned primaries is ["
-            + unassignedPrimaryCount
-            + "] but RoutingNodes returned unassigned primaries ["
-            + routingNodes.unassigned().getNumPrimaries()
-            + "]";
+                + unassignedPrimaryCount
+                + "] but RoutingNodes returned unassigned primaries ["
+                + routingNodes.unassigned().getNumPrimaries()
+                + "]";
         assert unassignedIgnoredPrimaryCount == routingNodes.unassignedShards.getNumIgnoredPrimaries()
             : "Unassigned ignored primaries is ["
-            + unassignedIgnoredPrimaryCount
-            + "] but RoutingNodes returned unassigned ignored primaries ["
-            + routingNodes.unassigned().getNumIgnoredPrimaries()
-            + "]";
+                + unassignedIgnoredPrimaryCount
+                + "] but RoutingNodes returned unassigned ignored primaries ["
+                + routingNodes.unassigned().getNumIgnoredPrimaries()
+                + "]";
         assert inactivePrimaryCount == routingNodes.inactivePrimaryCount
             : "Inactive Primary count ["
-            + inactivePrimaryCount
-            + "] but RoutingNodes returned inactive primaries ["
-            + routingNodes.inactivePrimaryCount
-            + "]";
+                + inactivePrimaryCount
+                + "] but RoutingNodes returned inactive primaries ["
+                + routingNodes.inactivePrimaryCount
+                + "]";
         assert inactiveShardCount == routingNodes.inactiveShardCount
             : "Inactive Shard count ["
-            + inactiveShardCount
-            + "] but RoutingNodes returned inactive shards ["
-            + routingNodes.inactiveShardCount
-            + "]";
+                + inactiveShardCount
+                + "] but RoutingNodes returned inactive shards ["
+                + routingNodes.inactiveShardCount
+                + "]";
         assert routingNodes.getRelocatingShardCount() == relocating
             : "Relocating shards mismatch [" + routingNodes.getRelocatingShardCount() + "] but expected [" + relocating + "]";
 

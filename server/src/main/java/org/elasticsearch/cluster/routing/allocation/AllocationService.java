@@ -602,9 +602,9 @@ public class AllocationService {
                 : "shard started for unknown index (shard entry: " + startedShard + ")";
             assert startedShard == routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId())
                 : "shard routing to start does not exist in routing table, expected: "
-                + startedShard
-                + " but was: "
-                + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
+                    + startedShard
+                    + " but was: "
+                    + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
 
             routingNodes.startShard(logger, startedShard, routingAllocation.changes());
         }

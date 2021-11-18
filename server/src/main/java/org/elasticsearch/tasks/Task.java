@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -240,6 +241,13 @@ public class Task implements Traceable {
 
     @Override
     public Map<String, Object> getAttributes() {
-        return Map.of("es.task.id", id);
+
+        TaskId parentTask = getParentTaskId();
+        Map<String,Object> attributes = new HashMap<>();
+        attributes.put(TracingPlugin.AttributeKeys.TASK_ID, id);
+        if (parentTask.isSet()) {
+            attributes.put(TracingPlugin.AttributeKeys.PARENT_TASK_ID, parentTask.toString());
+        }
+        return attributes;
     }
 }

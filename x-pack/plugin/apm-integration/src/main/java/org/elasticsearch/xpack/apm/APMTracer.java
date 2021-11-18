@@ -90,7 +90,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                     Resource.create(
                         Attributes.of(
                             ResourceAttributes.SERVICE_NAME,
-                            clusterService.getClusterName().toString(),
+                            "elasticsearch",
+                            ResourceAttributes.SERVICE_NAMESPACE,
+                            clusterService.getClusterName().value(),
+                            ResourceAttributes.SERVICE_INSTANCE_ID,
+                            clusterService.getNodeName(),
                             ResourceAttributes.SERVICE_VERSION,
                             Version.CURRENT.toString(),
                             ResourceAttributes.DEPLOYMENT_ENVIRONMENT,
@@ -132,6 +136,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 if (parentContext != null) {
                     spanBuilder.setParent(parentContext);
                 }
+
                 for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
                     final Object value = entry.getValue();
                     if (value instanceof String) {
@@ -150,6 +155,18 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                         );
                     }
                 }
+
+                // hack transactions to avoid the 'custom' type
+                spanBuilder.setAttribute("type", "elasticsearch");
+
+                // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
+                // also allows to set destination resource name in map
+                spanBuilder.setAttribute("messaging.system", "elasticsearch");
+                spanBuilder.setAttribute("messaging.destination", clusterService.getNodeName());
+
+                spanBuilder.setAttribute(TracingPlugin.AttributeKeys.NODE_NAME, clusterService.getNodeName());
+                spanBuilder.setAttribute(TracingPlugin.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
+
                 return spanBuilder.startSpan();
             });
         }

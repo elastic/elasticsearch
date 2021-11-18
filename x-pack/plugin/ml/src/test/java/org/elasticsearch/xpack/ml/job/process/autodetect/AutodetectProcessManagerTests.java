@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -172,9 +171,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 }
                 if (t.getTypeName().contains("ClusterHealthResponse")) {
                     ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
-                    listener.onResponse(
-                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO, false)
-                    );
+                    listener.onResponse(new ClusterHealthResponse());
                     return null;
                 }
                 fail("Mock not configured to handle generic type " + t.getTypeName());

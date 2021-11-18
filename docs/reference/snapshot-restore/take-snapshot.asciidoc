@@ -272,10 +272,13 @@ policy. Other snapshots don't count toward the policy's retention limits.
 [[snapshot-retention-limits]]
 ==== Snapshot retention limits
 
-While not a hard limit, a snapshot repository shouldn't contain more than
-{max-snapshot-count} snapshots at a time. This ensures the repository's metadata
-doesn't grow to a size that may destabilize the master node. We recommend you
-set up your {slm-init} policy's retention rules to enforce this limit.
+We recommend you include retention rules in your {slm-init} policy to delete
+snapshots you no longer need.
+
+A snapshot repository can safely scale to thousands of snapshots. However, to
+manage its metadata, a large repository requires more memory on the master node.
+Retention rules ensure a repository's metadata doesn't grow to a size that could
+destabilize the master node.
 
 [discrete]
 [[manually-create-snapshot]]
@@ -536,9 +539,7 @@ from a previous week or month.
 To fix this, you can create multiple {slm-init} policies with the same snapshot
 repository that run on different schedules. Since a policy's retention rules
 only apply to its snapshots, a policy won't delete a snapshot created by another
-policy. However, you'll need to ensure the total number of snapshots in the
-repository doesn't exceed the <<snapshot-retention-limits,{max-snapshot-count}
-snapshot soft limit>>.
+policy.
 
 For example, the following {slm-init} policy takes hourly snapshots with a
 maximum of 24 snapshots. The policy keeps its snapshots for one day.

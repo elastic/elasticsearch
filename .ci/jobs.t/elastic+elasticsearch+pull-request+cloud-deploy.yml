@@ -35,6 +35,7 @@
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh buildCloudDockerImage
       - shell: |
+          #!/bin/bash
           set +x
           VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
           export VAULT_TOKEN
@@ -43,7 +44,7 @@
           export ES_VERSION=$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $3}')
           export DOCKER_TAG=docker.elastic.co/elasticsearch-ci/elasticsearch-cloud:${ES_VERSION}-${ghprbActualCommit:0:7}
           docker tag elasticsearch-cloud:test $DOCKER_TAG
-          echo $DOCKER_REGISTRY_PASSWORD | docker login -u $DOCKER_REGISTRY_USERNAME --password-stdin
+          echo $DOCKER_REGISTRY_PASSWORD | docker login -u $DOCKER_REGISTRY_USERNAME --password-stdin docker.elastic.co
           unset VAULT_TOKEN DOCKER_REGISTRY_USERNAME DOCKER_REGISTRY_PASSWORD
           set -x
           docker push $DOCKER_TAG

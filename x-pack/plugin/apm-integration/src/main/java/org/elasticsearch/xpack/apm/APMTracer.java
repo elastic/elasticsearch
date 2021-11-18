@@ -220,18 +220,19 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 }
             }
 
-                // hack transactions to avoid the 'custom' type
-                spanBuilder.setAttribute("type", "elasticsearch");
+            // hack transactions to avoid the 'custom' type
+            spanBuilder.setAttribute("type", "elasticsearch");
 
-                // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
-                // also allows to set destination resource name in map
-                spanBuilder.setAttribute("messaging.system", "elasticsearch");
-                spanBuilder.setAttribute("messaging.destination", clusterService.getNodeName());
+            // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
+            // also allows to set destination resource name in map
+            spanBuilder.setAttribute("messaging.system", "elasticsearch");
+            spanBuilder.setAttribute("messaging.destination", clusterService.getNodeName());
 
-                // this will duplicate the "resource attributes" that are defined globally
-                // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in 7.16.
-                spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-                spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
+            // this will duplicate the "resource attributes" that are defined globally
+            // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in
+            // 7.16.
+            spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
+            spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
 
             return spanBuilder.startSpan();
         });

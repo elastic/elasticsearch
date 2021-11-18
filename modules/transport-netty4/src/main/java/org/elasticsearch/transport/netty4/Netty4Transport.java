@@ -154,9 +154,9 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private Bootstrap createClientBootstrap(SharedGroupFactory.SharedGroup sharedGroup) {
+    private Bootstrap createClientBootstrap(SharedGroupFactory.SharedGroup sharedGroupForBootstrap) {
         final Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(sharedGroup.getLowLevelGroup());
+        bootstrap.group(sharedGroupForBootstrap.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configured allocator
         assert Netty4NioSocketChannel.class.isAssignableFrom(NettyAllocator.getChannelType());
@@ -205,7 +205,7 @@ public class Netty4Transport extends TcpTransport {
         return bootstrap;
     }
 
-    private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroup) {
+    private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroupForServerBootstrap) {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -222,7 +222,7 @@ public class Netty4Transport extends TcpTransport {
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
-        serverBootstrap.group(sharedGroup.getLowLevelGroup());
+        serverBootstrap.group(sharedGroupForServerBootstrap.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configuredAllocator
         serverBootstrap.channel(NettyAllocator.getServerChannelType());

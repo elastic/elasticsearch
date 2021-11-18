@@ -204,7 +204,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         when(source.isFloatingPoint()).thenReturn(false);
         when(source.longValues(null)).thenReturn(values);
         if (randomBoolean()) {
-            // NOCOMMIT: should we have a case for CVST.LONG here?
+            // TODO: should we have a case for CVST.LONG here?
             return toConfig(source, CoreValuesSourceType.DOUBLE, randomWholeNumberDocValuesFormat(), true);
         }
         DocValueFormat dateFormatter = new DocValueFormat.DateTime(

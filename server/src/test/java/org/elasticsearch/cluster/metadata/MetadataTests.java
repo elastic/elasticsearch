@@ -109,10 +109,8 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
-                new GetAliasesRequest("alias1").aliases(),
-                new String[] { "index" }
-            );
+            GetAliasesRequest request = new GetAliasesRequest("alias1");
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(1));

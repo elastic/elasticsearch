@@ -195,13 +195,6 @@ public class ApmIT extends SecurityIntegTestCase {
         );
 
         final Response searchResponse = getRestClient().performRequest(searchRequest);
-//
-//        client().prepareSearch()
-//            .setQuery(new RangeQueryBuilder("@timestamp").gt("2021-11-01"))
-//            .setSearchType(SearchType.QUERY_THEN_FETCH)
-//            .setPreFilterShardSize(1)
-//            .execute()
-//            .actionGet(10, TimeUnit.SECONDS);
 
         assertTrue(spanExporter.findSpanByName(SearchAction.NAME).findAny().isPresent());
         assertTrue(spanExporter.findSpanByName(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME).findAny().isPresent());

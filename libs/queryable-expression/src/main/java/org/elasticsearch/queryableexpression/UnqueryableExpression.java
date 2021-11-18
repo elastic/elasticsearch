@@ -57,6 +57,11 @@ class UnqueryableExpression implements QueryableExpression, LongQueryableExpress
     }
 
     @Override
+    public Query approximateExists() {
+        return new MatchAllDocsQuery();
+    }
+
+    @Override
     public Query approximateTermQuery(long term) {
         return new MatchAllDocsQuery();
     }

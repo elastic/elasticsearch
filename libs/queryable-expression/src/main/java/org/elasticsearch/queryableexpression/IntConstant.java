@@ -8,6 +8,9 @@
 
 package org.elasticsearch.queryableexpression;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+
 import java.util.function.IntFunction;
 
 /**
@@ -18,6 +21,11 @@ class IntConstant implements QueryableExpression, IntQueryableExpression {
 
     IntConstant(int n) {
         this.n = n;
+    }
+
+    @Override
+    public Query approximateExists() {
+        return new MatchAllDocsQuery();
     }
 
     @Override

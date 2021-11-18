@@ -212,6 +212,15 @@ public class CollectArgumentTests extends ScriptTestCase {
     }
 
     public void testUnknownBinaryOp() {
-        assertEquals("unknown(a)", qe("emit(doc.a.value % 5)", longLookup).toString());
+        assertEquals("unknown(a, 5)", qe("emit(doc.a.value % 5)", longLookup).toString());
+    }
+
+    public void testUnknownBinaryOpWithTwoFields() {
+        assertEquals("unknown(a, b)", qe("emit(doc.a.value % doc.b.value)", longLookup).toString());
+    }
+
+    @AwaitsFix(bugUrl = "plaid")
+    public void testUnknownBinaryOpWithThreeFields() {
+        assertEquals("unknown(a, b)", qe("emit((doc.a.value + doc.b.value) % doc.c.value)", longLookup).toString());
     }
 }

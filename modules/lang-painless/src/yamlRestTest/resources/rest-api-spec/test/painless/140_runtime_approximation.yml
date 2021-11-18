@@ -139,5 +139,44 @@ any op:
               nx.even: 0
   - match: { hits.total.value: 2 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
-  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by ConstantScore(DocValuesFieldExistsQuery [field=nx])' }
+  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by +ConstantScore(DocValuesFieldExistsQuery [field=nx]) +*:*' }
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 4 }
+
+---
+any op two fields:
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            nx.even:
+              type: long
+              script: emit(doc.tx.value % doc.nx.value)
+              approximate_first: true
+          query:
+            term:
+              nx.even: 0
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
+  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by +ConstantScore(DocValuesFieldExistsQuery [field=tx]) +ConstantScore(DocValuesFieldExistsQuery [field=nx])' }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 4 }
+
+---
+skip docs with missing values:
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            nx.next:
+              type: long
+              script: emit(doc.nx.value + 1)
+              approximate_first: true
+          query:
+            term:
+              nx.next: 5
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 1 }

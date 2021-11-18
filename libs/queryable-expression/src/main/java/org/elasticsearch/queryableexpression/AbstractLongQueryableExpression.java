@@ -79,18 +79,23 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         }
 
         @Override
+        public Query approximateExists() {
+            return queries.approximateExists();
+        }
+
+        @Override
         public final QueryableExpression mapConstant(LongFunction<QueryableExpression> map) {
             return UnqueryableExpression.UNQUERYABLE;
         }
 
         @Override
         public QueryableExpression unknownOp() {
-            return new UnknownOperation(name, queries);
+            return new UnknownOperationExpression(this);
         }
 
         @Override
         public QueryableExpression unknownOp(QueryableExpression rhs) {
-            return unknownOp();
+            return new UnknownOperationExpression(this, rhs);
         }
 
         @Override
@@ -467,6 +472,11 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         }
 
         @Override
+        public Query approximateExists() {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
         public Query approximateTermQuery(long term) {
             if (n == term) {
                 return new MatchAllDocsQuery();
@@ -507,6 +517,11 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
 
         Chain(LongQueryableExpression next) {
             this.next = next;
+        }
+
+        @Override
+        public Query approximateExists() {
+            return next.approximateExists();
         }
 
         @Override

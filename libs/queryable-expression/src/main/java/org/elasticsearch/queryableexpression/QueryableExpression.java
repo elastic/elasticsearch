@@ -16,11 +16,6 @@ import org.apache.lucene.search.Query;
  * {@link #castToLong()} for a way to make queries.
  */
 public interface QueryableExpression {
-
-    interface Queries {
-        Query approximateExists();
-    }
-
     /**
      * An expression that can not be queried, so it always returned
      * {@link MatchAllDocsQuery}.
@@ -46,4 +41,6 @@ public interface QueryableExpression {
     }
 
     QueryableExpression mapNumber(MapNumber map);
+
+    Query approximateExists();
 }

@@ -8,21 +8,23 @@
 
 package org.elasticsearch.queryableexpression;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 
+import java.util.List;
 import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 
 /**
  * Approximates a script performing an unknown operation on a field with an `exists` query.
  */
-public class UnknownOperation implements QueryableExpression, LongQueryableExpression {
+public class UnknownOperationExpression implements QueryableExpression, LongQueryableExpression {
 
-    private final Queries queries;
-    private final String field;
+    private final List<QueryableExpression> args;
 
-    public UnknownOperation(String field, Queries queries) {
-        this.field = field;
-        this.queries = queries;
+    public UnknownOperationExpression(QueryableExpression... args) {
+        this.args = List.of(args);
     }
 
     @Override
@@ -61,13 +63,22 @@ public class UnknownOperation implements QueryableExpression, LongQueryableExpre
     }
 
     @Override
+    public Query approximateExists() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        args.stream()
+            .map(QueryableExpression::approximateExists)
+            .forEach(query -> builder.add(query, BooleanClause.Occur.MUST));
+        return builder.build();
+    }
+
+    @Override
     public Query approximateTermQuery(long term) {
-        return queries.approximateExists();
+        return approximateExists();
     }
 
     @Override
     public Query approximateRangeQuery(long lower, long upper) {
-        return queries.approximateExists();
+        return approximateExists();
     }
 
     @Override
@@ -77,6 +88,6 @@ public class UnknownOperation implements QueryableExpression, LongQueryableExpre
 
     @Override
     public String toString() {
-        return "unknown(" + field + ")";
+        return "unknown(" + args.stream().map(Object::toString).collect(Collectors.joining(", ")) + ")";
     }
 }

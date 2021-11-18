@@ -17,7 +17,9 @@ import java.util.function.LongFunction;
  */
 public interface LongQueryableExpression extends QueryableExpression {
 
-    interface LongQueries extends Queries {
+    interface LongQueries {
+        Query approximateExists();
+
         Query approximateTermQuery(long term);
 
         Query approximateRangeQuery(long lower, long upper);
@@ -27,7 +29,9 @@ public interface LongQueryableExpression extends QueryableExpression {
         return new AbstractLongQueryableExpression.Field(name, queries);
     }
 
-    interface IntQueries extends Queries {
+    interface IntQueries {
+        Query approximateExists();
+
         Query approximateTermQuery(int term);
 
         Query approximateRangeQuery(int lower, int upper);

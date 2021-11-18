@@ -39,7 +39,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -85,8 +84,6 @@ public class MetadataIndexTemplateService {
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
-    public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
-
     static {
         final Map<String, Map<String, String>> defaultTimestampField = Map.of(
             DEFAULT_TIMESTAMP_FIELD,
@@ -102,15 +99,6 @@ public class MetadataIndexTemplateService {
                 (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject(RoutingFieldMapper.NAME)
                     .field("required", true)
-                    .endObject()
-                    .field("properties")
-                    .map(defaultTimestampField)
-                    .endObject()
-            );
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = new CompressedXContent(
-                (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject(DataStreamTimestampFieldMapper.NAME)
-                    .field("enabled", true)
                     .endObject()
                     .field("properties")
                     .map(defaultTimestampField)

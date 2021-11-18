@@ -101,7 +101,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -1204,21 +1203,15 @@ public class MetadataCreateIndexService {
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
         List<Map<String, Object>> mergedMappings = new ArrayList<>();
-        boolean isTimeSeriesMode = indexService.getIndexSettings().getMode() != null
-            && indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-        if (isTimeSeriesMode) {
-            Map<String, Object> timeSeriesTimestampMapping = MapperService.parseMapping(
-                xContentRegistry,
-                MetadataIndexTemplateService.DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING
-            );
-            mergedMappings.add(timeSeriesTimestampMapping);
-        }
+        IndexMode indexMode = indexService.getIndexSettings().getMode();
+        mergedMappings.add(indexMode.getDefaultMapping());
         mergedMappings.addAll(mappings);
         for (Map<String, Object> mapping : mergedMappings) {
             if (mapping.isEmpty() == false) {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
         }
+        indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {
             // now that the mapping is merged we can validate the index sort.
@@ -1226,9 +1219,6 @@ public class MetadataCreateIndexService {
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
-        }
-        if (request.dataStreamName() != null || isTimeSeriesMode) {
-            validateTimestampFieldMapping(mapperService.mappingLookup());
         }
     }
 

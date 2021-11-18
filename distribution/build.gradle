@@ -296,7 +296,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
      *****************************************************************************/
     libFiles =
       copySpec {
-        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)

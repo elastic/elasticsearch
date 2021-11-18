@@ -56,8 +56,7 @@ It is not possible to store multiple values in one `dense_vector` field.
 
 experimental::[]
 
-A _k-nearest neighbor_ (kNN) search finds the _k_ nearest
-vectors to a query vector, as measured by a similarity metric.
+include::{es-repo-dir}/search/search-your-data/run-knn-search.asciidoc[tag=knn-def]
 
 Dense vector fields can be used to rank documents in
 <<query-dsl-script-score-query,`script_score` queries>>. This lets you perform
@@ -92,12 +91,16 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-NOTE: Indexing vectors for approximate kNN search is an expensive process. It can take
-substantial time to ingest documents that contain vector fields with `index`
-enabled.
+//tag::dense-vector-indexing-speed[]
+NOTE: Indexing vectors for approximate kNN search is an expensive process. It
+can take substantial time to ingest documents that contain vector fields with
+`index` enabled.
+//end::dense-vector-indexing-speed[]
 
-NOTE: Dense vector fields cannot be indexed if they are within
+//tag::nested-dense-vector-limitation[]
+Dense vector fields cannot be indexed if they are within
 <<nested, `nested`>> mappings.
+//end::nested-dense-vector-limitation[]
 
 [role="child_attributes"]
 [[dense-vector-params]]

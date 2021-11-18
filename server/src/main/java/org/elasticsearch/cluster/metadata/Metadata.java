@@ -770,6 +770,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return ref == null ? Set.of() : ref.indices;
     }
 
+    public ImmutableOpenMap<String, AliasIndicesReference> getAliasedIndices() {
+        return aliasedIndices;
+    }
+
     public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
         return this.templates;
     }
@@ -1606,18 +1610,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
          * @return a new <code>Metadata</code> instance
          */
         public Metadata build() {
-            return build(true);
-        }
-
-        /**
-         * @param builtIndicesLookupEagerly Controls whether indices lookup should be build as part of the execution of this method
-         *                                  or after when needed. Almost all of the time indices lookup should be built eagerly, however
-         *                                  in certain cases when <code>Metdata</code> instances are build that are not published and
-         *                                  many indices have been defined then it makes sense to skip building indices lookup.
-         *
-         * @return a new <code>Metadata</code> instance
-         */
-        public Metadata build(boolean builtIndicesLookupEagerly) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
@@ -1711,19 +1703,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         + "]"
                 );
             }
+            ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices = this.aliasedIndices.build();
+            validateDataStreams(aliasedIndices, dataStreamMetadata);
 
             ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
 
-            SortedMap<String, IndexAbstraction> indicesLookup;
+            SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indices));
                 indicesLookup = previousIndicesLookup;
-            } else {
-                if (builtIndicesLookupEagerly) {
-                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indices);
-                } else {
-                    indicesLookup = null;
-                }
             }
 
             // build all concrete indices arrays:
@@ -1758,7 +1746,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 totalNumberOfShards,
                 totalOpenIndexShards,
                 indices,
-                aliasedIndices.build(),
+                aliasedIndices,
                 templates.build(),
                 customs.build(),
                 allIndicesArray,
@@ -1845,7 +1833,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 assert existing == null : "duplicate for " + entry.getKey();
             }
 
-            validateDataStreams(indicesLookup, dataStreamMetadata);
             return Collections.unmodifiableSortedMap(indicesLookup);
         }
 
@@ -1925,25 +1912,28 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
+        static void validateDataStreams(
+            ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices,
+            @Nullable DataStreamMetadata dsMetadata
+        ) {
             if (dsMetadata != null) {
                 // Sanity check, because elsewhere a more user friendly error should have occurred:
-                List<String> conflictingAliases = indicesLookup.values()
-                    .stream()
-                    .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
-                    .filter(ia -> ia.isDataStreamRelated() == false)
-                    .filter(ia -> {
-                        for (Index index : ia.getIndices()) {
-                            if (indicesLookup.get(index.getName()).getParentDataStream() != null) {
-                                return true;
+                List<String> conflictingAliases = null;
+                for (var cursor : aliasedIndices) {
+                    String aliasName = cursor.key;
+                    for (Index aliasedIndex : cursor.value.getIndices()) {
+                        for (DataStream dataStream : dsMetadata.dataStreams().values()) {
+                            if (dataStream.getIndices().contains(aliasedIndex)) {
+                                if (conflictingAliases == null) {
+                                    conflictingAliases = new LinkedList<>();
+                                }
+                                conflictingAliases.add(aliasName);
+                                break;
                             }
                         }
-
-                        return false;
-                    })
-                    .map(IndexAbstraction::getName)
-                    .collect(Collectors.toList());
-                if (conflictingAliases.isEmpty() == false) {
+                    }
+                }
+                if (conflictingAliases != null) {
                     throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
                 }
             }

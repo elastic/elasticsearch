@@ -224,7 +224,7 @@ public class IndexAbstractionTests extends ESTestCase {
         for (var cursor : indices) {
             builder.put(cursor, false);
         }
-        builder.build(true);
+        builder.build();
     }
 
     private IndexMetadata buildIndexWithAlias(

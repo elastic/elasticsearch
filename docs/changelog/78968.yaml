@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: HTTP Status code has changed for the Cluster Health API in case of a server timeout
-  area: API
+  area: REST API
   details: |-
     The cluster health API includes options for waiting
     for certain health conditions to be satisfied. If the requested conditions are

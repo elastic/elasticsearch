@@ -21,6 +21,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
 import org.elasticsearch.packaging.util.docker.MockServer;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -204,11 +205,11 @@ public class DockerTests extends PackagingTestCase {
         final boolean isCloudImage = distribution().packaging == Packaging.DOCKER_CLOUD
             || distribution().packaging == Packaging.DOCKER_CLOUD_ESS;
 
-        final List<String> expectedPlugins = isCloudImage
-            ? List.of("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
-            : List.of("analysis-icu");
+        final Matcher<Iterable<?>> matcher = isCloudImage
+            ? containsInAnyOrder("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
+            : equalTo(List.of("analysis-icu"));
 
-        assertThat("Expected installed plugins to be listed", listPlugins(), equalTo(expectedPlugins));
+        assertThat("Expected installed plugins to be listed", listPlugins(), matcher);
     }
 
     /**

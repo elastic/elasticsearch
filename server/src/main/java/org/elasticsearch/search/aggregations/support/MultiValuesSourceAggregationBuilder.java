@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -64,7 +65,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     }
 
     private Map<String, MultiValuesSourceFieldConfig> fields = new HashMap<>();
-    private ValueType userValueTypeHint = null;
+    private String userValueTypeHint = null;
     private String format = null;
 
     protected MultiValuesSourceAggregationBuilder(String name) {
@@ -97,14 +98,23 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = in.readMap(StreamInput::readString, MultiValuesSourceFieldConfig::new);
-        userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
+        if (in.getVersion().before(Version.V_8_1_0)) {
+            ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
+            this.userValueTypeHint = valueType == null ? null : valueType.getPreferredName();
+        } else {
+            this.userValueTypeHint = in.readOptionalString();
+        }
         format = in.readOptionalString();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
-        out.writeOptionalWriteable(userValueTypeHint);
+        if (out.getVersion().before(Version.V_8_1_0)) {
+            out.writeOptionalWriteable(ValueType.lenientParse(userValueTypeHint));
+        } else {
+            out.writeOptionalString(userValueTypeHint);
+        }
         out.writeOptionalString(format);
         innerWriteTo(out);
     }
@@ -127,7 +137,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB userValueTypeHint(ValueType valueType) {
+    public AB userValueTypeHint(String valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[userValueTypeHint] must not be null: [" + name + "]");
         }
@@ -163,10 +173,11 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     ) throws IOException {
         Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
         Map<String, QueryBuilder> filters = new HashMap<>(fields.size());
+        final ValueType resolvedTypeHint = context.getValuesSourceRegistry().resolveTypeHint(userValueTypeHint);
         fields.forEach((key, value) -> {
             ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
                 context,
-                userValueTypeHint,
+                resolvedTypeHint,
                 value.getFieldName(),
                 value.getScript(),
                 value.getMissing(),
@@ -177,7 +188,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
             configs.put(key, config);
             filters.put(key, value.getFilter());
         });
-        DocValueFormat docValueFormat = resolveFormat(format, userValueTypeHint, defaultValueSourceType());
+        DocValueFormat docValueFormat = resolveFormat(format, resolvedTypeHint, defaultValueSourceType());
 
         return innerBuild(context, configs, filters, docValueFormat, parent, subFactoriesBuilder);
     }
@@ -219,7 +230,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
         }
         if (userValueTypeHint != null) {
-            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
+            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint);
         }
         doXContentBody(builder, params);
         builder.endObject();

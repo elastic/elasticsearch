@@ -35,7 +35,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected final String name;
     private String field = null;
     private Script script = null;
-    private ValueType userValueTypeHint = null;
+    private String userValueTypeHint = null;
     private boolean missingBucket = false;
     private MissingOrder missingOrder = MissingOrder.DEFAULT;
     private SortOrder order = SortOrder.ASC;
@@ -52,7 +52,12 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.script = new Script(in);
         }
         if (in.readBoolean()) {
-            this.userValueTypeHint = ValueType.readFromStream(in);
+            if (in.getVersion().before(Version.V_8_1_0)) {
+                // legacy version wrote a ValueType. Convert it to a string
+                userValueTypeHint = ValueType.readFromStream(in).getPreferredName();
+            } else {
+                userValueTypeHint = in.readString();
+            }
         }
         this.missingBucket = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
@@ -74,7 +79,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            userValueTypeHint.writeTo(out);
+            // Legacy version writes a ValueType
+            ValueType toWrite = ValueType.lenientParse(userValueTypeHint);
+            if (toWrite != null) {
+                toWrite.writeTo(out);
+            } else {
+                throw new IOException("Value_type [" + userValueTypeHint + "] not compatible with pre 8.1 nodes");
+            }
         }
         out.writeBoolean(missingBucket);
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
@@ -103,7 +114,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             builder.field("missing_order", missingOrder.toString());
         }
         if (userValueTypeHint != null) {
-            builder.field("value_type", userValueTypeHint.getPreferredName());
+            builder.field("value_type", userValueTypeHint);
         }
         if (format != null) {
             builder.field("format", format);
@@ -183,7 +194,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      * Sets the {@link ValueType} for the value produced by this source
      */
     @SuppressWarnings("unchecked")
-    public AB userValuetypeHint(ValueType valueType) {
+    public AB userValuetypeHint(String valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[userValueTypeHint] must not be null");
         }
@@ -192,9 +203,22 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
+     * Sets the {@link ValueType} for the value produced by this source
+     */
+    @SuppressWarnings("unchecked")
+    @Deprecated
+    public AB userValuetypeHint(ValueType valueType) {
+        if (valueType == null) {
+            throw new IllegalArgumentException("[userValueTypeHint] must not be null");
+        }
+        this.userValueTypeHint = valueType.getPreferredName();
+        return (AB) this;
+    }
+
+    /**
      * Gets the {@link ValueType} for the value produced by this source
      */
-    public ValueType userValuetypeHint() {
+    public String userValuetypeHint() {
         return userValueTypeHint;
     }
 
@@ -307,7 +331,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
         ValuesSourceConfig config = ValuesSourceConfig.resolve(
             context,
-            userValueTypeHint,
+            context.getValuesSourceRegistry().resolveTypeHint(userValueTypeHint),
             field,
             script,
             null,

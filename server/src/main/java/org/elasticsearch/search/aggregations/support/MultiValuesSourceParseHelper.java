@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -18,26 +17,15 @@ public final class MultiValuesSourceParseHelper {
 
     public static <T> void declareCommon(
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
-        boolean formattable,
-        ValueType expectedValueType
+        boolean formattable
     ) {
 
-        objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValueType valueType = ValueType.lenientParse(p.text());
-            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
-                throw new ParsingException(
-                    p.getTokenLocation(),
-                    "Aggregation ["
-                        + objectParser.getName()
-                        + "] was configured with an incompatible value type ["
-                        + valueType
-                        + "].  It can only work on value off type ["
-                        + expectedValueType
-                        + "]"
-                );
-            }
-            return valueType;
-        }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
+        objectParser.declareField(
+            MultiValuesSourceAggregationBuilder::userValueTypeHint,
+            XContentParser::text,
+            ValueType.VALUE_TYPE,
+            ObjectParser.ValueType.STRING
+        );
 
         if (formattable) {
             objectParser.declareField(

@@ -374,7 +374,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
             configs.add(
                 ValuesSourceConfig.resolveUnregistered(
                     context,
-                    field.getUserValueTypeHint(),
+                    context.getValuesSourceRegistry().resolveTypeHint(field.getUserValueTypeHint()),
                     field.getFieldName(),
                     field.getScript(),
                     field.getMissing(),

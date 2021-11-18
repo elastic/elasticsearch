@@ -13,7 +13,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,10 +31,7 @@ public class CompositeValuesSourceParserHelper {
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
         objectParser.declareString(VB::missingOrder, new ParseField("missing_order"));
 
-        objectParser.declareField(VB::userValuetypeHint, p -> {
-            ValueType valueType = ValueType.lenientParse(p.text());
-            return valueType;
-        }, new ParseField("value_type"), ObjectParser.ValueType.STRING);
+        objectParser.declareField(VB::userValuetypeHint,XContentParser::text, new ParseField("value_type"), ObjectParser.ValueType.STRING);
 
         objectParser.declareField(
             VB::script,

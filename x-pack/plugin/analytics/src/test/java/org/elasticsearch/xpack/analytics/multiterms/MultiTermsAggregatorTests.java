@@ -330,7 +330,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setScript(
                     new Script(ScriptType.INLINE, MockScriptEngine.NAME, ADD_ONE_SCRIPT, Collections.singletonMap("fieldname", INT_FIELD))
-                ).setUserValueTypeHint(ValueType.LONG).build(),
+                ).setUserValueTypeHint(ValueType.LONG.getPreferredName()).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).build()
             ),
             null,

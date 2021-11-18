@@ -37,7 +37,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     // supported only if filtered == true
     private final QueryBuilder filter;
     // supported only if heterogeneous == true
-    private final ValueType userValueTypeHint;
+    private final String userValueTypeHint;
     private final String format;
 
     private static final String NAME = "field_config";
@@ -104,7 +104,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         if (heterogeneous) {
             parser.declareField(
                 MultiValuesSourceFieldConfig.Builder::setUserValueTypeHint,
-                p -> ValueType.lenientParse(p.text()),
+                XContentParser::text,
                 ValueType.VALUE_TYPE,
                 ObjectParser.ValueType.STRING
             );
@@ -125,7 +125,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         Script script,
         ZoneId timeZone,
         QueryBuilder filter,
-        ValueType userValueTypeHint,
+        String userValueTypeHint,
         String format
     ) {
         this.fieldName = fieldName;
@@ -152,7 +152,12 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             this.filter = null;
         }
         if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
+            if (in.getVersion().before(Version.V_8_1_0)) {
+                ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
+                this.userValueTypeHint = valueType == null ? null : valueType.getPreferredName();
+            } else {
+                this.userValueTypeHint = in.readOptionalString();
+            }
             this.format = in.readOptionalString();
         } else {
             this.userValueTypeHint = null;
@@ -180,7 +185,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         return filter;
     }
 
-    public ValueType getUserValueTypeHint() {
+    public String getUserValueTypeHint() {
         return userValueTypeHint;
     }
 
@@ -202,7 +207,11 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             out.writeOptionalNamedWriteable(filter);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalWriteable(userValueTypeHint);
+            if (out.getVersion().before(Version.V_8_1_0)) {
+                out.writeOptionalWriteable(ValueType.lenientParse(userValueTypeHint));
+            } else {
+                out.writeOptionalString(userValueTypeHint);
+            }
             out.writeOptionalString(format);
         }
     }
@@ -227,7 +236,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             filter.toXContent(builder, params);
         }
         if (userValueTypeHint != null) {
-            builder.field(AggregationBuilder.CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
+            builder.field(AggregationBuilder.CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint);
         }
         if (format != null) {
             builder.field(AggregationBuilder.CommonFields.FORMAT.getPreferredName(), format);
@@ -266,7 +275,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         private Script script = null;
         private ZoneId timeZone = null;
         private QueryBuilder filter = null;
-        private ValueType userValueTypeHint = null;
+        private String userValueTypeHint = null;
         private String format = null;
 
         public String getFieldName() {
@@ -310,12 +319,18 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             return this;
         }
 
-        public Builder setUserValueTypeHint(ValueType userValueTypeHint) {
+        public Builder setUserValueTypeHint(String userValueTypeHint) {
             this.userValueTypeHint = userValueTypeHint;
             return this;
         }
 
-        public ValueType getUserValueTypeHint() {
+        @Deprecated
+        public Builder setUserValueTypeHint(ValueType userValueTypeHint) {
+            this.userValueTypeHint = userValueTypeHint == null ? null : userValueTypeHint.getPreferredName();
+            return this;
+        }
+
+        public String getUserValueTypeHint() {
             return userValueTypeHint;
         }
 

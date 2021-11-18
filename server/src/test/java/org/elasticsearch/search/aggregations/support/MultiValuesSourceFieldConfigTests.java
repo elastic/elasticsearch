@@ -49,7 +49,7 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
             .setTimeZone(timeZone)
             .setFilter(filter)
             .setFormat(format)
-            .setUserValueTypeHint(userValueTypeHint)
+            .setUserValueTypeHint(userValueTypeHint.getPreferredName())
             .build();
     }
 

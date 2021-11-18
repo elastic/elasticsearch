@@ -39,7 +39,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RestRequest> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot",
-        false,
+        true,
         (a, request) -> new MountSearchableSnapshotRequest(
             Objects.requireNonNullElse((String) a[1], (String) a[0]),
             Objects.requireNonNull(request.param("repository")),

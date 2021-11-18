@@ -18,7 +18,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -216,18 +215,6 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             randomFrom(MountSearchableSnapshotRequest.Storage.values())
         ).validate();
         assertThat(validationException.getMessage(), containsString(IndexMetadata.SETTING_DATA_PATH));
-    }
-
-    public void testParseUnknownField() {
-        final RestRequest restReq = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray("{\"index\":\"test\",\"ignored_index_settings\":[\"index.refresh_interval\"]}"),
-            XContentType.JSON
-        ).build();
-        XContentParseException exception = expectThrows(
-            XContentParseException.class,
-            () -> MountSearchableSnapshotRequest.PARSER.apply(restReq.contentParser(), restReq)
-        );
-        assertThat(exception.getMessage(), containsString("unknown field [ignored_index_settings]"));
     }
 
     public void testParsesStorage() throws IOException {

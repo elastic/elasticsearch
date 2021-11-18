@@ -250,6 +250,6 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.instance());
+        return List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.GEOSHAPE);
     }
 }

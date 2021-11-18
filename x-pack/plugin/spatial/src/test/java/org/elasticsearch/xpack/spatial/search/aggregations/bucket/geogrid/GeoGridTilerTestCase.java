@@ -265,7 +265,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
 
             @Override
             public ValuesSourceType valuesSourceType() {
-                return GeoShapeValuesSourceType.instance();
+                return GeoShapeValuesSourceType.GEOSHAPE;
             }
 
             @Override

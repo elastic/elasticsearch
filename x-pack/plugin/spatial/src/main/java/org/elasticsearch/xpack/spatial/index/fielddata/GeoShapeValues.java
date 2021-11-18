@@ -41,7 +41,7 @@ import java.text.ParseException;
 public abstract class GeoShapeValues {
 
     public static GeoShapeValues EMPTY = new GeoShapeValues() {
-        private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
+        private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.GEOSHAPE;
 
         @Override
         public boolean advanceExact(int doc) {

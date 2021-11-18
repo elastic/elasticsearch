@@ -38,7 +38,7 @@ public class SpatialPluginTests extends ESTestCase {
             ValuesSourceRegistry registry = registryBuilder.build();
             MetricAggregatorSupplier centroidSupplier = registry.getAggregator(
                 GeoCentroidAggregationBuilder.REGISTRY_KEY,
-                new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, true, null, null, null, null, null)
+                new ValuesSourceConfig(GeoShapeValuesSourceType.GEOSHAPE, null, true, null, null, null, null, null)
             );
             if (License.OperationMode.TRIAL != operationMode
                 && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
@@ -67,7 +67,7 @@ public class SpatialPluginTests extends ESTestCase {
                 ValuesSourceRegistry registry = registryBuilder.build();
                 GeoGridAggregatorSupplier supplier = registry.getAggregator(
                     registryKey,
-                    new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, true, null, null, null, null, null)
+                    new ValuesSourceConfig(GeoShapeValuesSourceType.GEOSHAPE, null, true, null, null, null, null, null)
                 );
                 if (License.OperationMode.TRIAL != operationMode
                     && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {

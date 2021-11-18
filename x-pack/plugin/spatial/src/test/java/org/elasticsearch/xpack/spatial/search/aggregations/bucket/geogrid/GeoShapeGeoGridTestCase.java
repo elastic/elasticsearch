@@ -99,7 +99,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(GeoShapeValuesSourceType.instance(), CoreValuesSourceType.GEOPOINT);
+        return List.of(GeoShapeValuesSourceType.GEOSHAPE, CoreValuesSourceType.GEOPOINT);
     }
 
     @Override

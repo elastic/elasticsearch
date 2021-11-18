@@ -124,7 +124,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public List<ValuesSourceType> getValuesSourceTypes() {
-        return List.of(GeoShapeValuesSourceType.instance());
+        return List.of(GeoShapeValuesSourceType.GEOSHAPE);
     }
 
     @Override
@@ -157,7 +157,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             GeoBoundsAggregationBuilder.REGISTRY_KEY,
-            GeoShapeValuesSourceType.instance(),
+            GeoShapeValuesSourceType.GEOSHAPE,
             GeoShapeBoundsAggregator::new,
             true
         );
@@ -166,7 +166,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             GeoCentroidAggregationBuilder.REGISTRY_KEY,
-            GeoShapeValuesSourceType.instance(),
+            GeoShapeValuesSourceType.GEOSHAPE,
             (name, valuesSourceConfig, context, parent, metadata) -> {
                 if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
                     return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
@@ -180,7 +180,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             GeoHashGridAggregationBuilder.REGISTRY_KEY,
-            GeoShapeValuesSourceType.instance(),
+            GeoShapeValuesSourceType.GEOSHAPE,
             (
                 name,
                 factories,
@@ -223,7 +223,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
         builder.register(
             GeoTileGridAggregationBuilder.REGISTRY_KEY,
-            GeoShapeValuesSourceType.instance(),
+            GeoShapeValuesSourceType.GEOSHAPE,
             (
                 name,
                 factories,
@@ -266,11 +266,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     }
 
     private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), ValueCountAggregator::new, true);
+        builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.GEOSHAPE, ValueCountAggregator::new, true);
     }
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
+        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.GEOSHAPE, CardinalityAggregator::new, true);
     }
 
     private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, LicensedFeature.Momentary feature) {

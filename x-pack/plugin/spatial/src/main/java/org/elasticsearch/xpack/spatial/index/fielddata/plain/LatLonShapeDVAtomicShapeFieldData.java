@@ -58,7 +58,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
 
                 @Override
                 public ValuesSourceType valuesSourceType() {
-                    return GeoShapeValuesSourceType.instance();
+                    return GeoShapeValuesSourceType.GEOSHAPE;
                 }
 
                 @Override

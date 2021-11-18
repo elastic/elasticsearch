@@ -48,7 +48,7 @@ To start a single-node {es} cluster for development or testing, specify
 
 [source,sh,subs="attributes"]
 --------------------------------------------
-docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
+docker run -p 127.0.0.1:9200:9200 -p 127.0.0.1:9300:9300 -e "discovery.type=single-node" {docker-image}
 --------------------------------------------
 
 endif::[]

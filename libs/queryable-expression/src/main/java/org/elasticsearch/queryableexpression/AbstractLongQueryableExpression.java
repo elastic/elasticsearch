@@ -84,6 +84,16 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         }
 
         @Override
+        public QueryableExpression unknownOp() {
+            return new UnknownOperation(name, queries);
+        }
+
+        @Override
+        public QueryableExpression unknownOp(QueryableExpression rhs) {
+            return unknownOp();
+        }
+
+        @Override
         protected QueryableExpression add(LongQueryableExpression rhs) {
             return rhs.mapConstant(c -> c == 0 ? this : new Add(this, c));
         }
@@ -135,6 +145,11 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
 
         IntQueriesToLongQueries(IntQueries queries) {
             this.queries = queries;
+        }
+
+        @Override
+        public Query approximateExists() {
+            return queries.approximateExists();
         }
 
         @Override
@@ -414,6 +429,16 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
         }
 
         @Override
+        public QueryableExpression unknownOp() {
+            return UNQUERYABLE;
+        }
+
+        @Override
+        public QueryableExpression unknownOp(QueryableExpression rhs) {
+            return rhs.unknownOp();
+        }
+
+        @Override
         public QueryableExpression add(LongQueryableExpression rhs) {
             QueryableExpression asConstant = rhs.mapConstant(c -> new Constant(n + c));
             if (asConstant != UnqueryableExpression.UNQUERYABLE) {
@@ -482,6 +507,16 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
 
         Chain(LongQueryableExpression next) {
             this.next = next;
+        }
+
+        @Override
+        public QueryableExpression unknownOp() {
+            return next.unknownOp();
+        }
+
+        @Override
+        public QueryableExpression unknownOp(QueryableExpression rhs) {
+            return next.unknownOp(rhs);
         }
 
         @Override

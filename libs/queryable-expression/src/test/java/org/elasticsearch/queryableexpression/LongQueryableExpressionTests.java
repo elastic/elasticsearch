@@ -12,7 +12,10 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.Tuple;
@@ -20,11 +23,45 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.queryableexpression.IntQueryableExpressionTests.randomInterestingInt;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongQueryableExpressionTests extends ESTestCase {
+
+    public void testLongField() throws IOException {
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.field("foo");
+        withIndexedLong((indexed, searcher, foo) -> {
+            logger.info("{} = {}", indexed, indexed);
+
+            LongQueryableExpression expression = builder.build(f -> foo, null).castToLong();
+            assertThat(expression.toString(), equalTo("foo"));
+            checkApproximations(searcher, expression, indexed);
+            checkPerfectApproximation(searcher, expression, indexed);
+        });
+    }
+
+    public void testLongFieldAppliedToUnknownOp() throws IOException {
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.unknownOp(QueryableExpressionBuilder.field("foo"));
+
+        withIndexedLong((indexed, searcher, foo) -> {
+            LongQueryableExpression expression = builder.build(f -> foo, null).castToLong();
+            assertThat(expression.toString(), equalTo("unknown(foo)"));
+            checkApproximations(searcher, expression, indexed);
+        });
+    }
+
+    public void testMissingLongFieldAppliedToUnknownOp() throws IOException {
+        QueryableExpressionBuilder builder = QueryableExpressionBuilder.unknownOp(QueryableExpressionBuilder.field("foo"));
+
+        withIndexedLongMissing((searcher, foo) -> {
+            LongQueryableExpression expression = builder.build(f -> foo, null).castToLong();
+            assertThat(expression.toString(), equalTo("unknown(foo)"));
+            assertCount(searcher, expression.approximateTermQuery(randomInterestingLong()), 0);
+        });
+    }
+
     public void testLongFieldPlusLongConstant() throws IOException {
         QueryableExpressionBuilder builder = QueryableExpressionBuilder.add(
             QueryableExpressionBuilder.field("foo"),
@@ -301,23 +338,52 @@ public class LongQueryableExpressionTests extends ESTestCase {
     }
 
     private static void withIndexedLong(WithIndexedLong callback) throws IOException {
-        QueryableExpression foo = LongQueryableExpression.field("foo", new LongQueryableExpression.LongQueries() {
-            @Override
-            public Query approximateTermQuery(long term) {
-                return LongPoint.newExactQuery("foo", term);
-            }
-
-            @Override
-            public Query approximateRangeQuery(long lower, long upper) {
-                return LongPoint.newRangeQuery("foo", lower, upper);
-            }
-        });
         long indexed = randomInterestingLong();
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new LongPoint("foo", indexed)));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                callback.accept(indexed, searcher, foo);
+                callback.accept(indexed, searcher, LongQueryableExpression.field("foo", new LongQueryableExpression.LongQueries() {
+                    @Override
+                    public Query approximateExists() {
+                        return new MatchAllDocsQuery();
+                    }
+
+                    @Override
+                    public Query approximateTermQuery(long term) {
+                        return LongPoint.newExactQuery("foo", term);
+                    }
+
+                    @Override
+                    public Query approximateRangeQuery(long lower, long upper) {
+                        return LongPoint.newRangeQuery("foo", lower, upper);
+                    }
+                }));
+            }
+        }
+    }
+
+    private static void withIndexedLongMissing(BiConsumer<IndexSearcher, QueryableExpression> callback) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of());
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                callback.accept(searcher, LongQueryableExpression.field("foo", new LongQueryableExpression.LongQueries() {
+                    @Override
+                    public Query approximateExists() {
+                        return new MatchNoDocsQuery();
+                    }
+
+                    @Override
+                    public Query approximateTermQuery(long term) {
+                        return LongPoint.newExactQuery("foo", term);
+                    }
+
+                    @Override
+                    public Query approximateRangeQuery(long lower, long upper) {
+                        return LongPoint.newRangeQuery("foo", lower, upper);
+                    }
+                }));
             }
         }
     }
@@ -329,6 +395,11 @@ public class LongQueryableExpressionTests extends ESTestCase {
 
     static void withIndexedInt(WithIndexedInt callback) throws IOException {
         QueryableExpression foo = LongQueryableExpression.field("foo", new LongQueryableExpression.IntQueries() {
+            @Override
+            public Query approximateExists() {
+                return new DocValuesFieldExistsQuery("foo");
+            }
+
             @Override
             public Query approximateTermQuery(int term) {
                 return IntPoint.newExactQuery("foo", term);
@@ -372,14 +443,14 @@ public class LongQueryableExpressionTests extends ESTestCase {
         return Tuple.tuple(Math.min(min, max), Math.max(min, max));
     }
 
-    private void checkApproximations(IndexSearcher searcher, LongQueryableExpression expression, long result) throws IOException {
+    private void checkApproximations(IndexSearcher searcher, LongQueryableExpression expression, long result) {
         assertCount(searcher, expression.approximateTermQuery(result), 1);
         assertCount(searcher, expression.approximateRangeQuery(Long.MIN_VALUE, Long.MAX_VALUE), 1);
         assertCount(searcher, expression.approximateRangeQuery(randomLongBetween(Long.MIN_VALUE, result), result), 1);
         assertCount(searcher, expression.approximateRangeQuery(result, randomLongBetween(result, Long.MAX_VALUE)), 1);
     }
 
-    private void checkPerfectApproximation(IndexSearcher searcher, LongQueryableExpression expression, long result) throws IOException {
+    private void checkPerfectApproximation(IndexSearcher searcher, LongQueryableExpression expression, long result) {
         assertCount(
             searcher,
             expression.approximateTermQuery(randomValueOtherThan(result, LongQueryableExpressionTests::randomInterestingLong)),
@@ -392,7 +463,11 @@ public class LongQueryableExpressionTests extends ESTestCase {
         assertCount(searcher, expression.approximateRangeQuery(bounds.v1(), bounds.v2()), 0);
     }
 
-    private void assertCount(IndexSearcher searcher, Query query, int count) throws IOException {
-        assertThat("count for " + query, searcher.count(query), equalTo(count));
+    private void assertCount(IndexSearcher searcher, Query query, int count) {
+        try {
+            assertThat("count for " + query, searcher.count(query), equalTo(count));
+        } catch (IOException e) {
+            assumeNoException("count", e);
+        }
     }
 }

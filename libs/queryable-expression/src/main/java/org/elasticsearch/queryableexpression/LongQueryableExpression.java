@@ -16,7 +16,8 @@ import java.util.function.LongFunction;
  * {@code long} flavored expression.
  */
 public interface LongQueryableExpression extends QueryableExpression {
-    interface LongQueries {
+
+    interface LongQueries extends Queries {
         Query approximateTermQuery(long term);
 
         Query approximateRangeQuery(long lower, long upper);
@@ -26,7 +27,7 @@ public interface LongQueryableExpression extends QueryableExpression {
         return new AbstractLongQueryableExpression.Field(name, queries);
     }
 
-    interface IntQueries {
+    interface IntQueries extends Queries {
         Query approximateTermQuery(int term);
 
         Query approximateRangeQuery(int lower, int upper);

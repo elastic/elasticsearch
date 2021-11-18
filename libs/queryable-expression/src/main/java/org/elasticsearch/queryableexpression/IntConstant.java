@@ -21,6 +21,16 @@ class IntConstant implements QueryableExpression, IntQueryableExpression {
     }
 
     @Override
+    public QueryableExpression unknownOp() {
+        return UNQUERYABLE;
+    }
+
+    @Override
+    public QueryableExpression unknownOp(QueryableExpression rhs) {
+        return rhs.unknownOp();
+    }
+
+    @Override
     public QueryableExpression add(QueryableExpression rhs) {
         return rhs.mapNumber(new MapNumber() {
             @Override

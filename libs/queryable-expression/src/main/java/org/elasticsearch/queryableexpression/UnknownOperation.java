@@ -8,18 +8,22 @@
 
 package org.elasticsearch.queryableexpression;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 
 import java.util.function.LongFunction;
 
 /**
- * An expression that approximates itself as {@link MatchAllDocsQuery}.
+ * Approximates a script performing an unknown operation on a field with an `exists` query.
  */
-class UnqueryableExpression implements QueryableExpression, LongQueryableExpression {
-    static final UnqueryableExpression UNQUERYABLE = new UnqueryableExpression();
+public class UnknownOperation implements QueryableExpression, LongQueryableExpression {
 
-    UnqueryableExpression() {}
+    private final Queries queries;
+    private final String field;
+
+    public UnknownOperation(String field, Queries queries) {
+        this.field = field;
+        this.queries = queries;
+    }
 
     @Override
     public QueryableExpression unknownOp() {
@@ -58,12 +62,12 @@ class UnqueryableExpression implements QueryableExpression, LongQueryableExpress
 
     @Override
     public Query approximateTermQuery(long term) {
-        return new MatchAllDocsQuery();
+        return queries.approximateExists();
     }
 
     @Override
     public Query approximateRangeQuery(long lower, long upper) {
-        return new MatchAllDocsQuery();
+        return queries.approximateExists();
     }
 
     @Override
@@ -73,6 +77,6 @@ class UnqueryableExpression implements QueryableExpression, LongQueryableExpress
 
     @Override
     public String toString() {
-        return getClass().getSimpleName();
+        return "unknown(" + field + ")";
     }
 }

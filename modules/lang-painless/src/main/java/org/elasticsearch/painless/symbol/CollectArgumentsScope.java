@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Collection of arguments for methods annotated with {@link CollectArgumentAnnotation}.
@@ -70,6 +71,16 @@ public class CollectArgumentsScope {
             return true;
         } else {
             return false;
+        }
+    }
+
+    public void consume(Function<QueryableExpressionBuilder, QueryableExpressionBuilder> fn) {
+        if (isCollecting()) {
+            if (expressionStack.size() >= 1) {
+                push(fn.apply(expressionStack.pop()));
+            } else {
+                unqueryable();
+            }
         }
     }
 

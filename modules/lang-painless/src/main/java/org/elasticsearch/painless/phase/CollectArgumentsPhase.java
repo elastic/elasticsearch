@@ -14,6 +14,7 @@ import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.ir.InvokeCallDefNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
@@ -32,6 +33,13 @@ import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
  * Collects arguments for methods annotated with {@link CollectArgumentAnnotation}.
  */
 public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsScope> {
+
+    @Override
+    public void visitFunction(FunctionNode irFunctionNode, CollectArgumentsScope collectArgumentsScope) {
+        if (irFunctionNode.getDecorationValue(IRDName.class).equals("execute")) {
+            super.visitFunction(irFunctionNode, collectArgumentsScope);
+        }
+    }
 
     @Override
     public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, CollectArgumentsScope scope) {
@@ -78,9 +86,8 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
             }
         }
 
-        if (false == scope.unqueryable()) {
-            super.visitBinaryImpl(irBinaryImplNode, scope);
-        }
+        super.visitBinaryImpl(irBinaryImplNode, scope);
+        scope.consume(e -> QueryableExpressionBuilder.unknownOp(e));
     }
 
     /**
@@ -169,7 +176,7 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
             } else if (operation == Operation.DIV) {
                 return QueryableExpressionBuilder.divide(lhs, rhs);
             } else {
-                return QueryableExpressionBuilder.UNQUERYABLE;
+                return QueryableExpressionBuilder.unknownOp(lhs, rhs);
             }
         });
     }

@@ -202,4 +202,16 @@ public class CollectArgumentTests extends ScriptTestCase {
             qe("params = new HashMap(); emit(doc.a.value + params.x)", longLookup, (param) -> param.equals("x") ? 100L : null)
         );
     }
+
+    public void testUnknownMethodCall() {
+        assertEquals("unknown(a)", qe("emit(doc.a.value.toString())", longLookup).toString());
+    }
+
+    public void testUnknownMethodCallArg() {
+        assertEquals("unknown(a)", qe("emit(Long.valueOf(doc.a.value))", longLookup).toString());
+    }
+
+    public void testUnknownBinaryOp() {
+        assertEquals("unknown(a)", qe("emit(doc.a.value % 5)", longLookup).toString());
+    }
 }

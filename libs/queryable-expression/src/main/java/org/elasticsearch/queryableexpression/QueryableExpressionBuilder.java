@@ -33,6 +33,14 @@ public interface QueryableExpressionBuilder {
         return (lookup, params) -> lookup.apply(name);
     }
 
+    static QueryableExpressionBuilder unknownOp(QueryableExpressionBuilder child) {
+        return ((lookup, params) -> child.build(lookup, params).unknownOp());
+    }
+
+    static QueryableExpressionBuilder unknownOp(QueryableExpressionBuilder lhs, QueryableExpressionBuilder rhs) {
+        return (lookup, params) -> lhs.build(lookup, params).unknownOp(rhs.build(lookup, params));
+    }
+
     static QueryableExpressionBuilder param(String name) {
         return (lookup, params) -> buildConstant(params.apply(name));
     }

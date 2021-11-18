@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.queryableexpression.LongQueryableExpression;
 import org.elasticsearch.queryableexpression.QueryableExpression;
@@ -845,6 +847,15 @@ public class NumberFieldMapper extends FieldMapper {
             public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
                 return LongQueryableExpression.field(field, new LongQueryableExpression.IntQueries() {
                     @Override
+                    public Query approximateExists() {
+                        try {
+                            return new ExistsQueryBuilder(field).toQuery(context);
+                        } catch (IOException e) {
+                            return new MatchAllDocsQuery();
+                        }
+                    }
+
+                    @Override
                     public Query approximateTermQuery(int term) {
                         return IntPoint.newExactQuery(field, term);
                     }
@@ -973,6 +984,15 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public QueryableExpression asQueryableExpression(String field, boolean hasDocValues, SearchExecutionContext context) {
                 return LongQueryableExpression.field(field, new LongQueryableExpression.LongQueries() {
+                    @Override
+                    public Query approximateExists() {
+                        try {
+                            return new ExistsQueryBuilder(field).toQuery(context);
+                        } catch (IOException e) {
+                            return new MatchAllDocsQuery();
+                        }
+                    }
+
                     @Override
                     public Query approximateTermQuery(long term) {
                         return LongPoint.newExactQuery(field, term);

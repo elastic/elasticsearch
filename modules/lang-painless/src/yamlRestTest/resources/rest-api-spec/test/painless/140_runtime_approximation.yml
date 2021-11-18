@@ -19,13 +19,13 @@ setup:
         index: test
         body:
           - '{"index": {}}'
-          - '{"node": "a", "tx": 2001818691}'
+          - '{"node": "a", "tx": 2001818691, "nx": 1}'
           - '{"index": {}}'
-          - '{"node": "b", "tx": 2001818691}'
+          - '{"node": "b", "tx": 2001818691, "nx": 2}'
           - '{"index": {}}'
-          - '{"node": "c", "tx": 3001818691}'
+          - '{"node": "c", "tx": 3001818691, "nx": 3}'
           - '{"index": {}}'
-          - '{"node": "d", "tx": 4001818691}'
+          - '{"node": "d", "tx": 4001818691, "nx": 4}'
           - '{"index": {}}'
           - '{"node": "e", "tx": 5001818691}'
           - '{"index": {}}'
@@ -121,3 +121,23 @@ division matching two:
   - match: { profile.shards.0.searches.0.query.0.description: 'tx.kb:[-9223372036854775808 TO 1954901] approximated by tx:[-9223372036854775808 TO 2001819647]' }
   # match=1 means we only ever had to run the script twice - once for each possible match
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 2 }
+
+---
+any op:
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            nx.even:
+              type: long
+              script: emit(doc.nx.value % 2)
+              approximate_first: true
+          query:
+            term:
+              nx.even: 0
+  - match: { hits.total.value: 2 }
+  - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
+  - match: { profile.shards.0.searches.0.query.0.description: 'nx.even:0 approximated by ConstantScore(DocValuesFieldExistsQuery [field=nx])' }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 4 }

@@ -141,13 +141,31 @@ public class CellCenterTests extends ESTestCase {
             assertEquals(h3Address, true, H3.h3IsValid(h3Address));
             double lat = Double.parseDouble(tokenizer.nextToken());
             double lon = Double.parseDouble(tokenizer.nextToken());
-            LatLng latLng = H3.h3ToLatLng(h3Address);
-            assertEquals(h3Address, lat, latLng.getLatDeg(), 1e-6);
-            assertEquals(h3Address, lon, latLng.getLonDeg(), 1e-6);
-            String computedH3Address = H3.geoToH3Address(lat, lon, H3Index.H3_get_resolution(H3.stringToH3(h3Address)));
-            assertEquals(h3Address, computedH3Address);
-            assertEquals(h3Address, computedH3Address);
+            assertH3ToLatLng(h3Address, lat, lon);
+            assertGeoToH3(h3Address, lat, lon);
+            assertHexRing(h3Address);
             line = reader.readLine();
+        }
+    }
+
+    private void assertH3ToLatLng(String h3Address, double lat, double lon) {
+        LatLng latLng = H3.h3ToLatLng(h3Address);
+        assertEquals(h3Address, lat, latLng.getLatDeg(), 1e-6);
+        assertEquals(h3Address, lon, latLng.getLonDeg(), 1e-6);
+    }
+
+    private void assertGeoToH3(String h3Address, double lat, double lon) {
+        String computedH3Address = H3.geoToH3Address(lat, lon, H3Index.H3_get_resolution(H3.stringToH3(h3Address)));
+        assertEquals(h3Address, computedH3Address);
+        assertEquals(h3Address, computedH3Address);
+    }
+
+    private void assertHexRing(String h3Address) {
+        String[] neighbors = H3.hexRing(h3Address);
+        long center = H3.stringToH3(h3Address);
+        for (String neighbor : neighbors) {
+            long l = H3.stringToH3(neighbor);
+            assertEquals(H3Index.H3_get_resolution(center), H3Index.H3_get_resolution(l));
         }
     }
 }

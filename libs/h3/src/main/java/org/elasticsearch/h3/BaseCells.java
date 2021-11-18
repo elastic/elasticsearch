@@ -628,4 +628,10 @@ class BaseCells {
         return baseCellData[baseCell].cwOffsetPent[0] == testFace || baseCellData[baseCell].cwOffsetPent[1] == testFace;
     }
 
+    /** Return whether the indicated base cell is a pentagon where all
+     * neighbors are oriented towards it. */
+    public static boolean isBaseCellPolarPentagon(int baseCell) {
+        return baseCell == 4 || baseCell == 117;
+    }
+
 }

@@ -211,6 +211,20 @@ public final class H3 {
         return h3ToStringList(h3ToChildren(stringToH3(h3Address)));
     }
 
+    public static String[] hexRing(String h3Address) {
+        return h3ToStringList(hexRing(stringToH3(h3Address)));
+    }
+
+    /**
+     * Returns the neighbor indexes.
+     *
+     * @param h3 Origin index
+     * @return All neighbor indexes from the origin
+     */
+    public static long[] hexRing(long h3) {
+        return HexRing.hexRing(h3);
+    }
+
     /**
      * cellToChildrenSize returns the exact number of children for a cell at a
      * given child resolution.

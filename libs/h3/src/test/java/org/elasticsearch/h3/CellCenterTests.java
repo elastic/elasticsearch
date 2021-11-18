@@ -144,6 +144,9 @@ public class CellCenterTests extends ESTestCase {
             LatLng latLng = H3.h3ToLatLng(h3Address);
             assertEquals(h3Address, lat, latLng.getLatDeg(), 1e-6);
             assertEquals(h3Address, lon, latLng.getLonDeg(), 1e-6);
+            String computedH3Address = H3.geoToH3Address(lat, lon, H3Index.H3_get_resolution(H3.stringToH3(h3Address)));
+            assertEquals(h3Address, computedH3Address);
+            assertEquals(h3Address, computedH3Address);
             line = reader.readLine();
         }
     }

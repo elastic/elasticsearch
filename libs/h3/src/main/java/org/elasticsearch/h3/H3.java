@@ -9,6 +9,8 @@ package org.elasticsearch.h3;
 
 import java.util.Arrays;
 
+import static java.lang.Math.toRadians;
+
 /**
  * Defines the public API of the H3 library.
  */
@@ -140,6 +142,33 @@ public final class H3 {
     }
 
     /**
+     * Find the H3 index of the resolution <code>res</code> cell containing the lat/lon (in degrees)
+     *
+     * @param lat Latitude in degrees.
+     * @param lng Longitude in degrees.
+     * @param res Resolution, 0 &lt;= res &lt;= 15
+     * @return The H3 index.
+     * @throws IllegalArgumentException latitude, longitude, or resolution are out of range.
+     */
+    public static long geoToH3(double lat, double lng, int res) {
+        checkResolution(res);
+        return new LatLng(toRadians(lat), toRadians(lng)).geoToFaceIJK(res).faceIjkToH3(res);
+    }
+
+    /**
+     * Find the H3 index of the resolution <code>res</code> cell containing the lat/lon (in degrees)
+     *
+     * @param lat Latitude in degrees.
+     * @param lng Longitude in degrees.
+     * @param res Resolution, 0 &lt;= res &lt;= 15
+     * @return The H3 index.
+     * @throws IllegalArgumentException Latitude, longitude, or resolution is out of range.
+     */
+    public static String geoToH3Address(double lat, double lng, int res) {
+        return h3ToString(geoToH3(lat, lng, res));
+    }
+
+    /**
      * Returns the parent of the given index.
      */
     public static long h3ToParent(long h3) {
@@ -223,5 +252,14 @@ public final class H3 {
 
     private static String[] h3ToStringList(long[] h3s) {
         return Arrays.stream(h3s).mapToObj(H3::h3ToString).toArray(String[]::new);
+    }
+
+    /**
+     * @throws IllegalArgumentException <code>res</code> is not a valid H3 resolution.
+     */
+    private static void checkResolution(int res) {
+        if (res < 0 || res > Constants.MAX_H3_RES) {
+            throw new IllegalArgumentException("resolution [" + res + "]  is out of range (must be 0 <= res <= 15)");
+        }
     }
 }

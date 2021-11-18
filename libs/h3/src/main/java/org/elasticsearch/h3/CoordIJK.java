@@ -284,6 +284,51 @@ final class CoordIJK {
     }
 
     /**
+     * Find the normalized ijk coordinates of the indexing parent of a cell in a
+     * counter-clockwise aperture 7 grid.
+     *
+     */
+    public void upAp7() {
+        i = this.i - this.k;
+        j = this.j - this.k;
+        int i = (int) Math.round((3 * this.i - this.j) / 7.0);
+        int j = (int) Math.round((this.i + 2 * this.j) / 7.0);
+        this.i = i;
+        this.j = j;
+        this.k = 0;
+        ijkNormalize();
+    }
+
+    /**
+     * Determines the H3 digit corresponding to a unit vector in ijk coordinates.
+     *
+     * @return The H3 digit (0-6) corresponding to the ijk unit vector, or
+     * INVALID_DIGIT on failure.
+     */
+    public int unitIjkToDigit() {
+        ijkNormalize();
+        int digit = Direction.INVALID_DIGIT.digit();
+        for (int i = Direction.CENTER_DIGIT.digit(); i < Direction.NUM_DIGITS.digit(); i++) {
+            if (ijkMatches(UNIT_VECS[i])) {
+                digit = i;
+                break;
+            }
+        }
+        return digit;
+    }
+
+    /**
+     * Returns whether or not two ijk coordinates contain exactly the same
+     * component values.
+     *
+     * @param c The  set of ijk coordinates.
+     * @return true if the two addresses match, 0 if they do not.
+     */
+    private boolean ijkMatches(int[] c) {
+        return (i == c[0] && j == c[1] && k == c[2]);
+    }
+
+    /**
      * Rotates indexing digit 60 degrees clockwise. Returns result.
      *
      * @param digit Indexing digit (between 1 and 6 inclusive)
@@ -301,6 +346,30 @@ final class CoordIJK {
             case 4: // I_AXES_DIGIT
                 return Direction.IK_AXES_DIGIT.digit();
             case 5: // IK_AXES_DIGIT
+                return Direction.K_AXES_DIGIT.digit();
+            default:
+                return digit;
+        }
+    }
+
+    /**
+     * Rotates indexing digit 60 degrees counter-clockwise. Returns result.
+     *
+     * @param digit Indexing digit (between 1 and 6 inclusive)
+     */
+    public static int rotate60ccw(int digit) {
+        switch (digit) {
+            case 1: // K_AXES_DIGIT
+                return Direction.IK_AXES_DIGIT.digit();
+            case 5: // IK_AXES_DIGIT
+                return Direction.I_AXES_DIGIT.digit();
+            case 4: // I_AXES_DIGIT
+                return Direction.IJ_AXES_DIGIT.digit();
+            case 6: // IJ_AXES_DIGIT
+                return Direction.J_AXES_DIGIT.digit();
+            case 2: // J_AXES_DIGIT:
+                return Direction.JK_AXES_DIGIT.digit();
+            case 3: // JK_AXES_DIGIT:
                 return Direction.K_AXES_DIGIT.digit();
             default:
                 return digit;

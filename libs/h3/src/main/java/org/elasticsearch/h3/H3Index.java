@@ -253,7 +253,7 @@ class H3Index {
 
         // center base cell hierarchy is entirely on this face
         boolean possibleOverage = true;
-        if (BaseCells.isBaseCellPentagon(H3Index.H3_get_base_cell(h)) == false
+        if (BaseCells.isBaseCellPentagon(H3_get_base_cell(h)) == false
             && (res == 0 || (fijk.coord.i == 0 && fijk.coord.j == 0 && fijk.coord.k == 0))) {
             possibleOverage = false;
         }
@@ -267,7 +267,7 @@ class H3Index {
                 fijk.coord.downAp7r();
             }
 
-            fijk.coord.neighbor(H3Index.H3_get_index_digit(h, r));
+            fijk.coord.neighbor(H3_get_index_digit(h, r));
         }
 
         return possibleOverage;
@@ -277,10 +277,46 @@ class H3Index {
      * Rotate an H3Index 60 degrees clockwise.
      * @param h The H3Index.
      */
-    private static long h3Rotate60cw(long h) {
-        for (int r = 1, res = H3Index.H3_get_resolution(h); r <= res; r++) {
-            h = H3Index.H3_set_index_digit(h, r, CoordIJK.rotate60cw(H3Index.H3_get_index_digit(h, r)));
+    public static long h3Rotate60cw(long h) {
+        for (int r = 1, res = H3_get_resolution(h); r <= res; r++) {
+            h = H3_set_index_digit(h, r, CoordIJK.rotate60cw(H3_get_index_digit(h, r)));
         }
         return h;
     }
+
+    /**
+     * Rotate an H3Index 60 degrees counter-clockwise.
+     * @param h The H3Index.
+     */
+    public static long h3Rotate60ccw(long h) {
+        for (int r = 1, res = H3_get_resolution(h); r <= res; r++) {
+            h = H3_set_index_digit(h, r, CoordIJK.rotate60ccw(H3_get_index_digit(h, r)));
+        }
+        return h;
+    }
+
+    /**
+     * Rotate an H3Index 60 degrees counter-clockwise about a pentagonal center.
+     * @param h The H3Index.
+     */
+    public static long h3RotatePent60ccw(long h) {
+        // skips any leading 1 digits (k-axis)
+        boolean foundFirstNonZeroDigit = false;
+        for (int r = 1, res = H3_get_resolution(h); r <= res; r++) {
+            // rotate this digit
+            h = H3_set_index_digit(h, r, CoordIJK.rotate60ccw(H3_get_index_digit(h, r)));
+
+            // look for the first non-zero digit so we
+            // can adjust for deleted k-axes sequence
+            // if necessary
+            if (foundFirstNonZeroDigit == false && H3_get_index_digit(h, r) != 0) {
+                foundFirstNonZeroDigit = true;
+
+                // adjust for deleted k-axes sequence
+                if (h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) h = h3Rotate60ccw(h);
+            }
+        }
+        return h;
+    }
+
 }

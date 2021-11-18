@@ -14,10 +14,13 @@ import java.util.Objects;
  */
 final class Vec2d {
 
+    /** sin(60') */
+    private static final double M_SIN60 = Constants.M_SQRT3_2;
+
     /**
      * icosahedron face centers in lat/lng radians
      */
-    private static final LatLng[] faceCenterGeo = new LatLng[] {
+    public static final LatLng[] faceCenterGeo = new LatLng[] {
         new LatLng(0.803582649718989942, 1.248397419617396099),    // face 0
         new LatLng(1.307747883455638156, 2.536945009877921159),    // face 1
         new LatLng(1.054751253523952054, -1.347517358900396623),   // face 2
@@ -44,7 +47,7 @@ final class Vec2d {
      * icosahedron face ijk axes as azimuth in radians from face center to
      * vertex 0/1/2 respectively
      */
-    private static final double[][] faceAxesAzRadsCII = new double[][] {
+    public static final double[][] faceAxesAzRadsCII = new double[][] {
         { 5.619958268523939882, 3.525563166130744542, 1.431168063737548730 },  // face 0
         { 5.760339081714187279, 3.665943979320991689, 1.571548876927796127 },  // face 1
         { 0.780213654393430055, 4.969003859179821079, 2.874608756786625655 },  // face 2
@@ -67,28 +70,6 @@ final class Vec2d {
         { 2.361378999196363184, 0.266983896803167583, 4.455774101589558636 },  // face 19
     };
 
-    /**
-     * square root of 7
-     */
-    private static final double M_SQRT7 = 2.6457513110645905905016157536392604257102;
-
-    /**
-     * scaling factor from hex2d resolution 0 unit length
-     * (or distance between adjacent cell center points
-     * on the plane) to gnomonic unit length.
-     */
-    private static double RES0_U_GNOMONIC = 0.38196601125010500003;
-
-    /**
-     * rotation angle between Class II and Class III resolution axes
-     * (asin(sqrt(3.0 / 28.0)))
-     */
-    private static double M_AP7_ROT_RADS = 0.333473172251832115336090755351601070065900389;
-
-    /**
-     * threshold epsilon
-     */
-    private static double EPSILON = 0.0000000000000001;
     /**
      * pi
      */
@@ -124,7 +105,7 @@ final class Vec2d {
         // calculate (r, theta) in hex2d
         double r = v2dMag();
 
-        if (r < EPSILON) {
+        if (r < Constants.EPSILON) {
             return faceCenterGeo[face];
         }
 
@@ -132,31 +113,132 @@ final class Vec2d {
 
         // scale for current resolution length u
         for (int i = 0; i < res; i++) {
-            r /= M_SQRT7;
+            r /= Constants.M_SQRT7;
         }
 
         // scale accordingly if this is a substrate grid
         if (substrate) {
             r /= 3.0;
             if (H3Index.isResolutionClassIII(res)) {
-                r /= M_SQRT7;
+                r /= Constants.M_SQRT7;
             }
         }
 
-        r *= RES0_U_GNOMONIC;
+        r *= Constants.RES0_U_GNOMONIC;
 
         // perform inverse gnomonic scaling of r
         r = Math.atan(r);
 
         // adjust theta for Class III
         // if a substrate grid, then it's already been adjusted for Class III
-        if (substrate == false && H3Index.isResolutionClassIII(res)) theta = posAngleRads(theta + M_AP7_ROT_RADS);
+        if (substrate == false && H3Index.isResolutionClassIII(res)) theta = posAngleRads(theta + Constants.M_AP7_ROT_RADS);
 
         // find theta as an azimuth
         theta = posAngleRads(faceAxesAzRadsCII[face][0] - theta);
 
         // now find the point at (r,theta) from the face center
         return geoAzDistanceRads(faceCenterGeo[face], theta, r);
+    }
+
+    /**
+     * Determine the containing hex in ijk+ coordinates for a 2D cartesian
+     * coordinate vector (from DGGRID).
+     *
+     */
+    public CoordIJK hex2dToCoordIJK() {
+        double a1, a2;
+        double x1, x2;
+        int m1, m2;
+        double r1, r2;
+
+        // quantize into the ij system and then normalize
+        int k = 0;
+        int i;
+        int j;
+
+        a1 = Math.abs(x);
+        a2 = Math.abs(y);
+
+        // first do a reverse conversion
+        x2 = a2 / M_SIN60;
+        x1 = a1 + x2 / 2.0;
+
+        // check if we have the center of a hex
+        m1 = (int) x1;
+        m2 = (int) x2;
+
+        // otherwise round correctly
+        r1 = x1 - m1;
+        r2 = x2 - m2;
+
+        if (r1 < 0.5) {
+            if (r1 < 1.0 / 3.0) {
+                if (r2 < (1.0 + r1) / 2.0) {
+                    i = m1;
+                    j = m2;
+                } else {
+                    i = m1;
+                    j = m2 + 1;
+                }
+            } else {
+                if (r2 < (1.0 - r1)) {
+                    j = m2;
+                } else {
+                    j = m2 + 1;
+                }
+
+                if ((1.0 - r1) <= r2 && r2 < (2.0 * r1)) {
+                    i = m1 + 1;
+                } else {
+                    i = m1;
+                }
+            }
+        } else {
+            if (r1 < 2.0 / 3.0) {
+                if (r2 < (1.0 - r1)) {
+                    j = m2;
+                } else {
+                    j = m2 + 1;
+                }
+
+                if ((2.0 * r1 - 1.0) < r2 && r2 < (1.0 - r1)) {
+                    i = m1;
+                } else {
+                    i = m1 + 1;
+                }
+            } else {
+                if (r2 < (r1 / 2.0)) {
+                    i = m1 + 1;
+                    j = m2;
+                } else {
+                    i = m1 + 1;
+                    j = m2 + 1;
+                }
+            }
+        }
+
+        // now fold across the axes if necessary
+
+        if (x < 0.0) {
+            if ((j % 2) == 0)  // even
+            {
+                int axisi = j / 2;
+                int diff = i - axisi;
+                i = i - 2 * diff;
+            } else {
+                int axisi = (j + 1) / 2;
+                int diff = i - axisi;
+                i = i - (2 * diff + 1);
+            }
+        }
+
+        if (y < 0.0) {
+            i = i - (2 * j + 1) / 2;
+            j = -1 * j;
+        }
+        CoordIJK coordIJK = new CoordIJK(i, j, k);
+        coordIJK.ijkNormalize();
+        return coordIJK;
     }
 
     @Override
@@ -209,7 +291,7 @@ final class Vec2d {
      * @param rads The input radians value.
      * @return The normalized radians value.
      */
-    private static double posAngleRads(double rads) {
+    static double posAngleRads(double rads) {
         double tmp = ((rads < 0.0) ? rads + M_2PI : rads);
         if (rads >= M_2PI) tmp -= M_2PI;
         return tmp;
@@ -225,7 +307,7 @@ final class Vec2d {
      *                 p1.
      */
     private static LatLng geoAzDistanceRads(LatLng p1, double az, double distance) {
-        if (distance < EPSILON) {
+        if (distance < Constants.EPSILON) {
             return p1;
         }
 
@@ -236,16 +318,16 @@ final class Vec2d {
         double lat, lon;
 
         // check for due north/south azimuth
-        if (az < EPSILON || Math.abs(az - M_PI) < EPSILON) {
-            if (az < EPSILON) {// due north
+        if (az < Constants.EPSILON || Math.abs(az - M_PI) < Constants.EPSILON) {
+            if (az < Constants.EPSILON) {// due north
                 lat = p1.getLatRad() + distance;
             } else { // due south
                 lat = p1.getLatRad() - distance;
             }
-            if (Math.abs(lat - M_PI_2) < EPSILON) { // north pole
+            if (Math.abs(lat - M_PI_2) < Constants.EPSILON) { // north pole
                 lat = M_PI_2;
                 lon = 0.0;
-            } else if (Math.abs(lat + M_PI_2) < EPSILON) { // south pole
+            } else if (Math.abs(lat + M_PI_2) < Constants.EPSILON) { // south pole
                 lat = -M_PI_2;
                 lon = 0.0;
             } else {
@@ -260,11 +342,11 @@ final class Vec2d {
                 sinlat = -1.0;
             }
             lat = Math.asin(sinlat);
-            if (Math.abs(lat - M_PI_2) < EPSILON)  // north pole
+            if (Math.abs(lat - M_PI_2) < Constants.EPSILON)  // north pole
             {
                 lat = M_PI_2;
                 lon = 0.0;
-            } else if (Math.abs(lat + M_PI_2) < EPSILON)  // south pole
+            } else if (Math.abs(lat + M_PI_2) < Constants.EPSILON)  // south pole
             {
                 lat = -M_PI_2;
                 lon = 0.0;

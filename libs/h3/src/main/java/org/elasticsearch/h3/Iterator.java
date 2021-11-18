@@ -11,7 +11,11 @@ package org.elasticsearch.h3;
  * Iterator structures and functions for the children of a cell.
  */
 final class Iterator {
-
+    /**
+     * Invalid index used to indicate an error from latLngToCell and related
+     * functions or missing data in arrays of H3 indices. Analogous to NaN in
+     * floating point.
+     */
     public static final long H3_NULL = 0;
 
     /**

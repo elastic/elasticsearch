@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.util.docker;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Platforms;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,6 +54,10 @@ public class DockerRun {
     }
 
     public DockerRun volume(Path from, String to) {
+        requireNonNull(from);
+        if (Files.exists(from) == false) {
+            throw new RuntimeException("Path [" + from + "] does not exist");
+        }
         this.volumes.put(requireNonNull(from), Path.of(requireNonNull(to)));
         return this;
     }

@@ -264,6 +264,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
     }
 
+    @SuppressWarnings("HiddenField")
     public void testLazyLoading() throws Exception {
         final Path geoIpDir = createTempDir();
         final Path configDir = createTempDir();
@@ -320,6 +321,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertNotNull(databaseNodeService.getDatabase("GeoLite2-ASN.mmdb", true).databaseReader.get());
     }
 
+    @SuppressWarnings("HiddenField")
     public void testLoadingCustomDatabase() throws IOException {
         final Path geoIpDir = createTempDir();
         final Path configDir = createTempDir();

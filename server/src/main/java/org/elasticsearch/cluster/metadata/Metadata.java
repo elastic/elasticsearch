@@ -1704,7 +1704,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 );
             }
             ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices = this.aliasedIndices.build();
-            assert validateDataStreams(aliasedIndices, dataStreamMetadata);
+            assert assertDataStreams(aliasedIndices, dataStreamMetadata);
 
             ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
 
@@ -1912,7 +1912,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        static boolean validateDataStreams(
+        static boolean assertDataStreams(
             ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices,
             @Nullable DataStreamMetadata dsMetadata
         ) {

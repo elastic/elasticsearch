@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
+import static org.elasticsearch.cluster.metadata.Metadata.Builder.assertDataStreams;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1254,7 +1254,7 @@ public class MetadataTests extends ESTestCase {
     public void testValidateDataStreamsNoConflicts() {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
         // don't expect any exception when validating a system without indices that would conflict with future backing indices
-        validateDataStreams(metadata.getAliasedIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getAliasedIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
@@ -1278,7 +1278,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against non-backing indices that don't conform to the backing indices naming
         // convention
-        validateDataStreams(metadata.getAliasedIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getAliasedIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsAllowsNamesThatStartsWithPrefix() {
@@ -1292,7 +1292,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
         // additional text before number
-        validateDataStreams(metadata.getAliasedIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getAliasedIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
@@ -1301,7 +1301,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         try {
-            validateDataStreams(metadata.getAliasedIndices(), null);
+            assertDataStreams(metadata.getAliasedIndices(), null);
         } catch (Exception e) {
             fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
         }

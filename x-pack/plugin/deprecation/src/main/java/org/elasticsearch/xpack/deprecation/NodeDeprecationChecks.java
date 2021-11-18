@@ -649,14 +649,19 @@ class NodeDeprecationChecks {
         if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.get(settings) == false
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
+            String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 String.format(Locale.ROOT, "Setting [%s=false] is deprecated", key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
                 String.format(
                     Locale.ROOT,
-                    "Remove the [%s] setting. Disk watermarks are always enabled for single node clusters in 8.0.",
-                    key
+                    "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, and [%s] may not be set to "
+                        + "[false] in these versions. Set [%s] to [true] to adopt the future behavior before upgrading. "
+                        + "If desired you may also set [%s] to [false] to completely disable disk-based allocation.",
+                    key,
+                    key,
+                    disableDiskDecider
                 ),
                 false,
                 null
@@ -669,18 +674,15 @@ class NodeDeprecationChecks {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
-                String.format(
-                    Locale.ROOT,
-                    "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
-                    key
-                ),
+                DeprecationIssue.Level.WARNING,
+                "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later.",
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
                 String.format(
                     Locale.ROOT,
-                    "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node"
-                        + " cluster when you upgrade. You can set \"%s\" to false to disable"
-                        + " disk based allocation.",
+                    "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, which will affect the "
+                        + "behavior of this cluster. Set [%s] to [true] to adopt the future behaviour before upgrading. "
+                        + "If desired you may also set [%s] to [false] to completely disable disk-based allocation.",
+                    key,
                     disableDiskDecider
                 ),
                 false,

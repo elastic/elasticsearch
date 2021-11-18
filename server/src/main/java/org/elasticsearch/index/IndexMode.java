@@ -164,7 +164,14 @@ public enum IndexMode {
      */
     public abstract void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting);
 
+    /**
+     * validate timestamp mapping for this index.
+     */
     public abstract void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException;
 
+    /**
+     * get default mapping for this index.
+     * @return
+     */
     public abstract Map<String, Object> getDefaultMapping();
 }

@@ -1202,8 +1202,8 @@ public class MetadataCreateIndexService {
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        List<Map<String, Object>> mergedMappings = new ArrayList<>();
         IndexMode indexMode = indexService.getIndexSettings().getMode();
+        List<Map<String, Object>> mergedMappings = new ArrayList<>(1 + mappings.size());
         mergedMappings.add(indexMode.getDefaultMapping());
         mergedMappings.addAll(mappings);
         for (Map<String, Object> mapping : mergedMappings) {

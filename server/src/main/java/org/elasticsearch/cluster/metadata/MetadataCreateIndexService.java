@@ -1146,7 +1146,7 @@ public class MetadataCreateIndexService {
 
         // apply the aliases in reverse order as the lower index ones have higher order
         for (int i = aliases.size() - 1; i >= 0; i--) {
-            indexMetadataBuilder.putAlias(aliases.get(i)); // see ClusterState alias juggling in clusterStateCreateIndex
+            indexMetadataBuilder.putAlias(aliases.get(i));
         }
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);

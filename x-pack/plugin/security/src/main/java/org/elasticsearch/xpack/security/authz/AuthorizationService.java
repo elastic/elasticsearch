@@ -113,11 +113,7 @@ public class AuthorizationService {
         true,
         Property.NodeScope
     );
-    public static final Setting<Boolean> TRACE_AUTHORIZATION = Setting.boolSetting(
-        setting("authz.tracing"),
-        true,
-        Property.NodeScope
-    );
+    public static final Setting<Boolean> TRACE_AUTHORIZATION = Setting.boolSetting(setting("authz.tracing"), true, Property.NodeScope);
     private static final AuthorizationInfo SYSTEM_AUTHZ_INFO = () -> Collections.singletonMap(
         PRINCIPAL_ROLES_FIELD_NAME,
         new String[] { SystemUser.ROLE_NAME }
@@ -587,12 +583,8 @@ public class AuthorizationService {
             }
         } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
             // if this is performing multiple actions on the index, then check each of those actions.
-            assert request instanceof BulkShardRequest : "Action "
-                + action
-                + " requires "
-                + BulkShardRequest.class
-                + " but was "
-                + request.getClass();
+            assert request instanceof BulkShardRequest
+                : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
             final AuthorizationContext authzContext = new AuthorizationContext(
                 requestInfo.getAction(),
                 authzInfo,

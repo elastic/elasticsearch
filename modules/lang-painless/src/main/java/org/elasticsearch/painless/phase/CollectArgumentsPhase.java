@@ -13,6 +13,7 @@ import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.ir.InvokeCallDefNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
@@ -31,17 +32,6 @@ import org.elasticsearch.queryableexpression.QueryableExpressionBuilder;
  * Collects arguments for methods annotated with {@link CollectArgumentAnnotation}.
  */
 public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsScope> {
-
-    @Override
-    public void visitStoreVariable(StoreVariableNode irStoreVariableNode, CollectArgumentsScope scope) {
-        String name = irStoreVariableNode.getDecorationString(IRDName.class);
-
-        if ("doc".equals(name) || "params".equals(name)) {
-            scope.setVariableAssigned(name);
-        }
-
-        super.visitStoreVariable(irStoreVariableNode, scope);
-    }
 
     @Override
     public void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, CollectArgumentsScope scope) {
@@ -182,5 +172,59 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
                 return QueryableExpressionBuilder.UNQUERYABLE;
             }
         });
+    }
+
+    @Override
+    public void visitDeclaration(DeclarationNode irDeclarationNode, CollectArgumentsScope scope) {
+        String name = irDeclarationNode.getDecorationString(IRDName.class);
+
+        scope.removeVariableField(name);
+
+        if (irDeclarationNode.getExpressionNode() instanceof BinaryImplNode) {
+            BinaryImplNode irBinaryImplNode = (BinaryImplNode) irDeclarationNode.getExpressionNode();
+            ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode(), scope);
+            if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
+                Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
+                if (value instanceof String) {
+                    scope.putVariableField(name, (String) value);
+                }
+            }
+        }
+
+        super.visitDeclaration(irDeclarationNode, scope);
+    }
+
+    @Override
+    public void visitStoreVariable(StoreVariableNode irStoreVariableNode, CollectArgumentsScope scope) {
+        String name = irStoreVariableNode.getDecorationString(IRDName.class);
+
+        if ("doc".equals(name) || "params".equals(name)) {
+            scope.setVariableAssigned(name);
+        }
+
+        scope.removeVariableField(name);
+
+        if (irStoreVariableNode.getChildNode() instanceof BinaryImplNode) {
+            BinaryImplNode irBinaryImplNode = (BinaryImplNode) irStoreVariableNode.getChildNode();
+            ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode(), scope);
+            if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
+                Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
+                if (value instanceof String) {
+                    scope.putVariableField(name, (String) value);
+                }
+            }
+        }
+
+        super.visitStoreVariable(irStoreVariableNode, scope);
+    }
+
+    @Override
+    public void visitLoadVariable(LoadVariableNode irLoadVariableNode, CollectArgumentsScope scope) {
+        String name = irLoadVariableNode.getDecorationString(IRDName.class);
+        String field = scope.getVariableField(name);
+
+        if (field != null) {
+            scope.push(QueryableExpressionBuilder.field(field));
+        }
     }
 }

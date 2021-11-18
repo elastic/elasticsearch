@@ -67,26 +67,38 @@ public class CollectArgumentTests extends ScriptTestCase {
 
     public void testFieldRef1() {
         assertEquals("a", qe("emit(doc['a'].value)", longLookup).toString());
+        assertEquals("a", qe("def a = doc['a'].value; emit(a)", longLookup).toString());
+        assertEquals("a", qe("def a; a = doc['a'].value; emit(a)", longLookup).toString());
     }
 
     public void testFieldRef2() {
         assertEquals("a", qe("emit(doc['a'].getValue())", longLookup).toString());
+        assertEquals("a", qe("def a = doc['a'].getValue(); emit(a)", longLookup).toString());
+        assertEquals("a", qe("def a; a = doc['a'].getValue(); emit(a)", longLookup).toString());
     }
 
     public void testFieldRef3() {
         assertEquals("a", qe("emit(doc.get('a').value)", longLookup).toString());
+        assertEquals("a", qe("def a = doc.get('a').value; emit(a)", longLookup).toString());
+        assertEquals("a", qe("def a; a = doc.get('a').value; emit(a)", longLookup).toString());
     }
 
     public void testFieldRef4() {
         assertEquals("a", qe("emit(doc.get('a').getValue())", longLookup).toString());
+        assertEquals("a", qe("def a = doc.get('a').getValue(); emit(a)", longLookup).toString());
+        assertEquals("a", qe("def a; a = doc.get('a').getValue(); emit(a)", longLookup).toString());
     }
 
     public void testFieldRef5() {
         assertEquals("a", qe("emit(doc.a.value)", longLookup).toString());
+        assertEquals("a", qe("def a = doc.a.value; emit(a)", longLookup).toString());
+        assertEquals("a", qe("def a; a = doc.a.value; emit(a)", longLookup).toString());
     }
 
     public void testFieldRef6() {
         assertEquals("a", qe("emit(doc.a.getValue())", longLookup).toString());
+        assertEquals("a", qe("def a = doc.a.getValue(); emit(a)", longLookup).toString());
+        assertEquals("a", qe("def a; a = doc.a.getValue(); emit(a)", longLookup).toString());
     }
 
     public void testFieldRefPlusInt() {
@@ -169,6 +181,7 @@ public class CollectArgumentTests extends ScriptTestCase {
 
     public void testIf() {
         assertEquals("a", qe("if (doc.b.value > 2) { emit(doc.a.value) }", longLookup).toString());
+        assertEquals("a", qe("def a = doc.a.value; if (a > 2) { emit(a) }", longLookup).toString());
     }
 
     public void testTernary() {

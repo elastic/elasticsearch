@@ -31,10 +31,13 @@ public class CollectArgumentsScope {
     private String currentTarget;
 
     private final Set<String> assignedVariables;
+    private final Map<String, String> variableNameToFieldValue;
 
     public CollectArgumentsScope() {
         this.expressionStack = new ArrayDeque<>();
+
         this.assignedVariables = new HashSet<>();
+        this.variableNameToFieldValue = new HashMap<>();
     }
 
     public void startCollecting(String target) {
@@ -100,5 +103,17 @@ public class CollectArgumentsScope {
 
     public boolean isVariableAssigned(String name) {
         return assignedVariables.contains(name);
+    }
+
+    public void putVariableField(String variableName, String fieldName) {
+        variableNameToFieldValue.put(variableName, fieldName);
+    }
+
+    public void removeVariableField(String variableName) {
+        variableNameToFieldValue.remove(variableName);
+    }
+
+    public String getVariableField(String variableName) {
+        return variableNameToFieldValue.get(variableName);
     }
 }

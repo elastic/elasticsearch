@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.apm;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.trace.data.SpanData;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
@@ -17,7 +18,6 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -177,7 +177,6 @@ public class ApmIT extends ESIntegTestCase {
         assertTrue(spanExporter.findSpanByName(SearchAction.NAME).findAny().isPresent());
         assertTrue(spanExporter.findSpanByName(SearchTransportService.QUERY_CAN_MATCH_NODE_NAME).findAny().isPresent());
     }
-
 
     public void testDoesNotRecordSpansWhenDisabled() {
 

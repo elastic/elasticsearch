@@ -22,30 +22,34 @@ public class FilterPath {
     private static final String DOUBLE_WILDCARD = "**";
 
     private final Map<String, FilterPath> termsChildren;
-    private final List<FilterPath> wildcardChildren;
+    private final FilterPath[] wildcardChildren;
     private final String pattern;
     private final boolean isDoubleWildcard;
     private final boolean isFinalNode;
-    private boolean hasDoubleWildcard;
 
-    private FilterPath(
-        String pattern,
-        boolean isDoubleWildcard,
-        boolean isFinalNode,
-        boolean hasDoubleWildcard,
-        Map<String, FilterPath> termsChildren,
-        List<FilterPath> wildcardChildren
-    ) {
+    private FilterPath(String pattern, boolean isFinalNode, Map<String, FilterPath> termsChildren, FilterPath[] wildcardChildren) {
         this.pattern = pattern;
-        this.isDoubleWildcard = isDoubleWildcard;
         this.isFinalNode = isFinalNode;
-        this.hasDoubleWildcard = hasDoubleWildcard;
         this.termsChildren = Collections.unmodifiableMap(termsChildren);
-        this.wildcardChildren = Collections.unmodifiableList(wildcardChildren);
+        this.wildcardChildren = wildcardChildren;
+        this.isDoubleWildcard = pattern.equals(DOUBLE_WILDCARD);
     }
 
     public boolean hasDoubleWildcard() {
-        return hasDoubleWildcard;
+        if (isDoubleWildcard || pattern.contains(DOUBLE_WILDCARD)) {
+            return true;
+        }
+        for (FilterPath filterPath : wildcardChildren) {
+            if (filterPath.hasDoubleWildcard()) {
+                return true;
+            }
+        }
+        for (FilterPath filterPath : termsChildren.values()) {
+            if (filterPath.hasDoubleWildcard()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String getPattern() {
@@ -121,28 +125,35 @@ public class FilterPath {
 
         void insertNode(String filter, BuildNode node) {
             int end = filter.length();
-            for (int i = 0; i < end;) {
+            int splitPosition = -1;
+            boolean findEscapes = false;
+            for (int i = 0; i < end; i++) {
                 char c = filter.charAt(i);
                 if (c == '.') {
-                    String field = filter.substring(0, i).replaceAll("\\\\.", ".");
-                    BuildNode child = node.children.get(field);
-                    if (child == null) {
-                        child = new BuildNode(false);
-                        node.children.put(field, child);
-                    }
-                    if (false == child.isFinalNode) {
-                        insertNode(filter.substring(i + 1), child);
-                    }
-                    return;
-                }
-                ++i;
-                if ((c == '\\') && (i < end) && (filter.charAt(i) == '.')) {
+                    splitPosition = i;
+                    break;
+                } else if ((c == '\\') && (i + 1 < end) && (filter.charAt(i + 1) == '.')) {
                     ++i;
+                    findEscapes = true;
                 }
             }
 
-            String field = filter.replaceAll("\\\\.", ".");
-            node.children.put(field, new BuildNode(true));
+            if (splitPosition > 0) {
+                String field = findEscapes
+                    ? filter.substring(0, splitPosition).replaceAll("\\\\.", ".")
+                    : filter.substring(0, splitPosition);
+                BuildNode child = node.children.get(field);
+                if (child == null) {
+                    child = new BuildNode(false);
+                    node.children.put(field, child);
+                }
+                if (false == child.isFinalNode) {
+                    insertNode(filter.substring(splitPosition + 1), child);
+                }
+            } else {
+                String field = findEscapes ? filter.replaceAll("\\\\.", ".") : filter;
+                node.children.put(field, new BuildNode(true));
+            }
         }
 
         FilterPath buildPath(String segment, BuildNode node) {
@@ -158,29 +169,7 @@ public class FilterPath {
                     termsChildren.put(childName, childFilterPath);
                 }
             }
-
-            boolean doubleWildcard = segment.equals(DOUBLE_WILDCARD);
-            boolean isFinalNode = node.isFinalNode;
-            boolean hasDoubleWildcard = hasDoubleWildcard(segment, termsChildren, wildcardChildren);
-
-            return new FilterPath(segment, doubleWildcard, isFinalNode, hasDoubleWildcard, termsChildren, wildcardChildren);
-        }
-
-        static boolean hasDoubleWildcard(String name, Map<String, FilterPath> termsChildren, List<FilterPath> wildcardChildren) {
-            if (name.contains(DOUBLE_WILDCARD)) {
-                return true;
-            }
-            for (FilterPath filterPath : wildcardChildren) {
-                if (filterPath.hasDoubleWildcard()) {
-                    return true;
-                }
-            }
-            for (FilterPath filterPath : termsChildren.values()) {
-                if (filterPath.hasDoubleWildcard()) {
-                    return true;
-                }
-            }
-            return false;
+            return new FilterPath(segment, node.isFinalNode, termsChildren, wildcardChildren.toArray(new FilterPath[0]));
         }
     }
 

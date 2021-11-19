@@ -201,7 +201,7 @@ public class ESDirectIODirectory extends FilterDirectory {
             super("DirectIOIndexOutput(path=\"" + path.toString() + "\")", name);
 
             channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, getDirectOpenOption());
-            buffer = ByteBuffer.allocate(bufferSize + blockSize - 1).alignedSlice(blockSize);
+            buffer = ByteBuffer.allocate(bufferSize);
             digest = new BufferedChecksum(new CRC32());
 
             isOpen = true;
@@ -380,7 +380,7 @@ public class ESDirectIODirectory extends FilterDirectory {
             }
 
             if (buffer == EMPTY_BYTEBUFFER) {
-                buffer = ByteBuffer.allocate(bufferSize + blockSize - 1).alignedSlice(blockSize);
+                buffer = ByteBuffer.allocate(bufferSize);
             } else {
                 buffer.clear();
             }

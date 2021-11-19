@@ -111,7 +111,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
         if (out.getVersion().before(Version.V_8_1_0)) {
-            out.writeOptionalWriteable(ValueType.lenientParse(userValueTypeHint));
+            out.writeOptionalWriteable(userValueTypeHint == null ? null : ValueType.lenientParse(userValueTypeHint));
         } else {
             out.writeOptionalString(userValueTypeHint);
         }

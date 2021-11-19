@@ -109,7 +109,9 @@ public enum IndexMode {
 
         @Override
         public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
-            MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+            if (isDataStream) {
+                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+            }
         }
 
         @Override

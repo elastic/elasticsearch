@@ -257,6 +257,7 @@ Infra/Logging::
 
 Infra/Plugins::
 * Add support in plugins for a separate spi classloader {es-pull}76288[#76288] (issue: {es-issue}74448[#74448])
+* Allow MBean permissions in plugin policies {es-pull}76329[#76329]
 
 Infra/Resiliency::
 * Print suggestion to view log on fatal error {es-pull}75418[#75418] (issue: {es-issue}61767[#61767])

@@ -68,7 +68,6 @@ Authentication::
 * Deprecate setup-passwords tool {es-pull}76902[#76902]
 
 CRUD::
-* Deprecate returning 408 for a server timeout on `_cluster/health` {es-pull}78180[#78180] (issue: {es-issue}70849[#70849])
 * Remove `indices_segments` 'verbose' parameter {es-pull}78451[#78451] (issue: {es-issue}75955[#75955])
 
 Monitoring::

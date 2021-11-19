@@ -365,7 +365,8 @@ public class HiddenFieldCheck extends AbstractCheck {
         // we should not capitalize the first character if the second
         // one is a capital one, since according to JavaBeans spec
         // setXYzz() is a setter for XYzz property, not for xYzz one.
-        if (name.length() == 1 || Character.isUpperCase(name.charAt(1)) == false) {
+        // @pugnascotia: unless the first char is 'x'.
+        if (name.length() == 1 || (Character.isUpperCase(name.charAt(1)) == false || name.charAt(0) == 'x')) {
             setterName = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1);
         }
         return setterName;

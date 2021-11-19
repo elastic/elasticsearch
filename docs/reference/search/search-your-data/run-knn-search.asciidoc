@@ -26,8 +26,8 @@ Common use cases for kNN include:
 * To run a kNN search, you must be able to convert your data into meaningful
 <<dense-vector,`dense_vector`>> values, called embeddings. This typically
 requires the setup and training of a machine learning model, called an embedding
-model. Elastic doesn't currently offer any out-of-the-box embedding models or
-solutions.
+model. Elastic doesn't currently offer any out-of-the-box models or solutions
+for creating embeddings.
 +
 The fit of your embedding model to your data and use case has a significant
 impact on the quality of your kNN search results.

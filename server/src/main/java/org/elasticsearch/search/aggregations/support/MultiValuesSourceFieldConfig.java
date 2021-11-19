@@ -208,7 +208,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             if (out.getVersion().before(Version.V_8_1_0)) {
-                out.writeOptionalWriteable(ValueType.lenientParse(userValueTypeHint));
+                out.writeOptionalWriteable(userValueTypeHint == null ? null : ValueType.lenientParse(userValueTypeHint));
             } else {
                 out.writeOptionalString(userValueTypeHint);
             }

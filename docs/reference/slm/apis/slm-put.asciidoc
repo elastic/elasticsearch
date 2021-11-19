@@ -86,7 +86,6 @@ Time period after which a snapshot is considered expired and eligible for
 deletion. {slm-init} deletes expired snapshots based on the
 <<slm-retention-schedule,`slm.retention_schedule`>>.
 
-// To update {max-snapshot-count}, see docs/Version.asciidoc
 `max_count`::
 (Optional, integer)
 Maximum number of snapshots to retain, even if the snapshots have not yet
@@ -94,9 +93,6 @@ expired. If the number of snapshots in the repository exceeds this limit, the
 policy retains the most recent snapshots and deletes older snapshots. This limit
 only includes snapshots with a <<get-snapshot-api-response-state,`state`>> of
 `SUCCESS`.
-+
-NOTE: This value should not exceed {max-snapshot-count}. See
-<<snapshot-retention-limits>>.
 
 `min_count`::
 (Optional, integer)

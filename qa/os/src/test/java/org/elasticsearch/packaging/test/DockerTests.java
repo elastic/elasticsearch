@@ -21,6 +21,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
 import org.elasticsearch.packaging.util.docker.MockServer;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -204,11 +205,11 @@ public class DockerTests extends PackagingTestCase {
         final boolean isCloudImage = distribution().packaging == Packaging.DOCKER_CLOUD
             || distribution().packaging == Packaging.DOCKER_CLOUD_ESS;
 
-        final List<String> expectedPlugins = isCloudImage
-            ? List.of("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
-            : List.of("analysis-icu");
+        final Matcher<Iterable<?>> matcher = isCloudImage
+            ? containsInAnyOrder("repository-azure", "repository-gcs", "repository-s3", "analysis-icu")
+            : equalTo(List.of("analysis-icu"));
 
-        assertThat("Expected installed plugins to be listed", listPlugins(), equalTo(expectedPlugins));
+        assertThat("Expected installed plugins to be listed", listPlugins(), matcher);
     }
 
     /**
@@ -372,15 +373,23 @@ public class DockerTests extends PackagingTestCase {
     public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
 
-        assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+            assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        } else {
+            assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
+        }
     }
 
     /**
      * Checks that there are Amazon trusted certificates in the cacaerts keystore.
      */
     public void test041AmazonCaCertsAreInTheKeystore() {
+        final String caName = distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK
+            ? "amazonrootca"
+            : "amazon_root_ca";
+
         final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.lines()
-            .anyMatch(line -> line.contains("amazonrootca"));
+            .anyMatch(line -> line.contains(caName));
 
         assertTrue("Expected Amazon trusted cert in cacerts", matches);
     }

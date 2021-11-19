@@ -380,7 +380,7 @@ public class ESDirectIODirectory extends FilterDirectory {
             }
 
             if (buffer == EMPTY_BYTEBUFFER) {
-                buffer = ByteBuffer.allocate(bufferSize);
+                buffer = ByteBuffer.allocate(bufferSize + blockSize - 1).alignedSlice(blockSize);
             } else {
                 buffer.clear();
             }

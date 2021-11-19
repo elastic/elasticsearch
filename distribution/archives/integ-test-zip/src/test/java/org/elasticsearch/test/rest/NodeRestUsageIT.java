@@ -180,10 +180,10 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
         Map<String, Map<String, Long>> afterCombinedAggsUsage = getTotalUsage(nodesMap);
 
-        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "numeric", 1L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "long", 1L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "date", 1L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "keyword", 2L);
-        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "avg", "numeric", 3L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "avg", "long", 3L);
     }
 
     private void assertDiff(

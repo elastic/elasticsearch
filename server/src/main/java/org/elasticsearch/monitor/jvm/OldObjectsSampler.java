@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -66,7 +67,7 @@ public class OldObjectsSampler {
                 logger.warn("Sampling result {}/{}", counter+1, NUM_SAMPLES);
                 if (events.isEmpty() == false) {
                     Map<RecordedEvent, Long> coalesced = coalesce(events);
-                    coalesced.entrySet().forEach(e -> {
+                    coalesced.entrySet().stream().sorted(Collections.reverseOrder(Map.Entry.comparingByValue())).forEach(e -> {
                         logger.warn("{} instances of:", e.getValue());
                         logger.warn(e.getKey());
                     });

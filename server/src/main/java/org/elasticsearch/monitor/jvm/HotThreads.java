@@ -162,7 +162,7 @@ public class HotThreads {
 
     public String detect() throws Exception {
         for (;;) {
-            damnedList.add(new Integer[500_000]);
+            damnedList.add(new Integer[250_000]);
             Thread.sleep(500);
         }
         /*synchronized (mutex) {

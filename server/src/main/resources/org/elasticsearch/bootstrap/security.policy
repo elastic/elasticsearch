@@ -62,6 +62,8 @@ grant codeBase "${codebase.jna}" {
 grant {
   // needed by vendored Guice
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.event";
+  permission java.lang.RuntimePermission "getClassLoader";
 
   // checked by scripting engines, and before hacks and other issues in
   // third party code, to safeguard these against unprivileged code like scripts.

@@ -164,10 +164,6 @@ consider using exact kNN instead.
 +
 include::{es-repo-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]
 
-* {blank}
-+
-include::{es-repo-dir}/mapping/types/dense-vector.asciidoc[tag=nested-dense-vector-limitation]
-
 [discrete]
 [[exact-knn]]
 === Exact kNN

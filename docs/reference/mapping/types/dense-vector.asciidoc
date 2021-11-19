@@ -97,10 +97,8 @@ can take substantial time to ingest documents that contain vector fields with
 `index` enabled.
 //end::dense-vector-indexing-speed[]
 
-//tag::nested-dense-vector-limitation[]
 Dense vector fields cannot be indexed if they are within
 <<nested, `nested`>> mappings.
-//end::nested-dense-vector-limitation[]
 
 [role="child_attributes"]
 [[dense-vector-params]]

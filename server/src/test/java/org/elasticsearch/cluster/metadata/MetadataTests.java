@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
@@ -45,6 +46,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
@@ -1701,6 +1703,43 @@ public class MetadataTests extends ESTestCase {
             Metadata metadata = builder.build();
             assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
             previous = metadata;
+        }
+    }
+
+    public void testAliasedIndices() {
+        int numAliases = randomIntBetween(32, 64);
+        int numIndicesPerAlias = randomIntBetween(8, 16);
+
+        Metadata.Builder builder = Metadata.builder();
+        for (int i = 0; i < numAliases; i++) {
+            String aliasName = "alias-" + i;
+            for (int j = 0; j < numIndicesPerAlias; j++) {
+                AliasMetadata.Builder alias = new AliasMetadata.Builder(aliasName);
+                if (j == 0) {
+                    alias.writeIndex(true);
+                }
+
+                String indexName = aliasName + "-" + j;
+                builder.put(
+                    IndexMetadata.builder(indexName)
+                        .settings(settings(Version.CURRENT))
+                        .creationDate(randomNonNegativeLong())
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .putAlias(alias)
+                );
+            }
+        }
+
+        Metadata metadata = builder.build();
+        for (int i = 0; i < numAliases; i++) {
+            String aliasName = "alias-" + i;
+            Set<Index> result = metadata.aliasedIndices(aliasName);
+            Index[] expected = IntStream.range(0, numIndicesPerAlias)
+                .mapToObj(j -> aliasName + "-" + j)
+                .map(name -> new Index(name, ClusterState.UNKNOWN_UUID))
+                .toArray(Index[]::new);
+            assertThat(result, containsInAnyOrder(expected));
         }
     }
 

@@ -760,13 +760,27 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return indices();
     }
 
-    public boolean hasAlias(String alias) {
-        return aliasedIndices.containsKey(alias);
+    /**
+     * Returns whether an alias exists with provided alias name.
+     *
+     * @param aliasName The provided alias name
+     * @return whether an alias exists with provided alias name
+     */
+    public boolean hasAlias(String aliasName) {
+        return aliasedIndices.containsKey(aliasName);
     }
 
-    public Set<Index> aliasedIndices(String alias) {
-        Objects.requireNonNull(alias);
-        AliasIndicesReference ref = aliasedIndices.get(alias);
+    /**
+     * Returns all the indices that the alias with the provided alias name refers to.
+     * These are aliased indices. Not that, this only return indices that have been aliased
+     * and not indices that are behind a data stream or data stream alias.
+     *
+     * @param aliasName The provided alias name
+     * @return all aliased indices by the alias with the provided alias name
+     */
+    public Set<Index> aliasedIndices(String aliasName) {
+        Objects.requireNonNull(aliasName);
+        AliasIndicesReference ref = aliasedIndices.get(aliasName);
         return ref == null ? Set.of() : ref.indices;
     }
 

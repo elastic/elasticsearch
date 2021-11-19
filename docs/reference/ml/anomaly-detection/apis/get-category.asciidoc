@@ -65,6 +65,9 @@ Defaults to `100`.
 [[ml-get-category-request-body]]
 == {api-request-body-title}
 
+You can also specify the `partition_field_value` query parameter in the
+request body.
+
 `page`.`from`::
 (Optional, integer) Skips the specified number of categories. Defaults to `0`.
 

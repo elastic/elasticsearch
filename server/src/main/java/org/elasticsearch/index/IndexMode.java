@@ -109,9 +109,7 @@ public enum IndexMode {
 
         @Override
         public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
-            if (isDataStream) {
-                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
-            }
+            MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
         }
 
         @Override
@@ -130,9 +128,12 @@ public enum IndexMode {
 
     public static final Map<String, Object> DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = Map.of(
         MapperService.SINGLE_MAPPING_NAME,
-        Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)),
-        "properties",
-        Map.of(DataStreamTimestampFieldMapper.DEFAULT_PATH, Map.of("type", DateFieldMapper.CONTENT_TYPE))
+        Map.of(
+            DataStreamTimestampFieldMapper.NAME,
+            Map.of("enabled", true),
+            "properties",
+            Map.of(DataStreamTimestampFieldMapper.DEFAULT_PATH, Map.of("type", DateFieldMapper.CONTENT_TYPE))
+        )
     );
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(

@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.empty;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -59,6 +60,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedAnnotationsMappings();
                 closeAndReopenTestJob();
                 assertUpgradedConfigMappings();
+                assertMlLegacyTemplatesDeleted();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
                 break;
             default:
@@ -165,6 +167,18 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "keyword",
                 extractValue("mappings.properties.event.type", indexLevel)
             );
+        });
+    }
+
+    private void assertMlLegacyTemplatesDeleted() throws Exception {
+
+        // All the legacy ML templates we created over the years should be deleted now they're no longer needed
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_template/.ml*");
+            Response response = client().performRequest(request);
+            Map<String, Object> responseLevel = entityAsMap(response);
+            assertNotNull(responseLevel);
+            assertThat(responseLevel.keySet(), empty());
         });
     }
 

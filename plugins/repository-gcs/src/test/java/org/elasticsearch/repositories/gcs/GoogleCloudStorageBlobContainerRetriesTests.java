@@ -123,10 +123,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final GoogleCloudStorageService service = new GoogleCloudStorageService() {
             @Override
             StorageOptions createStorageOptions(
-                final GoogleCloudStorageClientSettings clientSettings,
+                final GoogleCloudStorageClientSettings gcsClientSettings,
                 final HttpTransportOptions httpTransportOptions
             ) {
-                StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
+                StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                 RetrySettings.Builder retrySettingsBuilder = RetrySettings.newBuilder()
                     .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
                     .setInitialRetryDelay(Duration.ofMillis(10L))

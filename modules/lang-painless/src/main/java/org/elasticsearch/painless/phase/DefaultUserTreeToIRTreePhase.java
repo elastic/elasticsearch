@@ -714,7 +714,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     @Override
     public void visitFor(SFor userForNode, ScriptScope scriptScope) {
         ForLoopNode irForLoopNode = new ForLoopNode(userForNode.getLocation());
-        irForLoopNode.setInitialzerNode(visit(userForNode.getInitializerNode(), scriptScope));
+        irForLoopNode.setInitializerNode(visit(userForNode.getInitializerNode(), scriptScope));
         irForLoopNode.setConditionNode(injectCast(userForNode.getConditionNode(), scriptScope));
         irForLoopNode.setAfterthoughtNode((ExpressionNode) visit(userForNode.getAfterthoughtNode(), scriptScope));
         irForLoopNode.setBlockNode((BlockNode) visit(userForNode.getBlockNode(), scriptScope));

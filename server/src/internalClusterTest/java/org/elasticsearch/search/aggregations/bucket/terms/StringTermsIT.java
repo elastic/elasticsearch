@@ -1393,7 +1393,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidValueType)) {
             SearchPhaseExecutionException ex = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("idx").setSource(SearchSourceBuilder.fromXContent(parser)).get());
+                () -> client().prepareSearch("idx").setSource(SearchSourceBuilder.fromXContent(parser)).get()
+            );
 
             assertThat(ex.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ex.getCause().getMessage(), containsString("Unknown value type [foobar]"));

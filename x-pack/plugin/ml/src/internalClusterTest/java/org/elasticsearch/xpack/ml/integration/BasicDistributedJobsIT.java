@@ -45,8 +45,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlInitializationService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -67,39 +65,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
-
-    @Before
-    // upping the logging due to potential failures in: https://github.com/elastic/elasticsearch/issues/63980
-    public void setLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager", "TRACE")
-                    .build()
-            )
-            .get();
-    }
-
-    @After
-    public void unsetLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction")
-                    .putNull("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction")
-                    .putNull("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor")
-                    .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager")
-                    .build()
-            )
-            .get();
-    }
 
     public void testFailOverBasics() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);

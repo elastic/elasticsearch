@@ -88,7 +88,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     );
 
     private final List<AutoscalingExtension> autoscalingExtensions;
-    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterServiceHolder = new SetOnce<>();
     private final SetOnce<AllocationDeciders> allocationDeciders = new SetOnce<>();
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
@@ -115,7 +115,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.clusterService.set(clusterService);
+        this.clusterServiceHolder.set(clusterService);
         return List.of(
             new AutoscalingCalculateCapacityService.Holder(this),
             autoscalingLicenseChecker,
@@ -209,16 +209,17 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public Collection<AutoscalingDeciderService> deciders() {
         assert allocationDeciders.get() != null;
+        final ClusterService clusterService = clusterServiceHolder.get();
         return List.of(
             new FixedAutoscalingDeciderService(),
             new ReactiveStorageDeciderService(
-                clusterService.get().getSettings(),
-                clusterService.get().getClusterSettings(),
+                clusterService.getSettings(),
+                clusterService.getClusterSettings(),
                 allocationDeciders.get()
             ),
             new ProactiveStorageDeciderService(
-                clusterService.get().getSettings(),
-                clusterService.get().getClusterSettings(),
+                clusterService.getSettings(),
+                clusterService.getClusterSettings(),
                 allocationDeciders.get()
             ),
             new FrozenShardsDeciderService(),
@@ -227,8 +228,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         );
     }
 
-    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders allocationDeciders) {
-        this.allocationDeciders.set(allocationDeciders);
+    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders deciders) {
+        this.allocationDeciders.set(deciders);
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
 

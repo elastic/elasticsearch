@@ -248,29 +248,28 @@ public class MasterService extends AbstractLifecycleComponent {
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 
-        final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
-            @Override
-            public void setParentTask(TaskId taskId) {}
+        if (taskOutputs.clusterStateUnchanged()) {
+            final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
+            taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
+            final TimeValue executionTime = getTimeSince(notificationStartTime);
+            logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
+            clusterStateUpdateStatsTracker.onUnchangedClusterState(computationTime.millis(), executionTime.millis());
+        } else {
+            final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
+                @Override
+                public void setParentTask(TaskId taskId) {}
 
-            @Override
-            public TaskId getParentTask() {
-                return TaskId.EMPTY_TASK_ID;
-            }
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
 
-            @Override
-            public String getDescription() {
-                return "publication of cluster state [" + taskOutputs.newClusterState.getVersion() + "]";
-            }
-        });
-
-        try {
-            if (taskOutputs.clusterStateUnchanged()) {
-                final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
-                taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
-                final TimeValue executionTime = getTimeSince(notificationStartTime);
-                logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
-                clusterStateUpdateStatsTracker.onUnchangedClusterState(computationTime.millis(), executionTime.millis());
-            } else {
+                @Override
+                public String getDescription() {
+                    return "publication of cluster state [" + taskOutputs.newClusterState.getVersion() + "]";
+                }
+            });
+            try {
                 final ClusterState newClusterState = taskOutputs.newClusterState;
                 if (logger.isTraceEnabled()) {
                     logger.trace("cluster state updated, source [{}]\n{}", summary, newClusterState);
@@ -308,9 +307,9 @@ public class MasterService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     handleException(summary, publicationStartTime, newClusterState, e);
                 }
+            } finally {
+                taskManager.unregister(task);
             }
-        } finally {
-            taskManager.unregister(task);
         }
     }
 

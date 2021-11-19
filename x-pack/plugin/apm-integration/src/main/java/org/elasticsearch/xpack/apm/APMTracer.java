@@ -59,7 +59,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
-import static org.elasticsearch.transport.TransportChannel.logger;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
@@ -198,18 +197,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
             // services might be in shutdown state by this point, but this is handled by the open telemetry internally
-            logger.info(
-                "--> creating span for [{}] in thread context [{}]",
-                traceable.getSpanName(),
-                threadPool.getThreadContext().getHeaders()
-            );
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
             Context parentContext = getParentSpanContext(services.openTelemetry);
             if (parentContext != null) {
-                logger.info("--> got parent [{}] for [{}]", parentContext, traceable.getSpanName());
                 spanBuilder.setParent(parentContext);
-            } else {
-                logger.info("--> no parent for [{}]", traceable.getSpanName());
             }
 
             for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {

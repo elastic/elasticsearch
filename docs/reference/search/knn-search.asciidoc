@@ -1,4 +1,4 @@
-[[knn-search]]
+[[knn-search-api]]
 === kNN search API
 ++++
 <titleabbrev>kNN search</titleabbrev>

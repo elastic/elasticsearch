@@ -1,7 +1,7 @@
-[[run-knn-search]]
-== Run a k-nearest neighbor (kNN) search
+[[knn-search]]
+== k-nearest neighbor (kNN) search
 ++++
-<titleabbrev>Run a kNN search</titleabbrev>
+<titleabbrev>kNN search</titleabbrev>
 ++++
 
 experimental::[]
@@ -113,7 +113,7 @@ POST my-approx-knn-index/_bulk?refresh=true
 //TEST[continued]
 //TEST[s/\.\.\.//]
 
-. Run the search using the <<knn-search,kNN search API>>.
+. Run the search using the <<knn-search-api,kNN search API>>.
 +
 [source,console]
 ----

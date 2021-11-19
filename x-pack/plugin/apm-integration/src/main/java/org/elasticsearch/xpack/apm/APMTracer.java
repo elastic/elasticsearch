@@ -33,6 +33,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -45,6 +46,7 @@ import org.elasticsearch.tracing.Traceable;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +54,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -66,6 +69,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
     static final Setting<SecureString> APM_ENDPOINT_SETTING = SecureSetting.secureString("xpack.apm.endpoint", null);
     static final Setting<SecureString> APM_TOKEN_SETTING = SecureSetting.secureString("xpack.apm.token", null);
+    static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
+        "xpack.apm.tracing.names.include",
+        Collections.emptyList(),
+        Function.identity(),
+        Dynamic,
+        NodeScope
+    );
 
     private final Semaphore shutdownPermits = new Semaphore(Integer.MAX_VALUE);
     private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
@@ -76,6 +86,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private volatile boolean enabled;
     private volatile APMServices services;
+
+    private List<String> includeNames;
 
     /** This class is required to make all open telemetry services visible at once */
     private static class APMServices {
@@ -96,7 +108,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.endpoint = APM_ENDPOINT_SETTING.get(settings);
         this.token = APM_TOKEN_SETTING.get(settings);
         this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
     }
 
     public boolean isEnabled() {
@@ -110,6 +124,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         } else {
             destroyApmServices();
         }
+    }
+
+    private void setIncludeNames(List<String> includeNames) {
+        this.includeNames = includeNames;
     }
 
     @Override
@@ -189,6 +207,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (services == null) {
             return;
         }
+
+        if (isSpanNameIncluded(traceable.getSpanName()) == false) {
+            return;
+        }
+
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
             // services might be in shutdown sate by this point, but this is handled by the open telemetry internally
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
@@ -220,6 +243,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             }
             return spanBuilder.startSpan();
         });
+    }
+
+    private boolean isSpanNameIncluded(String name) {
+        // Alternatively we could use automata here but it is much more complex
+        // and it needs wrapping like done for use in the security plugin.
+        return includeNames.isEmpty() || Regex.simpleMatch(includeNames, name);
     }
 
     private Context getParentSpanContext(OpenTelemetry openTelemetry) {

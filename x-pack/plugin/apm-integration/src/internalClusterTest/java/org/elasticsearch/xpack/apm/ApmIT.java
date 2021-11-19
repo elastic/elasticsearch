@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.apm;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.trace.data.SpanData;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -40,9 +41,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -222,6 +225,103 @@ public class ApmIT extends SecurityIntegTestCase {
                 .updateSettings(
                     new ClusterUpdateSettingsRequest().persistentSettings(
                         Settings.builder().put(APMTracer.APM_ENABLED_SETTING.getKey(), (String) null).build()
+                    )
+                )
+                .actionGet();
+        }
+    }
+
+    public void testFilterByNameGivenSingleCompleteMatch() {
+
+        client().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(
+                    Settings.builder().put(APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), "cluster:monitor/tasks/lists").build()
+                )
+            )
+            .actionGet();
+
+        APMTracer.CAPTURING_SPAN_EXPORTER.clear();// removing start related events
+
+        try {
+            client().admin().cluster().prepareListTasks().get();
+
+            var parentTasks = APMTracer.CAPTURING_SPAN_EXPORTER.findSpanByName("cluster:monitor/tasks/lists").collect(toList());
+            assertThat(parentTasks, hasSize(1));
+
+            var childrenTasks = APMTracer.CAPTURING_SPAN_EXPORTER.findSpanByName("cluster:monitor/tasks/lists[n]").collect(toList());
+            assertThat(childrenTasks, empty());
+        } finally {
+            client().admin()
+                .cluster()
+                .updateSettings(
+                    new ClusterUpdateSettingsRequest().persistentSettings(
+                        Settings.builder().put(APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), (String) null).build()
+                    )
+                )
+                .actionGet();
+        }
+    }
+
+    public void testFilterByNameGivenSinglePattern() {
+
+        client().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(
+                    Settings.builder().put(APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), "*/tasks/lists*").build()
+                )
+            )
+            .actionGet();
+
+        APMTracer.CAPTURING_SPAN_EXPORTER.clear();// removing start related events
+
+        try {
+            client().admin().cluster().prepareListTasks().get();
+
+            var parentTasks = APMTracer.CAPTURING_SPAN_EXPORTER.findSpanByName("cluster:monitor/tasks/lists").collect(toList());
+            assertThat(parentTasks, hasSize(1));
+
+            var childrenTasks = APMTracer.CAPTURING_SPAN_EXPORTER.findSpanByName("cluster:monitor/tasks/lists[n]").collect(toList());
+            assertThat(childrenTasks, hasSize(internalCluster().size()));
+        } finally {
+            client().admin()
+                .cluster()
+                .updateSettings(
+                    new ClusterUpdateSettingsRequest().persistentSettings(
+                        Settings.builder().put(APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), (String) null).build()
+                    )
+                )
+                .actionGet();
+        }
+    }
+
+    public void testFilterByNameGivenTwoPatterns() {
+
+        client().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(
+                    Settings.builder().put(APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), "*/tasks/lists,*/nodes/stats").build()
+                )
+            )
+            .actionGet();
+
+        APMTracer.CAPTURING_SPAN_EXPORTER.clear();// removing start related events
+
+        try {
+            client().admin().cluster().prepareListTasks().get();
+            client().admin().cluster().nodesStats(new NodesStatsRequest()).actionGet();
+
+            var spans = APMTracer.CAPTURING_SPAN_EXPORTER.getCapturedSpans().stream().map(SpanData::getName).collect(Collectors.toSet());
+            assertThat(spans, contains("cluster:monitor/nodes/stats", "cluster:monitor/tasks/lists"));
+        } finally {
+            client().admin()
+                .cluster()
+                .updateSettings(
+                    new ClusterUpdateSettingsRequest().persistentSettings(
+                        Settings.builder().put(APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), (String) null).build()
                     )
                 )
                 .actionGet();

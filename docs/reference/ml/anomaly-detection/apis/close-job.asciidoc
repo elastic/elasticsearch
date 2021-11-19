@@ -80,6 +80,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
   (Optional, <<time-units, time units>>) Controls the time to wait until a job 
   has closed. The default value is 30 minutes.
 
+[[ml-close-job-request-body]]
+== {api-request-body-title}
+
+You can also the query parameters (such as `allow_no_match` and `force`) in the
+request body.
+
 [[ml-close-job-response-codes]]
 == {api-response-codes-title}
 

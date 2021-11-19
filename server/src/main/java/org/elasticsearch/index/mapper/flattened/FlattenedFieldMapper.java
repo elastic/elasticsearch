@@ -126,6 +126,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
         });
 
+        @Override
+        protected boolean supportsAllowMultipleValuesChoice() {
+            return false;
+        }
+
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
 

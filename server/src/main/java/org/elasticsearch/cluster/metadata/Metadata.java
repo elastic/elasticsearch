@@ -770,10 +770,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return ref == null ? Set.of() : ref.indices;
     }
 
-    public ImmutableOpenMap<String, AliasIndicesReference> getAliasedIndices() {
-        return aliasedIndices;
-    }
-
     public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
         return this.templates;
     }

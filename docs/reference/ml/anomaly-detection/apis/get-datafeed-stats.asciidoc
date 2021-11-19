@@ -56,7 +56,7 @@ all {dfeeds}.
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-datafeeds]
 
 [role="child_attributes"]
 [[ml-get-datafeed-stats-results]]

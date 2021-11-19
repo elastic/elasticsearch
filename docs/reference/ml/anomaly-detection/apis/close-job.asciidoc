@@ -70,7 +70,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildca
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 `force`::
   (Optional, Boolean) Use to close a failed job, or to forcefully close a job

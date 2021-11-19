@@ -29,6 +29,8 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 
+import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -221,12 +223,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             }
 
             // hack transactions to avoid the 'custom' type
+            // this one is not part of OTel semantic attributes
             spanBuilder.setAttribute("type", "elasticsearch");
 
             // hack spans to avoid the 'app' span.type, will make it use external/elasticsearch
             // also allows to set destination resource name in map
-            spanBuilder.setAttribute("messaging.system", "elasticsearch");
-            spanBuilder.setAttribute("messaging.destination", clusterService.getNodeName());
+            spanBuilder.setAttribute(SemanticAttributes.MESSAGING_SYSTEM, "elasticsearch");
+            spanBuilder.setAttribute(SemanticAttributes.MESSAGING_DESTINATION, clusterService.getNodeName());
 
             // this will duplicate the "resource attributes" that are defined globally
             // but providing them as span attributes allow easier mapping through labels as otel attributes are stored as-is only in

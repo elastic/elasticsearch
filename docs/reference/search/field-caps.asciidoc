@@ -111,6 +111,9 @@ field types are all described as the `keyword` type family.
 `aggregatable`::
   Whether this field can be aggregated on all indices.
 
+`is_single_valued`::
+  True if all documents with this field have no more than one value.
+
 `time_series_dimension`::
   experimental:[]
   Whether this field is used as a time series dimension.

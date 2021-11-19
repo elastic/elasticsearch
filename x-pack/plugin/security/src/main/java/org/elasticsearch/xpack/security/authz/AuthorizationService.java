@@ -328,7 +328,7 @@ public class AuthorizationService {
         TransportRequest originalRequest
     ) {
         // Not tracing system actions
-        if (false == tracingEnabled || SystemUser.is(authentication.getUser())) {
+        if (false == tracingEnabled || SystemUser.is(authentication.getUser()) || threadContext.isSystemContext()) {
             return () -> {};
         } else {
             return authorizationTracer.startTracing(new Traceable() {

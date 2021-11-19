@@ -28,7 +28,6 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
-
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 
 import org.elasticsearch.Version;
@@ -60,6 +59,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.transport.TransportChannel.logger;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
@@ -125,7 +125,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     protected void doStop() {
         destroyApmServices();
         try {
-            shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
+            final boolean stopped = shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
+            assert stopped : "did not stop tracing within timeout";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -196,11 +197,19 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
-            // services might be in shutdown sate by this point, but this is handled by the open telemetry internally
+            // services might be in shutdown state by this point, but this is handled by the open telemetry internally
+            logger.info(
+                "--> creating span for [{}] in thread context [{}]",
+                traceable.getSpanName(),
+                threadPool.getThreadContext().getHeaders()
+            );
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
             Context parentContext = getParentSpanContext(services.openTelemetry);
             if (parentContext != null) {
+                logger.info("--> got parent [{}] for [{}]", parentContext, traceable.getSpanName());
                 spanBuilder.setParent(parentContext);
+            } else {
+                logger.info("--> no parent for [{}]", traceable.getSpanName());
             }
 
             for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {

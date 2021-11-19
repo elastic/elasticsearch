@@ -1692,6 +1692,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     null,
                     emptySet()
                 );
+                masterService.setTaskManager(transportService.getTaskManager());
                 final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
                 bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 repositoriesService = new RepositoriesService(

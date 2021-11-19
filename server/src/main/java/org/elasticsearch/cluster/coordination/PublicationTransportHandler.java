@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportException;
@@ -300,6 +301,7 @@ public class PublicationTransportHandler {
         private final DiscoveryNodes discoveryNodes;
         private final ClusterState newState;
         private final ClusterState previousState;
+        private final Task task;
         private final boolean sendFullVersion;
 
         // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
@@ -310,6 +312,7 @@ public class PublicationTransportHandler {
             discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
             newState = clusterStatePublicationEvent.getNewState();
             previousState = clusterStatePublicationEvent.getOldState();
+            task = clusterStatePublicationEvent.getTask();
             sendFullVersion = previousState.getBlocks().disableStatePersistence();
         }
 
@@ -376,10 +379,11 @@ public class PublicationTransportHandler {
             ActionListener<TransportResponse.Empty> listener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
-            transportService.sendRequest(
+            transportService.sendChildRequest(
                 destination,
                 COMMIT_STATE_ACTION_NAME,
                 applyCommitRequest,
+                task,
                 STATE_REQUEST_OPTIONS,
                 new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC)
             );
@@ -450,10 +454,11 @@ public class PublicationTransportHandler {
                 return;
             }
             try {
-                transportService.sendRequest(
+                transportService.sendChildRequest(
                     destination,
                     PUBLISH_STATE_ACTION_NAME,
                     new BytesTransportRequest(bytes, destination.getVersion()),
+                    task,
                     STATE_REQUEST_OPTIONS,
                     new ActionListenerResponseHandler<PublishWithJoinResponse>(
                         ActionListener.runAfter(listener, bytes::decRef),

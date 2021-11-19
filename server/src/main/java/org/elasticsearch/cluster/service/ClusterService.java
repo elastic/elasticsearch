@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -288,5 +289,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskExecutor<T> executor
     ) {
         masterService.submitStateUpdateTasks(source, tasks, config, executor);
+    }
+
+    public void setTaskManager(TaskManager taskManager) {
+        masterService.setTaskManager(taskManager);
     }
 }

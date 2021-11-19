@@ -166,7 +166,7 @@ The following parameters are accepted by `boolean` fields:
 
 [horizontal]
 
-<<allow-multiple-values,`allow_multiple_values`>>::
+`allow_multiple_values`::
 
     Should the field permit arrays of values?  Accepts `true`
     (default) or `false`. When `false`, documents presenting arrays

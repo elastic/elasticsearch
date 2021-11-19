@@ -79,7 +79,7 @@ You are not required to set the field `type` to `object` explicitly, as this is 
 The following parameters are accepted by `object` fields:
 
 [horizontal]
-<<allow-multiple-values,`allow_multiple_values`>>::
+`allow_multiple_values`::
 
     Should the field permit arrays of values?  Accepts `true`
     (default) or `false`. When `false`, documents presenting arrays

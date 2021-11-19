@@ -77,6 +77,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
+        // We shouldn't wait for ML templates during the upgrade - production won't
+        if (CLUSTER_TYPE != ClusterType.OLD) {
+            return super.templatesToWaitFor();
+        }
         List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
             ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
             : XPackRestTestConstants.ML_POST_V660_TEMPLATES;

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import net.jpountz.lz4.LZ4FrameInputStream;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
@@ -31,6 +29,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
@@ -206,45 +205,58 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     private static class MaybeCompressedSourceBytes implements Writeable {
 
         private boolean isCompressed;
-        private ReleasableBytesReference sourceBytes;
+        private ReleasableBytesReference compressedSourceBytes;
+        private ReleasableBytesReference uncompressedSourceBytes;
 
         private MaybeCompressedSourceBytes(boolean isCompressed, ReleasableBytesReference sourceBytes) {
             this.isCompressed = isCompressed;
-            this.sourceBytes = sourceBytes;
+            if (isCompressed) {
+                this.compressedSourceBytes = sourceBytes;
+            } else {
+                this.uncompressedSourceBytes = sourceBytes;
+            }
         }
 
         private MaybeCompressedSourceBytes(StreamInput in) throws IOException {
             isCompressed = in.readBoolean();
-            sourceBytes = ReleasableBytesReference.wrap(in.readBytesReference());
+            if (isCompressed) {
+                compressedSourceBytes = ReleasableBytesReference.wrap(in.readBytesReference());
+            } else {
+                uncompressedSourceBytes = ReleasableBytesReference.wrap(in.readBytesReference());
+            }
         }
 
         private void inflate(PageCacheRecycler pageCacheRecycler) throws IOException {
             assert isCompressed;
             boolean success = false;
             RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new BytesRefRecycler(pageCacheRecycler));
-            try (InputStream input = new LZ4FrameInputStream(sourceBytes.streamInput())) {
+            try (InputStream input = Compression.Scheme.lz4FrameInputStream(compressedSourceBytes.streamInput())) {
                 Streams.copy(input, output, false);
-                sourceBytes.close();
-                sourceBytes = new ReleasableBytesReference(output.bytes(), output);
+                compressedSourceBytes.close();
+                uncompressedSourceBytes = new ReleasableBytesReference(output.bytes(), output);
                 success = true;
             } finally {
                 if (success == false) {
                     output.close();
-                    sourceBytes = null;
+                } else {
+                    isCompressed = false;
                 }
-                isCompressed = false;
             }
         }
 
         private BytesReference uncompressed() {
             assert isCompressed == false;
-            return sourceBytes;
+            return uncompressedSourceBytes;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(isCompressed);
-            out.writeBytesReference(sourceBytes);
+            if (isCompressed) {
+                out.writeBytesReference(compressedSourceBytes);
+            } else {
+                out.writeBytesReference(uncompressedSourceBytes);
+            }
         }
     }
 }

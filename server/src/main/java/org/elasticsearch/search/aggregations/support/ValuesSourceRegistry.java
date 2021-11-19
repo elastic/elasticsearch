@@ -217,6 +217,12 @@ public class ValuesSourceRegistry {
     }
 
     public ValuesSourceType resolveTypeHint(String typeHint) {
-        return typeHint != null ? valueTypeLookup.get(typeHint) : null;
+        if (typeHint == null) {
+            return null;
+        }
+        if (valueTypeLookup.containsKey(typeHint)) {
+            return valueTypeLookup.get(typeHint);
+        }
+        throw new IllegalArgumentException("Unknown value type [" + typeHint + "]");
     }
 }

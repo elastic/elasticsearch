@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
@@ -1389,15 +1388,18 @@ public class StringTermsIT extends AbstractTermsTestCase {
             assertThat(terms.getBuckets().size(), equalTo(1));
         }
 
-        String invalidValueType = source.replaceAll("\"value_type\":\"n.*\"", "\"value_type\":\"foobar\"");
+        String invalidValueType = source.replaceAll("\"value_type\":\"n.*?\"", "\"value_type\":\"foobar\"");
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidValueType)) {
-            XContentParseException ex = expectThrows(
-                XContentParseException.class,
-                () -> client().prepareSearch("idx").setSource(SearchSourceBuilder.fromXContent(parser)).get()
-            );
-            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            SearchPhaseExecutionException ex = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("idx").setSource(SearchSourceBuilder.fromXContent(parser)).get());
+
+            assertThat(ex.getCause(), instanceOf(ElasticsearchException.class));
             assertThat(ex.getCause().getMessage(), containsString("Unknown value type [foobar]"));
+
+            assertThat(ex.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(ex.getCause().getCause().getMessage(), containsString("Unknown value type [foobar]"));
 
         }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -125,6 +126,7 @@ public class ClusterServiceUtils {
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
         clusterService.getMasterService().setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
+        clusterService.setTaskManager(new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()));
         clusterService.start();
         return clusterService;
     }

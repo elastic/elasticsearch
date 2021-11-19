@@ -69,7 +69,7 @@ include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
 === Enhancements
 
 Infra/Plugins::
-* Allow MBean permissions in plugin policies {es-pull}76329[#76329]
+* [.u-strikethrough]#Allow MBean permissions in plugin policies {es-pull}76329[#76329]# (Only in 7.15 but previously documented as being in 7.14.1)
 
 [[bug-7.14.1]]
 [float]

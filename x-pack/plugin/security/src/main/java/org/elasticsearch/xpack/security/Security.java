@@ -75,6 +75,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -470,6 +471,7 @@ public class Security extends Plugin
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
+    private final SetOnce<AuthorizationTracer> authorizationTracerReference = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
@@ -810,6 +812,7 @@ public class Security extends Plugin
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
+        authorizationTracerReference.set(new AuthorizationTracer(threadContext.get()));
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -822,7 +825,8 @@ public class Security extends Plugin
             requestInterceptors,
             getLicenseState(),
             expressionResolver,
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            authorizationTracerReference.get()
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1600,6 +1604,15 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+    }
+
+    @Override
+    public void onTracers(List<Tracer> tracers) {
+        if (authorizationTracerReference.get() == null) {
+            // security is disabled
+            return;
+        }
+        tracers.forEach(t -> authorizationTracerReference.get().addTracer(t));
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {

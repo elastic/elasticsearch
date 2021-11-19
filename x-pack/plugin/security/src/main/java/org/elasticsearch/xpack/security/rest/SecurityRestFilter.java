@@ -13,6 +13,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,9 +25,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
@@ -111,6 +114,12 @@ public class SecurityRestFilter implements RestHandler {
                     }
                     RemoteHostHeader.process(request, threadContext);
                     try {
+                        // Populate x-opaque-id if not already exists to chain all related actions together
+                        if (authentication != null && false == SystemUser.is(authentication.getUser())) {
+                            if (threadContext.getHeader(Task.X_OPAQUE_ID) == null) {
+                                threadContext.putHeader(Task.X_OPAQUE_ID, UUIDs.base64UUID());
+                            }
+                        }
                         restHandler.handleRequest(request, channel, client);
                     } catch (Exception e) {
                         handleException(ActionType.RequestHandling, request, channel, e);

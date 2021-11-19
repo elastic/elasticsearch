@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.AuthorizationTracer;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -287,7 +288,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Collections.emptySet(),
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            new AuthorizationTracer(threadContext)
         );
     }
 
@@ -1561,7 +1563,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Collections.emptySet(),
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            new AuthorizationTracer(threadContext)
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1607,7 +1610,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Collections.emptySet(),
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            new AuthorizationTracer(threadContext)
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2723,7 +2727,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Collections.emptySet(),
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            new AuthorizationTracer(threadContext)
         );
         Authentication authentication;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

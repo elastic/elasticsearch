@@ -39,6 +39,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.AuthorizationTracer;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -111,6 +113,7 @@ public class AuthorizationService {
         true,
         Property.NodeScope
     );
+    public static final Setting<Boolean> TRACE_AUTHORIZATION = Setting.boolSetting(setting("authz.tracing"), true, Property.NodeScope);
     private static final AuthorizationInfo SYSTEM_AUTHZ_INFO = () -> Collections.singletonMap(
         PRINCIPAL_ROLES_FIELD_NAME,
         new String[] { SystemUser.ROLE_NAME }
@@ -132,6 +135,8 @@ public class AuthorizationService {
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
+    private final AuthorizationTracer authorizationTracer;
+    private final boolean tracingEnabled;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -147,7 +152,8 @@ public class AuthorizationService {
         Set<RequestInterceptor> requestInterceptors,
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
-        OperatorPrivilegesService operatorPrivilegesService
+        OperatorPrivilegesService operatorPrivilegesService,
+        AuthorizationTracer authorizationTracer
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -163,6 +169,8 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
+        this.authorizationTracer = authorizationTracer;
+        this.tracingEnabled = TRACE_AUTHORIZATION.get(settings);
     }
 
     public void checkPrivileges(
@@ -211,6 +219,8 @@ public class AuthorizationService {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
 
+        final Runnable tracer = maybeStartTracing(enclosingContext, authentication, action, originalRequest);
+
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
          * <p>
@@ -256,6 +266,8 @@ public class AuthorizationService {
                 }, listener::onFailure), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
+        } finally {
+            tracer.run();
         }
     }
 
@@ -307,6 +319,48 @@ public class AuthorizationService {
         assert false : message;
         // Otherwise (production) just throw an exception so that we don't authorize something incorrectly
         return new ElasticsearchSecurityException(message);
+    }
+
+    private Runnable maybeStartTracing(
+        AuthorizationContext enclosingContext,
+        Authentication authentication,
+        String action,
+        TransportRequest originalRequest
+    ) {
+        // Not tracing system actions
+        if (false == tracingEnabled || SystemUser.is(authentication.getUser())) {
+            return () -> {};
+        } else {
+            return authorizationTracer.startTracing(new Traceable() {
+                @Override
+                public String getSpanId() {
+                    return "authorize_" + System.identityHashCode(originalRequest);
+                }
+
+                @Override
+                public String getSpanName() {
+                    return "authorize(" + action + ")";
+                }
+
+                @Override
+                public Map<String, Object> getAttributes() {
+                    final HashMap<String, Object> attributes = new HashMap<>(
+                        Map.of(
+                            "es.principal",
+                            authentication.getUser().principal(),
+                            "es.authentication.realm.name",
+                            authentication.getAuthenticatedBy().getName(),
+                            "es.node.name",
+                            clusterService.getNodeName()
+                        )
+                    );
+                    if (enclosingContext != null) {
+                        attributes.put("originating_action", enclosingContext.getAction());
+                    }
+                    return Map.copyOf(attributes);
+                }
+            });
+        }
     }
 
     private void checkOperatorPrivileges(Authentication authentication, String action, TransportRequest originalRequest)
@@ -1074,5 +1128,6 @@ public class AuthorizationService {
 
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING);
+        settings.add(TRACE_AUTHORIZATION);
     }
 }

@@ -1126,12 +1126,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(0, topDocs.scoreDocs[0].doc);
     }
 
-    private void duelRun(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
+    private void duelRun(PercolateQuery.QueryStore percolateQueryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher)
+        throws IOException {
         boolean requireScore = randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query percolateQuery = fieldType.percolateQuery(
             "_name",
-            queryStore,
+            percolateQueryStore,
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,
@@ -1140,7 +1141,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         Query query = requireScore ? percolateQuery : new ConstantScoreQuery(percolateQuery);
         TopDocs topDocs = shardSearcher.search(query, 100);
 
-        Query controlQuery = new ControlQuery(memoryIndex, queryStore);
+        Query controlQuery = new ControlQuery(memoryIndex, percolateQueryStore);
         controlQuery = requireScore ? controlQuery : new ConstantScoreQuery(controlQuery);
         TopDocs controlTopDocs = shardSearcher.search(controlQuery, 100);
 
@@ -1212,12 +1213,12 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         queries.add(query);
     }
 
-    private TopDocs executeQuery(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher)
+    private TopDocs executeQuery(PercolateQuery.QueryStore percolateQueryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher)
         throws IOException {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query percolateQuery = fieldType.percolateQuery(
             "_name",
-            queryStore,
+            percolateQueryStore,
             Collections.singletonList(new BytesArray("{}")),
             percolateSearcher,
             false,

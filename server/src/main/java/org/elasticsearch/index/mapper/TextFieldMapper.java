@@ -271,7 +271,7 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         protected boolean supportsAllowMultipleValuesChoice() {
             // Disable the default of parsing `allow_multiple_values` setting.
-            // I'm not sure when/why it makes sense to allow users to control if multi-values are allowed. 
+            // I'm not sure when/why it makes sense to allow users to control if multi-values are allowed.
             // Text fields are inherently "multi-valued" anyway because analyzers create multiple tokens
             // from a given input string. We can revisit this override if required but for now it seems
             // like the right thing to do.

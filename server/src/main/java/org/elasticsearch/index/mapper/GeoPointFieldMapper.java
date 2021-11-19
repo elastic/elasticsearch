@@ -193,14 +193,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType, Parser<GeoPoint> parser, Builder builder) {
-        super(
-            simpleName,
-            mappedFieldType,
-            MultiFields.empty(),
-            CopyTo.empty(),
-            parser,
-            builder.onScriptError.get()
-        );
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
         this.builder = builder;
         this.scriptValues = builder.scriptValues();
     }

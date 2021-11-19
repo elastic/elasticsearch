@@ -1394,7 +1394,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
             validate();
         }
-        
+
         protected boolean supportsAllowMultipleValuesChoice() {
             return true;
         }

@@ -53,8 +53,11 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(unboundedWriteQueue)
-            .put(IndexModule.INDEX_STORE_USE_DIRECT_IO_FOR_MERGES_SETTING.getKey(), true).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(unboundedWriteQueue)
+            .put(IndexModule.INDEX_STORE_USE_DIRECT_IO_FOR_MERGES_SETTING.getKey(), true)
+            .build();
     }
 
     @Override

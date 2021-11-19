@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.BufferedIndexInput;
@@ -17,12 +16,14 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
@@ -39,7 +40,10 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_USE_DIRECT_IO_FOR_
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_USE_DIRECT_IO_FOR_SNAPSHOTS_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_IO_CONTEXT;
 
+@SuppressForbidden(reason = "it's ok, we know what we're doing")
 public class ESDirectIODirectory extends FilterDirectory {
+
+    private static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0).order(ByteOrder.LITTLE_ENDIAN);
 
     final boolean useDirectIOForMerges;
     final boolean useDirectIOForSnapshots;
@@ -86,12 +90,11 @@ public class ESDirectIODirectory extends FilterDirectory {
         return false;
     }
 
-
     /**
-     * Default buffer size before writing to disk (256 KB); larger means less IO load but more RAM and
+     * Default buffer size before writing to disk (64 KB); larger means less IO load but more RAM and
      * direct buffer storage space consumed during merging.
      */
-    public static final int DEFAULT_MERGE_BUFFER_SIZE = 256 * 1024;
+    public static final int DEFAULT_MERGE_BUFFER_SIZE = 64 * 1024;
 
     /** Default min expected merge size before direct IO is used (10 MB): */
     public static final long DEFAULT_MIN_BYTES_DIRECT = 10 * 1024 * 1024;
@@ -122,16 +125,9 @@ public class ESDirectIODirectory extends FilterDirectory {
     static {
         OpenOption option;
         try {
-            final Class<? extends OpenOption> clazz =
-                Class.forName("com.sun.nio.file.ExtendedOpenOption").asSubclass(OpenOption.class);
-            option =
-                Arrays.stream(clazz.getEnumConstants())
-                    .filter(e -> e.toString().equalsIgnoreCase("DIRECT"))
-                    .findFirst()
-                    .orElse(null);
-        } catch (
-            @SuppressWarnings("unused")
-                Exception e) {
+            final Class<? extends OpenOption> clazz = Class.forName("com.sun.nio.file.ExtendedOpenOption").asSubclass(OpenOption.class);
+            option = Arrays.stream(clazz.getEnumConstants()).filter(e -> e.toString().equalsIgnoreCase("DIRECT")).findFirst().orElse(null);
+        } catch (@SuppressWarnings("unused") Exception e) {
             option = null;
         }
         ExtendedOpenOption_DIRECT = option;
@@ -163,8 +159,7 @@ public class ESDirectIODirectory extends FilterDirectory {
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ensureOpen();
         if (useDirectIO(name, context, OptionalLong.empty())) {
-            return new DirectIOIndexOutput(
-                getDirectory().resolve(name), name, blockSize, mergeBufferSize);
+            return new DirectIOIndexOutput(getDirectory().resolve(name), name, blockSize, mergeBufferSize);
         } else {
             return in.createOutput(name, context);
         }
@@ -179,11 +174,13 @@ public class ESDirectIODirectory extends FilterDirectory {
     private static OpenOption getDirectOpenOption() {
         if (ExtendedOpenOption_DIRECT == null) {
             throw new UnsupportedOperationException(
-                "com.sun.nio.file.ExtendedOpenOption.DIRECT is not available in the current JDK version.");
+                "com.sun.nio.file.ExtendedOpenOption.DIRECT is not available in the current JDK version."
+            );
         }
         return ExtendedOpenOption_DIRECT;
     }
 
+    @SuppressForbidden(reason = "it's ok, we know what we're doing")
     private static final class DirectIOIndexOutput extends IndexOutput {
         private final ByteBuffer buffer;
         private final FileChannel channel;
@@ -200,14 +197,11 @@ public class ESDirectIODirectory extends FilterDirectory {
          * @throws IOException if the operating system or filesystem does not support support Direct I/O
          *     or a sufficient equivalent.
          */
-        DirectIOIndexOutput(Path path, String name, int blockSize, int bufferSize)
-            throws IOException {
+        DirectIOIndexOutput(Path path, String name, int blockSize, int bufferSize) throws IOException {
             super("DirectIOIndexOutput(path=\"" + path.toString() + "\")", name);
 
-            channel =
-                FileChannel.open(
-                    path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, getDirectOpenOption());
-            buffer = ByteBuffer.allocateDirect(bufferSize + blockSize - 1).alignedSlice(blockSize);
+            channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, getDirectOpenOption());
+            buffer = ByteBuffer.allocate(bufferSize + blockSize - 1).alignedSlice(blockSize);
             digest = new BufferedChecksum(new CRC32());
 
             isOpen = true;
@@ -278,9 +272,11 @@ public class ESDirectIODirectory extends FilterDirectory {
         }
     }
 
+    @SuppressForbidden(reason = "it's ok, we know what we're doing")
     private static final class DirectIOIndexInput extends IndexInput {
-        private final ByteBuffer buffer;
+        private ByteBuffer buffer;
         private final FileChannel channel;
+        private final int bufferSize;
         private final int blockSize;
 
         private boolean isOpen;
@@ -298,14 +294,14 @@ public class ESDirectIODirectory extends FilterDirectory {
         DirectIOIndexInput(Path path, int blockSize, int bufferSize) throws IOException {
             super("DirectIOIndexInput(path=\"" + path + "\")");
             this.blockSize = blockSize;
+            this.bufferSize = bufferSize;
 
             this.channel = FileChannel.open(path, StandardOpenOption.READ, getDirectOpenOption());
-            this.buffer = ByteBuffer.allocateDirect(bufferSize + blockSize - 1).alignedSlice(blockSize);
+            this.buffer = EMPTY_BYTEBUFFER;
 
             isOpen = true;
             isClone = false;
             filePos = -bufferSize;
-            buffer.limit(0);
         }
 
         // for clone
@@ -314,13 +310,12 @@ public class ESDirectIODirectory extends FilterDirectory {
             this.channel = other.channel;
             this.blockSize = other.blockSize;
 
-            final int bufferSize = other.buffer.capacity();
-            this.buffer = ByteBuffer.allocateDirect(bufferSize + blockSize - 1).alignedSlice(blockSize);
+            this.bufferSize = other.bufferSize;
+            this.buffer = EMPTY_BYTEBUFFER;
 
             isOpen = true;
             isClone = true;
             filePos = -bufferSize;
-            buffer.limit(0);
             seek(other.getFilePointer());
         }
 
@@ -348,7 +343,7 @@ public class ESDirectIODirectory extends FilterDirectory {
         public void seek(long pos) throws IOException {
             if (pos != getFilePointer()) {
                 final long alignedPos = pos - (pos % blockSize);
-                filePos = alignedPos - buffer.capacity();
+                filePos = alignedPos - bufferSize;
 
                 final int delta = (int) (pos - alignedPos);
                 refill(delta);
@@ -376,7 +371,7 @@ public class ESDirectIODirectory extends FilterDirectory {
         }
 
         private void refill(int bytesToRead) throws IOException {
-            filePos += buffer.capacity();
+            filePos += bufferSize;
 
             // BaseDirectoryTestCase#testSeekPastEOF test for consecutive read past EOF,
             // hence throwing EOFException early to maintain buffer state (position in particular)
@@ -384,7 +379,11 @@ public class ESDirectIODirectory extends FilterDirectory {
                 throw new EOFException("read past EOF: " + this);
             }
 
-            buffer.clear();
+            if (buffer == EMPTY_BYTEBUFFER) {
+                buffer = ByteBuffer.allocate(bufferSize);
+            } else {
+                buffer.clear();
+            }
             try {
                 // read may return -1 here iff filePos == channel.size(), but that's ok as it just reaches
                 // EOF

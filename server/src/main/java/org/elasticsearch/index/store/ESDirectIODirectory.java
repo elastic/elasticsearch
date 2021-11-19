@@ -94,7 +94,7 @@ public class ESDirectIODirectory extends FilterDirectory {
      * Default buffer size before writing to disk (64 KB); larger means less IO load but more RAM and
      * direct buffer storage space consumed during merging.
      */
-    public static final int DEFAULT_MERGE_BUFFER_SIZE = 64 * 1024;
+    public static final int DEFAULT_MERGE_BUFFER_SIZE = 256 * 1024;
 
     /** Default min expected merge size before direct IO is used (10 MB): */
     public static final long DEFAULT_MIN_BYTES_DIRECT = 10 * 1024 * 1024;

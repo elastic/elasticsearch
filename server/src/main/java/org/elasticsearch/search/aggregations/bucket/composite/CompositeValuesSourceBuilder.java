@@ -79,12 +79,16 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            // Legacy version writes a ValueType
-            ValueType toWrite = ValueType.lenientParse(userValueTypeHint);
-            if (toWrite != null) {
-                toWrite.writeTo(out);
+            if (out.getVersion().before(Version.V_8_1_0)) {
+                // Legacy version writes a ValueType
+                ValueType toWrite = ValueType.lenientParse(userValueTypeHint);
+                if (toWrite != null) {
+                    toWrite.writeTo(out);
+                } else {
+                    throw new IOException("Value_type [" + userValueTypeHint + "] not compatible with pre 8.1 nodes");
+                }
             } else {
-                throw new IOException("Value_type [" + userValueTypeHint + "] not compatible with pre 8.1 nodes");
+                out.writeString(userValueTypeHint);
             }
         }
         out.writeBoolean(missingBucket);

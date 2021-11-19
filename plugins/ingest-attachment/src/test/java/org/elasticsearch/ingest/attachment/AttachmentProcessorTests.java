@@ -263,17 +263,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null)
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        processor = new AttachmentProcessor(
-            randomAlphaOfLength(10),
-            null,
-            "source_field",
-            "randomTarget",
-            null,
-            10,
-            true,
-            null,
-            null
-        );
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, true, null, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -281,17 +271,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        processor = new AttachmentProcessor(
-            randomAlphaOfLength(10),
-            null,
-            "source_field",
-            "randomTarget",
-            null,
-            10,
-            true,
-            null,
-            null
-        );
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, true, null, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -302,17 +282,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null)
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        processor = new AttachmentProcessor(
-            randomAlphaOfLength(10),
-            null,
-            "source_field",
-            "randomTarget",
-            null,
-            10,
-            false,
-            null,
-            null
-        );
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, false, null, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
     }
@@ -320,17 +290,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        processor = new AttachmentProcessor(
-            randomAlphaOfLength(10),
-            null,
-            "source_field",
-            "randomTarget",
-            null,
-            10,
-            false,
-            null,
-            null
-        );
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field", "randomTarget", null, 10, false, null, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }

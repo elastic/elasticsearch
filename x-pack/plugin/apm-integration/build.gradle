@@ -56,6 +56,9 @@ dependencies {
 
   compileOnly project(path: xpackModule('core'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('security')))) {
+    exclude group: 'com.google.guava', module: 'guava'
+  }
 }
 
 // no unit-test for now

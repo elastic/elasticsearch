@@ -8,6 +8,8 @@
 
 package org.elasticsearch.tracing;
 
+import java.util.Map;
+
 /**
  * Represents a distributed tracing system that keeps track of the start and end of various activities in the cluster.
  */
@@ -22,4 +24,9 @@ public interface Tracer {
      * Called when the {@link Traceable} activity ends.
      */
     void onTraceStopped(Traceable traceable);
+
+    /**
+     * Retrieve context related headers for the span of the given id.
+     */
+    Map<String, String> getSpanHeadersById(String id);
 }

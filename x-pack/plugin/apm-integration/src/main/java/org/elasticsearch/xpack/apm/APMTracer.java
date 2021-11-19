@@ -234,6 +234,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
             spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
 
+            final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID);
+            if (xOpaqueId != null) {
+                spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
+            }
             return spanBuilder.startSpan();
         });
     }
@@ -259,6 +263,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return null;
     }
 
+    @Override
     public Map<String, String> getSpanHeadersById(String id) {
         var services = this.services;
         var span = spans.get(id);

@@ -292,8 +292,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         doubleValue = objectToDouble(value);
                     }
 
-                    double scalingFactor = getScalingFactor();
-                    return Math.round(doubleValue * scalingFactor) / scalingFactor;
+                    double factor = getScalingFactor();
+                    return Math.round(doubleValue * factor) / factor;
                 }
             };
         }

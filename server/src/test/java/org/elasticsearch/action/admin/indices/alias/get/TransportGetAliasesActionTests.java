@@ -106,7 +106,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .fPut("c", Collections.singletonList(new AliasMetadata.Builder("d").build()))
             .build();
         final String[] concreteIndices = { "a", ".b", "c" };
-        assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
+        assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -139,7 +139,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
             .build();
         final String[] concreteIndices = { ".b" };
-        assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
+        assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -169,7 +169,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
             .build();
         final String[] concreteIndices = { "a", ".b", "c" };
-        assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
+        assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -199,7 +199,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .fPut(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()))
             .build();
         final String[] concreteIndices = { "a", ".b", "c" };
-        assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
+        assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -225,7 +225,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .fPut("c", Collections.singletonList(new AliasMetadata.Builder("d").build()))
             .build();
         final String[] concreteIndices = { "c" };
-        assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
+        assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,
@@ -255,7 +255,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         GetAliasesRequest request = new GetAliasesRequest(".y");
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder().build();
         final String[] concreteIndices = {};
-        assertEquals(state.metadata().findAliases(request, concreteIndices), aliases);
+        assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
         ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
             concreteIndices,

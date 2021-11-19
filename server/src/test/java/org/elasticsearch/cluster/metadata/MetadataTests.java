@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1741,6 +1742,77 @@ public class MetadataTests extends ESTestCase {
                 .toArray(Index[]::new);
             assertThat(result, containsInAnyOrder(expected));
         }
+
+        // Add a new alias and index
+        builder = Metadata.builder(metadata);
+        String newAliasName = "alias-new";
+        {
+            builder.put(
+                IndexMetadata.builder(newAliasName + "-1")
+                    .settings(settings(Version.CURRENT))
+                    .creationDate(randomNonNegativeLong())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder(newAliasName).writeIndex(true))
+            );
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases + 1));
+        assertThat(metadata.aliasedIndices(newAliasName), contains(new Index(newAliasName + "-1", ClusterState.UNKNOWN_UUID)));
+
+        // Remove the new alias/index
+        builder = Metadata.builder(metadata);
+        {
+            builder.remove(newAliasName + "-1");
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases));
+        assertThat(metadata.aliasedIndices(newAliasName), empty());
+
+        // Add a new alias that points to existing indices
+        builder = Metadata.builder(metadata);
+        {
+            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.index("alias-1-0"));
+            imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-2-1"));
+            imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-3-2"));
+            imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
+            builder.put(imBuilder);
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases + 1));
+        assertThat(
+            metadata.aliasedIndices(newAliasName),
+            containsInAnyOrder(
+                new Index("alias-1-0", ClusterState.UNKNOWN_UUID),
+                new Index("alias-2-1", ClusterState.UNKNOWN_UUID),
+                new Index("alias-3-2", ClusterState.UNKNOWN_UUID)
+            )
+        );
+
+        // Remove the new alias that points to existing indices
+        builder = Metadata.builder(metadata);
+        {
+            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.index("alias-1-0"));
+            imBuilder.removeAlias(newAliasName);
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-2-1"));
+            imBuilder.removeAlias(newAliasName);
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-3-2"));
+            imBuilder.removeAlias(newAliasName);
+            builder.put(imBuilder);
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases));
+        assertThat(metadata.aliasedIndices(newAliasName), empty());
     }
 
     public static Metadata randomMetadata() {

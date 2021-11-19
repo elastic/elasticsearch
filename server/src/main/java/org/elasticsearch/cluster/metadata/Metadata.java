@@ -1703,10 +1703,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         + "]"
                 );
             }
-            ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices = this.aliasedIndices.build();
-            assert assertDataStreams(aliasedIndices, dataStreamMetadata);
-
             ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
+            assert assertDataStreams(indices, dataStreamMetadata);
 
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
@@ -1746,7 +1744,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 totalNumberOfShards,
                 totalOpenIndexShards,
                 indices,
-                aliasedIndices,
+                aliasedIndices.build(),
                 templates.build(),
                 customs.build(),
                 allIndicesArray,
@@ -1912,23 +1910,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        static boolean assertDataStreams(
-            ImmutableOpenMap<String, AliasIndicesReference> aliasedIndices,
-            @Nullable DataStreamMetadata dsMetadata
-        ) {
+        static boolean assertDataStreams(ImmutableOpenMap<String, IndexMetadata> indices, @Nullable DataStreamMetadata dsMetadata) {
             if (dsMetadata != null) {
                 // Sanity check, because elsewhere a more user friendly error should have occurred:
                 List<String> conflictingAliases = null;
-                for (var cursor : aliasedIndices) {
-                    String aliasName = cursor.key;
-                    for (Index aliasedIndex : cursor.value.getIndices()) {
-                        for (DataStream dataStream : dsMetadata.dataStreams().values()) {
-                            if (dataStream.getIndices().contains(aliasedIndex)) {
+
+                for (var dataStream : dsMetadata.dataStreams().values()) {
+                    for (var index : dataStream.getIndices()) {
+                        IndexMetadata im = indices.get(index.getName());
+                        if (im != null && im.getAliases().isEmpty() == false) {
+                            for (var alias : im.getAliases().values()) {
                                 if (conflictingAliases == null) {
                                     conflictingAliases = new LinkedList<>();
                                 }
-                                conflictingAliases.add(aliasName);
-                                break;
+                                conflictingAliases.add(alias.alias());
                             }
                         }
                     }

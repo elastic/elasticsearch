@@ -24,13 +24,9 @@ Common use cases for kNN include:
 === Prerequisites
 
 * To run a kNN search, you must be able to convert your data into meaningful
-<<dense-vector,`dense_vector`>> values, called embeddings. This typically
-requires the setup and training of a machine learning model, called an embedding
-model. Elastic doesn't currently offer any out-of-the-box models or solutions
-for creating embeddings.
-+
-The fit of your embedding model to your data and use case has a significant
-impact on the quality of your kNN search results.
+<<dense-vector,`dense_vector`>> values. This typically requires the setup and
+training of a machine learning model. Elastic doesn't currently offer any
+out-of-the-box models or solutions for generating these vector values.
 
 * To complete the steps in this guide, you must have the following
 <<privileges-list-indices,index privileges>>:
@@ -144,21 +140,24 @@ GET my-approx-knn-index/_knn_search
 ==== Tune approximate kNN for speed or accuracy
 
 For faster searches, the kNN search API collects `num_candidates` results from
-each shard, then merges them to find the top `k` results. This works well in
-most cases, but results are less accurate if a shard contains a disproportionate
-number of nearest neighbors.
+each shard, then merges them to find the top `k` results.
 
-You can increase `num_candidates` for more accurate results at slower search
-speeds. Similarly, you can decrease `num_candidates` for faster searches with
+You can increase `num_candidates` for more accurate results at the cost of
+slower search speeds. A search with a high number of `num_candidates` considers
+more candidates from each shard. This takes more time, but the search has a
+higher probability of finding the true `k` top nearest neighbors.
+
+Similarly, you can decrease `num_candidates` for faster searches with
 potentially less accurate results.
 
 [discrete]
 [[approximate-knn-limitations]]
 ==== Limitations for approximate kNN search
 
-* You can't use Query DSL to filter the documents searched using approximate kNN
-or the results of an approximate kNN search. If you need to filter documents,
-consider using exact kNN instead.
+* You can't currently use Query DSL to filter the documents on which an
+approximate kNN runs or the results of an approximate kNN search. If you need to
+restrictively filter the documents on which a kNN search runs, consider using
+exact kNN instead.
 
 * {blank}
 +

@@ -66,9 +66,7 @@ public class ApmIT extends SecurityIntegTestCase {
             APMTracer.APM_TOKEN_SETTING.getKey(),
             System.getProperty("tests.apm.token", "")
         );
-        builder
-            .put(APMTracer.APM_ENABLED_SETTING.getKey(), true)
-            .put("xpack.security.authz.tracing", true);
+        builder.put(APMTracer.APM_ENABLED_SETTING.getKey(), true).put("xpack.security.authz.tracing", true);
         return builder.build();
     }
 

@@ -97,11 +97,11 @@ public class URLBlobStore implements BlobStore {
     }
 
     @Override
-    public BlobContainer blobContainer(BlobPath path) {
+    public BlobContainer blobContainer(BlobPath blobPath) {
         try {
-            return blobContainerFactory.apply(path);
+            return blobContainerFactory.apply(blobPath);
         } catch (MalformedURLException ex) {
-            throw new BlobStoreException("malformed URL " + path, ex);
+            throw new BlobStoreException("malformed URL " + blobPath, ex);
         }
     }
 
@@ -113,11 +113,11 @@ public class URLBlobStore implements BlobStore {
     /**
      * Builds URL using base URL and specified path
      *
-     * @param path relative path
+     * @param relativePath relative path
      * @return Base URL + path
      */
-    private URL buildPath(BlobPath path) throws MalformedURLException {
-        List<String> paths = path.parts();
+    private URL buildPath(BlobPath relativePath) throws MalformedURLException {
+        List<String> paths = relativePath.parts();
         if (paths.isEmpty()) {
             return path();
         }

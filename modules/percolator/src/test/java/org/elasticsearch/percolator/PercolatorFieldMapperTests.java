@@ -217,15 +217,15 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), documentParserContext);
         LuceneDocument document = documentParserContext.doc();
 
-        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
-        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
-        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
+        PercolatorFieldMapper.PercolatorFieldType percolatorFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
+        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.queryTermsField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field\u0000term1"));
         assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field\u0000term2"));
 
-        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.minimumShouldMatchField.name())));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.minimumShouldMatchField.name())));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get(0).numericValue(), equalTo(1L));
 
@@ -238,14 +238,14 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), documentParserContext);
         document = documentParserContext.doc();
 
-        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
-        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
+        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.queryTermsField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0).binaryValue().utf8ToString(), equalTo("field\u0000term1"));
         assertThat(fields.get(1).binaryValue().utf8ToString(), equalTo("field\u0000term2"));
 
-        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.minimumShouldMatchField.name())));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.minimumShouldMatchField.name())));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get(0).numericValue(), equalTo(2L));
     }
@@ -265,9 +265,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), documentParserContext);
         LuceneDocument document = documentParserContext.doc();
 
-        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
-        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
-        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        PercolatorFieldMapper.PercolatorFieldType percolatorFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
+        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.rangeField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
         assertThat(fields.size(), equalTo(2));
         assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 12), equalTo(10));
@@ -275,7 +275,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(IntPoint.decodeDimension(fields.get(1).binaryValue().bytes, 12), equalTo(15));
         assertThat(IntPoint.decodeDimension(fields.get(1).binaryValue().bytes, 28), equalTo(20));
 
-        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.minimumShouldMatchField.name())));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.minimumShouldMatchField.name())));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get(0).numericValue(), equalTo(1L));
 
@@ -289,8 +289,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), documentParserContext);
         document = documentParserContext.doc();
 
-        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
-        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
+        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.rangeField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
         assertThat(fields.size(), equalTo(2));
         assertThat(IntPoint.decodeDimension(fields.get(0).binaryValue().bytes, 12), equalTo(10));
@@ -298,7 +298,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 8), equalTo(15L));
         assertThat(LongPoint.decodeDimension(fields.get(1).binaryValue().bytes, 24), equalTo(20L));
 
-        fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.minimumShouldMatchField.name())));
+        fields = new ArrayList<>(Arrays.asList(document.getFields(percolatorFieldType.minimumShouldMatchField.name())));
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get(0).numericValue(), equalTo(2L));
     }
@@ -312,9 +312,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(query, documentParserContext);
         LuceneDocument document = documentParserContext.doc();
 
-        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType percolatorFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(1));
-        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_FAILED));
+        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_FAILED));
     }
 
     public void testExtractTermsAndRanges_partial() throws Exception {
@@ -326,10 +326,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(phraseQuery, documentParserContext);
         LuceneDocument document = documentParserContext.doc();
 
-        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType percolatorFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(3));
         assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field\u0000term"));
-        assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+        assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
     }
 
     public void testExtractTermsAndRanges() throws Exception {
@@ -613,8 +613,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testAllowNoAdditionalSettings() throws Exception {
         addQueryFieldMappings();
-        IndexService indexService = createIndex("test1", Settings.EMPTY);
-        MapperService mapperService = indexService.mapperService();
+        IndexService indexServiceWithoutSettings = createIndex("test1", Settings.EMPTY);
 
         String percolatorMapper = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -631,7 +630,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         );
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE)
+            () -> indexServiceWithoutSettings.mapperService()
+                .merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE)
         );
         assertThat(e.getMessage(), containsString("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
     }
@@ -948,11 +948,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     throw new AssertionError("unexpected encoding type [" + encodingType + "]");
             }
 
-            String fieldName = randomAlphaOfLength(5);
-            byte[] result = PercolatorFieldMapper.encodeRange(fieldName, encodedFrom, encodedTo);
+            String randomFieldName = randomAlphaOfLength(5);
+            byte[] result = PercolatorFieldMapper.encodeRange(randomFieldName, encodedFrom, encodedTo);
             assertEquals(32, result.length);
 
-            BytesRef fieldAsBytesRef = new BytesRef(fieldName);
+            BytesRef fieldAsBytesRef = new BytesRef(randomFieldName);
             MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
             MurmurHash3.hash128(fieldAsBytesRef.bytes, fieldAsBytesRef.offset, fieldAsBytesRef.length, 0, hash);
 

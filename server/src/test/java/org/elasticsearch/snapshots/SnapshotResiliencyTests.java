@@ -1913,7 +1913,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new UpdateHelper(scriptService),
                     actionFilters,
                     indexingMemoryLimits,
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(

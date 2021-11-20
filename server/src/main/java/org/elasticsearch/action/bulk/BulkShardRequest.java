@@ -60,6 +60,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         this.items = items;
         setRefreshPolicy(refreshPolicy);
         BytesReference[] references = new BytesReference[items.length];
+        int[] uncompressedLengths = new int[items.length];
         int i = 0;
         for (BulkItemRequest item : items) {
             DocWriteRequest<?> request = item.request();
@@ -67,12 +68,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
                 BytesReference source = ((IndexRequest) request).source();
                 if (source != null) {
                     references[i] = source;
+                    uncompressedLengths[i] = source.length();
                 }
             } else if (request instanceof UpdateRequest) {
-                IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null && doc.source() != null) {
-                    references[i] = doc.source();
-                }
+                references[i] = BytesArray.EMPTY;
             } else if (request instanceof DeleteRequest) {
                 references[i] = BytesArray.EMPTY;
             } else {
@@ -80,7 +79,8 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
             }
             i++;
         }
-        sourceBytes = new MaybeCompressedSourceBytes(false, ReleasableBytesReference.wrap(CompositeBytesReference.of(references)));
+        sourceBytes = new MaybeCompressedSourceBytes(false, uncompressedLengths,
+            ReleasableBytesReference.wrap(CompositeBytesReference.of(references)));
     }
 
     public long totalSizeInBytes() {
@@ -106,11 +106,28 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     }
 
     public BulkItemRequest[] inflatedItems() {
-        if (sourceBytes == null) {
-            return items();
-        } else {
-            // TODO: Implement
-            return items;
+        if (sourceBytes != null) {
+            assert sourceBytes.isCompressed == false;
+        }
+        return items;
+    }
+
+    public void inflateItems(PageCacheRecycler recycler) throws IOException {
+        if (sourceBytes != null) {
+            sourceBytes.inflate(recycler);
+            BytesReference uncompressed = sourceBytes.uncompressed();
+            int offset = 0;
+            int i = 0;
+            for (BulkItemRequest item : items) {
+                DocWriteRequest<?> request = item.request();
+                if (request instanceof IndexRequest) {
+                    IndexRequest indexRequest = (IndexRequest) request;
+                    int length = sourceBytes.uncompressedLengths[i];
+                    indexRequest.source(uncompressed.slice(offset, length), indexRequest.getContentType());
+                    offset += length;
+                }
+                i++;
+            }
         }
     }
 
@@ -204,12 +221,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     private static class MaybeCompressedSourceBytes implements Writeable {
 
+        private final int[] uncompressedLengths;
         private boolean isCompressed;
         private ReleasableBytesReference compressedSourceBytes;
         private ReleasableBytesReference uncompressedSourceBytes;
 
-        private MaybeCompressedSourceBytes(boolean isCompressed, ReleasableBytesReference sourceBytes) {
+        private MaybeCompressedSourceBytes(boolean isCompressed, int[] uncompressedLengths, ReleasableBytesReference sourceBytes) {
             this.isCompressed = isCompressed;
+            this.uncompressedLengths = uncompressedLengths;
             if (isCompressed) {
                 this.compressedSourceBytes = sourceBytes;
             } else {
@@ -219,6 +238,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
         private MaybeCompressedSourceBytes(StreamInput in) throws IOException {
             isCompressed = in.readBoolean();
+            uncompressedLengths = in.readIntArray();
             if (isCompressed) {
                 compressedSourceBytes = ReleasableBytesReference.wrap(in.readBytesReference());
             } else {

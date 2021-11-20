@@ -38,6 +38,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -76,6 +77,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final PageCacheRecycler recycler;
 
     @Inject
     public TransportShardBulkAction(
@@ -89,7 +91,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        PageCacheRecycler recycler
     ) {
         super(
             settings,
@@ -109,6 +112,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.recycler = recycler;
     }
 
     @Override
@@ -127,6 +131,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
+        // Recycling Instance
+        try {
+            request.inflateItems(recycler);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
@@ -263,12 +274,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener
     ) throws Exception {
-        final DocWriteRequest.OpType opType = context.getCurrent().opType();
+        DocWriteRequest<?> currentRequest = context.getCurrent();
+        final DocWriteRequest.OpType opType = currentRequest.opType();
 
         // Translate update requests into index or delete requests which can be executed directly
         final UpdateHelper.Result updateResult;
         if (opType == DocWriteRequest.OpType.UPDATE) {
-            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
+            final UpdateRequest updateRequest = (UpdateRequest) currentRequest;
             try {
                 updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
             } catch (Exception failure) {
@@ -289,7 +301,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             translated.process();
             context.setRequestToExecute(translated);
         } else {
-            context.setRequestToExecute(context.getCurrent());
+            context.setRequestToExecute(currentRequest);
             updateResult = null;
         }
 
@@ -527,8 +539,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
-        for (int i = 0; i < request.items().length; i++) {
-            final BulkItemRequest item = request.items()[i];
+        BulkItemRequest[] inflatedItems = request.inflatedItems();
+        for (int i = 0; i < inflatedItems.length; i++) {
+            final BulkItemRequest item = inflatedItems[i];
             final BulkItemResponse response = item.getPrimaryResponse();
             final Engine.Result operationResult;
             if (item.getPrimaryResponse().isFailed()) {

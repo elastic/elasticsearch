@@ -14,28 +14,47 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
+/**
+ * Internal service for querying and accessing time series by language that creates an abstraction layer around legacy
+ * metric indices and times series indices.
+ */
 public class TimeSeriesMetricsService {
     private final Client client;
     private final int bucketBatchSize;
     private final int docBatchSize;
+    private final TimeValue staleness;
 
-    public TimeSeriesMetricsService(Client client, int bucketBatchSize, int docBatchSize) { // TODO read maxBuckets at runtime
+    public TimeSeriesMetricsService(Client client, int bucketBatchSize, int docBatchSize, TimeValue staleness) {
+        // TODO read maxBuckets at runtime
         this.client = client;
         this.bucketBatchSize = bucketBatchSize;
         this.docBatchSize = docBatchSize;
+        this.staleness = staleness;
     }
 
-    public void newMetrics(String[] indices, ActionListener<TimeSeriesMetrics> listener) {
+    /**
+     * Returns an interface through which it will be possible to perform multiple time series queries.
+     *
+     * @param indices - a list of indices for the query
+     * @param indicesOptions - options of resolving indices
+     * @param listener - the result listener
+     */
+    public void newMetrics(String[] indices, IndicesOptions indicesOptions, ActionListener<TimeSeriesMetrics> listener) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(indices);
-        request.fields("*"); // TODO * can be a lot!
+        request.fields("*");
+        request.indicesOptions(indicesOptions);
         client.fieldCaps(request, listener.map(this::newMetrics));
     }
 
@@ -52,18 +71,36 @@ public class TimeSeriesMetricsService {
             throw e;
         }
         List<String> dimensionFieldNames = new ArrayList<>();
+        Map<String, TimeSeriesParams.MetricType> metricFieldNames = new TreeMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities>> e : response.get().entrySet()) {
             for (Map.Entry<String, FieldCapabilities> e2 : e.getValue().entrySet()) {
-                collectField(dimensionFieldNames, e.getKey(), e2.getKey(), e2.getValue());
+                collectField(dimensionFieldNames, metricFieldNames, e.getKey(), e2.getKey(), e2.getValue());
             }
         }
-        return new TimeSeriesMetrics(bucketBatchSize, docBatchSize, client, response.getIndices(), List.copyOf(dimensionFieldNames));
+        return new TimeSeriesMetrics(
+            bucketBatchSize,
+            docBatchSize,
+            staleness,
+            client,
+            response.getIndices(),
+            dimensionFieldNames,
+            metricFieldNames
+        );
     }
 
-    private void collectField(List<String> dimensions, String fieldName, String fieldType, FieldCapabilities capabilities) {
-        // TODO collect metrics for selector
+    private void collectField(
+        List<String> dimensions,
+        Map<String, TimeSeriesParams.MetricType> metrics,
+        String fieldName,
+        String fieldType,
+        FieldCapabilities capabilities
+    ) {
         if (capabilities.isDimension()) {
             dimensions.add(fieldName);
+        } else {
+            if (capabilities.getMetricType() != null) {
+                metrics.put(fieldName, capabilities.getMetricType());
+            }
         }
     }
 }

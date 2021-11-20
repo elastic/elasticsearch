@@ -110,8 +110,11 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
                 new SearchHit(
                     1,
                     "docId",
-                    null,
-                    Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value)))
+                    Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value))),
+                    Collections.singletonMap(
+                        "topHitsAgg",
+                        new DocumentField("_ignored", Collections.singletonList(randomValueOtherThan(value, () -> randomAlphaOfLength(5))))
+                    )
                 ) },
             totalHits,
             0.0f

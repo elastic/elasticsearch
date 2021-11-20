@@ -96,7 +96,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
-    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : 'microdnf',
+    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : (base == DockerBase.UBI ? 'microdnf' : 'apt-get'),
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
@@ -265,12 +265,6 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         }
         // For some reason, the artifact name can differ depending on what repository we used.
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
-
-        into('bin') {
-          from(project.projectDir.toPath().resolve('src/docker/cloud')) {
-            expand([ version: VersionProperties.elasticsearch ])
-          }
-        }
       }
 
       onlyIf { Architecture.current() == architecture }
@@ -367,8 +361,6 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else if (base == DockerBase.DEFAULT || base == DockerBase.CLOUD) {
-        baseImages = ['alpine:3.13', base.image]
       } else {
         baseImages = [base.image]
       }

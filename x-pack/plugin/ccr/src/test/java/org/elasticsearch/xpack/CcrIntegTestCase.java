@@ -430,7 +430,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         if (actionGet.isTimedOut()) {
             logger.info(
                 """
-                    {} timed out:\s
+                    {} timed out:
                     leader cluster state:
                     {}
                     leader cluster hot threads:

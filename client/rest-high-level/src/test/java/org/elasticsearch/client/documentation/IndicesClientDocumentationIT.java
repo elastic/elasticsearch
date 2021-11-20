@@ -1116,7 +1116,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
-            String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+            String mappings = """
+                {"properties":{"field-1":{"type":"integer"}}}""";
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(settings).mapping(mappings, XContentType.JSON);
             CreateIndexResponse createIndexResponse = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
@@ -1832,7 +1833,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 .put("index.number_of_shards", 4)); // <1>
         // end::rollover-index-request-settings
         // tag::rollover-index-request-mapping
-        String mappings = "{\"properties\":{\"field-1\":{\"type\":\"keyword\"}}}";
+        String mappings = """
+            {"properties":{"field-1":{"type":"keyword"}}}
+            """;
         request.getCreateIndexRequest().mapping(mappings, XContentType.JSON); // <1>
         // end::rollover-index-request-mapping
         // tag::rollover-index-request-alias
@@ -2011,9 +2014,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
         {
             // tag::indices-put-settings-settings-source
-            request.settings(
-                    "{\"index.number_of_replicas\": \"2\"}"
-                    , XContentType.JSON); // <1>
+            request.settings("""
+                    {"index.number_of_replicas": "2"}
+                    """, XContentType.JSON); // <1>
             // end::indices-put-settings-settings-source
         }
 

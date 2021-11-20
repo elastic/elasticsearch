@@ -245,7 +245,10 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         );
         ensureGreen();
 
-        String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
+        String source = """
+            {
+              "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
+            }""";
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 

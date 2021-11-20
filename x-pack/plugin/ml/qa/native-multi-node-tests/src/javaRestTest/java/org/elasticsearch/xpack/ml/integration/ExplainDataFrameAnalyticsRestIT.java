@@ -56,16 +56,9 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity(
-            "{"
-                + "  \"password\" : \""
-                + password
-                + "\","
-                + "  \"roles\" : [ "
-                + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))
-                + " ]"
-                + "}"
-        );
+        request.setJsonEntity("""
+            { "password" : "%s",  "roles" : [ %s ] }
+            """.formatted(password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 
@@ -82,25 +75,32 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "      \"airline\": {"
-                + "        \"type\":\"keyword\""
-                + "       },"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        // space in 'time stamp' is intentional
+        createAirlineDataRequest.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time stamp": {
+                    "type": "date"
+                  },
+                  "airline": {
+                    "type": "keyword"
+                  },
+                  "responsetime": {
+                    "type": "float"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createAirlineDataRequest);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
+        bulk.append("""
+            {"index": {"_index": "airline-data", "_id": 1}}
+            {"time stamp":"2016-06-01T00:00:00Z","airline":"AAA","responsetime":135.22}
+            {"index": {"_index": "airline-data", "_id": 2}}
+            {"time stamp":"2016-06-01T01:59:00Z","airline":"AAA","responsetime":541.76}
+
+            """);
 
         bulkIndex(bulk.toString());
     }

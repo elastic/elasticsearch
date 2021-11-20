@@ -420,8 +420,9 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         assertBusy(() -> {
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
             String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
-            String expectedErrorMessage = "unable to determine concrete step key from target next step key: "
-                + "{\\\"phase\\\":\\\"warm\\\",\\\"action\\\":\\\"shrink\\\"}";
+            String expectedErrorMessage = """
+                unable to determine concrete step key from target next step key: \
+                {\\"phase\\":\\"warm\\",\\"action\\":\\"shrink\\"}""";
             assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
         });
     }

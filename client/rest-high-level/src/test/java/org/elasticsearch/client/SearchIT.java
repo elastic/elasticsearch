@@ -112,99 +112,112 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void indexDocuments() throws IOException {
         {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
-            doc1.setJsonEntity("{\"type\":\"type1\", \"id\":1, \"num\":10, \"num2\":50}");
+            doc1.setJsonEntity("""
+                {"type":"type1", "id":1, "num":10, "num2":50}""");
             client().performRequest(doc1);
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/_doc/2");
-            doc2.setJsonEntity("{\"type\":\"type1\", \"id\":2, \"num\":20, \"num2\":40}");
+            doc2.setJsonEntity("""
+                {"type":"type1", "id":2, "num":20, "num2":40}""");
             client().performRequest(doc2);
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/_doc/3");
-            doc3.setJsonEntity("{\"type\":\"type1\", \"id\":3, \"num\":50, \"num2\":35}");
+            doc3.setJsonEntity("""
+                {"type":"type1", "id":3, "num":50, "num2":35}""");
             client().performRequest(doc3);
             Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/_doc/4");
-            doc4.setJsonEntity("{\"type\":\"type2\", \"id\":4, \"num\":100, \"num2\":10}");
+            doc4.setJsonEntity("""
+                {"type":"type2", "id":4, "num":100, "num2":10}""");
             client().performRequest(doc4);
             Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/_doc/5");
-            doc5.setJsonEntity("{\"type\":\"type2\", \"id\":5, \"num\":100, \"num2\":10}");
+            doc5.setJsonEntity("""
+                {"type":"type2", "id":5, "num":100, "num2":10}""");
             client().performRequest(doc5);
         }
 
         {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/1");
-            doc1.setJsonEntity("{\"id\":1, \"field\":\"value1\", \"rating\": 7}");
+            doc1.setJsonEntity("""
+                {"id":1, "field":"value1", "rating": 7}""");
             client().performRequest(doc1);
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/2");
-            doc2.setJsonEntity("{\"id\":2, \"field\":\"value2\"}");
+            doc2.setJsonEntity("""
+                {"id":2, "field":"value2"}""");
             client().performRequest(doc2);
         }
 
         {
             Request create = new Request("PUT", "/index2");
-            create.setJsonEntity(
-                "{"
-                    + "  \"mappings\": {"
-                    + "    \"properties\": {"
-                    + "      \"rating\": {"
-                    + "        \"type\":  \"keyword\""
-                    + "      }"
-                    + "    }"
-                    + "  }"
-                    + "}"
-            );
+            create.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "rating": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }""");
             client().performRequest(create);
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/3");
-            doc3.setJsonEntity("{\"id\":3, \"field\":\"value1\", \"rating\": \"good\"}");
+            doc3.setJsonEntity("""
+                {"id":3, "field":"value1", "rating": "good"}""");
             client().performRequest(doc3);
             Request doc4 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/4");
-            doc4.setJsonEntity("{\"id\":4, \"field\":\"value2\"}");
+            doc4.setJsonEntity("""
+                {"id":4, "field":"value2"}""");
             client().performRequest(doc4);
         }
 
         {
             Request doc5 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/5");
-            doc5.setJsonEntity("{\"id\":5, \"field\":\"value1\"}");
+            doc5.setJsonEntity("""
+                {"id":5, "field":"value1"}""");
             client().performRequest(doc5);
             Request doc6 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/6");
-            doc6.setJsonEntity("{\"id\":6, \"field\":\"value2\"}");
+            doc6.setJsonEntity("""
+                {"id":6, "field":"value2"}""");
             client().performRequest(doc6);
         }
 
         {
             Request create = new Request(HttpPut.METHOD_NAME, "/index4");
-            create.setJsonEntity(
-                "{"
-                    + "  \"mappings\": {"
-                    + "    \"properties\": {"
-                    + "      \"field1\": {"
-                    + "        \"type\":  \"keyword\","
-                    + "        \"store\":  true"
-                    + "      },"
-                    + "      \"field2\": {"
-                    + "        \"type\":  \"keyword\","
-                    + "        \"store\":  true"
-                    + "      }"
-                    + "    }"
-                    + "  }"
-                    + "}"
-            );
+            create.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "field1": {
+                        "type": "keyword",
+                        "store": true
+                      },
+                      "field2": {
+                        "type": "keyword",
+                        "store": true
+                      }
+                    }
+                  }
+                }""");
             client().performRequest(create);
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index4/_doc/1");
-            doc1.setJsonEntity("{\"id\":1, \"field1\":\"value1\", \"field2\":\"value2\"}");
+            doc1.setJsonEntity("""
+                {"id":1, "field1":"value1", "field2":"value2"}""");
             client().performRequest(doc1);
 
             Request createFilteredAlias = new Request(HttpPost.METHOD_NAME, "/_aliases");
-            createFilteredAlias.setJsonEntity(
-                "{"
-                    + "  \"actions\" : ["
-                    + "    {"
-                    + "      \"add\" : {"
-                    + "        \"index\" : \"index4\","
-                    + "        \"alias\" : \"alias4\","
-                    + "        \"filter\" : { \"term\" : { \"field2\" : \"value1\" } }"
-                    + "      }"
-                    + "    }"
-                    + "  ]"
-                    + "}"
-            );
+            createFilteredAlias.setJsonEntity("""
+                {
+                  "actions": [
+                    {
+                      "add": {
+                        "index": "index4",
+                        "alias": "alias4",
+                        "filter": {
+                          "term": {
+                            "field2": "value1"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }""");
             client().performRequest(createFilteredAlias);
         }
 

@@ -112,7 +112,12 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testIllegalField() {
-        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" + "    }\n" + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "%s"
+                }
+            }""".formatted(TEXT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())

@@ -135,12 +135,16 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
     private void checkHasPrivileges() throws IOException {
         final Request request = new Request("GET", "/_security/user/_has_privileges");
-        request.setJsonEntity(
-            "{"
-                + "\"cluster\": [ \"manage\", \"monitor\" ],"
-                + "\"index\": [{ \"names\": [ \"index_allowed\", \"index_denied\" ], \"privileges\": [ \"read\", \"all\" ] }]"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "cluster": [ "manage", "monitor" ],
+              "index": [
+                {
+                  "names": [ "index_allowed", "index_denied" ],
+                  "privileges": [ "read", "all" ]
+                }
+              ]
+            }""");
         Response response = client().performRequest(request);
         final Map<String, Object> auth = entityAsMap(response);
         assertThat(ObjectPath.evaluate(auth, "username"), equalTo("security_test_user"));
@@ -342,29 +346,69 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         final boolean keyRoleHasDlsFls = randomBoolean();
         if (keyRoleHasDlsFls) {
             if (randomBoolean()) {
-                request.setJsonEntity(
-                    "{\"name\":\"my-key\",\"role_descriptors\":"
-                        + "{\"a\":{\"indices\":["
-                        + "{\"names\":[\"index41\"],\"privileges\":[\"read\"],"
-                        + "\"query\":{\"term\":{\"tag\":{\"value\":\"prod\"}}}},"
-                        + "{\"names\":[\"index1\",\"index2\",\"index42\"],\"privileges\":[\"read\"]}"
-                        + "]}}}"
-                );
+                request.setJsonEntity("""
+                    {
+                      "name": "my-key",
+                      "role_descriptors": {
+                        "a": {
+                          "indices": [
+                            {
+                              "names": [ "index41" ],
+                              "privileges": [ "read" ],
+                              "query": {
+                                "term": {
+                                  "tag": {
+                                    "value": "prod"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "names": [ "index1", "index2", "index42" ],
+                              "privileges": [ "read" ]
+                            }
+                          ]
+                        }
+                      }
+                    }""");
             } else {
-                request.setJsonEntity(
-                    "{\"name\":\"my-key\",\"role_descriptors\":"
-                        + "{\"a\":{\"indices\":["
-                        + "{\"names\":[\"index41\"],\"privileges\":[\"read\"],"
-                        + "\"field_security\":{\"grant\":[\"tag\"]}},"
-                        + "{\"names\":[\"index1\",\"index2\",\"index42\"],\"privileges\":[\"read\"]}"
-                        + "]}}}"
-                );
+                request.setJsonEntity("""
+                    {
+                      "name": "my-key",
+                      "role_descriptors": {
+                        "a": {
+                          "indices": [
+                            {
+                              "names": [ "index41" ],
+                              "privileges": [ "read" ],
+                              "field_security": {
+                                "grant": [ "tag" ]
+                              }
+                            },
+                            {
+                              "names": [ "index1", "index2", "index42" ],
+                              "privileges": [ "read" ]
+                            }
+                          ]
+                        }
+                      }
+                    }""");
             }
         } else {
-            request.setJsonEntity(
-                "{\"name\":\"my-key\",\"role_descriptors\":"
-                    + "{\"a\":{\"indices\":[{\"names\":[\"index1\",\"index2\",\"index41\",\"index42\"],\"privileges\":[\"read\"]}]}}}"
-            );
+            request.setJsonEntity("""
+                {
+                  "name": "my-key",
+                  "role_descriptors": {
+                    "a": {
+                      "indices": [
+                        {
+                          "names": [ "index1", "index2", "index41", "index42" ],
+                          "privileges": [ "read" ]
+                        }
+                      ]
+                    }
+                  }
+                }""");
         }
         request.setOptions(
             request.getOptions()

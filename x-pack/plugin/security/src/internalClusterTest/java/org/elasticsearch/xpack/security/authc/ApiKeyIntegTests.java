@@ -133,16 +133,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configRoles() {
-        return super.configRoles()
-            + "\n"
-            + "no_api_key_role:\n"
-            + "  cluster: [\"manage_token\"]\n"
-            + "manage_api_key_role:\n"
-            + "  cluster: [\"manage_api_key\"]\n"
-            + "manage_own_api_key_role:\n"
-            + "  cluster: [\"manage_own_api_key\"]\n"
-            + "run_as_role:\n"
-            + "  run_as: [\"user_with_manage_own_api_key_role\"]\n";
+        return super.configRoles() + """
+
+            no_api_key_role:
+              cluster: ["manage_token"]
+            manage_api_key_role:
+              cluster: ["manage_api_key"]
+            manage_own_api_key_role:
+              cluster: ["manage_own_api_key"]
+            run_as_role:
+              run_as: ["user_with_manage_own_api_key_role"]
+            """;
     }
 
     @Override

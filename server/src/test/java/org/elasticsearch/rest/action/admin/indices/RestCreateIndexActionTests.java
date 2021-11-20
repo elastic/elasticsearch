@@ -149,7 +149,8 @@ public class RestCreateIndexActionTests extends ESTestCase {
 
         CreateIndexRequest createIndexRequest = action.prepareRequestV7(request);
         // some_type is replaced with _doc
-        assertThat(createIndexRequest.mappings(), equalTo("{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"}}}}"));
+        assertThat(createIndexRequest.mappings(), equalTo("""
+            {"_doc":{"properties":{"field1":{"type":"text"}}}}"""));
         assertCriticalWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

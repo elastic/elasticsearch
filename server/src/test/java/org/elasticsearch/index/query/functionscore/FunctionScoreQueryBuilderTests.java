@@ -630,21 +630,24 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testFieldValueFactorFactorArray() throws IOException {
         // don't permit an array of factors
-        String querySource = "{"
-            + "  \"function_score\": {"
-            + "    \"query\": {"
-            + "      \"match\": {\"name\": \"foo\"}"
-            + "      },"
-            + "      \"functions\": ["
-            + "        {"
-            + "          \"field_value_factor\": {"
-            + "            \"field\": \"test\","
-            + "            \"factor\": [1.2,2]"
-            + "          }"
-            + "        }"
-            + "      ]"
-            + "    }"
-            + "}";
+        String querySource = """
+            {
+              "function_score": {
+                "query": {
+                  "match": {
+                    "name": "foo"
+                  }
+                },
+                "functions": [
+                  {
+                    "field_value_factor": {
+                      "field": "test",
+                      "factor": [ 1.2, 2 ]
+                    }
+                  }
+                ]
+              }
+            }""";
         expectParsingException(querySource, containsString("[field_value_factor] field 'factor' does not support lists or objects"));
     }
 

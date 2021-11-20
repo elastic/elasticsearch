@@ -296,7 +296,12 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
         // note that this last record is truncated
-        String sample = "time,message,count\n2018-05-17T13:41:23,\"hello\nworld\",1\n2019-01-18T14:46:57,\"hello again\n";
+        String sample = """
+            time,message,count
+            2018-05-17T13:41:23,"hello
+            world",1
+            2019-01-18T14:46:57,"hello again
+            """;
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -364,13 +369,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,"
-                + "\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?,"?"?,"?"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -441,13 +443,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\""
-                + "?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?,"?"?,"?"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -485,7 +484,7 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenCsvWithTrailingNullsExceptHeader() throws Exception {
         String sample = """
-            VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,
+            VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,store_and_fwd_flag,\
             PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,improvement_surcharge,total_amount
             2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,
             1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,
@@ -514,12 +513,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -609,12 +606,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?VendorID\"?,\"?tpep_pickup_datetime\"?,\"?tpep_dropoff_datetime\"?,\"?passenger_count\"?,\"?trip_distance\"?,"
-                + "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?,"
-                + "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?VendorID"?,"?tpep_pickup_datetime"?,"?tpep_dropoff_datetime"?,"?passenger_count"?,"?trip_distance"?,"?RatecodeID"?,\
+            "?store_and_fwd_flag"?,"?PULocationID"?,"?DOLocationID"?,"?payment_type"?,"?fare_amount"?,"?extra"?,"?mta_tax"?,\
+            "?tip_amount"?,"?tolls_amount"?,"?improvement_surcharge"?,"?total_amount"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -677,10 +672,8 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals(
-            "^\"?pos_id\"?,\"?trip_id\"?,\"?latitude\"?,\"?longitude\"?,\"?altitude\"?,\"?timestamp\"?",
-            structure.getExcludeLinesPattern()
-        );
+        assertEquals("""
+            ^"?pos_id"?,"?trip_id"?,"?latitude"?,"?longitude"?,"?altitude"?,"?timestamp"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -729,7 +722,8 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals("^\"?Latitude\"?\\t\"?Longitude\"?\\t\"?loc\"?\\t\"?Timestamp\"?", structure.getExcludeLinesPattern());
+        assertEquals("""
+            ^"?Latitude"?\\t"?Longitude"?\\t"?loc"?\\t"?Timestamp"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf('\t'), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
@@ -775,7 +769,8 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         // The exclude pattern needs to work on the raw text, so reflects the unmodified field names
-        assertEquals("^\"?time\\.iso8601\"?,\"?message\"?", structure.getExcludeLinesPattern());
+        assertEquals("""
+            ^"?time\\.iso8601"?,"?message"?""", structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());

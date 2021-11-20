@@ -95,28 +95,26 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        updateSettingsRequest.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE + "\": true\n" + "  }\n" + "}"
-        );
+        updateSettingsRequest.setJsonEntity("""
+            {
+              "settings": {
+                "%s": true
+              }
+            }""".formatted(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         client().performRequest(updateSettingsRequest);
         Request updateAliasRequest = new Request("POST", "/_aliases");
-        updateAliasRequest.setJsonEntity(
-            "{\n"
-                + "  \"actions\": [\n"
-                + "    {\n"
-                + "      \"add\": {\n"
-                + "        \"index\": \""
-                + originalIndex
-                + "\",\n"
-                + "        \"alias\": \""
-                + alias
-                + "\",\n"
-                + "        \"is_write_index\": false\n"
-                + "      }\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}"
-        );
+        updateAliasRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "%s",
+                    "alias": "%s",
+                    "is_write_index": false
+                  }
+                }
+              ]
+            }""".formatted(originalIndex, alias));
         client().performRequest(updateAliasRequest);
 
         // create policy
@@ -207,23 +205,16 @@ public class RolloverActionIT extends ESRestTestCase {
         // Set up a policy with rollover
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(
-            "{"
-                + "\"index_patterns\": [\""
-                + index
-                + "-*\"], \n"
-                + "  \"settings\": {\n"
-                + "    \"number_of_shards\": 1,\n"
-                + "    \"number_of_replicas\": 0,\n"
-                + "    \"index.lifecycle.name\": \""
-                + policy
-                + "\", \n"
-                + "    \"index.lifecycle.rollover_alias\": \""
-                + alias
-                + "\"\n"
-                + "  }\n"
-                + "}"
-        );
+        createIndexTemplate.setJsonEntity("""
+            {
+              "index_patterns": ["%s-*"],
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0,
+                "index.lifecycle.name": "%s",
+                "index.lifecycle.rollover_alias": "%s"
+              }
+            }""".formatted(index, policy, alias));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 

@@ -212,10 +212,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetadata indexMd = clusterState.metadata().index("test");
-        assertThat(
-            indexMd.getAliases().get("alias1").filter().string(),
-            equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}")
-        );
+        assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("""
+            {"term":{"user":{"value":"kimchy","boost":1.0}}}"""));
 
     }
 
@@ -800,7 +798,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         Metadata metadata = internalCluster().clusterService().state().metadata();
         IndexAbstraction ia = metadata.getIndicesLookup().get("alias1");
         AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(metadata, ia);
-        assertThat(aliasMetadata.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
+        assertThat(aliasMetadata.getFilter().toString(), equalTo("""
+            {"term":{"name":{"value":"bar","boost":1.0}}}"""));
 
         logger.info("--> deleting alias1");
         stopWatch.start();

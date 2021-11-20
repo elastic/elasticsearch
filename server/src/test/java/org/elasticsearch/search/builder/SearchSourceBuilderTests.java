@@ -120,7 +120,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testParseIncludeExclude() throws IOException {
         {
-            String restContent = " { \"_source\": { \"includes\": \"include\", \"excludes\": \"*.field2\"}}";
+            String restContent = """
+                { "_source": { "includes": "include", "excludes": "*.field2"}}
+                """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 assertArrayEquals(new String[] { "*.field2" }, searchSourceBuilder.fetchSource().excludes());
@@ -351,7 +353,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithUnits() throws IOException {
         final String timeout = randomTimeValue();
-        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        final String query = """
+            { "query": { "match_all": {}}, "timeout": "%s"}
+            """.formatted(timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(parser);
             assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
@@ -360,7 +364,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testTimeoutWithoutUnits() throws IOException {
         final int timeout = randomIntBetween(1, 1024);
-        final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
+        final String query = """
+            { "query": { "match_all": {}}, "timeout": "%s"}
+            """.formatted(timeout);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
@@ -414,7 +420,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testParseIndicesBoost() throws IOException {
         {
-            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
+            String restContent = """
+                { "indices_boost": {"foo": 1.0, "bar": 2.0}}""";
             try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 assertEquals(2, searchSourceBuilder.indexBoosts().size());
@@ -426,11 +433,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
         {
             String restContent = """
-                {    "indices_boost" : [
-                        { "foo" : 1.0 },
-                        { "bar" : 2.0 },
-                        { "baz" : 3.0 }
-                    ]}""";
+                {
+                  "indices_boost": [ { "foo": 1 }, { "bar": 2 }, { "baz": 3 } ]
+                }""";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 assertEquals(3, searchSourceBuilder.indexBoosts().size());
@@ -443,9 +448,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             // invalid format
             String restContent = """
-                {    "indices_boost" : [
-                        { "foo" : 1.0, "bar": 2.0}
-                    ]}""";
+                {
+                  "indices_boost": [ { "foo": 1, "bar": 2 } ]
+                }""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [END_OBJECT] in [indices_boost] but found [FIELD_NAME]");
         }
@@ -453,9 +458,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             // invalid format
             String restContent = """
-                {    "indices_boost" : [
-                        {}
-                    ]}""";
+                {
+                  "indices_boost": [ {} ]
+                }""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [FIELD_NAME] in [indices_boost] but found [END_OBJECT]");
         }
@@ -463,9 +468,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             // invalid format
             String restContent = """
-                {    "indices_boost" : [
-                        { "foo" : "bar"}
-                    ]}""";
+                {
+                  "indices_boost": [ { "foo": "bar" } ]
+                }""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [VALUE_STRING]");
         }
@@ -473,9 +478,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             // invalid format
             String restContent = """
-                {    "indices_boost" : [
-                        { "foo" : {"bar": 1}}
-                    ]}""";
+                {
+                  "indices_boost": [ { "foo": { "bar": 1 } } ]
+                }""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [START_OBJECT]");
         }

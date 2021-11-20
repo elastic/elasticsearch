@@ -800,10 +800,8 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT, numberPosBitSet)
         );
 
-        numberPosBitSet = TimestampFormatFinder.stringToNumberPosBitSet(
-            "192.168.62.101 - - [29/Jun/2016:12:11:31 +0000] "
-                + "\"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384"
-        );
+        numberPosBitSet = TimestampFormatFinder.stringToNumberPosBitSet("""
+            192.168.62.101 - - [29/Jun/2016:12:11:31 +0000] "POST //apiserv:8080/engine/v2/jobs HTTP/1.1" 201 42 "-" "curl/7.46.0" 384""");
         assertEquals(
             new Tuple<>(-1, -1),
             TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT, numberPosBitSet)

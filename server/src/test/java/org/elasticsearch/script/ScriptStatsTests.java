@@ -97,11 +97,11 @@ public class ScriptStatsTests extends ESTestCase {
             {
               "context" : "c",
               "compilations" : 1111,
-              "cache_evictions" : %d,
+              "cache_evictions" : %s,
               "cache_evictions_history" : {
-                "5m" : %d,
-                "15m" : %d,
-                "24h" : %d
+                "5m" : %s,
+                "15m" : %s,
+                "24h" : %s
               },
               "compilation_limit_triggered" : 3333
             }""";

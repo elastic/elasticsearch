@@ -103,14 +103,13 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         Object[] expectedValues = new Object[] { "2", "2", "2%", null };
         int i = 0;
         for (Object value : testValues) {
-            String json = "{\n"
-                + "  \"combined_fields\" : {\n"
-                + "    \"query\" : \"quick brown fox\",\n"
-                + "    \"minimum_should_match\" : "
-                + value
-                + "\n"
-                + "  }\n"
-                + "}";
+            String json = """
+                {
+                  "combined_fields" : {
+                    "query" : "quick brown fox",
+                    "minimum_should_match" : %s
+                  }
+                }""".formatted(value);
 
             CombinedFieldsQueryBuilder parsed = (CombinedFieldsQueryBuilder) parseQuery(json);
 

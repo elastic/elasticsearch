@@ -48,8 +48,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < 1000; i++) {
-                b.append("{\"create\":{\"_index\":\"").append("logs-foobar").append("\"}}\n");
-                b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(i).append("\"}\n");
+                b.append("""
+                    {"create":{"_index":"logs-foobar"}}
+                    {"@timestamp":"2020-12-12","test":"value%s"}
+                    """.formatted(i));
             }
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
@@ -112,34 +114,34 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = """
                 {
-                      "index_patterns":["logs-*"],
-                      "template": {
-                        "mappings": {
-                          "properties": {
-                            "@timestamp": {
-                              "type": "date"
-                             }
-                          }
+                  "index_patterns": [ "logs-*" ],
+                  "template": {
+                    "mappings": {
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date"
                         }
-                      },
-                      "data_stream":{
                       }
-                    }""";
+                    }
+                  },
+                  "data_stream": {}
+                }""";
             Request request = new Request("PUT", "/_index_template/1");
             request.setJsonEntity(requestBody);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(request);
             client().performRequest(request);
 
-            StringBuilder b = new StringBuilder();
-            b.append("{\"create\":{\"_index\":\"").append("logs-barbaz").append("\"}}\n");
-            b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
-            b.append("{\"create\":{\"_index\":\"").append("logs-barbaz-2021.01.13").append("\"}}\n");
-            b.append("{\"@timestamp\":\"2020-12-12\",\"test\":\"value").append(0).append("\"}\n");
+            String b = """
+                {"create":{"_index":"logs-barbaz"}}
+                {"@timestamp":"2020-12-12","test":"value0"}
+                {"create":{"_index":"logs-barbaz-2021.01.13"}}
+                {"@timestamp":"2020-12-12","test":"value0"}
+                """;
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
             bulk.addParameter("filter_path", "errors");
-            bulk.setJsonEntity(b.toString());
+            bulk.setJsonEntity(b);
             Response response = client().performRequest(bulk);
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 

@@ -36,48 +36,50 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         final boolean includeTeardown = randomBoolean();
         StringBuilder testSpecBuilder = new StringBuilder();
         if (includeSetup) {
-            testSpecBuilder.append("---\n")
-                .append("setup:\n")
-                .append("  - do:\n")
-                .append("        indices.create:\n")
-                .append("          index: test_index\n")
-                .append("\n");
+            testSpecBuilder.append("""
+                ---
+                setup:
+                  - do:
+                        indices.create:
+                          index: test_index
+
+                """);
         }
         if (includeTeardown) {
-            testSpecBuilder.append("---\n")
-                .append("teardown:\n")
-                .append("  - do:\n")
-                .append("      indices.delete:\n")
-                .append("        index: test_index\n")
-                .append("\n");
+            testSpecBuilder.append("""
+                ---
+                teardown:
+                  - do:
+                      indices.delete:
+                        index: test_index
+
+                """);
         }
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            testSpecBuilder.toString()
-                + "---\n"
-                + "\"Get index mapping\":\n"
-                + "  - do:\n"
-                + "      indices.get_mapping:\n"
-                + "        index: test_index\n"
-                + "\n"
-                + "  - match: {test_index.test_type.properties.text.type:     string}\n"
-                + "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n"
-                + "\n"
-                + "---\n"
-                + "\"Get type mapping - pre 6.0\":\n"
-                + "\n"
-                + "  - skip:\n"
-                + "      version:     \"6.0.0 - \"\n"
-                + "      reason:      \"for newer versions the index name is always returned\"\n"
-                + "\n"
-                + "  - do:\n"
-                + "      indices.get_mapping:\n"
-                + "        index: test_index\n"
-                + "        type: test_type\n"
-                + "\n"
-                + "  - match: {test_type.properties.text.type:     string}\n"
-                + "  - match: {test_type.properties.text.analyzer: whitespace}\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, testSpecBuilder + """
+            ---
+            "Get index mapping":
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+
+              - match: {test_index.test_type.properties.text.type:     string}
+              - match: {test_index.test_type.properties.text.analyzer: whitespace}
+
+            ---
+            "Get type mapping - pre 6.0":
+
+              - skip:
+                  version:     "6.0.0 - "
+                  reason:      "for newer versions the index name is always returned"
+
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -446,16 +448,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [warnings] section without a corresponding "
-                    + "[\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test "
-                    + "at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("""
+            api/name:
+            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] \
+            so runners that do not support the [warnings] section can skip the test at line [%d]\
+            """.formatted(lineNumber)));
     }
 
     public void testAddingDoWithWarningRegexWithoutSkipWarnings() {
@@ -465,16 +462,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [warnings_regex] section without a corresponding "
-                    + "[\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] section can "
-                    + "skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("""
+            api/name:
+            attempted to add a [do] with a [warnings_regex] section without a corresponding ["skip": "features": "warnings_regex"] \
+            so runners that do not support the [warnings_regex] section can skip the test at line [%d]\
+            """.formatted(lineNumber)));
     }
 
     public void testAddingDoWithAllowedWarningWithoutSkipAllowedWarnings() {
@@ -484,16 +476,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [allowed_warnings] "
-                    + "section without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not "
-                    + "support the [allowed_warnings] section can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("""
+            api/name:
+            attempted to add a [do] with a [allowed_warnings] section without a corresponding ["skip": "features": \
+            "allowed_warnings"] so runners that do not support the [allowed_warnings] section can skip the test at \
+            line [%d]\
+            """.formatted(lineNumber)));
     }
 
     public void testAddingDoWithAllowedWarningRegexWithoutSkipAllowedWarnings() {
@@ -503,16 +491,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [allowed_warnings_regex] "
-                    + "section without a corresponding [\"skip\": \"features\": \"allowed_warnings_regex\"] so runners that do not "
-                    + "support the [allowed_warnings_regex] section can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("""
+            api/name:
+            attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding ["skip": "features": \
+            "allowed_warnings_regex"] so runners that do not support the [allowed_warnings_regex] section can skip the test \
+            at line [%d]\
+            """.formatted(lineNumber)));
     }
 
     public void testAddingDoWithHeaderWithoutSkipHeaders() {
@@ -523,16 +507,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCallSection);
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [headers] section without a corresponding "
-                    + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the "
-                    + "test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("""
+            api/name:
+            attempted to add a [do] with a [headers] section without a corresponding ["skip": "features": "headers"] \
+            so runners that do not support the [headers] section can skip the test at line [%d]\
+            """.formatted(lineNumber)));
     }
 
     public void testAddingDoWithNodeSelectorWithoutSkipNodeSelector() {
@@ -543,16 +522,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCall);
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [do] with a [node_selector] section without a "
-                    + "corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the [node_selector] "
-                    + "section can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("""
+            api/name:
+            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] \
+            so runners that do not support the [node_selector] section can skip the test at line [%d]\
+            """.formatted(lineNumber)));
     }
 
     public void testAddingContainsWithoutSkipContains() {
@@ -564,16 +538,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         );
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, containsAssertion);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "api/name:\nattempted to add a [contains] assertion without a corresponding "
-                    + "[\"skip\": \"features\": \"contains\"] so runners that do not support the [contains] assertion "
-                    + "can skip the test at line ["
-                    + lineNumber
-                    + "]"
-            )
-        );
+        assertThat(e.getMessage(), containsString("""
+            api/name:
+            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] \
+            so runners that do not support the [contains] assertion can skip the test at line [%d]\
+            """.formatted(lineNumber)));
     }
 
     public void testMultipleValidationErrors() {
@@ -614,23 +583,16 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
         ClientYamlTestSuite testSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY, sections);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals(
-            "api/name:\n"
-                + "attempted to add a [contains] assertion without a corresponding [\"skip\": \"features\": \"contains\"] so runners "
-                + "that do not support the [contains] assertion can skip the test at line ["
-                + firstLineNumber
-                + "],\n"
-                + "attempted to add a [do] with a [warnings] section without a corresponding [\"skip\": \"features\": \"warnings\"] so "
-                + "runners that do not support the [warnings] section can skip the test at line ["
-                + secondLineNumber
-                + "],\n"
-                + "attempted to add a [do] with a [node_selector] section without a corresponding "
-                + "[\"skip\": \"features\": \"node_selector\"] "
-                + "so runners that do not support the [node_selector] section can skip the test at line ["
-                + thirdLineNumber
-                + "]",
-            e.getMessage()
-        );
+        assertEquals("""
+            api/name:
+            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] so runners that \
+            do not support the [contains] assertion can skip the test at line [%d],
+            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] so runners \
+            that do not support the [warnings] section can skip the test at line [%d],
+            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] so \
+            runners that do not support the [node_selector] section can skip the test \
+            at line [%d]\
+            """.formatted(firstLineNumber, secondLineNumber, thirdLineNumber), e.getMessage());
     }
 
     public void testAddingDoWithWarningWithSkip() {

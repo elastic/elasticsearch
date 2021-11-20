@@ -215,7 +215,7 @@ public class SearchResponseTests extends ESTestCase {
         }
     }
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
@@ -238,27 +238,26 @@ public class SearchResponseTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            StringBuilder expectedString = new StringBuilder();
-            expectedString.append("{");
-            {
-                expectedString.append("\"took\":0,");
-                expectedString.append("\"timed_out\":false,");
-                expectedString.append("\"_shards\":");
+            String expectedString = XContentHelper.stripWhitespace("""
                 {
-                    expectedString.append("{\"total\":0,");
-                    expectedString.append("\"successful\":0,");
-                    expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
-                }
-                expectedString.append("\"hits\":");
-                {
-                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
-                    expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
-                }
-            }
-            expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+                  "took": 0,
+                  "timed_out": false,
+                  "_shards": {
+                    "total": 0,
+                    "successful": 0,
+                    "skipped": 0,
+                    "failed": 0
+                  },
+                  "hits": {
+                    "total": {
+                      "value": 100,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                  }
+                }""");
+            assertEquals(expectedString, Strings.toString(response));
         }
         {
             SearchResponse response = new SearchResponse(
@@ -279,33 +278,31 @@ public class SearchResponseTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 new SearchResponse.Clusters(5, 3, 2)
             );
-            StringBuilder expectedString = new StringBuilder();
-            expectedString.append("{");
-            {
-                expectedString.append("\"took\":0,");
-                expectedString.append("\"timed_out\":false,");
-                expectedString.append("\"_shards\":");
+            String expectedString = XContentHelper.stripWhitespace("""
                 {
-                    expectedString.append("{\"total\":0,");
-                    expectedString.append("\"successful\":0,");
-                    expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
-                }
-                expectedString.append("\"_clusters\":");
-                {
-                    expectedString.append("{\"total\":5,");
-                    expectedString.append("\"successful\":3,");
-                    expectedString.append("\"skipped\":2},");
-                }
-                expectedString.append("\"hits\":");
-                {
-                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
-                    expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
-                }
-            }
-            expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+                  "took": 0,
+                  "timed_out": false,
+                  "_shards": {
+                    "total": 0,
+                    "successful": 0,
+                    "skipped": 0,
+                    "failed": 0
+                  },
+                  "_clusters": {
+                    "total": 5,
+                    "successful": 3,
+                    "skipped": 2
+                  },
+                  "hits": {
+                    "total": {
+                      "value": 100,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                  }
+                }""");
+            assertEquals(expectedString, Strings.toString(response));
         }
     }
 

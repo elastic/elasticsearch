@@ -151,179 +151,179 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"12mi\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12mi",
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"12mi\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":[-70, 40]\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12mi",
+                    "%s":[-70, 40]
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"12mi\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":\"40, -70\"\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12mi",
+                    "%s":"40, -70"
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"12mi\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":\"drn5x1g8cu2y\"\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12mi",
+                    "%s":"drn5x1g8cu2y"
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         GeoPoint geoPoint = GeoPoint.fromGeohash("drn5x1g8cu2y");
         assertGeoDistanceRangeQuery(query, geoPoint.getLat(), geoPoint.getLon(), 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":12,\n"
-            + "        \"unit\":\"mi\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":12,
+                    "unit":"mi",
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery6() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"12\",\n"
-            + "        \"unit\":\"mi\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12",
+                    "unit":"mi",
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery7() throws IOException {
-        String query = "{\n"
-            + "  \"geo_distance\":{\n"
-            + "      \"distance\":\"19.312128\",\n"
-            + "      \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "          \"lat\":40,\n"
-            + "          \"lon\":-70\n"
-            + "      }\n"
-            + "  }\n"
-            + "}\n";
+        String query = """
+            {
+              "geo_distance":{
+                  "distance":"19.312128",
+                  "%s":{
+                      "lat":40,
+                      "lon":-70
+                  }
+              }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.DEFAULT);
     }
 
     public void testParsingAndToQuery8() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":19.312128,\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":19.312128,
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.DEFAULT);
     }
 
     public void testParsingAndToQuery9() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"19.312128\",\n"
-            + "        \"unit\":\"km\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"19.312128",
+                    "unit":"km",
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery10() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":19.312128,\n"
-            + "        \"unit\":\"km\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":19.312128,
+                    "unit":"km",
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery11() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"19.312128km\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"19.312128km",
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 19.312128, DistanceUnit.KILOMETERS);
     }
 
     public void testParsingAndToQuery12() throws IOException {
-        String query = "{\n"
-            + "    \"geo_distance\":{\n"
-            + "        \"distance\":\"12mi\",\n"
-            + "        \"unit\":\"km\",\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"lat\":40,\n"
-            + "            \"lon\":-70\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12mi",
+                    "unit":"km",
+                    "%s":{
+                        "lat":40,
+                        "lon":-70
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
         assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 

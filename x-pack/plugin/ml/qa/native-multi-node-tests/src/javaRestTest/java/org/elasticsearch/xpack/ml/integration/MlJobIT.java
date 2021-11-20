@@ -207,38 +207,32 @@ public class MlJobIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 String aliasesResponse = getAliases();
-                assertThat(
-                    aliasesResponse,
-                    containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName) + "\":{\"aliases\":{")
-                );
-                assertThat(
-                    aliasesResponse,
-                    containsString(
-                        "\""
-                            + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
-                            + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\""
-                            + jobId1
-                            + "\",\"boost\":1.0}}},\"is_hidden\":true}"
-                    )
-                );
-                assertThat(
-                    aliasesResponse,
-                    containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1) + "\":{\"is_hidden\":true}")
-                );
+                assertThat(aliasesResponse, containsString("""
+                    "%s":{"aliases":{""".formatted(AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName))));
                 assertThat(
                     aliasesResponse,
                     containsString(
-                        "\""
-                            + AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)
-                            + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\""
-                            + jobId2
-                            + "\",\"boost\":1.0}}},\"is_hidden\":true}"
+                        """
+                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                            AnomalyDetectorsIndex.jobResultsAliasedName(jobId1),
+                            jobId1
+                        )
                     )
                 );
+                assertThat(aliasesResponse, containsString("""
+                    "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId1))));
                 assertThat(
                     aliasesResponse,
-                    containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2) + "\":{\"is_hidden\":true}")
+                    containsString(
+                        """
+                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                            AnomalyDetectorsIndex.jobResultsAliasedName(jobId2),
+                            jobId2
+                        )
+                    )
                 );
+                assertThat(aliasesResponse, containsString("""
+                    "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId2))));
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
@@ -256,28 +250,14 @@ public class MlJobIT extends ESRestTestCase {
         { // create jobId1 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1234", 300);
             Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(
-                String.format(
-                    Locale.ROOT,
-                    "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
-                    jobId1,
-                    "1234",
-                    1
-                )
-            );
+            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1234", 1));
             client().performRequest(createResultRequest);
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1236", 300);
             createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(
-                String.format(
-                    Locale.ROOT,
-                    "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
-                    jobId1,
-                    "1236",
-                    1
-                )
-            );
+            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1236", 1));
             client().performRequest(createResultRequest);
 
             refreshAllIndices();
@@ -296,28 +276,14 @@ public class MlJobIT extends ESRestTestCase {
         { // create jobId2 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1234", 300);
             Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(
-                String.format(
-                    Locale.ROOT,
-                    "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
-                    jobId2,
-                    "1234",
-                    1
-                )
-            );
+            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1234", 1));
             client().performRequest(createResultRequest);
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1236", 300);
             createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(
-                String.format(
-                    Locale.ROOT,
-                    "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
-                    jobId2,
-                    "1236",
-                    1
-                )
-            );
+            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
+                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1236", 1));
             client().performRequest(createResultRequest);
 
             refreshAllIndices();
@@ -593,9 +559,11 @@ public class MlJobIT extends ESRestTestCase {
         Request postDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         // Post data is deprecated, so expect a deprecation warning
         postDataRequest.setOptions(POST_DATA);
-        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"response_time\":100, \"time\":\"2019-07-01 00:00:00Z\" }");
+        postDataRequest.setJsonEntity("""
+            { "airline":"LOT", "response_time":100, "time":"2019-07-01 00:00:00Z" }""");
         client().performRequest(postDataRequest);
-        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"response_time\":100, \"time\":\"2019-07-01 02:00:00Z\" }");
+        postDataRequest.setJsonEntity("""
+            { "airline":"LOT", "response_time":100, "time":"2019-07-01 02:00:00Z" }""");
         client().performRequest(postDataRequest);
 
         Response flushResponse = client().performRequest(
@@ -758,44 +726,34 @@ public class MlJobIT extends ESRestTestCase {
         // Make the job's results span an extra two indices, i.e. three in total.
         // To do this the job's results alias needs to encompass all three indices.
         Request extraIndex1 = new Request("PUT", indexName + "-001");
-        extraIndex1.setJsonEntity(
-            "{\n"
-                + "    \"aliases\" : {\n"
-                + "        \""
-                + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-                + "\" : {\n"
-                + "            \"is_hidden\" : true,\n"
-                + "            \"filter\" : {\n"
-                + "                \"term\" : {\""
-                + Job.ID
-                + "\" : \""
-                + jobId
-                + "\" }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        extraIndex1.setJsonEntity("""
+            {
+              "aliases": {
+                "%s": {
+                  "is_hidden": true,
+                  "filter": {
+                    "term": {
+                      "%s": "%s"
+                    }
+                  }
+                }
+              }
+            }""".formatted(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
         client().performRequest(extraIndex1);
         Request extraIndex2 = new Request("PUT", indexName + "-002");
-        extraIndex2.setJsonEntity(
-            "{\n"
-                + "    \"aliases\" : {\n"
-                + "        \""
-                + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-                + "\" : {\n"
-                + "            \"is_hidden\" : true,\n"
-                + "            \"filter\" : {\n"
-                + "                \"term\" : {\""
-                + Job.ID
-                + "\" : \""
-                + jobId
-                + "\" }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
-        );
+        extraIndex2.setJsonEntity("""
+            {
+              "aliases": {
+                "%s": {
+                  "is_hidden": true,
+                  "filter": {
+                    "term": {
+                      "%s": "%s"
+                    }
+                  }
+                }
+              }
+            }""".formatted(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
         client().performRequest(extraIndex2);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -809,15 +767,8 @@ public class MlJobIT extends ESRestTestCase {
 
         // Add some documents to each index to make sure the DBQ clears them out
         Request createDoc0 = new Request("PUT", indexName + "/_doc/" + 123);
-        createDoc0.setJsonEntity(
-            String.format(
-                Locale.ROOT,
-                "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
-                jobId,
-                123,
-                1
-            )
-        );
+        createDoc0.setJsonEntity(String.format(Locale.ROOT, """
+            {"job_id":"%s", "timestamp": "%s", "bucket_span":%d, "result_type":"record"}""", jobId, 123, 1));
         client().performRequest(createDoc0);
         Request createDoc1 = new Request("PUT", indexName + "-001/_doc/" + 123);
         createDoc1.setEntity(createDoc0.getEntity());
@@ -956,12 +907,13 @@ public class MlJobIT extends ESRestTestCase {
             assertNull(recreationException.get().getMessage(), recreationException.get());
         }
 
-        String expectedReadAliasString = "\""
-            + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-            + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\""
-            + jobId
-            + "\",\"boost\":1.0}}},\"is_hidden\":true}";
-        String expectedWriteAliasString = "\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{\"is_hidden\":true}";
+        String expectedReadAliasString = """
+            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+            AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+            jobId
+        );
+        String expectedWriteAliasString = """
+            "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId));
         try {
             // The idea of the code above is that the deletion is sufficiently time-consuming that
             // all threads enter the deletion call before the first one exits it. Usually this happens,

@@ -361,17 +361,19 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("failed to register ILM history"));
-        assertThat(
-            historyItem.toString(),
-            containsString(
-                "{\"index\":\"test\",\"policy\":\"foo\",\"@timestamp\":"
-                    + stepTime
-                    + ",\"success\":true,\"state\":{\"phase\":\"phase\",\"action\":\"action\","
-                    + "\"step\":\"next_cluster_state_action_step\",\"step_time\":\""
-                    + stepTime
-                    + "\"}}"
-            )
-        );
+        assertThat(historyItem.toString(), containsString("""
+            {
+              "index": "test",
+              "policy": "foo",
+              "@timestamp": %s,
+              "success": true,
+              "state": {
+                "phase": "phase",
+                "action": "action",
+                "step": "next_cluster_state_action_step",
+                "step_time": "%s"
+              }
+            }""".formatted(stepTime, stepTime).replaceAll("\\s", "")));
     }
 
     public void testRunPeriodicPolicyWithFailureToReadPolicy() throws Exception {
@@ -556,13 +558,19 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("failed to register ILM history"));
-        assertThat(
-            historyItem.toString(),
-            containsString(
-                "{\"index\":\"test\",\"policy\":\"foo\",\"@timestamp\":0,\"success\":true,"
-                    + "\"state\":{\"phase\":\"phase\",\"action\":\"action\",\"step\":\"async_action_step\",\"step_time\":\"0\"}}"
-            )
-        );
+        assertThat(historyItem.toString(), containsString("""
+            {
+              "index": "test",
+              "policy": "foo",
+              "@timestamp": 0,
+              "success": true,
+              "state": {
+                "phase": "phase",
+                "action": "action",
+                "step": "async_action_step",
+                "step_time": "0"
+              }
+            }""".replaceAll("\\s", "")));
     }
 
     public void testRunPeriodicStep() throws Exception {
@@ -642,10 +650,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         final ExecuteStepsUpdateTaskMatcher taskMatcher = new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step);
         Mockito.verify(clusterService, Mockito.times(1))
             .submitStateUpdateTask(
-                Mockito.eq(
-                    "ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\","
-                        + "\"name\":\"cluster_state_action_step\"} => null]"
-                ),
+                Mockito.eq("""
+                    ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
                 any(),
@@ -672,10 +678,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         final ExecuteStepsUpdateTaskMatcher taskMatcher = new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step);
         Mockito.verify(clusterService, Mockito.times(1))
             .submitStateUpdateTask(
-                Mockito.eq(
-                    "ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\","
-                        + "\"name\":\"cluster_state_action_step\"} => null]"
-                ),
+                Mockito.eq("""
+                    ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
                 any(),

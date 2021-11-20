@@ -96,7 +96,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.startObject();
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"foo":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -104,7 +105,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"foo":{"test":"value"},"foo1":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -112,7 +114,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -121,10 +124,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(
-                Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}")
-            );
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"},"test1":"value1"}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -134,10 +135,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(
-                Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}")
-            );
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"},"foo1":{"test":"value"},"test1":"value1"}"""));
         }
     }
 
@@ -170,7 +169,8 @@ public class XContentBuilderTests extends ESTestCase {
         gen.close();
 
         String sData = bos.bytes().utf8ToString();
-        assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
+        assertThat(sData, equalTo("""
+            {"name":"something", source : { test : "value" },"name2":"something2"}"""));
     }
 
     public void testByteConversion() throws Exception {

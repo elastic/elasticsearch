@@ -876,28 +876,23 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        },"
-            + "        \""
-            + NUMERICAL_FEATURE_FIELD
-            + "\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        },"
-            + "        \""
-            + DISCRETE_NUMERICAL_FEATURE_FIELD
-            + "\": {\n"
-            + "          \"type\": \"unsigned_long\"\n"
-            + "        },"
-            + "        \""
-            + DEPENDENT_VARIABLE_FIELD
-            + "\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        }"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "%s": {
+                  "type": "double"
+                },
+                "%s": {
+                  "type": "unsigned_long"
+                },
+                "%s": {
+                  "type": "double"
+                }
+              }
+            }""".formatted(NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD);
         if (dataStream) {
             try {
                 createDataStreamAndTemplate(sourceIndex, mapping);

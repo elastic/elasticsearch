@@ -55,7 +55,10 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testSimpleBulkWithCarriageReturn() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} }\r\n{ \"field1\" : \"value1\" }\r\n";
+        String bulkAction = """
+            { "index":{"_index":"test","_id":"1"} }
+            { "field1" : "value1" }
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
@@ -198,9 +201,15 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkEmptyObject() throws Exception {
-        String bulkIndexAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} }\r\n";
-        String bulkIndexSource = "{ \"field1\" : \"value1\" }\r\n";
-        String emptyObject = "{}\r\n";
+        String bulkIndexAction = """
+            { "index":{"_index":"test","_id":"1"} }
+            """;
+        String bulkIndexSource = """
+            { "field1" : "value1" }
+            """;
+        String emptyObject = """
+            {}
+            """;
         StringBuilder bulk = new StringBuilder();
         int emptyLine;
         if (randomBoolean()) {
@@ -377,9 +386,9 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testInvalidDynamicTemplates() {
-        BytesArray deleteWithDynamicTemplates = new BytesArray(
-            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_templates\":{\"baz\":\"t1\"}} }\n"
-        );
+        BytesArray deleteWithDynamicTemplates = new BytesArray("""
+            {"delete" : { "_index" : "test", "_id" : "2", "dynamic_templates":{"baz":"t1"}} }
+            """);
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
             () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON)
@@ -452,7 +461,9 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testUnsupportedAction() throws Exception {
-        String bulkAction = "{ \"get\":{\"_index\":\"test\",\"_id\":\"1\"} }\n";
+        String bulkAction = """
+            { "get":{"_index":"test","_id":"1"} }
+            """;
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
 

@@ -250,7 +250,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testDefaultFieldParsing() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
-        String contentString = "{\n" + "    \"simple_query_string\" : {\n" + "      \"query\" : \"" + query + "\"" + "    }\n" + "}";
+        String contentString = """
+            {
+              "simple_query_string": {
+                "query": "%s"
+              }
+            }""".formatted(query);
         SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());

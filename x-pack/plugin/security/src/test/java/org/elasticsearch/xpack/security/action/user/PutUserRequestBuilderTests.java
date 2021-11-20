@@ -162,7 +162,11 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     public void testWithValidPasswordHash() throws IOException {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = "{\n" + "    \"password_hash\": \"" + new String(hash) + "\"," + "    \"roles\": []\n" + "}";
+        final String json = """
+            {
+              "password_hash": "%s",
+              "roles": []
+            }""".formatted(new String(hash));
 
         PutUserRequestBuilder requestBuilder = new PutUserRequestBuilder(mock(Client.class));
         PutUserRequest request = requestBuilder.source(
@@ -182,7 +186,11 @@ public class PutUserRequestBuilderTests extends ESTestCase {
             userHasher = getFastStoredHashAlgoForTests();
         }
         final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = "{\n" + "    \"password_hash\": \"" + new String(hash) + "\"," + "    \"roles\": []\n" + "}";
+        final String json = """
+            {
+              "password_hash": "%s",
+              "roles": []
+            }""".formatted(new String(hash));
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         final IllegalArgumentException ex = expectThrows(
@@ -200,7 +208,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         final Hasher systemHasher = Hasher.PBKDF2;
         final String json = """
             {
-                "password_hash": "not-a-hash",    "roles": []
+              "password_hash": "not-a-hash",
+              "roles": []
             }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));

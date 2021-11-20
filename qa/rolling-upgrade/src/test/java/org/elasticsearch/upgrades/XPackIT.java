@@ -60,7 +60,8 @@ public class XPackIT extends AbstractRollingTestCase {
         Request sql = new Request("POST", "/_sql");
         sql.setJsonEntity("{\"query\": \"SELECT * FROM sql_test WHERE f > 1 ORDER BY f ASC\"}");
         String response = EntityUtils.toString(client().performRequest(sql).getEntity());
-        assertEquals("{\"columns\":[{\"name\":\"f\",\"type\":\"text\"}],\"rows\":[[\"2\"]]}", response);
+        assertEquals("""
+            {"columns":[{"name":"f","type":"text"}],"rows":[["2"]]}""", response);
     }
 
     /**

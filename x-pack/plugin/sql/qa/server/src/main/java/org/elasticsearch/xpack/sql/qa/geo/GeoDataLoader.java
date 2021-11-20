@@ -45,16 +45,26 @@ public class GeoDataLoader {
     protected static void loadOGCDatasetIntoEs(RestClient client, String index) throws Exception {
         createIndex(client, index, createOGCIndexRequest());
         loadData(client, index, readResource("/ogc/ogc.json"));
-        makeFilteredAlias(client, "lakes", index, "\"term\" : { \"ogc_type\" : \"lakes\" }");
-        makeFilteredAlias(client, "road_segments", index, "\"term\" : { \"ogc_type\" : \"road_segments\" }");
-        makeFilteredAlias(client, "divided_routes", index, "\"term\" : { \"ogc_type\" : \"divided_routes\" }");
-        makeFilteredAlias(client, "forests", index, "\"term\" : { \"ogc_type\" : \"forests\" }");
-        makeFilteredAlias(client, "bridges", index, "\"term\" : { \"ogc_type\" : \"bridges\" }");
-        makeFilteredAlias(client, "streams", index, "\"term\" : { \"ogc_type\" : \"streams\" }");
-        makeFilteredAlias(client, "buildings", index, "\"term\" : { \"ogc_type\" : \"buildings\" }");
-        makeFilteredAlias(client, "ponds", index, "\"term\" : { \"ogc_type\" : \"ponds\" }");
-        makeFilteredAlias(client, "named_places", index, "\"term\" : { \"ogc_type\" : \"named_places\" }");
-        makeFilteredAlias(client, "map_neatlines", index, "\"term\" : { \"ogc_type\" : \"map_neatlines\" }");
+        makeFilteredAlias(client, "lakes", index, """
+            "term" : { "ogc_type" : "lakes" }""");
+        makeFilteredAlias(client, "road_segments", index, """
+            "term" : { "ogc_type" : "road_segments" }""");
+        makeFilteredAlias(client, "divided_routes", index, """
+            "term" : { "ogc_type" : "divided_routes" }""");
+        makeFilteredAlias(client, "forests", index, """
+            "term" : { "ogc_type" : "forests" }""");
+        makeFilteredAlias(client, "bridges", index, """
+            "term" : { "ogc_type" : "bridges" }""");
+        makeFilteredAlias(client, "streams", index, """
+            "term" : { "ogc_type" : "streams" }""");
+        makeFilteredAlias(client, "buildings", index, """
+            "term" : { "ogc_type" : "buildings" }""");
+        makeFilteredAlias(client, "ponds", index, """
+            "term" : { "ogc_type" : "ponds" }""");
+        makeFilteredAlias(client, "named_places", index, """
+            "term" : { "ogc_type" : "named_places" }""");
+        makeFilteredAlias(client, "map_neatlines", index, """
+            "term" : { "ogc_type" : "map_neatlines" }""");
     }
 
     private static String createOGCIndexRequest() throws Exception {

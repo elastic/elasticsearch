@@ -83,7 +83,8 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
             1,
             -1,
             true,
-            new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+            new BytesArray("""
+                { "field1" : "value1", "field2":"value2"}"""),
             singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
             null
         );

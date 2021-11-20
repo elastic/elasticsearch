@@ -83,7 +83,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             try {
                 Request createIndex = new Request("PUT", "/test");
                 int numberOfShards = randomIntBetween(1, 3);
-                createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\": " + numberOfShards + "}}");
+                createIndex.setJsonEntity("""
+                    {"settings":{"number_of_shards": %d}}
+                    """.formatted(numberOfShards));
                 oldEs.performRequest(createIndex);
 
                 for (int i = 0; i < numDocs; i++) {
@@ -97,7 +99,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 // register repo on old ES and take snapshot
                 Request createRepoRequest = new Request("PUT", "/_snapshot/testrepo");
-                createRepoRequest.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoLocation + "\"}}");
+                createRepoRequest.setJsonEntity("""
+                    {"type":"fs","settings":{"location":"%s"}}
+                    """.formatted(repoLocation));
                 oldEs.performRequest(createRepoRequest);
 
                 Request createSnapshotRequest = new Request("PUT", "/_snapshot/testrepo/snap1");

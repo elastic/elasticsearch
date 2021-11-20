@@ -215,7 +215,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
+        assertEquals("""
+            {"_id":"id1","_score":1.5}""", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {

@@ -278,17 +278,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testDateRangeQueryFormat() throws IOException {
         // We test 01/01/2012 from gte and 2030 for lt
-        String query = "{\n"
-            + "    \"range\" : {\n"
-            + "        \""
-            + DATE_FIELD_NAME
-            + "\" : {\n"
-            + "            \"gte\": \"01/01/2012\",\n"
-            + "            \"lt\": \"2030\",\n"
-            + "            \"format\": \"dd/MM/yyyy||yyyy\"\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String query = """
+            {
+                "range" : {
+                    "%s" : {
+                        "gte": "01/01/2012",
+                        "lt": "2030",
+                        "format": "dd/MM/yyyy||yyyy"
+                    }
+                }
+            }""".formatted(DATE_FIELD_NAME);
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -304,31 +303,30 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         );
 
         // Test Invalid format
-        final String invalidQuery = "{\n"
-            + "    \"range\" : {\n"
-            + "        \""
-            + DATE_FIELD_NAME
-            + "\" : {\n"
-            + "            \"gte\": \"01/01/2012\",\n"
-            + "            \"lt\": \"2030\",\n"
-            + "            \"format\": \"yyyy\"\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        final String invalidQuery = """
+            {
+                "range" : {
+                    "%s" : {
+                        "gte": "01/01/2012",
+                        "lt": "2030",
+                        "format": "yyyy"
+                    }
+                }
+            }""".formatted(DATE_FIELD_NAME);
         expectThrows(ElasticsearchParseException.class, () -> parseQuery(invalidQuery).toQuery(createSearchExecutionContext()));
     }
 
     public void testDateRangeBoundaries() throws IOException {
-        String query = "{\n"
-            + "    \"range\" : {\n"
-            + "        \""
-            + DATE_FIELD_NAME
-            + "\" : {\n"
-            + "            \"gte\": \"2014-11-05||/M\",\n"
-            + "            \"lte\": \"2014-12-08||/d\"\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+                "range" : {
+                    "%s" : {
+                        "gte": "2014-11-05||/M",
+                        "lte": "2014-12-08||/d"
+                    }
+                }
+            }
+            """.formatted(DATE_FIELD_NAME);
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -342,16 +340,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             parsedQuery
         );
 
-        query = "{\n"
-            + "    \"range\" : {\n"
-            + "        \""
-            + DATE_FIELD_NAME
-            + "\" : {\n"
-            + "            \"gt\": \"2014-11-05||/M\",\n"
-            + "            \"lt\": \"2014-12-08||/d\"\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        query = """
+            {
+                "range" : {
+                    "%s" : {
+                        "gt": "2014-11-05||/M",
+                        "lt": "2014-12-08||/d"
+                    }
+                }
+            }""".formatted(DATE_FIELD_NAME);
         parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -367,17 +364,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeQueryTimezone() throws IOException {
-        String query = "{\n"
-            + "    \"range\" : {\n"
-            + "        \""
-            + DATE_FIELD_NAME
-            + "\" : {\n"
-            + "            \"gte\": \"2012-01-01\",\n"
-            + "            \"lte\": \"now\",\n"
-            + "            \"time_zone\": \"+01:00\"\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String query = """
+            {
+                "range" : {
+                    "%s" : {
+                        "gte": "2012-01-01",
+                        "lte": "now",
+                        "time_zone": "+01:00"
+                    }
+                }
+            }""".formatted(DATE_FIELD_NAME);
         SearchExecutionContext context = createSearchExecutionContext();
         Query parsedQuery = parseQuery(query).toQuery(context);
         assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
@@ -387,17 +383,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         // TODO what else can we assert
 
-        query = "{\n"
-            + "    \"range\" : {\n"
-            + "        \""
-            + INT_FIELD_NAME
-            + "\" : {\n"
-            + "            \"gte\": \"0\",\n"
-            + "            \"lte\": \"100\",\n"
-            + "            \"time_zone\": \"-01:00\"\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        query = """
+            {
+                "range" : {
+                    "%s" : {
+                        "gte": "0",
+                        "lte": "100",
+                        "time_zone": "-01:00"
+                    }
+                }
+            }""".formatted(INT_FIELD_NAME);
         QueryBuilder queryBuilder = parseQuery(query);
         queryBuilder.toQuery(createSearchExecutionContext()); // no exception
     }
@@ -562,19 +557,18 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testParseFailsWithMultipleFieldsWhenOneIsDate() {
-        String json = "{\n"
-            + "    \"range\": {\n"
-            + "      \"age\": {\n"
-            + "        \"gte\": 30,\n"
-            + "        \"lte\": 40\n"
-            + "      },\n"
-            + "      \""
-            + DATE_FIELD_NAME
-            + "\": {\n"
-            + "        \"gte\": \"2016-09-13 05:01:14\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String json = """
+            {
+              "range": {
+                "age": {
+                  "gte": 30,
+                  "lte": 40
+                },
+                "%s": {
+                  "gte": "2016-09-13 05:01:14"
+                }
+              }
+            }""".formatted(DATE_FIELD_NAME);
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[range] query doesn't support multiple fields, found [age] and [" + DATE_FIELD_NAME + "]", e.getMessage());
     }
@@ -582,13 +576,14 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     public void testParseRelation() {
         String json = """
             {
-                "range": {
-                  "age": {
-                    "gte": 30,
-                    "lte": 40,
-                    "relation": "disjoint"
-                  }    }
-              }""";
+              "range": {
+                "age": {
+                  "gte": 30,
+                  "lte": 40,
+                  "relation": "disjoint"
+                }
+              }
+            }""";
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
         assertEquals("[range] query does not support relation [disjoint]", e1.getMessage());

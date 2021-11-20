@@ -38,15 +38,12 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     protected Map<String, WildcardQueryBuilder> getAlternateVersions() {
         Map<String, WildcardQueryBuilder> alternateVersions = new HashMap<>();
         WildcardQueryBuilder wildcardQuery = randomWildcardQuery();
-        String contentString = "{\n"
-            + "    \"wildcard\" : {\n"
-            + "        \""
-            + wildcardQuery.fieldName()
-            + "\" : \""
-            + wildcardQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = """
+            {
+                "wildcard" : {
+                    "%s" : "%s"
+                }
+            }""".formatted(wildcardQuery.fieldName(), wildcardQuery.value());
         alternateVersions.put(contentString, wildcardQuery);
         return alternateVersions;
     }

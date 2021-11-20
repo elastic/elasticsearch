@@ -885,27 +885,25 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testTimezone() throws Exception {
-        String queryAsString = "{\n"
-            + "    \"query_string\":{\n"
-            + "        \"time_zone\":\"Europe/Paris\",\n"
-            + "        \"query\":\""
-            + DATE_FIELD_NAME
-            + ":[2012 TO 2014]\"\n"
-            + "    }\n"
-            + "}";
+        String queryAsString = """
+            {
+                "query_string":{
+                    "time_zone":"Europe/Paris",
+                    "query":"%s:[2012 TO 2014]"
+                }
+            }""".formatted(DATE_FIELD_NAME);
         QueryBuilder queryBuilder = parseQuery(queryAsString);
         assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
         assertThat(queryStringQueryBuilder.timeZone(), equalTo(ZoneId.of("Europe/Paris")));
 
-        String invalidQueryAsString = "{\n"
-            + "    \"query_string\":{\n"
-            + "        \"time_zone\":\"This timezone does not exist\",\n"
-            + "        \"query\":\""
-            + DATE_FIELD_NAME
-            + ":[2012 TO 2014]\"\n"
-            + "    }\n"
-            + "}";
+        String invalidQueryAsString = """
+            {
+                "query_string":{
+                    "time_zone":"This timezone does not exist",
+                    "query":"%s:[2012 TO 2014]"
+                }
+            }""".formatted(DATE_FIELD_NAME);
         expectThrows(DateTimeException.class, () -> parseQuery(invalidQueryAsString));
     }
 

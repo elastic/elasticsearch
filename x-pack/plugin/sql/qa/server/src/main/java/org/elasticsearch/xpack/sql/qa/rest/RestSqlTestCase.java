@@ -301,10 +301,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
-        bulk.append("{\"name\":\"test\", \"score\":10}\n");
-        request.setJsonEntity(bulk.toString());
+        String bulk = """
+            {"index":{"_id":"1"}}
+            {"name":"test", "score":10}
+            """;
+        request.setJsonEntity(bulk);
         provisioningClient().performRequest(request);
 
         Map<String, Object> expected = new HashMap<>();
@@ -730,9 +731,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         String expected = "";
         if (columnar) {
-            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"values\":[[\"test1\",\"test2\"]]}";
+            expected = """
+                {"columns":[{"name":"test1","type":"text"}],"values":[["test1","test2"]]}""";
         } else {
-            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"rows\":[[\"test1\"],[\"test2\"]]}";
+            expected = """
+                {"columns":[{"name":"test1","type":"text"}],"rows":[["test1"],["test2"]]}""";
         }
         executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
     }
@@ -1152,7 +1155,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         int size = 20;
         String[] docs = new String[size];
         for (int i = 0; i < size; i++) {
-            docs[i] = "{\"text\":\"text" + i + "\", \"number\":" + i + "}\n";
+            docs[i] = """
+                {"text":"text%s", "number":%s}
+                """.formatted(i, i);
         }
         index(docs);
 
@@ -1207,8 +1212,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
-            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
+            bulk.append("""
+                {"index":{"_id":"%s"}}
+                {"text":"text%s", "number":%s}
+                """.formatted(i, i, i));
         }
         request.setJsonEntity(bulk.toString());
         provisioningClient().performRequest(request);

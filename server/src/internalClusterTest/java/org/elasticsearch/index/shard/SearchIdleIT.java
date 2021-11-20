@@ -78,7 +78,8 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("""
+            {"foo" : "bar"}""", XContentType.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
         boolean hasRefreshed = shard.scheduledRefresh();
@@ -109,21 +110,19 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            client().prepareIndex("test")
-                .setId("" + i)
-                .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
-                .execute(new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse indexResponse) {
-                        indexingDone.countDown();
-                    }
+            client().prepareIndex("test").setId("" + i).setSource("""
+                {"foo" : "bar"}""", XContentType.JSON).execute(new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    indexingDone.countDown();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        indexingDone.countDown();
-                        throw new AssertionError(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    indexingDone.countDown();
+                    throw new AssertionError(e);
+                }
+            });
         }
         indexingDone.await();
         t.join();
@@ -135,7 +134,8 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", builder.build());
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("""
+            {"foo" : "bar"}""", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
@@ -143,7 +143,8 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // async on purpose to make sure it happens concurrently
         client().admin().indices().prepareRefresh().execute(ActionListener.wrap(refreshLatch::countDown));
         assertHitCount(client().prepareSearch().get(), 1);
-        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("""
+            {"foo" : "bar"}""", XContentType.JSON).get();
         assertFalse(shard.scheduledRefresh());
         assertTrue(shard.hasRefreshPending());
 
@@ -162,7 +163,8 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
-        client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("""
+            {"foo" : "bar"}""", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());

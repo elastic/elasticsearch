@@ -205,25 +205,21 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             logger.info("params={}", mapAsJson);
 
             Request searchRequest = new Request("GET", "/painless/_search");
-            searchRequest.setJsonEntity(
-                "{\n"
-                    + "    \"query\" : {\n"
-                    + "        \"match_all\": {}\n"
-                    + "    },\n"
-                    + "    \"script_fields\" : {\n"
-                    + "        \"domain_split\" : {\n"
-                    + "            \"script\" : {\n"
-                    + "                \"lang\": \"painless\",\n"
-                    + "                \"source\": \""
-                    + " return domainSplit(params['host']); \",\n"
-                    + "                \"params\": "
-                    + mapAsJson
-                    + "\n"
-                    + "            }\n"
-                    + "        }\n"
-                    + "    }\n"
-                    + "}"
-            );
+            searchRequest.setJsonEntity("""
+                {
+                    "query" : {
+                        "match_all": {}
+                    },
+                    "script_fields" : {
+                        "domain_split" : {
+                            "script" : {
+                                "lang": "painless",
+                                "source": " return domainSplit(params['host']); ",
+                                "params": %s
+                            }
+                        }
+                    }
+                }""".formatted(mapAsJson));
             String responseBody = EntityUtils.toString(client().performRequest(searchRequest).getEntity());
             Matcher m = pattern.matcher(responseBody);
 
@@ -290,11 +286,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
-        createIndex(
-            "painless",
-            settings.build(),
-            "\"properties\": { \"domain\": { \"type\": \"keyword\" }," + "\"time\": { \"type\": \"date\" } }"
-        );
+        createIndex("painless", settings.build(), """
+            "properties": { "domain": { "type": "keyword" },"time": { "type": "date" } }""");
 
         // Index some data
         ZonedDateTime baseTime = ZonedDateTime.now(ZoneOffset.UTC).minusYears(1);
@@ -312,13 +305,17 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
                     Request createDocRequest = new Request("POST", "/painless/_doc");
-                    createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + formattedTime + "\"}");
+                    createDocRequest.setJsonEntity("""
+                        {"domain": "bar.bar.com", "time": "%s"}
+                        """.formatted(formattedTime));
                     client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
                 Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime);
-                createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + formattedTime + "\"}");
+                createDocRequest.setJsonEntity("""
+                    {"domain": "%s", "time": "%s"}
+                    """.formatted(test.hostName, formattedTime));
                 client().performRequest(createDocRequest);
             }
         }

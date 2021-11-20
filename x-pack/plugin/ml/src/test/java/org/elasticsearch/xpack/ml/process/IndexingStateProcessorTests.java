@@ -86,8 +86,12 @@ public class IndexingStateProcessorTests extends ESTestCase {
     }
 
     public void testExtractDocId() throws IOException {
-        assertThat(IndexingStateProcessor.extractDocId("{ \"index\": {\"_index\": \"test\", \"_id\": \"1\" } }\n"), equalTo("1"));
-        assertThat(IndexingStateProcessor.extractDocId("{ \"index\": {\"_id\": \"2\" } }\n"), equalTo("2"));
+        assertThat(IndexingStateProcessor.extractDocId("""
+            { "index": {"_index": "test", "_id": "1" } }
+            """), equalTo("1"));
+        assertThat(IndexingStateProcessor.extractDocId("""
+            { "index": {"_id": "2" } }
+            """), equalTo("2"));
     }
 
     private void testStateRead(SearchHits searchHits, String expectedIndexOrAlias) throws IOException {

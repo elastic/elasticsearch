@@ -26,27 +26,24 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testEmbeddedObject() throws IOException {
 
-        assertXContentMatches(
-            "{\"test\":{\"with\":{\"dots\":{\"field\":\"value\"}}},\"nodots\":\"value2\"}",
-            "{\"test.with.dots\":{\"field\":\"value\"},\"nodots\":\"value2\"}"
-        );
+        assertXContentMatches("""
+            {"test":{"with":{"dots":{"field":"value"}}},"nodots":"value2"}""", """
+            {"test.with.dots":{"field":"value"},"nodots":"value2"}""");
     }
 
     public void testEmbeddedArray() throws IOException {
 
-        assertXContentMatches(
-            "{\"test\":{\"with\":{\"dots\":[\"field\",\"value\"]}},\"nodots\":\"value2\"}",
-            "{\"test.with.dots\":[\"field\",\"value\"],\"nodots\":\"value2\"}"
-        );
+        assertXContentMatches("""
+            {"test":{"with":{"dots":["field","value"]}},"nodots":"value2"}""", """
+            {"test.with.dots":["field","value"],"nodots":"value2"}""");
 
     }
 
     public void testEmbeddedValue() throws IOException {
 
-        assertXContentMatches(
-            "{\"test\":{\"with\":{\"dots\":\"value\"}},\"nodots\":\"value2\"}",
-            "{\"test.with.dots\":\"value\",\"nodots\":\"value2\"}"
-        );
+        assertXContentMatches("""
+            {"test":{"with":{"dots":"value"}},"nodots":"value2"}""", """
+            {"test.with.dots":"value","nodots":"value2"}""");
 
     }
 
@@ -76,9 +73,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     }
 
     public void testNestedExpansions() throws IOException {
-        assertXContentMatches(
-            "{\"first\":{\"dot\":{\"second\":{\"dot\":\"value\"},\"third\":\"value\"}},\"nodots\":\"value\"}",
-            "{\"first.dot\":{\"second.dot\":\"value\",\"third\":\"value\"},\"nodots\":\"value\"}"
-        );
+        assertXContentMatches("""
+            {"first":{"dot":{"second":{"dot":"value"},"third":"value"}},"nodots":"value"}""", """
+            {"first.dot":{"second.dot":"value","third":"value"},"nodots":"value"}""");
     }
 }

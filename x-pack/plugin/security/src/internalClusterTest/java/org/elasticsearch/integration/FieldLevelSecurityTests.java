@@ -430,16 +430,10 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testPercolateQueryWithIndexedDocWithFLS() {
         assertAcked(client().admin().indices().prepareCreate("query_index").setMapping("query", "type=percolator", "field2", "type=text"));
         assertAcked(client().admin().indices().prepareCreate("doc_index").setMapping("field2", "type=text", "field1", "type=text"));
-        client().prepareIndex("query_index")
-            .setId("1")
-            .setSource("{\"query\": {\"match\": {\"field2\": \"bonsai tree\"}}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("doc_index")
-            .setId("1")
-            .setSource("{\"field1\": \"value1\", \"field2\": \"A new bonsai tree in the office\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("query_index").setId("1").setSource("""
+            {"query": {"match": {"field2": "bonsai tree"}}}""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("doc_index").setId("1").setSource("""
+            {"field1": "value1", "field2": "A new bonsai tree in the office"}""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         QueryBuilder percolateQuery = new PercolateQueryBuilder("query", "doc_index", "1", null, null, null);
         // user7 sees everything
         SearchResponse result = client().filterWithHeader(
@@ -478,30 +472,47 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testGeoQueryWithIndexedShapeWithFLS() {
         assertAcked(client().admin().indices().prepareCreate("search_index").setMapping("field", "type=shape", "other", "type=shape"));
         assertAcked(client().admin().indices().prepareCreate("shape_index").setMapping("field", "type=shape", "other", "type=shape"));
-        client().prepareIndex("search_index")
-            .setId("1")
-            .setSource("{\"field\": {\"type\": \"point\", \"coordinates\":[1, 1]}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("search_index")
-            .setId("2")
-            .setSource("{\"other\": {\"type\": \"point\", \"coordinates\":[1, 1]}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("shape_index")
-            .setId("1")
-            .setSource(
-                "{\"field\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}, "
-                    + "\"field2\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
-                XContentType.JSON
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("shape_index")
-            .setId("2")
-            .setSource("{\"other\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("search_index").setId("1").setSource("""
+            {
+              "field": {
+                "type": "point",
+                "coordinates": [ 1, 1 ]
+              }
+            }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("search_index").setId("2").setSource("""
+            {
+              "other": {
+                "type": "point",
+                "coordinates": [ 1, 1 ]
+              }
+            }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("shape_index").setId("1").setSource("""
+            {
+                "field": {
+                  "type": "envelope",
+                  "coordinates": [
+                    [ 0, 2 ],
+                    [ 2, 0 ]
+                  ]
+                },
+                "field2": {
+                  "type": "envelope",
+                  "coordinates": [
+                    [ 0, 2 ],
+                    [ 2, 0 ]
+                  ]
+                }
+              }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("shape_index").setId("2").setSource("""
+            {
+              "other": {
+                "type": "envelope",
+                "coordinates": [
+                  [ 0, 2 ],
+                  [ 2, 0 ]
+                ]
+              }
+            }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse result;
         // user sees both the querying shape and the queried point
         SearchRequestBuilder requestBuilder = client().filterWithHeader(

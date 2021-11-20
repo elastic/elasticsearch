@@ -85,8 +85,8 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testFailWithUnknownKey() {
         final String requestContent = """
-            {"index":"test", "ignore_unavailable" : true, "unknown_key" : "open,closed"}}\r
-            {"query" : {"match_all" :{}}}\r
+            {"index":"test", "ignore_unavailable" : true, "unknown_key" : "open,closed"}}
+            {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
@@ -101,8 +101,8 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testSimpleAddWithCarriageReturn() throws Exception {
         final String requestContent = """
-            {"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}}\r
-            {"query" : {"match_all" :{}}}\r
+            {"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}}
+            {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
@@ -119,8 +119,8 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testDefaultIndicesOptions() throws IOException {
         final String requestContent = """
-            {"index":"test", "expand_wildcards" : "open,closed"}}\r
-            {"query" : {"match_all" :{}}}\r
+            {"index":"test", "expand_wildcards" : "open,closed"}}
+            {"query" : {"match_all" :{}}}
             """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
@@ -184,7 +184,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         }
     }
 
-    public void testResponseErrorToXContent() {
+    public void testResponseErrorToXContent() throws IOException {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
             new MultiSearchResponse.Item[] {
@@ -193,21 +193,28 @@ public class MultiSearchRequestTests extends ESTestCase {
             tookInMillis
         );
 
-        assertEquals(
-            "{\"took\":"
-                + tookInMillis
-                + ",\"responses\":["
-                + "{"
-                + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],"
-                + "\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"},\"status\":500"
-                + "},"
-                + "{"
-                + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],"
-                + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
-                + "}"
-                + "]}",
-            Strings.toString(response)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "took": %s,
+              "responses": [
+                {
+                  "error": {
+                    "root_cause": [ { "type": "illegal_state_exception", "reason": "foobar" } ],
+                    "type": "illegal_state_exception",
+                    "reason": "foobar"
+                  },
+                  "status": 500
+                },
+                {
+                  "error": {
+                    "root_cause": [ { "type": "illegal_state_exception", "reason": "baaaaaazzzz" } ],
+                    "type": "illegal_state_exception",
+                    "reason": "baaaaaazzzz"
+                  },
+                  "status": 500
+                }
+              ]
+            }""".formatted(tookInMillis)), Strings.toString(response));
     }
 
     public void testMaxConcurrentSearchRequests() {

@@ -66,17 +66,17 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity(
-            "{" + "  \"indices\" : [" + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"read\"] }" + "  ]" + "}"
-        );
+        request.setJsonEntity("""
+            {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
+            """.formatted(index));
         client().performRequest(request);
     }
 
     private void setupFullAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity(
-            "{" + "  \"indices\" : [" + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"all\"] }" + "  ]" + "}"
-        );
+        request.setJsonEntity("""
+            {  "indices" : [    { "names": ["%s"], "privileges": ["all"] }  ]}
+            """.formatted(index));
         client().performRequest(request);
     }
 
@@ -84,16 +84,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity(
-            "{"
-                + "  \"password\" : \""
-                + password
-                + "\","
-                + "  \"roles\" : [ "
-                + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))
-                + " ]"
-                + "}"
-        );
+        request.setJsonEntity("""
+            { "password" : "%s", "roles" : [ %s ]}
+            """.formatted(password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 
@@ -113,134 +106,190 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         StringBuilder bulk = new StringBuilder();
 
         Request createEmptyAirlineDataRequest = new Request("PUT", "/airline-data-empty");
-        createEmptyAirlineDataRequest.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "      \"airline\": { \"type\":\"keyword\"},"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        // space in 'time stamp' is intentional
+        createEmptyAirlineDataRequest.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time stamp": {
+                    "type": "date"
+                  },
+                  "airline": {
+                    "type": "keyword"
+                  },
+                  "responsetime": {
+                    "type": "float"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createEmptyAirlineDataRequest);
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"runtime\": {"
-                + "      \"airline_lowercase_rt\": { "
-                + "        \"type\":\"keyword\","
-                + "        \"script\" : { \"source\": \"emit(params._source.airline.toLowerCase())\" }"
-                + "      }"
-                + "    },"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "      \"airline\": {"
-                + "        \"type\":\"text\","
-                + "        \"fields\":{"
-                + "          \"text\":{\"type\":\"text\"},"
-                + "          \"keyword\":{\"type\":\"keyword\"}"
-                + "         }"
-                + "       },"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        // space in 'time stamp' is intentional
+        createAirlineDataRequest.setJsonEntity("""
+            {
+              "mappings": {
+                "runtime": {
+                  "airline_lowercase_rt": {
+                    "type": "keyword",
+                    "script": {
+                      "source": "emit(params._source.airline.toLowerCase())"
+                    }
+                  }
+                },
+                "properties": {
+                  "time stamp": {
+                    "type": "date"
+                  },
+                  "airline": {
+                    "type": "text",
+                    "fields": {
+                      "text": {
+                        "type": "text"
+                      },
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "responsetime": {
+                    "type": "float"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createAirlineDataRequest);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
+        bulk.append("""
+            {"index": {"_index": "airline-data", "_id": 1}}
+            {"time stamp":"2016-06-01T00:00:00Z","airline":"AAA","responsetime":135.22}
+            {"index": {"_index": "airline-data", "_id": 2}}
+            {"time stamp":"2016-06-01T01:59:00Z","airline":"AAA","responsetime":541.76}
+            """);
 
         // Create index with source = enabled, doc_values = disabled (except time), stored = false
         Request createAirlineDataDisabledDocValues = new Request("PUT", "/airline-data-disabled-doc-values");
-        createAirlineDataDisabledDocValues.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\"},"
-                + "      \"airline\": { \"type\":\"keyword\", \"doc_values\":false},"
-                + "      \"responsetime\": { \"type\":\"float\", \"doc_values\":false}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        createAirlineDataDisabledDocValues.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time stamp": {
+                    "type": "date"
+                  },
+                  "airline": {
+                    "type": "keyword",
+                    "doc_values": false
+                  },
+                  "responsetime": {
+                    "type": "float",
+                    "doc_values": false
+                  }
+                }
+              }
+            }""");
         client().performRequest(createAirlineDataDisabledDocValues);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-doc-values\", \"_id\": 1}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-doc-values\", \"_id\": 2}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
+        bulk.append("""
+            {"index": {"_index": "airline-data-disabled-doc-values", "_id": 1}}
+            {"time stamp":"2016-06-01T00:00:00Z","airline":"AAA","responsetime":135.22}
+            {"index": {"_index": "airline-data-disabled-doc-values", "_id": 2}}
+            {"time stamp":"2016-06-01T01:59:00Z","airline":"AAA","responsetime":541.76}
+            """);
 
         // Create index with source = disabled, doc_values = enabled (except time), stored = true
         Request createAirlineDataDisabledSource = new Request("PUT", "/airline-data-disabled-source");
-        createAirlineDataDisabledSource.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"_source\":{\"enabled\":false},"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\", \"store\":true},"
-                + "      \"airline\": { \"type\":\"keyword\", \"store\":true},"
-                + "      \"responsetime\": { \"type\":\"float\", \"store\":true}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        createAirlineDataDisabledSource.setJsonEntity("""
+            {
+              "mappings": {
+                "_source": {
+                  "enabled": false
+                },
+                "properties": {
+                  "time stamp": {
+                    "type": "date",
+                    "store": true
+                  },
+                  "airline": {
+                    "type": "keyword",
+                    "store": true
+                  },
+                  "responsetime": {
+                    "type": "float",
+                    "store": true
+                  }
+                }
+              }
+            }""");
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-source\", \"_id\": 1}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-disabled-source\", \"_id\": 2}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}\n");
+        bulk.append("""
+            {"index": {"_index": "airline-data-disabled-source", "_id": 1}}
+            {"time stamp":"2016-06-01T00:00:00Z","airline":"AAA","responsetime":135.22}
+            {"index": {"_index": "airline-data-disabled-source", "_id": 2}}
+            {"time stamp":"2016-06-01T01:59:00Z","airline":"AAA","responsetime":541.76}
+            """);
 
         // Create index with nested documents
         Request createAirlineDataNested = new Request("PUT", "/nested-data");
-        createAirlineDataNested.setJsonEntity(
-            "{" + "  \"mappings\": {" + "    \"properties\": {" + "      \"time\": { \"type\":\"date\"}" + "    }" + "  }" + "}"
-        );
+        createAirlineDataNested.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time": {
+                    "type": "date"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createAirlineDataNested);
 
-        bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}, \"airline\":[{\"name\": \"foo\"}]}\n");
-        bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time\":\"2016-06-01T01:59:00Z\", \"responsetime\":{\"millis\":222.00}, \"airline\":[{\"name\": \"bar\"}]}\n");
+        bulk.append("""
+            {"index": {"_index": "nested-data", "_id": 1}}
+            {"time":"2016-06-01T00:00:00Z", "responsetime":{"millis":135.22}, "airline":[{"name": "foo"}]}
+            {"index": {"_index": "nested-data", "_id": 2}}
+            {"time":"2016-06-01T01:59:00Z", "responsetime":{"millis":222.00}, "airline":[{"name": "bar"}]}
+            """);
 
         // Create index with multiple docs per time interval for aggregation testing
         Request createAirlineDataAggs = new Request("PUT", "/airline-data-aggs");
-        createAirlineDataAggs.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "      \"airline\": { \"type\":\"keyword\"},"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        // space in 'time stamp' is intentional
+        createAirlineDataAggs.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time stamp": {
+                    "type": "date"
+                  },
+                  "airline": {
+                    "type": "keyword"
+                  },
+                  "responsetime": {
+                    "type": "float"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createAirlineDataAggs);
 
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 1}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":100.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 2}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"AAA\",\"responsetime\":200.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 3}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"BBB\",\"responsetime\":1000.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 4}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"BBB\",\"responsetime\":2000.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 5}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"AAA\",\"responsetime\":300.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 6}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"AAA\",\"responsetime\":400.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 7}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"BBB\",\"responsetime\":3000.0}\n");
-        bulk.append("{\"index\": {\"_index\": \"airline-data-aggs\", \"_id\": 8}}\n");
-        bulk.append("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"BBB\",\"responsetime\":4000.0}\n");
+        bulk.append("""
+            {"index": {"_index": "airline-data-aggs", "_id": 1}}
+            {"time stamp":"2016-06-01T00:00:00Z","airline":"AAA","responsetime":100.0}
+            {"index": {"_index": "airline-data-aggs", "_id": 2}}
+            {"time stamp":"2016-06-01T00:01:00Z","airline":"AAA","responsetime":200.0}
+            {"index": {"_index": "airline-data-aggs", "_id": 3}}
+            {"time stamp":"2016-06-01T00:00:00Z","airline":"BBB","responsetime":1000.0}
+            {"index": {"_index": "airline-data-aggs", "_id": 4}}
+            {"time stamp":"2016-06-01T00:01:00Z","airline":"BBB","responsetime":2000.0}
+            {"index": {"_index": "airline-data-aggs", "_id": 5}}
+            {"time stamp":"2016-06-01T01:00:00Z","airline":"AAA","responsetime":300.0}
+            {"index": {"_index": "airline-data-aggs", "_id": 6}}
+            {"time stamp":"2016-06-01T01:01:00Z","airline":"AAA","responsetime":400.0}
+            {"index": {"_index": "airline-data-aggs", "_id": 7}}
+            {"time stamp":"2016-06-01T01:00:00Z","airline":"BBB","responsetime":3000.0}
+            {"index": {"_index": "airline-data-aggs", "_id": 8}}
+            {"time stamp":"2016-06-01T01:01:00Z","airline":"BBB","responsetime":4000.0}
+            """);
 
         bulkIndex(bulk.toString());
     }
@@ -248,27 +297,35 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     private void addNetworkData(String index) throws IOException {
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         Request createIndexRequest = new Request("PUT", index);
-        createIndexRequest.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"timestamp\": { \"type\":\"date\"},"
-                + "      \"host\": {"
-                + "        \"type\":\"text\","
-                + "        \"fields\":{"
-                + "          \"text\":{\"type\":\"text\"},"
-                + "          \"keyword\":{\"type\":\"keyword\"}"
-                + "         }"
-                + "       },"
-                + "      \"network_bytes_out\": { \"type\":\"long\"}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        createIndexRequest.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "timestamp": {
+                    "type": "date"
+                  },
+                  "host": {
+                    "type": "text",
+                    "fields": {
+                      "text": {
+                        "type": "text"
+                      },
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "network_bytes_out": {
+                    "type": "long"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createIndexRequest);
 
         StringBuilder bulk = new StringBuilder();
-        String docTemplate = "{\"timestamp\":%d,\"host\":\"%s\",\"network_bytes_out\":%d}";
+        String docTemplate = """
+            {"timestamp":%d,"host":"%s","network_bytes_out":%d}""";
         Date date = new Date(1464739200735L);
         for (int i = 0; i < 120; i++) {
             long byteCount = randomNonNegativeLong();
@@ -310,9 +367,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testLookbackOnlyWithScriptFields() throws Exception {
-        new LookbackOnlyTestHelper("test-lookback-only-with-script-fields", "airline-data").setScriptedFields(
-            "{\"scripted_airline\":{\"script\":{\"lang\":\"painless\",\"source\":\"doc['airline.keyword'].value\"}}}"
-        ).setAirlineVariant("scripted_airline").execute();
+        new LookbackOnlyTestHelper("test-lookback-only-with-script-fields", "airline-data").setScriptedFields("""
+            {"scripted_airline":{"script":{"lang":"painless","source":"doc['airline.keyword'].value"}}}""")
+            .setAirlineVariant("scripted_airline")
+            .execute();
     }
 
     public void testLookbackOnlyWithRuntimeFields() throws Exception {
@@ -378,36 +436,41 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         StringBuilder bulk = new StringBuilder();
 
         Request createGeoData = new Request("PUT", "/geo-data");
-        createGeoData.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time\": { \"type\":\"date\"},"
-                + "      \"location\": { \"type\":\"geo_point\"}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        createGeoData.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time": {
+                    "type": "date"
+                  },
+                  "location": {
+                    "type": "geo_point"
+                  }
+                }
+              }
+            }""");
         client().performRequest(createGeoData);
 
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:05:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 3}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:10:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 4}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:15:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 5}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:20:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 6}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:25:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 7}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:30:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 8}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:40:00Z\",\"location\":{\"lat\":90.0,\"lon\":-77.03653}}\n");
-        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 9}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:41:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("""
+            {"index": {"_index": "geo-data", "_id": 1}}
+            {"time":"2016-06-01T00:00:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 2}}
+            {"time":"2016-06-01T00:05:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 3}}
+            {"time":"2016-06-01T00:10:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 4}}
+            {"time":"2016-06-01T00:15:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 5}}
+            {"time":"2016-06-01T00:20:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 6}}
+            {"time":"2016-06-01T00:25:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 7}}
+            {"time":"2016-06-01T00:30:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 8}}
+            {"time":"2016-06-01T00:40:00Z","location":{"lat":90.0,"lon":-77.03653}}
+            {"index": {"_index": "geo-data", "_id": 9}}
+            {"time":"2016-06-01T00:41:00Z","location":{"lat":38.897676,"lon":-77.03653}}
+            """);
         bulkIndex(bulk.toString());
 
         openJob(client(), jobId);
@@ -440,43 +503,50 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             }""");
         client().performRequest(createJobRequest);
         String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "*hidden-*").setIndicesOptions(
-            "{" + "\"expand_wildcards\": [\"all\"]," + "\"allow_no_indices\": true" + "}"
-        ).build();
+        new DatafeedBuilder(datafeedId, jobId, "*hidden-*").setIndicesOptions("""
+            {"expand_wildcards": ["all"],"allow_no_indices": true}""").build();
 
         StringBuilder bulk = new StringBuilder();
 
         Request createGeoData = new Request("PUT", "/.hidden-index");
-        createGeoData.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time\": { \"type\":\"date\"},"
-                + "      \"value\": { \"type\":\"long\"}"
-                + "    }"
-                + "  }, \"settings\": {\"index.hidden\": true} "
-                + "}"
-        );
+        createGeoData.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "time": {
+                    "type": "date"
+                  },
+                  "value": {
+                    "type": "long"
+                  }
+                }
+              },
+              "settings": {
+                "index.hidden": true
+              }
+            }""");
         client().performRequest(createGeoData);
 
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 1}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\",\"value\": 1000}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 2}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:05:00Z\",\"value\":1500}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 3}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:10:00Z\",\"value\":1600}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 4}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:15:00Z\",\"value\":100}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 5}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:20:00Z\",\"value\":1}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 6}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:25:00Z\",\"value\":1500}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 7}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:30:00Z\",\"value\":1500}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 8}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:40:00Z\",\"value\":2100}\n");
-        bulk.append("{\"index\": {\"_index\": \".hidden-index\", \"_id\": 9}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:41:00Z\",\"value\":0}\n");
+        bulk.append("""
+            {"index": {"_index": ".hidden-index", "_id": 1}}
+            {"time":"2016-06-01T00:00:00Z","value": 1000}
+            {"index": {"_index": ".hidden-index", "_id": 2}}
+            {"time":"2016-06-01T00:05:00Z","value":1500}
+            {"index": {"_index": ".hidden-index", "_id": 3}}
+            {"time":"2016-06-01T00:10:00Z","value":1600}
+            {"index": {"_index": ".hidden-index", "_id": 4}}
+            {"time":"2016-06-01T00:15:00Z","value":100}
+            {"index": {"_index": ".hidden-index", "_id": 5}}
+            {"time":"2016-06-01T00:20:00Z","value":1}
+            {"index": {"_index": ".hidden-index", "_id": 6}}
+            {"time":"2016-06-01T00:25:00Z","value":1500}
+            {"index": {"_index": ".hidden-index", "_id": 7}}
+            {"time":"2016-06-01T00:30:00Z","value":1500}
+            {"index": {"_index": ".hidden-index", "_id": 8}}
+            {"time":"2016-06-01T00:40:00Z","value":2100}
+            {"index": {"_index": ".hidden-index", "_id": 9}}
+            {"time":"2016-06-01T00:41:00Z","value":0}
+            """);
         bulkIndex(bulk.toString());
 
         openJob(client(), jobId);
@@ -506,7 +576,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
               "description": "Aggs job",
               "analysis_config": {
                 "bucket_span": "1h",
-                 "summary_count_field_name": "doc_count",
+                "summary_count_field_name": "doc_count",
                 "detectors": [
                   {
                     "function": "mean",
@@ -677,11 +747,35 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
-            + "  \"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
+        String aggregations = """
+            {
+              "buckets": {
+                "histogram": {
+                  "field": "time stamp",
+                  "interval": 3600000
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "airline": {
+                    "terms": {
+                      "field": "airline",
+                      "size": 10
+                    },
+                    "aggregations": {
+                      "responsetime": {
+                        "avg": {
+                          "field": "responsetime"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
@@ -718,11 +812,35 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"calendar_interval\":\"1h\"},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
-            + "  \"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
+        String aggregations = """
+            {
+              "time stamp": {
+                "date_histogram": {
+                  "field": "time stamp",
+                  "calendar_interval": "1h"
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "airline": {
+                    "terms": {
+                      "field": "airline",
+                      "size": 10
+                    },
+                    "aggregations": {
+                      "responsetime": {
+                        "avg": {
+                          "field": "responsetime"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
@@ -758,11 +876,40 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-            + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"60s\"},"
-            + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
-            + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
-            + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
+        String aggregations = """
+            {
+              "hostname": {
+                "terms": {
+                  "field": "host.keyword",
+                  "size": 10
+                },
+                "aggs": {
+                  "buckets": {
+                    "date_histogram": {
+                      "field": "timestamp",
+                      "fixed_interval": "60s"
+                    },
+                    "aggs": {
+                      "timestamp": {
+                        "max": {
+                          "field": "timestamp"
+                        }
+                      },
+                      "bytes-delta": {
+                        "derivative": {
+                          "buckets_path": "avg_bytes_out"
+                        }
+                      },
+                      "avg_bytes_out": {
+                        "avg": {
+                          "field": "network_bytes_out"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         new DatafeedBuilder(datafeedId, jobId, "network-data").setAggregations(aggregations).setChunkingTimespan("300s").build();
 
         openJob(client(), jobId);
@@ -802,11 +949,40 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-            + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"5s\"},"
-            + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
-            + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
-            + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
+        String aggregations = """
+            {
+              "hostname": {
+                "terms": {
+                  "field": "host.keyword",
+                  "size": 10
+                },
+                "aggs": {
+                  "buckets": {
+                    "date_histogram": {
+                      "field": "timestamp",
+                      "fixed_interval": "5s"
+                    },
+                    "aggs": {
+                      "timestamp": {
+                        "max": {
+                          "field": "timestamp"
+                        }
+                      },
+                      "bytes-delta": {
+                        "derivative": {
+                          "buckets_path": "avg_bytes_out"
+                        }
+                      },
+                      "avg_bytes_out": {
+                        "avg": {
+                          "field": "network_bytes_out"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         new DatafeedBuilder(datafeedId, jobId, "network-data").setAggregations(aggregations).setChunkingTimespan("300s").build();
 
         openJob(client(), jobId);
@@ -842,11 +1018,40 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-            + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"5s\"},"
-            + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
-            + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
-            + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
+        String aggregations = """
+            {
+              "hostname": {
+                "terms": {
+                  "field": "host.keyword",
+                  "size": 10
+                },
+                "aggs": {
+                  "buckets": {
+                    "date_histogram": {
+                      "field": "timestamp",
+                      "fixed_interval": "5s"
+                    },
+                    "aggs": {
+                      "timestamp": {
+                        "max": {
+                          "field": "timestamp"
+                        }
+                      },
+                      "bytes-delta": {
+                        "derivative": {
+                          "buckets_path": "avg_bytes_out"
+                        }
+                      },
+                      "avg_bytes_out": {
+                        "avg": {
+                          "field": "network_bytes_out"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
 
         // At the time we create the datafeed the user can access the network-data index that we have access to
         new DatafeedBuilder(datafeedId, jobId, "network-data").setAggregations(aggregations)
@@ -907,12 +1112,34 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"15m\"},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"airlines\":{\"terms\":{\"field\":\"airline.keyword\",\"size\":10}},"
-            + "\"percentile95_airlines_count\":{\"percentiles_bucket\":"
-            + "{\"buckets_path\":\"airlines._count\", \"percents\": [95]}}}}}";
+        String aggregations = """
+            {
+              "buckets": {
+                "date_histogram": {
+                  "field": "time stamp",
+                  "fixed_interval": "15m"
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "airlines": {
+                    "terms": {
+                      "field": "airline.keyword",
+                      "size": 10
+                    }
+                  },
+                  "percentile95_airlines_count": {
+                    "percentiles_bucket": {
+                      "buckets_path": "airlines._count",
+                      "percents": [ 95 ]
+                    }
+                  }
+                }
+              }
+            }""";
         new DatafeedBuilder(datafeedId, jobId, "airline-data").setAggregations(aggregations).build();
 
         openJob(client(), jobId);
@@ -1000,10 +1227,27 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(refreshRollupIndex);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
+        String aggregations = """
+            {
+              "buckets": {
+                "date_histogram": {
+                  "field": "time stamp",
+                  "fixed_interval": "3600000ms"
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "responsetime": {
+                    "avg": {
+                      "field": "responsetime"
+                    }
+                  }
+                }
+              }
+            }""";
         new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
@@ -1068,11 +1312,36 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"calendar_interval\":\"1h\"},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"airlineFilter\":{\"filter\":{\"term\": {\"airline\":\"AAA\"}},"
-            + "  \"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
+        String aggregations = """
+            {
+              "time stamp": {
+                "date_histogram": {
+                  "field": "time stamp",
+                  "calendar_interval": "1h"
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "airlineFilter": {
+                    "filter": {
+                      "term": {
+                        "airline": "AAA"
+                      }
+                    },
+                    "aggregations": {
+                      "responsetime": {
+                        "avg": {
+                          "field": "responsetime"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
@@ -1315,28 +1584,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private Response createJob(String id, String airlineVariant) throws Exception {
         Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + id);
-        request.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Analysis of response time by airline\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n"
-                + "    \"detectors\" :[\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\": \""
-                + airlineVariant
-                + "\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\n"
-                + "    \"format\": \"xcontent\",\n"
-                + "    \"time_field\": \"time stamp\",\n"
-                + "    \"time_format\": \"yyyy-MM-dd'T'HH:mm:ssX\"\n"
-                + "  }\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "description": "Analysis of response time by airline",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [ { "function": "mean", "field_name": "responsetime", "by_field_name": "%s" } ]
+              },
+              "data_description": {
+                "format": "xcontent",
+                "time_field": "time stamp",
+                "time_format": "yyyy-MM-dd'T'HH:mm:ssX"
+              }
+            }""".formatted(airlineVariant));
         return client().performRequest(request);
     }
 
@@ -1408,21 +1668,28 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Response build() throws IOException {
             Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
             request.setJsonEntity(
-                "{"
-                    + "\"job_id\": \""
-                    + jobId
-                    + "\",\"indexes\":[\""
-                    + index
-                    + "\"]"
-                    + (source ? ",\"_source\":true" : "")
-                    + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
-                    + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
-                    + (frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"")
-                    + (indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions)
-                    + (chunkingTimespan == null
-                        ? ""
-                        : ",\"chunking_config\":{\"mode\":\"MANUAL\",\"time_span\":\"" + chunkingTimespan + "\"}")
-                    + "}"
+                """
+                    {
+                      "job_id": "%s",
+                      "indexes":["%s"]
+                       %s
+                       %s
+                       %s
+                       %s
+                       %s
+                       %s
+                    }""".formatted(
+                    jobId,
+                    index,
+                    source ? ",\"_source\":true" : "",
+                    scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields,
+                    aggregations == null ? "" : ",\"aggs\":" + aggregations,
+                    frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"",
+                    indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions,
+                    chunkingTimespan == null ? "" : """
+                        ,"chunking_config":{"mode":"MANUAL","time_span":"%s"}
+                        """.formatted(chunkingTimespan)
+                )
             );
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", authHeader);
@@ -1493,10 +1760,27 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             }""");
         client().performRequest(createRollupRequest);
 
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
-            + "\"aggregations\":{"
-            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
-            + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
+        String aggregations = """
+            {
+              "buckets": {
+                "date_histogram": {
+                  "field": "time stamp",
+                  "fixed_interval": "3600000ms"
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "responsetime": {
+                    "avg": {
+                      "field": "responsetime"
+                    }
+                  }
+                }
+              }
+            }""";
 
         return new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup").setAggregations(aggregations)
             .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)

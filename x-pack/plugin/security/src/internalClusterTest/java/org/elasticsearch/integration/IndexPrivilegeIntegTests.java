@@ -129,52 +129,39 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         final Hasher passwdHasher = getFastStoredHashAlgoForTests();
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
-        return super.configUsers()
-            + "admin:"
-            + usersPasswdHashed
-            + "\n"
-            + "u1:"
-            + usersPasswdHashed
-            + "\n"
-            + "u2:"
-            + usersPasswdHashed
-            + "\n"
-            + "u3:"
-            + usersPasswdHashed
-            + "\n"
-            + "u4:"
-            + usersPasswdHashed
-            + "\n"
-            + "u5:"
-            + usersPasswdHashed
-            + "\n"
-            + "u6:"
-            + usersPasswdHashed
-            + "\n"
-            + "u7:"
-            + usersPasswdHashed
-            + "\n"
-            + "u8:"
-            + usersPasswdHashed
-            + "\n"
-            + "u9:"
-            + usersPasswdHashed
-            + "\n"
-            + "u11:"
-            + usersPasswdHashed
-            + "\n"
-            + "u12:"
-            + usersPasswdHashed
-            + "\n"
-            + "u13:"
-            + usersPasswdHashed
-            + "\n"
-            + "u14:"
-            + usersPasswdHashed
-            + "\n"
-            + "u15:"
-            + usersPasswdHashed
-            + "\n";
+        return super.configUsers() + """
+            admin:%s
+            u1:%s
+            u2:%s
+            u3:%s
+            u4:%s
+            u5:%s
+            u6:%s
+            u7:%s
+            u8:%s
+            u9:%s
+            u11:%s
+            u12:%s
+            u13:%s
+            u14:%s
+            u15:%s
+            """.formatted(
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed,
+            usersPasswdHashed
+        );
     }
 
     @Override
@@ -202,20 +189,18 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u1", "all", "a");
         assertUserIsDenied("u1", "all", "b");
         assertUserIsDenied("u1", "all", "c");
-        assertAccessIsAllowed("u1", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u1", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed(
-            "u1",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u1",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u1", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u1", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }""");
+        assertAccessIsAllowed("u1", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u1", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u1", randomFrom("GET", "POST"), "/" + "b" + "/_field_caps?fields=*");
         assertAccessIsDenied("u1", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
@@ -228,20 +213,18 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u2", "monitor", "b");
         assertUserIsDenied("u2", "create_index", "b");
         assertUserIsDenied("u2", "all", "c");
-        assertAccessIsAllowed("u2", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u2", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed(
-            "u2",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u2",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u2", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u2", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }""");
+        assertAccessIsAllowed("u2", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u2", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u2", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
@@ -250,20 +233,18 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u3", "all", "a");
         assertUserIsAllowed("u3", "all", "b");
         assertUserIsDenied("u3", "all", "c");
-        assertAccessIsAllowed("u3", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u3", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed(
-            "u3",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u3",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u3", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u3", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }""");
+        assertAccessIsAllowed("u3", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u3", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
     }
 
     public void testUserU4() throws Exception {
@@ -281,15 +262,18 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u4", "create_index", "an_index");
         assertUserIsAllowed("u4", "manage", "an_index");
 
-        assertAccessIsAllowed("u4", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u4", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsDenied("u4", "PUT", "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
-        assertAccessIsAllowed(
-            "u4",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u4", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u4", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }""");
+        assertAccessIsDenied("u4", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u4", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u2", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
@@ -303,15 +287,18 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u5", "manage", "b");
         assertUserIsDenied("u5", "write", "b");
 
-        assertAccessIsAllowed("u5", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u5", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsDenied("u5", "PUT", "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
-        assertAccessIsAllowed(
-            "u5",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u5", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u5", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }""");
+        assertAccessIsDenied("u5", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u5", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
     }
 
     public void testUserU6() throws Exception {
@@ -321,20 +308,18 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u6", "manage", "b");
         assertUserIsDenied("u6", "write", "b");
         assertUserIsDenied("u6", "all", "c");
-        assertAccessIsAllowed("u6", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u6", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed(
-            "u6",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u6",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u6", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u6", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }""");
+        assertAccessIsAllowed("u6", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u6", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
     }
 
     public void testUserU7() throws Exception {
@@ -342,15 +327,18 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u7", "all", "a");
         assertUserIsDenied("u7", "all", "b");
         assertUserIsDenied("u7", "all", "c");
-        assertAccessIsDenied("u7", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsDenied("u7", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsDenied("u7", "PUT", "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
-        assertAccessIsDenied(
-            "u7",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsDenied("u7", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsDenied("u7", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }""");
+        assertAccessIsDenied("u7", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsDenied("u7", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u7", randomFrom("GET", "POST"), "/" + randomIndex() + "/_field_caps?fields=*");
     }
 
@@ -359,20 +347,19 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u8", "all", "a");
         assertUserIsAllowed("u8", "all", "b");
         assertUserIsAllowed("u8", "all", "c");
-        assertAccessIsAllowed("u8", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u8", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed(
-            "u8",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u8",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u8", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u8", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }
+            """);
+        assertAccessIsAllowed("u8", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u8", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
     }
 
     public void testUserU9() throws Exception {
@@ -383,20 +370,19 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u9", "manage", "b");
         assertUserIsDenied("u9", "write", "b");
         assertUserIsDenied("u9", "all", "c");
-        assertAccessIsAllowed("u9", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u9", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed(
-            "u9",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u9",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u9", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u9", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }
+            """);
+        assertAccessIsAllowed("u9", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u9", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u9", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
@@ -416,20 +402,19 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u11", "monitor", "c");
         assertUserIsDenied("u11", "maintenance", "c");
 
-        assertAccessIsDenied("u11", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsDenied("u11", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertBodyHasAccessIsDenied(
-            "u11",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsDenied(
-            "u11",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsDenied("u11", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsDenied("u11", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }
+            """);
+        assertBodyHasAccessIsDenied("u11", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsDenied("u11", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u11", randomFrom("GET", "POST"), "/" + "b" + "/_field_caps?fields=*");
         assertAccessIsDenied("u11", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
@@ -442,20 +427,19 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u12", "data_access", "b");
         assertUserIsDenied("u12", "manage", "c");
         assertUserIsAllowed("u12", "data_access", "c");
-        assertAccessIsAllowed("u12", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u12", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed(
-            "u12",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u12",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u12", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u12", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }
+            """);
+        assertAccessIsAllowed("u12", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u12", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
     }
 
     public void testUserU13() throws Exception {
@@ -471,16 +455,23 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
         assertUserIsDenied("u13", "all", "c");
 
-        assertAccessIsAllowed("u13", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u13", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed("u13", "PUT", "/a/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
-        assertBodyHasAccessIsDenied("u13", "PUT", "/b/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
-        assertAccessIsAllowed(
-            "u13",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsAllowed("u13", "GET", "/" + randomIndex() + "/_msearch", """
+            {}
+            { "query" : { "match_all" : {} } }
+            """);
+        assertAccessIsAllowed("u13", "POST", "/" + randomIndex() + "/_mget", """
+            { "ids" : [ "1", "2" ] }
+            """);
+        assertAccessIsAllowed("u13", "PUT", "/a/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertBodyHasAccessIsDenied("u13", "PUT", "/b/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u13", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u13", randomFrom("GET", "POST"), "/" + "a" + "/_field_caps?fields=*");
     }
 
@@ -499,18 +490,12 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
         assertAccessIsAllowed("u14", "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
         assertAccessIsAllowed("u14", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsDenied(
-            "u14",
-            "PUT",
-            "/" + randomIndex() + "/_bulk",
-            "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n"
-        );
-        assertAccessIsAllowed(
-            "u14",
-            "GET",
-            "/" + randomIndex() + "/_mtermvectors",
-            "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }"
-        );
+        assertAccessIsDenied("u14", "PUT", "/" + randomIndex() + "/_bulk", """
+            { "index" : { "_id" : "123" } }
+            { "foo" : "bar" }
+            """);
+        assertAccessIsAllowed("u14", "GET", "/" + randomIndex() + "/_mtermvectors", """
+            { "docs" : [ { "_id": "1" }, { "_id": "2" } ] }""");
         assertAccessIsDenied("u14", randomFrom("GET", "POST"), "/" + "b" + "/_field_caps?fields=*");
     }
 
@@ -644,7 +629,9 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "read", index);
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                        { "doc" : { "foo" : "baz" } }
+                        """);
                 } else {
                     assertUserIsDenied(user, "read", index);
                     assertUserIsDenied(user, "index", index);
@@ -691,54 +678,36 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
-                    Response response = assertAccessIsAllowed(
-                        user,
-                        "PUT",
-                        "/" + index + "/_doc/4321",
-                        "{ \"" + UUIDs.randomBase64UUID() + "\" : \"foo\" }"
-                    );
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", """
+                        { "%s" : "foo" }""".formatted(UUIDs.randomBase64UUID()));
                     String warningHeader = response.getHeader("Warning");
-                    assertThat(
-                        warningHeader,
-                        containsString(
-                            "the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index ["
-                                + index
-                                + "], this privilege will not permit mapping updates in the next major release - users who require"
-                                + " access to update mappings must be granted explicit privileges"
-                        )
-                    );
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
-                    response = assertAccessIsAllowed(
-                        user,
-                        "POST",
-                        "/" + index + "/_update/321",
-                        "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }"
-                    );
+                    assertThat(warningHeader, containsString("""
+                        the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
+                        this privilege will not permit mapping updates in the next major release - users who require access to update \
+                        mappings must be granted explicit privileges""".formatted(index)));
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                        { "doc" : { "foo" : "baz" } }
+                        """);
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                        { "doc" : { "%s" : "baz" } }
+                        """.formatted(UUIDs.randomBase64UUID()));
                     warningHeader = response.getHeader("Warning");
-                    assertThat(
-                        warningHeader,
-                        containsString(
-                            "the index privilege [index] allowed the update mapping action "
-                                + "[indices:admin/mapping/auto_put] on index ["
-                                + index
-                                + "], this privilege will not permit mapping updates in"
-                                + " the next major release - users who require access to update mappings must be"
-                                + " granted explicit privileges"
-                        )
-                    );
-                    assertThat(
-                        warningHeader,
-                        containsString(
-                            "the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index ["
-                                + index
-                                + "], this privilege will not permit mapping updates in the next major release - users who require"
-                                + " access to update mappings must be granted explicit privileges"
-                        )
-                    );
+                    assertThat(warningHeader, containsString("""
+                        the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
+                        this privilege will not permit mapping updates in the next major release - users who require access to update \
+                        mappings must be granted explicit privileges\
+                        """.formatted(index)));
+                    assertThat(warningHeader, containsString("""
+                        the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
+                        this privilege will not permit mapping updates in the next major release - users who require access to update \
+                        mappings must be granted explicit privileges\
+                        """.formatted(index)));
                 } else {
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
-                    assertAccessIsDenied(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_update/321", """
+                        { "doc" : { "foo" : "baz" } }
+                        """);
                 }
                 break;
 
@@ -759,12 +728,8 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
-                    Response response = assertAccessIsAllowed(
-                        user,
-                        "PUT",
-                        "/" + index + "/_doc/4321",
-                        "{ \"" + UUIDs.randomBase64UUID() + "\" : \"foo\" }"
-                    );
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", """
+                        { "%s" : "foo" }""".formatted(UUIDs.randomBase64UUID()));
                     String warningHeader = response.getHeader("Warning");
                     assertThat(
                         warningHeader,
@@ -775,13 +740,12 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                                 + "]"
                         )
                     );
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
-                    response = assertAccessIsAllowed(
-                        user,
-                        "POST",
-                        "/" + index + "/_update/321",
-                        "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }"
-                    );
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                        { "doc" : { "foo" : "baz" } }
+                        """);
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                        { "doc" : { "%s" : "baz" } }
+                        """.formatted(UUIDs.randomBase64UUID()));
                     warningHeader = response.getHeader("Warning");
                     assertThat(
                         warningHeader,

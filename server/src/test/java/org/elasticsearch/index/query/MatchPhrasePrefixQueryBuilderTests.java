@@ -68,15 +68,12 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = "{\n"
-            + "    \"match_phrase_prefix\" : {\n"
-            + "        \""
-            + matchPhrasePrefixQuery.fieldName()
-            + "\" : \""
-            + matchPhrasePrefixQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = """
+            {
+                "match_phrase_prefix" : {
+                    "%s" : "%s"
+                }
+            }""".formatted(matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
         alternateVersions.put(contentString, matchPhrasePrefixQuery);
         return alternateVersions;
     }

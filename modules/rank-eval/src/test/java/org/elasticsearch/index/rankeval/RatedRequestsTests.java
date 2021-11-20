@@ -212,17 +212,13 @@ public class RatedRequestsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new RatedRequest("test_query", ratedDocs, new SearchSourceBuilder())
         );
-        assertEquals(
-            "Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
-            ex.getMessage()
-        );
+        assertEquals("""
+            Found duplicate rated document key [{"_index":"index1","_id":"id1"}] in evaluation request [test_query]""", ex.getMessage());
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
         ex = expectThrows(IllegalArgumentException.class, () -> new RatedRequest("test_query", ratedDocs, params, "templateId"));
-        assertEquals(
-            "Found duplicate rated document key [{\"_index\":\"index1\",\"_id\":\"id1\"}] in evaluation request [test_query]",
-            ex.getMessage()
-        );
+        assertEquals("""
+            Found duplicate rated document key [{"_index":"index1","_id":"id1"}] in evaluation request [test_query]""", ex.getMessage());
     }
 
     public void testNullSummaryFieldsTreatment() {
@@ -304,25 +300,64 @@ public class RatedRequestsTests extends ESTestCase {
      */
     public void testParseFromXContent() throws IOException {
         String querySpecString = """
-             {
-               "id": "my_qa_query",
-               "request": {
-                       "query": {
-                           "bool": {
-                               "must": [
-                                   {"match": {"beverage": "coffee"}},
-                                   {"term": {"browser": {"value": "safari"}}},
-                                   {"term": {"time_of_day":                                   {"value": "morning","boost": 2}}},
-                                   {"term": {"ip_location":                                   {"value": "ams","boost": 10}}}]}
-                       },
-                       "size": 10
-               },
-               "summary_fields" : ["title"],
-               "ratings": [
-                    {"_index": "test" , "_id": "1", "rating" : 1 },
-                    {"_index": "test", "rating" : 0, "_id": "2"},
-                    {"_id": "3", "_index": "test", "rating" : 1} ]}
-            """;
+            {
+              "id": "my_qa_query",
+              "request": {
+                "query": {
+                  "bool": {
+                    "must": [
+                      {
+                        "match": {
+                          "beverage": "coffee"
+                        }
+                      },
+                      {
+                        "term": {
+                          "browser": {
+                            "value": "safari"
+                          }
+                        }
+                      },
+                      {
+                        "term": {
+                          "time_of_day": {
+                            "value": "morning",
+                            "boost": 2
+                          }
+                        }
+                      },
+                      {
+                        "term": {
+                          "ip_location": {
+                            "value": "ams",
+                            "boost": 10
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "size": 10
+              },
+              "summary_fields": [ "title" ],
+              "ratings": [
+                {
+                  "_index": "test",
+                  "_id": "1",
+                  "rating": 1
+                },
+                {
+                  "_index": "test",
+                  "rating": 0,
+                  "_id": "2"
+                },
+                {
+                  "_id": "3",
+                  "_index": "test",
+                  "rating": 1
+                }
+              ]
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, querySpecString)) {
             RatedRequest specification = RatedRequest.fromXContent(parser);
             assertEquals("my_qa_query", specification.getId());

@@ -186,8 +186,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
             """
                 {
                   "a": "supercalifragilisticexpialidocious",
-                  "animal": "cat"
-                ,  "vegetable": 2
+                  "animal": "cat",
+                  "vegetable": 2
                 }"""
         );
         XContentParseException e = expectThrows(
@@ -536,10 +536,13 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrderNotSupported() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": [\n" + "  {\"a\": {}}" + "],\"named_in_constructor\": {\"b\": {}}" + "}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+                "named": [ { "a": {} } ],
+                "named_in_constructor": {
+                  "b": {}
+                }
+              }""");
 
         // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
         @SuppressWarnings("unchecked")
@@ -561,10 +564,13 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrderNotSupportedConstructorArg() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": {\"a\": {}}, \"named_in_constructor\": [ {\"b\": {}} ]}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "named": {
+                "a": {}
+              },
+              "named_in_constructor": [ { "b": {} } ]
+            }""");
 
         // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
         @SuppressWarnings("unchecked")
@@ -810,21 +816,15 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public void testRemovalOfField() throws IOException {
         {
             // old_name with NO compatibility is resulting in an exception
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                "{\"old_name\": 1, \"second_field\": \"someString\"}",
-                RestApiVersion.current()
-            );
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, """
+                {"old_name": 1, "second_field": "someString"}""", RestApiVersion.current());
             expectThrows(XContentParseException.class, () -> StructRemovalField.PARSER.parse(parser, null));
         }
 
         {
             // old_name with compatibility is still parsed, but ignored and results in a warning
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                "{\"old_name\": 1, \"second_field\": \"someString\"}",
-                RestApiVersion.minimumSupported()
-            );
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, """
+                {"old_name": 1, "second_field": "someString"}""", RestApiVersion.minimumSupported());
             StructRemovalField parse = StructRemovalField.PARSER.parse(parser, null);
 
             assertCriticalWarnings("The field old_name has been removed and is being ignored");

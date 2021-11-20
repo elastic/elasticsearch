@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -135,7 +137,7 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
         return ClassificationInferenceResults::new;
     }
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         ClassificationConfig toStringConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.STRING);
         ClassificationInferenceResults result = new ClassificationInferenceResults(
             1.0,
@@ -147,25 +149,29 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             1.0
         );
         String stringRep = Strings.toString(result);
-        String expected = "{\"predicted_value\":\"1.0\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
+        String expected = """
+            {"predicted_value":"1.0","prediction_probability":1.0,"prediction_score":1.0}""";
         assertEquals(expected, stringRep);
 
         ClassificationConfig toDoubleConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.NUMBER);
         result = new ClassificationInferenceResults(1.0, null, null, Collections.emptyList(), toDoubleConfig, 1.0, 1.0);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":1.0,\"prediction_probability\":1.0,\"prediction_score\":1.0}";
+        expected = """
+            {"predicted_value":1.0,"prediction_probability":1.0,"prediction_score":1.0}""";
         assertEquals(expected, stringRep);
 
         ClassificationConfig boolFieldConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.BOOLEAN);
         result = new ClassificationInferenceResults(1.0, null, null, Collections.emptyList(), boolFieldConfig, 1.0, 1.0);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":true,\"prediction_probability\":1.0,\"prediction_score\":1.0}";
+        expected = """
+            {"predicted_value":true,"prediction_probability":1.0,"prediction_score":1.0}""";
         assertEquals(expected, stringRep);
 
         ClassificationConfig config = new ClassificationConfig(1);
         result = new ClassificationInferenceResults(1.0, "label1", null, Collections.emptyList(), config, 1.0, 1.0);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
+        expected = """
+            {"predicted_value":"label1","prediction_probability":1.0,"prediction_score":1.0}""";
         assertEquals(expected, stringRep);
 
         ClassificationFeatureImportance fi = new ClassificationFeatureImportance("foo", Collections.emptyList());
@@ -180,15 +186,20 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
             1.0
         );
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":\"label1\","
-            + "\"top_classes\":[{\"class_name\":\"class\",\"class_probability\":1.0,\"class_score\":1.0}],"
-            + "\"prediction_probability\":1.0,\"prediction_score\":1.0}";
-        assertEquals(expected, stringRep);
+        expected = """
+            {
+              "predicted_value": "label1",
+              "top_classes": [ { "class_name": "class", "class_probability": 1.0, "class_score": 1.0 } ],
+              "prediction_probability": 1.0,
+              "prediction_score": 1.0
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), stringRep);
 
         config = new ClassificationConfig(0);
         result = new ClassificationInferenceResults(1.0, "label1", Collections.emptyList(), Collections.emptyList(), config, 1.0, 1.0);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
+        expected = """
+            {"predicted_value":"label1","prediction_probability":1.0,"prediction_score":1.0}""";
         assertEquals(expected, stringRep);
     }
 

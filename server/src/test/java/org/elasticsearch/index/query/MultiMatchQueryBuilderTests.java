@@ -319,16 +319,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             Type.PHRASE.parseField().getPreferredName(),
             Type.PHRASE_PREFIX.parseField().getPreferredName() };
         for (String type : notAllowedTypes) {
-            String json = "{\n"
-                + "  \"multi_match\" : {\n"
-                + "    \"query\" : \"quick brown fox\",\n"
-                + "    \"fields\" : [ \"title^1.0\", \"title.original^1.0\", \"title.shingles^1.0\" ],\n"
-                + "    \"type\" : \""
-                + type
-                + "\",\n"
-                + "    \"fuzziness\" : 1"
-                + "  }\n"
-                + "}";
+            String json = """
+                {
+                  "multi_match": {
+                    "query": "quick brown fox",
+                    "fields": [ "title^1.0", "title.original^1.0", "title.shingles^1.0" ],
+                    "type": "%s",
+                    "fuzziness": 1
+                  }
+                }""".formatted(type);
 
             ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
             assertEquals("Fuzziness not allowed for type [" + type + "]", e.getMessage());

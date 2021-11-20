@@ -107,25 +107,30 @@ public class RollupIT extends ESRestTestCase {
         // create the rollup job
         final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
         int pageSize = randomIntBetween(2, 50);
-        createRollupJobRequest.setJsonEntity(
-            "{"
-                + "\"index_pattern\":\"rollup-*\","
-                + "\"rollup_index\":\"results-rollup\","
-                + "\"cron\":\"*/1 * * * * ?\","             // fast cron so test runs quickly
-                + "\"page_size\":"
-                + pageSize
-                + ","
-                + "\"groups\":{"
-                + "    \"date_histogram\":{"
-                + "        \"field\":\"timestamp\","
-                + "        \"fixed_interval\":\"5m\""
-                + "      }"
-                + "},"
-                + "\"metrics\":["
-                + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-                + "]"
-                + "}"
-        );
+        // fast cron so test runs quickly
+        createRollupJobRequest.setJsonEntity("""
+            {
+                "index_pattern": "rollup-*",
+                "rollup_index": "results-rollup",
+                "cron": "*/1 * * * * ?",
+                "page_size": %s,
+                "groups": {
+                    "date_histogram": {
+                        "field": "timestamp",
+                        "fixed_interval": "5m"
+                    }
+                },
+                "metrics": [
+                    {
+                        "field": "value",
+                        "metrics": [
+                            "min",
+                            "max",
+                            "sum"
+                        ]
+                    }
+                ]
+            }""".formatted(pageSize));
 
         Map<String, Object> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
         assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));

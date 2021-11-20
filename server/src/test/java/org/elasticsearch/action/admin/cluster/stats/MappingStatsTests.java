@@ -39,58 +39,60 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Script script2 = new Script("doc['field']");
         Script script3 = new Script("params._source.field + params._source.field \n + params._source.field");
         Script script4 = new Script("params._source.field");
-        String mapping = "{"
-            + "  \"runtime\" : {"
-            + "    \"keyword1\": {"
-            + "      \"type\": \"keyword\","
-            + "      \"script\": "
-            + Strings.toString(script1)
-            + "    },"
-            + "    \"keyword2\": {"
-            + "      \"type\": \"keyword\""
-            + "    },"
-            + "    \"object.keyword3\": {"
-            + "      \"type\": \"keyword\","
-            + "      \"script\": "
-            + Strings.toString(script2)
-            + "    },"
-            + "    \"long\": {"
-            + "      \"type\": \"long\","
-            + "      \"script\": "
-            + Strings.toString(script3)
-            + "    },"
-            + "    \"long2\": {"
-            + "      \"type\": \"long\","
-            + "      \"script\": "
-            + Strings.toString(script4)
-            + "    }"
-            + "  },"
-            + "  \"properties\":{"
-            + "    \"object\":{"
-            + "      \"type\":\"object\","
-            + "      \"properties\":{"
-            + "         \"keyword3\":{"
-            + "           \"type\": \"keyword\""
-            + "         }"
-            + "      }"
-            + "    },"
-            + "    \"long3\": {"
-            + "      \"type\":\"long\","
-            + "      \"script\": "
-            + Strings.toString(script3)
-            + "    },"
-            + "    \"long4\": {"
-            + "      \"type\":\"long\","
-            + "      \"script\": "
-            + Strings.toString(script4)
-            + "    },"
-            + "    \"keyword3\": {"
-            + "      \"type\": \"keyword\","
-            + "      \"script\": "
-            + Strings.toString(script1)
-            + "    }"
-            + "  }"
-            + "}";
+        String mapping = """
+            {
+                "runtime": {
+                    "keyword1": {
+                        "type": "keyword",
+                        "script": %s
+                    },
+                    "keyword2": {
+                        "type": "keyword"
+                    },
+                    "object.keyword3": {
+                        "type": "keyword",
+                        "script": %s
+                    },
+                    "long": {
+                        "type": "long",
+                        "script": %s
+                    },
+                    "long2": {
+                        "type": "long",
+                        "script": %s
+                    }
+                },
+                "properties": {
+                    "object": {
+                        "type": "object",
+                        "properties": {
+                            "keyword3": {
+                                "type": "keyword"
+                            }
+                        }
+                    },
+                    "long3": {
+                        "type": "long",
+                        "script": %s
+                    },
+                    "long4": {
+                        "type": "long",
+                        "script": %s
+                    },
+                    "keyword3": {
+                        "type": "keyword",
+                        "script": %s
+                    }
+                }
+            }""".formatted(
+            Strings.toString(script1),
+            Strings.toString(script2),
+            Strings.toString(script3),
+            Strings.toString(script4),
+            Strings.toString(script3),
+            Strings.toString(script4),
+            Strings.toString(script1)
+        );
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(settings).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
@@ -270,7 +272,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testAccountsRegularIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"long\"}}}";
+        String mapping = """
+            {"properties":{"bar":{"type":"long"}}}""";
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
@@ -286,7 +289,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testIgnoreSystemIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"long\"}}}";
+        String mapping = """
+            {"properties":{"bar":{"type":"long"}}}""";
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)

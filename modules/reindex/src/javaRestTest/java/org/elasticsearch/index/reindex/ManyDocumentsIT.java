@@ -63,39 +63,33 @@ public class ManyDocumentsIT extends ESRestTestCase {
         String remote = "http://" + http.get("publish_address");
         Request request = new Request("POST", "/_reindex");
         if (randomBoolean()) {
-            request.setJsonEntity(
-                "{\n"
-                    + "  \"source\":{\n"
-                    + "    \"index\":\"test\",\n"
-                    + "    \"remote\":{\n"
-                    + "      \"host\":\""
-                    + remote
-                    + "\"\n"
-                    + "    }\n"
-                    + "  }\n,"
-                    + "  \"dest\":{\n"
-                    + "    \"index\":\"des\"\n"
-                    + "  }\n"
-                    + "}"
-            );
+            request.setJsonEntity("""
+                {
+                   "source": {
+                     "index": "test",
+                     "remote": {
+                       "host": "%s"
+                     }
+                   },
+                   "dest": {
+                     "index": "des"
+                   }
+                }""".formatted(remote));
         } else {
             // Test with external version_type
-            request.setJsonEntity(
-                "{\n"
-                    + "  \"source\":{\n"
-                    + "    \"index\":\"test\",\n"
-                    + "    \"remote\":{\n"
-                    + "      \"host\":\""
-                    + remote
-                    + "\"\n"
-                    + "    }\n"
-                    + "  }\n,"
-                    + "  \"dest\":{\n"
-                    + "    \"index\":\"des\",\n"
-                    + "    \"version_type\": \"external\"\n"
-                    + "  }\n"
-                    + "}"
-            );
+            request.setJsonEntity("""
+                {
+                  "source": {
+                    "index": "test",
+                    "remote": {
+                      "host": "%s"
+                    }
+                  },
+                  "dest": {
+                    "index": "des",
+                    "version_type": "external"
+                  }
+                }""".formatted(remote));
         }
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));

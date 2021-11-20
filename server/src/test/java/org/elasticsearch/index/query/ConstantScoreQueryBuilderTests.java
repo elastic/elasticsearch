@@ -57,12 +57,12 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
      * test that "filter" does not accept an array of queries, throws {@link ParsingException}
      */
     public void testNoArrayAsFilterElements() throws IOException {
-        String queryString = "{ \""
-            + ConstantScoreQueryBuilder.NAME
-            + "\" : {\n"
-            + "\"filter\" : [ { \"term\": { \"foo\": \"a\" } },\n"
-            + "{ \"term\": { \"foo\": \"x\" } } ]\n"
-            + "} }";
+        String queryString = """
+            {
+              "%s": {
+                "filter": [ { "term": { "foo": "a" } }, { "term": { "foo": "x" } } ]
+              }
+            }""".formatted(ConstantScoreQueryBuilder.NAME);
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
         assertThat(e.getMessage(), containsString("unexpected token [START_ARRAY]"));
     }

@@ -102,11 +102,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup(
-            "index",
-            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
-            new MatchQueryBuilder("text", "fox")
-        );
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(
             new Script(
@@ -126,11 +123,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup(
-            "index",
-            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
-            new MatchQueryBuilder("text", "fox")
-        );
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(
             new Script(ScriptType.INLINE, "painless", "emit(doc['rank'].value < params.max_rank)", singletonMap("max_rank", 5.0)),
@@ -340,11 +334,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup(
-            "index",
-            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
-            new MatchQueryBuilder("text", "fox")
-        );
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(

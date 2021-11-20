@@ -88,22 +88,10 @@ public class VectorTileRestIT extends ESRestTestCase {
         for (int i = 0; i < 30; i += 10) {
             for (int j = 0; j <= i; j++) {
                 final Request putRequest = new Request(HttpPost.METHOD_NAME, INDEX_POINTS + "/_doc/");
-                putRequest.setJsonEntity(
-                    "{\n"
-                        + "  \"location\": \"POINT("
-                        + x
-                        + " "
-                        + y
-                        + ")\", \"name\": \"point"
-                        + i
-                        + "\""
-                        + ", \"value1\": "
-                        + i
-                        + ", \"value2\": "
-                        + (i + 1)
-                        + "\n"
-                        + "}"
-                );
+                putRequest.setJsonEntity("""
+                    {
+                      "location": "POINT(%s %s)", "name": "point%s", "value1": %s, "value2": %s
+                    }""".formatted(x, y, i, i, i + 1));
                 response = client().performRequest(putRequest);
                 assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_CREATED));
             }
@@ -139,19 +127,10 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
 
         final Request putRequest = new Request(HttpPost.METHOD_NAME, indexName + "/_doc/" + id);
-        putRequest.setJsonEntity(
-            "{\n"
-                + "  \"location\": \""
-                + WellKnownText.toWKT(geometry)
-                + "\""
-                + ", \"name\": \"geometry\""
-                + ", \"value1\": "
-                + 1
-                + ", \"value2\": "
-                + 2
-                + "\n"
-                + "}"
-        );
+        putRequest.setJsonEntity("""
+            {
+              "location": "%s", "name": "geometry", "value1": %s, "value2": %s
+            }""".formatted(WellKnownText.toWKT(geometry), 1, 2));
         response = client().performRequest(putRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_CREATED));
 
@@ -205,19 +184,10 @@ public class VectorTileRestIT extends ESRestTestCase {
             + " "
             + y
             + "))";
-        putRequest.setJsonEntity(
-            "{\n"
-                + "  \"location\": \""
-                + collection
-                + "\""
-                + ", \"name\": \"collection\""
-                + ", \"value1\": "
-                + 1
-                + ", \"value2\": "
-                + 2
-                + "\n"
-                + "}"
-        );
+        putRequest.setJsonEntity("""
+            {
+              "location": "%s", "name": "collection", "value1": %s, "value2": %s
+            }""".formatted(collection, 1, 2));
         response = client().performRequest(putRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_CREATED));
 
@@ -556,21 +526,18 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             // desc order, polygon should be the first hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity(
-                "{\n"
-                    + "  \"size\" : 100,\n"
-                    + "  \"grid_precision\" : 0,\n"
-                    + runtimeMapping
-                    + ","
-                    + "  \"sort\" : [\n"
-                    + "    {\n"
-                    + "      \"width\": {\n"
-                    + "        \"order\": \"desc\"\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  ]"
-                    + "}"
-            );
+            mvtRequest.setJsonEntity("""
+                {
+                  "size" : 100,
+                  "grid_precision" : 0,
+                %s,  "sort" : [
+                    {
+                      "width": {
+                        "order": "desc"
+                      }
+                    }
+                ]}
+                """.formatted(runtimeMapping));
 
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(2));
@@ -582,21 +549,19 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             // asc order, polygon should be the last hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity(
-                "{\n"
-                    + "  \"size\" : 100,\n"
-                    + "  \"grid_precision\" : 0,\n"
-                    + runtimeMapping
-                    + ","
-                    + "  \"sort\" : [\n"
-                    + "    {\n"
-                    + "      \"width\": {\n"
-                    + "        \"order\": \"asc\"\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  ]"
-                    + "}"
-            );
+            mvtRequest.setJsonEntity("""
+                {
+                  "size" : 100,
+                  "grid_precision" : 0,
+                   %s,
+                  "sort" : [
+                    {
+                      "width": {
+                        "order": "asc"
+                      }
+                    }
+                  ]}
+                """.formatted(runtimeMapping));
 
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(2));

@@ -134,7 +134,9 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testDeprecation() throws IOException {
-        String source = "{\"dep_agg\": {\"" + MockDeprecatedAggregationBuilder.NAME + "\" : {}}}";
+        String source = """
+            {"dep_agg": {"%s" : {}}}
+            """.formatted(MockDeprecatedAggregationBuilder.NAME);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
             assertNull(agg.validate(null));

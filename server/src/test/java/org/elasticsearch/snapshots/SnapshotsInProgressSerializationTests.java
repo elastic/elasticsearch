@@ -21,6 +21,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -417,30 +418,103 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             assertThat(
                 json,
                 anyOf(
-                    equalTo(
-                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
-                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
-                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
-                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
-                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
-                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}},"
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
-                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"}"
-                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
-                    ), // or the shards might be in the other order:
-                    equalTo(
-                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
-                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
-                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
-                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
-                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"},"
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
-                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
-                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}}"
-                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
-                    )
+                    equalTo(XContentHelper.stripWhitespace("""
+                        {
+                          "snapshots": [
+                            {
+                              "repository": "repo",
+                              "snapshot": "name",
+                              "uuid": "uuid",
+                              "include_global_state": true,
+                              "partial": true,
+                              "state": "SUCCESS",
+                              "indices": [ { "name": "index", "id": "uuid" } ],
+                              "start_time": "1970-01-01T00:20:34.567Z",
+                              "start_time_millis": 1234567,
+                              "repository_state_id": 0,
+                              "shards": [
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 0,
+                                  "state": "SUCCESS",
+                                  "generation": "shardgen",
+                                  "node": "nodeId",
+                                  "result": {
+                                    "generation": "shardgen",
+                                    "size": "1b",
+                                    "size_in_bytes": 1,
+                                    "segments": 1
+                                  }
+                                },
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 1,
+                                  "state": "FAILED",
+                                  "generation": "fail-gen",
+                                  "node": "nodeId",
+                                  "reason": "failure-reason"
+                                }
+                              ],
+                              "feature_states": [],
+                              "data_streams": []
+                            }
+                          ]
+                        }""")),
+                    // or the shards might be in the other order:
+                    equalTo(XContentHelper.stripWhitespace("""
+                        {
+                          "snapshots": [
+                            {
+                              "repository": "repo",
+                              "snapshot": "name",
+                              "uuid": "uuid",
+                              "include_global_state": true,
+                              "partial": true,
+                              "state": "SUCCESS",
+                              "indices": [ { "name": "index", "id": "uuid" } ],
+                              "start_time": "1970-01-01T00:20:34.567Z",
+                              "start_time_millis": 1234567,
+                              "repository_state_id": 0,
+                              "shards": [
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 1,
+                                  "state": "FAILED",
+                                  "generation": "fail-gen",
+                                  "node": "nodeId",
+                                  "reason": "failure-reason"
+                                },
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 0,
+                                  "state": "SUCCESS",
+                                  "generation": "shardgen",
+                                  "node": "nodeId",
+                                  "result": {
+                                    "generation": "shardgen",
+                                    "size": "1b",
+                                    "size_in_bytes": 1,
+                                    "segments": 1
+                                  }
+                                }
+                              ],
+                              "feature_states": [],
+                              "data_streams": []
+                            }
+                          ]
+                        }"""))
                 )
             );
         }

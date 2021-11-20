@@ -119,7 +119,7 @@ public class BasicExpressionTests extends ScriptTestCase {
 
         assertEquals("aaabbbbbbbbb", exec("""
             String aaa = "aaa", bbb = "bbb"; int x;
-            for (; x < 3; ++x)\s
+            for (; x < 3; ++x)
                 aaa += bbb;
             return aaa;"""));
     }

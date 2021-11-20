@@ -50,7 +50,8 @@ public abstract class TextStructureTestCase extends ESTestCase {
         "pos_id";"trip_id";"latitude";"longitude";"altitude";"timestamp"
         "1";"3";"4703.7815";"1527.4713";"359.9";"2017-01-19 16:19:04.742113"
         "2";"3";"4703.7815";"1527.4714";"359.9";"2017-01-19 16:19:05.741890"
-        "3";"3";"4703.7816";"1527.4716";"360.3";"2017-01-19 16:19:06.738842\"""";
+        "3";"3";"4703.7816";"1527.4716";"360.3";"2017-01-19 16:19:06.738842
+        """;
 
     protected static final String TEXT_SAMPLE = """
         [2018-05-11T17:07:29,461][INFO ][o.e.n.Node               ] [node-0] initializing ...

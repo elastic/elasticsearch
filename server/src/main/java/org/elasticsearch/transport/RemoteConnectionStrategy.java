@@ -430,17 +430,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             Setting<ConnectionStrategy> concrete = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
             ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
             if (isPresent && modeType.equals(expectedStrategy) == false) {
-                throw new IllegalArgumentException(
-                    "Setting \""
-                        + key
-                        + "\" cannot be used with the configured \""
-                        + concrete.getKey()
-                        + "\" [required="
-                        + expectedStrategy.name()
-                        + ", configured="
-                        + modeType.name()
-                        + "]"
-                );
+                throw new IllegalArgumentException("""
+                    Setting "%s" cannot be used with the configured "%s" \
+                    [required=%s, configured=%s]\
+                    """.formatted(key, concrete.getKey(), expectedStrategy.name(), modeType.name()));
             }
         }
 

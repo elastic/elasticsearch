@@ -385,11 +385,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public void testPreventCreateTimeInjection() throws IOException {
-        String json = "{"
-            + " \"create_time\" : 123456789 },"
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + "}";
+        String json = """
+            { "create_time" : 123456789 }, "source" : {"index":"src"}, "dest" : {"index": "dest"},}""";
 
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -401,7 +398,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public void testPreventVersionInjection() throws IOException {
-        String json = "{" + " \"version\" : \"7.3.0\"," + " \"source\" : {\"index\":\"src\"}," + " \"dest\" : {\"index\": \"dest\"}," + "}";
+        String json = """
+            { "version" : "7.3.0", "source" : {"index":"src"}, "dest" : {"index": "dest"},}""";
 
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)

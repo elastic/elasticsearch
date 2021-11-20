@@ -76,15 +76,12 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = "{\n"
-            + "    \"match_phrase\" : {\n"
-            + "        \""
-            + matchPhraseQuery.fieldName()
-            + "\" : \""
-            + matchPhraseQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = """
+            {
+                "match_phrase" : {
+                    "%s" : "%s"
+                }
+            }""".formatted(matchPhraseQuery.fieldName(), matchPhraseQuery.value());
         alternateVersions.put(contentString, matchPhraseQuery);
         return alternateVersions;
     }

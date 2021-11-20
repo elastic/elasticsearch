@@ -37,25 +37,22 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
 
     public void testStacktraceWithJson() throws IOException {
 
-        String json = "{"
-            + LINE_SEPARATOR
-            + "  \"terms\" : {"
-            + LINE_SEPARATOR
-            + "    \"user\" : ["
-            + LINE_SEPARATOR
-            + "      \"u1\","
-            + LINE_SEPARATOR
-            + "      \"u2\","
-            + LINE_SEPARATOR
-            + "      \"u3\""
-            + LINE_SEPARATOR
-            + "    ],"
-            + LINE_SEPARATOR
-            + "    \"boost\" : 1.0"
-            + LINE_SEPARATOR
-            + "  }"
-            + LINE_SEPARATOR
-            + "}";
+        String json = """
+            {%s  \
+            "terms" : {%s \
+            "user" : [%s "u1",%s "u2",%s "u3"%s ], %s \
+            "boost" : 1.0%s  \
+            }%s}""".formatted(
+            LINE_SEPARATOR,
+            LINE_SEPARATOR,
+            LINE_SEPARATOR,
+            LINE_SEPARATOR,
+            LINE_SEPARATOR,
+            LINE_SEPARATOR,
+            LINE_SEPARATOR,
+            LINE_SEPARATOR,
+            LINE_SEPARATOR
+        );
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder().setMessage(new SimpleMessage("message")).setThrown(thrown).build();
 
@@ -81,10 +78,18 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
         converter.format(event, builder);
         String jsonStacktraceElement = builder.toString();
 
-        return "{\"type\": \"console\", \"timestamp\": \"2019-01-03T16:30:53,058+0100\", \"level\": \"DEBUG\", "
-            + "\"component\": \"o.e.a.s.TransportSearchAction\", \"cluster.name\": \"clustername\", \"node.name\": \"node-0\", "
-            + "\"cluster.uuid\": \"OG5MkvOrR9azuClJhWvy6Q\", \"node.id\": \"VTShUqmcQG6SzeKY5nn7qA\",  \"message\": \"msg msg\" "
-            + jsonStacktraceElement
-            + "}";
+        return """
+            {
+              "type": "console",
+              "timestamp": "2019-01-03T16:30:53,058+0100",
+              "level": "DEBUG",
+              "component": "o.e.a.s.TransportSearchAction",
+              "cluster.name": "clustername",
+              "node.name": "node-0",
+              "cluster.uuid": "OG5MkvOrR9azuClJhWvy6Q",
+              "node.id": "VTShUqmcQG6SzeKY5nn7qA",
+              "message": "msg msg"
+              %s
+            }""".formatted(jsonStacktraceElement);
     }
 }

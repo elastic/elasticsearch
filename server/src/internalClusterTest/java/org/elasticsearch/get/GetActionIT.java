@@ -789,33 +789,24 @@ public class GetActionIT extends ESIntegTestCase {
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
 
         String storedString = stored ? "true" : "false";
-        String createIndexSource = "{\n"
-            + "  \"settings\": {\n"
-            + "    \"index.translog.flush_threshold_size\": \"1pb\",\n"
-            + "    \"refresh_interval\": \"-1\"\n"
-            + "  },\n"
-            + "  \"mappings\": {\n"
-            + "    \"_doc\": {\n"
-            + "      \"_source\" : {\"enabled\" : "
-            + sourceEnabled
-            + "},"
-            + "      \"properties\": {\n"
-            + "        \"text1\": {\n"
-            + "          \"type\": \"text\",\n"
-            + "          \"store\": \""
-            + storedString
-            + "\""
-            + "        },\n"
-            + "        \"text2\": {\n"
-            + "          \"type\": \"text\",\n"
-            + "          \"store\": \""
-            + storedString
-            + "\""
-            + "        }"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String createIndexSource = """
+            {
+              "settings": {
+                "index.translog.flush_threshold_size": "1pb",
+                "refresh_interval": "-1"
+              },
+              "mappings": {
+                "_doc": {
+                  "_source" : {"enabled" : %s},      "properties": {
+                    "text1": {
+                      "type": "text",
+                      "store": "%s"        },
+                    "text2": {
+                      "type": "text",
+                      "store": "%s"        }      }
+                }
+              }
+            }""".formatted(sourceEnabled, storedString, storedString);
 
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();

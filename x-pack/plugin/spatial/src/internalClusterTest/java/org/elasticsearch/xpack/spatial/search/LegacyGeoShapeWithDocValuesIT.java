@@ -72,7 +72,8 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             {
               "properties": {
                 "shape": {
-                  "type": "geo_shape"    }
+                  "type": "geo_shape"
+                }
               }
             }""";
 

@@ -124,10 +124,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     public void testRewriteWithInnerName() throws IOException {
-        QueryBuilder builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
+        QueryBuilder builder = new WrapperQueryBuilder("""
+            { "match_all" : {"_name" : "foobar"}}""");
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(searchExecutionContext));
-        builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}").queryName("outer");
+        builder = new WrapperQueryBuilder("""
+            { "match_all" : {"_name" : "foobar"}}""").queryName("outer");
         assertEquals(
             new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
             builder.rewrite(searchExecutionContext)

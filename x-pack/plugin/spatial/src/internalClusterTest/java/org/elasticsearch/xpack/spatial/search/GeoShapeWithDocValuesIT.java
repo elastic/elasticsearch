@@ -67,7 +67,9 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             {
               "properties": {
                 "shape": {
-                  "type": "geo_shape",      "strategy": "recursive"    }
+                  "type": "geo_shape",
+                  "strategy": "recursive"
+                }
               }
             }""";
 

@@ -50,7 +50,7 @@ public interface QueryableExpressionBuilder {
     }
 
     static QueryableExpressionBuilder subtract(QueryableExpressionBuilder lhs, QueryableExpressionBuilder rhs) {
-        return UNQUERYABLE;  // TODO subtract for real
+        return add(lhs, multiply(rhs, constant(-1)));
     }
 
     static QueryableExpressionBuilder multiply(QueryableExpressionBuilder lhs, QueryableExpressionBuilder rhs) {

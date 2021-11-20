@@ -180,3 +180,24 @@ skip docs with missing values:
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldTermQuery }
   - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 1 }
+
+---
+celsius to fahrenheit:
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          runtime_mappings:
+            temp_f:
+              type: long
+              script: emit(((doc.tx.value * 5) / 9) + 32)
+              approximate_first: true
+          query:
+            range:
+              temp_f:
+                lt: 2223232639
+  - match: { hits.total.value: 4 }
+  - match: { profile.shards.0.searches.0.query.0.type: LongScriptFieldRangeQuery }
+  - match: { profile.shards.0.searches.0.query.0.description: 'temp_f:[-9223372036854775808 TO 2223232638] approximated by tx:[1844674407370955161 TO 1844674407370955161] (tx:[-9223372036854775808 TO -1844674407370955161])^2.0 tx:[-1844674407370955161 TO 4001818692] (tx:[1844674407370955161 TO 9223372036854775807])^2.0' }
+  - match: { profile.shards.0.searches.0.query.0.breakdown.match_count: 4 }

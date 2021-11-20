@@ -121,9 +121,12 @@ public class CollectArgumentTests extends ScriptTestCase {
         assertEquals(QueryableExpression.UNQUERYABLE, qe("emit(10l / doc['b'].value)", longLookup));
     }
 
-    @AwaitsFix(bugUrl = "Terms with multiple operations cannot be approximated yet")
     public void testCelsiusToFahrenheitLong() {
-        assertEquals("(temp_c * 2) + 32", qe("emit((doc['temp_c'].value * 2l) + 32l)", longLookup).toString());
+        assertEquals("temp_c * 5 / 9 + 32", qe("emit(((doc['temp_c'].value * 5) / 9) + 32l)", longLookup).toString());
+    }
+
+    public void testFahrenheitToCelsiusLong() {
+        assertEquals("temp_f + -32 * 5 / 9", qe("emit(((doc['temp_f'].value - 32) * 5) / 9)", longLookup).toString());
     }
 
     private static final Function<String, Object> X_IS_100L = Map.of("x", 100L)::get;

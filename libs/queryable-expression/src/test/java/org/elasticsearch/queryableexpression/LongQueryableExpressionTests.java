@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.queryableexpression.IntQueryableExpressionTests.randomInterestingInt;
@@ -287,6 +288,117 @@ public class LongQueryableExpressionTests extends ESTestCase {
         });
     }
 
+    public void testNegateThenAdd() throws IOException {
+        long c1 = randomValueOtherThan(0L, LongQueryableExpressionTests::randomInterestingLong);
+
+        withIndexedLong((indexed, searcher, foo) -> {
+            long result = -indexed + c1;
+            String printed = String.format("-(foo) + %d", c1);
+            logger.info("{} = {} with foo = {}", printed, result, indexed);
+
+            LongQueryableExpression expression = new AbstractLongQueryableExpression.Add(
+                new AbstractLongQueryableExpression.Negate(foo),
+                c1
+            );
+
+            assertEquals(printed, expression.toString());
+            checkApproximations(searcher, expression, result);
+            checkPerfectApproximation(searcher, expression, result);
+        });
+    }
+
+    public void testAddThenDivide() throws IOException {
+        long c1 = randomValueOtherThan(0L, LongQueryableExpressionTests::randomInterestingLong);
+        long c2 = randomValueOtherThanMany(Set.of(-1L, 0L, 1L)::contains, LongQueryableExpressionTests::randomInterestingLong);
+
+        withIndexedLong((indexed, searcher, foo) -> {
+            long result = (indexed + c1) / c2;
+            String printed = String.format("foo + %d / %d", c1, c2);
+            logger.info("{} = {} with foo = {}", printed, result, indexed);
+
+            LongQueryableExpression expression = new AbstractLongQueryableExpression.Divide(
+                new AbstractLongQueryableExpression.Add(foo, c1),
+                c2
+            );
+
+            assertEquals(printed, expression.toString());
+            checkApproximations(searcher, expression, result);
+        });
+    }
+
+    public void testAddThenMultiply() throws IOException {
+        long c1 = randomValueOtherThan(0L, LongQueryableExpressionTests::randomInterestingLong);
+        long c2 = randomValueOtherThanMany(Set.of(-1L, 0L, 1L)::contains, LongQueryableExpressionTests::randomInterestingLong);
+
+        withIndexedLong((indexed, searcher, foo) -> {
+            long result = (indexed + c1) * c2;
+            String printed = String.format("foo + %d * %d", c1, c2);
+            logger.info("{} = {} with foo = {}", printed, result, indexed);
+
+            LongQueryableExpression expression = new AbstractLongQueryableExpression.Multiply(
+                new AbstractLongQueryableExpression.Add(foo, c1),
+                c2
+            );
+
+            assertEquals(printed, expression.toString());
+            checkApproximations(searcher, expression, result);
+        });
+    }
+
+    public void testMultiplyThenDivide() throws IOException {
+        long c1 = randomValueOtherThanMany(Set.of(-1L, 0L, 1L)::contains, LongQueryableExpressionTests::randomInterestingLong);
+        long c2 = randomValueOtherThanMany(Set.of(-1L, 0L, 1L)::contains, LongQueryableExpressionTests::randomInterestingLong);
+
+        withIndexedLong((indexed, searcher, foo) -> {
+            long result = (indexed * c1) / c2;
+            String printed = String.format("foo * %d / %d", c1, c2);
+            logger.info("{} = {} with foo = {}", printed, result, indexed);
+
+            LongQueryableExpression expression = new AbstractLongQueryableExpression.Divide(
+                new AbstractLongQueryableExpression.Multiply(foo, c1),
+                c2
+            );
+
+            assertEquals(printed, expression.toString());
+            checkApproximations(searcher, expression, result);
+        });
+    }
+
+    public void testDivideThenMultiply() throws IOException {
+        long c1 = randomValueOtherThanMany(Set.of(-1L, 0L, 1L)::contains, LongQueryableExpressionTests::randomInterestingLong);
+        long c2 = randomValueOtherThanMany(Set.of(-1L, 0L, 1L)::contains, LongQueryableExpressionTests::randomInterestingLong);
+
+        withIndexedLong((indexed, searcher, foo) -> {
+            long result = (indexed / c1) * c2;
+            String printed = String.format("foo / %d * %d", c1, c2);
+            logger.info("{} = {} with foo = {}", printed, result, indexed);
+
+            LongQueryableExpression expression = new AbstractLongQueryableExpression.Multiply(
+                new AbstractLongQueryableExpression.Divide(foo, c1),
+                c2
+            );
+
+            assertEquals(printed, expression.toString());
+            checkApproximations(searcher, expression, result);
+        });
+    }
+
+    public void testCelsiusToFahrenheit() throws IOException {
+        withIndexedLong((indexed, searcher, foo) -> {
+            long result = (indexed * 5 / 9) + 32;
+            String printed = String.format("foo * 5 / 9 + 32");
+            logger.info("{} = {} with foo = {}", printed, result, indexed);
+
+            LongQueryableExpression expression = new AbstractLongQueryableExpression.Add(
+                new AbstractLongQueryableExpression.Divide(new AbstractLongQueryableExpression.Multiply(foo, 5), 9),
+                32
+            );
+
+            assertEquals(printed, expression.toString());
+            checkApproximations(searcher, expression, result);
+        });
+    }
+
     public void testLongConstantPlusLongConstant() throws IOException {
         long lhs = randomInterestingLong();
         long rhs = randomInterestingLong();
@@ -334,7 +446,7 @@ public class LongQueryableExpressionTests extends ESTestCase {
 
     @FunctionalInterface
     interface WithIndexedLong {
-        void accept(long indexed, IndexSearcher searcher, QueryableExpression foo) throws IOException;
+        void accept(long indexed, IndexSearcher searcher, AbstractLongQueryableExpression.Field foo) throws IOException;
     }
 
     private static void withIndexedLong(WithIndexedLong callback) throws IOException {
@@ -343,22 +455,26 @@ public class LongQueryableExpressionTests extends ESTestCase {
             iw.addDocument(List.of(new LongPoint("foo", indexed)));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                callback.accept(indexed, searcher, LongQueryableExpression.field("foo", new LongQueryableExpression.LongQueries() {
-                    @Override
-                    public Query approximateExists() {
-                        return new MatchAllDocsQuery();
-                    }
+                callback.accept(
+                    indexed,
+                    searcher,
+                    new AbstractLongQueryableExpression.Field("foo", new LongQueryableExpression.LongQueries() {
+                        @Override
+                        public Query approximateExists() {
+                            return new MatchAllDocsQuery();
+                        }
 
-                    @Override
-                    public Query approximateTermQuery(long term) {
-                        return LongPoint.newExactQuery("foo", term);
-                    }
+                        @Override
+                        public Query approximateTermQuery(long term) {
+                            return LongPoint.newExactQuery("foo", term);
+                        }
 
-                    @Override
-                    public Query approximateRangeQuery(long lower, long upper) {
-                        return LongPoint.newRangeQuery("foo", lower, upper);
-                    }
-                }));
+                        @Override
+                        public Query approximateRangeQuery(long lower, long upper) {
+                            return LongPoint.newRangeQuery("foo", lower, upper);
+                        }
+                    })
+                );
             }
         }
     }

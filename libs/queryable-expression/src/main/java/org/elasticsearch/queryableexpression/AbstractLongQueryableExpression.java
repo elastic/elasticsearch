@@ -187,7 +187,7 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
     static class Add extends Chain {
         private final long n;
 
-        private Add(LongQueryableExpression next, long n) {
+        Add(LongQueryableExpression next, long n) {
             super(next);
             if (n == 0) {
                 throw new IllegalArgumentException("Don't create Add nodes for identity");
@@ -228,7 +228,7 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
      * Flip the sign of a value
      */
     static class Negate extends Chain {
-        private Negate(LongQueryableExpression next) {
+        Negate(LongQueryableExpression next) {
             super(next);
         }
 
@@ -268,7 +268,7 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
     static class Multiply extends Chain {
         private final long n;
 
-        private Multiply(LongQueryableExpression next, long n) {
+        Multiply(LongQueryableExpression next, long n) {
             super(next);
             if (n == 0) {
                 throw new IllegalArgumentException("Use Negate for * -1");
@@ -323,7 +323,7 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
     static class Divide extends Chain {
         private final long n;
 
-        private Divide(LongQueryableExpression next, long n) {
+        Divide(LongQueryableExpression next, long n) {
             super(next);
             if (n == -1) {
                 throw new IllegalArgumentException("Use Negatate for / -1");
@@ -536,17 +536,17 @@ abstract class AbstractLongQueryableExpression implements LongQueryableExpressio
 
         @Override
         protected QueryableExpression add(LongQueryableExpression rhs) {
-            return UnqueryableExpression.UNQUERYABLE;
+            return rhs.mapConstant(c -> new Add(this, c));
         }
 
         @Override
         protected QueryableExpression multiply(LongQueryableExpression rhs) {
-            return UnqueryableExpression.UNQUERYABLE;
+            return rhs.mapConstant(c -> new Multiply(this, c));
         }
 
         @Override
         protected QueryableExpression divide(LongQueryableExpression rhs) {
-            return UnqueryableExpression.UNQUERYABLE;
+            return rhs.mapConstant(c -> new Divide(this, c));
         }
 
         @Override

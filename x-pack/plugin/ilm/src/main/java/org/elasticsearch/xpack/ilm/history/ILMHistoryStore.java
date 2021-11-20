@@ -22,7 +22,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,6 +51,13 @@ public class ILMHistoryStore implements Closeable {
     private static final Logger logger = LogManager.getLogger(ILMHistoryStore.class);
 
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
+
+    private static int ILM_HISTORY_BULK_SIZE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.indices.lifecycle.history.bulk.size", "50MB"),
+            "es.indices.lifecycle.history.bulk.size"
+        ).getBytes()
+    );
 
     private final boolean ilmHistoryEnabled;
     private final BulkProcessor processor;
@@ -124,7 +130,7 @@ public class ILMHistoryStore implements Closeable {
             }
         }, "ilm-history-store")
             .setBulkActions(-1)
-            .setBulkSize(new ByteSizeValue(50, ByteSizeUnit.MB))
+            .setBulkSize(ByteSizeValue.ofBytes(ILM_HISTORY_BULK_SIZE))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))

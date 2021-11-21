@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -557,13 +558,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             String nodeId = clusterService.localNode().getId();
+            Releasable coordinatingMemoryReleaser = bulkRequest.requestMemory().childCoordinatingMemoryReleaser(requestsByShard.size());
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[requests.size()])
+                    requests.toArray(new BulkItemRequest[requests.size()]),
+                    new RequestMemory(coordinatingMemoryReleaser)
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
@@ -609,7 +612,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
 
             // allow memory for bulk request items to be reclaimed before all items have been completed
-            bulkRequest.resourceReleaser().close();
+            bulkRequest.requestMemory().releaseCoordinatingMemory();
             bulkRequest = null;
         }
 

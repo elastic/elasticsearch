@@ -76,7 +76,7 @@ public class BulkRequest extends ActionRequest
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
-    private Releasable resourceReleaser = Releasable.NO_OP;
+    private RequestMemory requestMemory = new RequestMemory();
 
     private long sizeInBytes = 0;
 
@@ -301,12 +301,12 @@ public class BulkRequest extends ActionRequest
     /**
      * Set an optional releasable to early release unused resources.
      */
-    public void resourceReleaser(Releasable resourceReleaser) {
-        this.resourceReleaser = resourceReleaser;
+    public void requestMemory(RequestMemory requestMemory) {
+        this.requestMemory = requestMemory;
     }
 
-    public Releasable resourceReleaser() {
-        return resourceReleaser;
+    public RequestMemory requestMemory() {
+        return requestMemory;
     }
 
     @Override

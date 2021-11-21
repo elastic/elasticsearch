@@ -45,6 +45,9 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     private final BulkItemRequest[] items;
     private final MaybeCompressedSourceBytes sourceBytes;
 
+    // Local, not serialized
+    private final RequestMemory requestMemory;
+
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
@@ -53,11 +56,17 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         } else {
             sourceBytes = null;
         }
+        requestMemory = new RequestMemory();
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        this(shardId, refreshPolicy, items, new RequestMemory());
+    }
+
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, RequestMemory requestMemory) {
         super(shardId);
         this.items = items;
+        this.requestMemory = requestMemory;
         setRefreshPolicy(refreshPolicy);
         BytesReference[] references = new BytesReference[items.length];
         int[] uncompressedLengths = new int[items.length];
@@ -106,9 +115,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     }
 
     public BulkItemRequest[] inflatedItems() {
-        if (sourceBytes != null) {
-            assert sourceBytes.isCompressed == false;
-        }
+        assert sourceBytes == null || sourceBytes.isCompressed == false;
         return items;
     }
 

@@ -17,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -355,11 +354,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        if (indicesLookup != null) {
-            return indicesLookup;
+        if (indicesLookup == null) {
+            DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
+            indicesLookup = Builder.buildIndicesLookup(dataStreamMetadata, indices);
         }
-        DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
-        indicesLookup = Collections.unmodifiableSortedMap(Builder.buildIndicesLookup(dataStreamMetadata, indices));
         return indicesLookup;
     }
 
@@ -379,25 +377,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
      * that point to the specified concrete indices (directly or matching indices via wildcards).
      *
-     * @param aliasesRequest The request to find aliases for
-     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
-     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
-     * aliases then the result will <b>not</b> include the index's key.
-     */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
-        return findAliases(aliasesRequest.aliases(), concreteIndices);
-    }
-
-    /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
-     * that point to the specified concrete indices (directly or matching indices via wildcards).
-     *
      * @param aliases The aliases to look for. Might contain include or exclude wildcards.
      * @param concreteIndices The concrete indices that the aliases must point to in order to be returned
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    private ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
+    public ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -785,7 +770,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public ImmutableOpenMap<String, IndexTemplateMetadata> getTemplates() {
-        return this.templates;
+        return templates();
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {
@@ -1646,7 +1631,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 indicesLookup = previousIndicesLookup;
             } else {
                 if (builtIndicesLookupEagerly) {
-                    indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup(dataStreamMetadata, indices));
+                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indices);
                 } else {
                     indicesLookup = null;
                 }
@@ -1771,7 +1756,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             validateDataStreams(indicesLookup, dataStreamMetadata);
-            return indicesLookup;
+            return Collections.unmodifiableSortedMap(indicesLookup);
         }
 
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {

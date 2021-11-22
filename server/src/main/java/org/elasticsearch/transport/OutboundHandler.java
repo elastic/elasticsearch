@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -143,8 +142,7 @@ final class OutboundHandler {
         final Exception error
     ) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
-        TransportAddress address = new TransportAddress(channel.getLocalAddress());
-        RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
+        RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
         sendMessage(channel, message, listener);

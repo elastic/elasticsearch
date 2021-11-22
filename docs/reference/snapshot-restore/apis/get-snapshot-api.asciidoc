@@ -43,17 +43,6 @@ GET /_snapshot/my_repository/my_snapshot
 `monitor_snapshot`, `create_snapshot`, or `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[get-snapshot-api-desc]]
-==== {api-description-title}
-
-Use the get snapshot API to return information about one or more snapshots, including:
-
-* Start and end time values
-* Version of {es} that created the snapshot
-* List of included indices
-* Current state of the snapshot
-* List of failures that occurred during the snapshot
-
 [[get-snapshot-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -222,7 +211,7 @@ Maximum number of segments per shard in this index snapshot.
 ====
 
 `data_streams`::
-(array)
+(array of strings)
 List of <<data-streams,data streams>> included in the snapshot.
 
 `include_global_state`::
@@ -231,12 +220,19 @@ Indicates whether the current cluster state is included in the snapshot.
 
 [[get-snapshot-api-feature-states]]
 `feature_states`::
-(array)
-List of feature states which were included when the snapshot was taken,
-including the list of system indices included as part of the feature state. The
-`feature_name` field of each can be used in the `feature_states` parameter when
-restoring the snapshot to restore a subset of feature states. Only present if
-the snapshot includes one or more feature states.
+(array of objects) <<feature-state,Feature states>> in the snapshot.
+Only present if the snapshot contains one or more feature states.
++
+.Properties of `features_states` objects
+[%collapsible%open]
+====
+`feature_name`::
+(string) Name of the feature, as returned by the <<get-features-api,get features
+API>>.
+
+`indices`::
+(array of strings) Indices in the feature state.
+====
 
 `start_time`::
 (string)

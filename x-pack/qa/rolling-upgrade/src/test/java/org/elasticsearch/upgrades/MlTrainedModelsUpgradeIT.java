@@ -41,6 +41,10 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
+        // We shouldn't wait for ML templates during the upgrade - production won't
+        if (CLUSTER_TYPE != ClusterType.OLD) {
+            return super.templatesToWaitFor();
+        }
         return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
             .collect(Collectors.toSet());
     }

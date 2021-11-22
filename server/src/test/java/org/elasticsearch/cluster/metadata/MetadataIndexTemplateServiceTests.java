@@ -2233,9 +2233,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        IndexTemplateMissingException indexTemplateMissingException = expectThrows(IndexTemplateMissingException.class,
-            () -> MetadataIndexTemplateService.innerRemoveTemplates(clusterService.state(),
-                Set.of("foo", "bar", "missing", "other_mssing")));
+        IndexTemplateMissingException indexTemplateMissingException = expectThrows(
+            IndexTemplateMissingException.class,
+            () -> MetadataIndexTemplateService.innerRemoveTemplates(clusterService.state(), Set.of("foo", "bar", "missing", "other_mssing"))
+        );
         assertThat(indexTemplateMissingException.getMessage(), is("index_template [missing,other_mssing] missing"));
 
         // let's also test the templates that did exists were not removed

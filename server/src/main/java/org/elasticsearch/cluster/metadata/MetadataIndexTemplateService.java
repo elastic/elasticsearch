@@ -184,26 +184,31 @@ public class MetadataIndexTemplateService {
      *
      * The provided templates must exist in the cluster, otherwise an {@link IndexTemplateMissingException} is reported.
      */
-    public static void removeTemplates(ClusterService clusterService, Set<String> templateNames,
-                                      ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("remove-templates [" + String.join(",", templateNames) +
-            "]", new ClusterStateUpdateTask(Priority.URGENT, MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) {
+    public static void removeTemplates(
+        ClusterService clusterService,
+        Set<String> templateNames,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(
+            "remove-templates [" + String.join(",", templateNames) + "]",
+            new ClusterStateUpdateTask(Priority.URGENT, MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) {
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerRemoveTemplates(currentState, templateNames);
-            }
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return innerRemoveTemplates(currentState, templateNames);
+                }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
-            }
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
 
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
             }
-        });
+        );
     }
 
     /**

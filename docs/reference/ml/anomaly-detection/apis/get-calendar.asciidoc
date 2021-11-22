@@ -53,14 +53,20 @@ or by omitting the identifier.
 [[ml-get-calendar-request-body]]
 == {api-request-body-title}
 
-`page`.`from`::
-    (Optional, integer) Skips the specified number of calendars. This object is 
-    supported only when you omit the `<calendar_id>`. Defaults to `0`.
+`page`::
++
+.Properties of `page`
+[%collapsible%open]
+====
 
-`page`.`size`::
-    (Optional, integer) Specifies the maximum number of calendars to obtain.
-    This object is  supported only when you omit the `<calendar_id>`. Defaults
-    to `100`.
+`from`:::
+(Optional, integer) Skips the specified number of calendars. This object is 
+supported only when you omit the `<calendar_id>`. Defaults to `0`.
+
+`size`:::
+(Optional, integer) Specifies the maximum number of calendars to obtain. This
+object is  supported only when you omit the `<calendar_id>`. Defaults to `100`.
+====
 
 [[ml-get-calendar-results]]
 == {api-response-body-title}

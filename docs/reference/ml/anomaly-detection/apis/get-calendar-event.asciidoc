@@ -63,8 +63,8 @@ as the calendar identifier.
 [[ml-get-calendar-event-request-body]]
 == {api-request-body-title}
 
-You can also specify some of the query parameters (such as `end` and
-`job_id`) in the request body.
+You can also specify the query parameters in the request body; the exception are
+`from` and `size`, use `page` instead:
 
 `page.from`::
     (Optional, integer) Skips the specified number of events. Defaults to `0`.

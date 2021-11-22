@@ -81,8 +81,8 @@ timestamps.
 [[ml-get-bucket-request-body]]
 == {api-request-body-title}
 
-You can also specify the query parameters (such as `anomaly_score` and `desc`)
-in the request body.
+You can also specify the query parameters in the request body; the exception are
+`from` and `size`, use `page` instead:
 
 `page`.`from`::
 (Optional, integer) Skips the specified number of buckets. Defaults to `0`.

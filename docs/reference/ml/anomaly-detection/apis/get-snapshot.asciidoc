@@ -67,8 +67,8 @@ specifying `*` as the snapshot ID, or by omitting the snapshot ID.
 [[ml-get-snapshot-request-body]]
 == {api-request-body-title}
 
-You can also specify some of the query parameters (such as `desc` and
-`end`) in the request body.
+You can also specify the query parameters in the request body; the exception are
+`from` and `size`, use `page` instead:
 
 `page`.`from`::
 (Optional, integer) Skips the specified number of snapshots. Defaults to `0`.

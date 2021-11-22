@@ -133,7 +133,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testWordDocument() throws Exception {
         Map<String, Object> attachmentData = parseDocument("issue-104.docx", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length", "modifier", "modified", "publisher"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length",
+            "modifier", "modified", "publisher"));
         assertThat(attachmentData.get("content"), is(notNullValue()));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("date"), is("2012-10-12T11:17:00Z"));
@@ -151,7 +152,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testWordDocumentWithVisioSchema() throws Exception {
         Map<String, Object> attachmentData = parseDocument("issue-22077.docx", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length", "modifier", "modified", "print_date"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length",
+            "modifier", "modified", "print_date"));
         assertThat(attachmentData.get("content").toString(), containsString("Table of Contents"));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("date"), is("2015-01-06T18:07:00Z"));
@@ -169,7 +171,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testLegacyWordDocumentWithVisioSchema() throws Exception {
         Map<String, Object> attachmentData = parseDocument("issue-22077.doc", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length", "modifier", "modified", "print_date"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length",
+            "modifier", "modified", "print_date"));
         assertThat(attachmentData.get("content").toString(), containsString("Table of Contents"));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("date"), is("2016-12-16T15:04:00Z"));

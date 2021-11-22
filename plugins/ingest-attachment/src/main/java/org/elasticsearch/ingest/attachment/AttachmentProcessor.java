@@ -139,7 +139,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
         addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get("Keywords"));
         addAdditionalField(additionalFields, Property.CONTENT_TYPE, metadata.get(Metadata.CONTENT_TYPE));
 
-
         if (properties.contains(Property.CONTENT_LENGTH)) {
             String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
             long length;

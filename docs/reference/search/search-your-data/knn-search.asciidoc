@@ -4,8 +4,6 @@
 <titleabbrev>kNN search</titleabbrev>
 ++++
 
-experimental::[]
-
 //tag::knn-def[]
 A _k-nearest neighbor_ (kNN) search finds the _k_ nearest vectors to a query
 vector, as measured by a similarity metric.
@@ -15,6 +13,7 @@ image::images/kNN/knn_diagram.svg[Approximate kNN search as a two-dimensional gr
 
 Common use cases for kNN include:
 
+* Relevance ranking based on natural language processing (NLP) algorithms
 * Product recommendations and recommendation engines
 * Similarity search for images or videos
 * Outlier detection and classification
@@ -24,9 +23,8 @@ Common use cases for kNN include:
 === Prerequisites
 
 * To run a kNN search, you must be able to convert your data into meaningful
-<<dense-vector,`dense_vector`>> values. This typically requires the setup and
-training of a machine learning model. Elastic doesn't currently offer any
-out-of-the-box models or solutions for generating these vector values.
+<<dense-vector,`dense_vector`>> values. You create these vectors outside of {es}
+and pass them to {es} as a query vector or as part of an indexed document.
 
 * To complete the steps in this guide, you must have the following
 <<privileges-list-indices,index privileges>>:
@@ -41,7 +39,7 @@ out-of-the-box models or solutions for generating these vector values.
 
 {es} supports two methods for kNN search:
 
-* <<approximate-knn,Approximate kNN>> using the kNN search API
+* experimental:[] <<approximate-knn,Approximate kNN>> using the kNN search API
 
 * <<exact-knn,Exact, brute-force kNN>> using a `script_score` query with a
 vector function
@@ -52,13 +50,17 @@ reduced accuracy. However, you can configure this method for higher accuracy in
 exchange for slower searches.
 
 Exact, brute-force kNN guarantees accurate results but doesn't scale well with
-large datasets. The vector function has to scan each matched document linearly,
-resulting in slow search speeds. However, you can improve latency by using a
-query to limit the number of matched documents passed to the function.
+large, unfiltered datasets. The vector function has to scan each matched
+document linearly, resulting in slow search speeds. However, you can improve
+latency by using a query to limit the number of matched documents passed to the
+function. If you use the query to filter your data to a small subset of
+documents, you can get good search performance using this approach.
 
 [discrete]
 [[approximate-knn]]
 === Approximate kNN
+
+experimental::[]
 
 To run an approximate kNN search, use the kNN search API to search a
 `dense_vector` field with indexing enabled.

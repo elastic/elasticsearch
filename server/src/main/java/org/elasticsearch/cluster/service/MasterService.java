@@ -41,6 +41,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -75,6 +79,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
+    public static final String STATE_UPDATE_ACTION_NAME = "internal:cluster/coordination/update_state";
+
     ClusterStatePublisher clusterStatePublisher;
 
     private final String nodeName;
@@ -85,6 +91,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private final TimeValue starvationLoggingThreshold;
 
     protected final ThreadPool threadPool;
+    private volatile TaskManager taskManager;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
@@ -100,6 +107,10 @@ public class MasterService extends AbstractLifecycleComponent {
         this.starvationLoggingThreshold = MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(settings);
 
         this.threadPool = threadPool;
+    }
+
+    public void setTaskManager(TaskManager taskManager) {
+        this.taskManager = taskManager;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -244,41 +255,60 @@ public class MasterService extends AbstractLifecycleComponent {
             logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
             clusterStateUpdateStatsTracker.onUnchangedClusterState(computationTime.millis(), executionTime.millis());
         } else {
-            final ClusterState newClusterState = taskOutputs.newClusterState;
-            if (logger.isTraceEnabled()) {
-                logger.trace("cluster state updated, source [{}]\n{}", summary, newClusterState);
-            } else {
-                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), summary);
-            }
-            final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
-            try {
-                final ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent(
-                    summary,
-                    previousClusterState,
-                    newClusterState,
-                    computationTime.millis(),
-                    publicationStartTime
-                );
+            final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
+                @Override
+                public void setParentTask(TaskId taskId) {}
 
-                // new cluster state, notify all listeners
-                final DiscoveryNodes.Delta nodesDelta = newClusterState.nodes().delta(previousClusterState.nodes());
-                if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
-                    String nodesDeltaSummary = nodesDelta.shortSummary();
-                    if (nodesDeltaSummary.length() > 0) {
-                        logger.info(
-                            "{}, term: {}, version: {}, delta: {}",
-                            summary,
-                            newClusterState.term(),
-                            newClusterState.version(),
-                            nodesDeltaSummary
-                        );
-                    }
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
                 }
 
-                logger.debug("publishing cluster state version [{}]", newClusterState.version());
-                publish(clusterStatePublicationEvent, taskOutputs);
-            } catch (Exception e) {
-                handleException(summary, publicationStartTime, newClusterState, e);
+                @Override
+                public String getDescription() {
+                    return "publication of cluster state [" + taskOutputs.newClusterState.getVersion() + "]";
+                }
+            });
+            try {
+                final ClusterState newClusterState = taskOutputs.newClusterState;
+                if (logger.isTraceEnabled()) {
+                    logger.trace("cluster state updated, source [{}]\n{}", summary, newClusterState);
+                } else {
+                    logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), summary);
+                }
+                final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
+                try {
+                    final ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent(
+                        summary,
+                        previousClusterState,
+                        newClusterState,
+                        task,
+                        computationTime.millis(),
+                        publicationStartTime
+                    );
+
+                    // new cluster state, notify all listeners
+                    final DiscoveryNodes.Delta nodesDelta = newClusterState.nodes().delta(previousClusterState.nodes());
+                    if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
+                        String nodesDeltaSummary = nodesDelta.shortSummary();
+                        if (nodesDeltaSummary.length() > 0) {
+                            logger.info(
+                                "{}, term: {}, version: {}, delta: {}",
+                                summary,
+                                newClusterState.term(),
+                                newClusterState.version(),
+                                nodesDeltaSummary
+                            );
+                        }
+                    }
+
+                    logger.debug("publishing cluster state version [{}]", newClusterState.version());
+                    publish(clusterStatePublicationEvent, taskOutputs);
+                } catch (Exception e) {
+                    handleException(summary, publicationStartTime, newClusterState, e);
+                }
+            } finally {
+                taskManager.unregister(task);
             }
         }
     }

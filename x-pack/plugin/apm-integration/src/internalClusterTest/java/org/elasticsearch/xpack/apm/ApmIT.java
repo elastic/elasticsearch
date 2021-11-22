@@ -18,11 +18,13 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.tasks.Task;
@@ -42,9 +44,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.cluster.service.MasterService.STATE_UPDATE_ACTION_NAME;
+import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.Actions.START_RECOVERY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -124,6 +129,68 @@ public class ApmIT extends SecurityIntegTestCase {
             assertThat(childrenTask.getParentSpanId(), equalTo(parentTask.getSpanId()));
             assertThat(childrenTask.getTraceId(), equalTo(parentTask.getTraceId()));
         }
+    }
+
+    public void testRecovery() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test-index")
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                )
+        );
+
+        ensureGreen("test-index");
+
+        indexRandom(true, true, client().prepareIndex("test-index").setSource("{}", XContentType.JSON));
+        flushAndRefresh("test-index");
+
+        final APMTracer.CapturingSpanExporter spanExporter = APMTracer.CAPTURING_SPAN_EXPORTER;
+        spanExporter.clear();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test-index")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        ensureGreen("test-index");
+
+        final SpanData clusterUpdateSpan = spanExporter.findSpanByName(STATE_UPDATE_ACTION_NAME)
+            .findAny()
+            .orElseThrow(() -> new AssertionError("not found"));
+
+        final List<String> clusterUpdateChildActions = spanExporter.findSpan(
+            spanData -> spanData.getParentSpanId().equals(clusterUpdateSpan.getSpanId())
+        ).map(SpanData::getName).collect(toList());
+
+        assertThat(
+            clusterUpdateChildActions,
+            hasItems(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME, PublicationTransportHandler.COMMIT_STATE_ACTION_NAME)
+        );
+
+        final SpanData recoverySpan = spanExporter.findSpanByName(START_RECOVERY)
+            .findAny()
+            .orElseThrow(() -> new AssertionError("not found"));
+        final List<String> recoveryChildActions = spanExporter.findSpan(
+            spanData -> spanData.getParentSpanId().equals(recoverySpan.getSpanId())
+        ).map(SpanData::getName).collect(toList());
+
+        assertThat(
+            recoveryChildActions,
+            hasItems(
+                PeerRecoveryTargetService.Actions.FILES_INFO,
+                PeerRecoveryTargetService.Actions.FILE_CHUNK,
+                PeerRecoveryTargetService.Actions.CLEAN_FILES,
+                PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
+                PeerRecoveryTargetService.Actions.FINALIZE
+            )
+        );
+
     }
 
     public void testSearch() throws Exception {

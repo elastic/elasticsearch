@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
@@ -487,10 +488,7 @@ public final class ThreadContext implements Writeable {
     }
 
     @FunctionalInterface
-    public interface StoredContext extends AutoCloseable {
-        @Override
-        void close();
-
+    public interface StoredContext extends AutoCloseable, Releasable {
         default void restore() {
             close();
         }

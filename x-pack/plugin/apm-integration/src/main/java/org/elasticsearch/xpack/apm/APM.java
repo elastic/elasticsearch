@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -98,20 +99,26 @@ public class APM extends Plugin implements NetworkPlugin {
             TransportRequestOptions options,
             TransportResponseHandler<T> handler
         ) {
+            try (var ignored = withParentContext(String.valueOf(request.getParentTask().getId()))) {
+                sender.sendRequest(connection, action, request, options, handler);
+            }
+        }
+
+        private Releasable withParentContext(String parentTaskId) {
             var aTracer = tracer.get();
-            if (aTracer == null || aTracer.isEnabled() == false) {
-                sender.sendRequest(connection, action, request, options, handler);
-                return;
+            if (aTracer == null) {
+                return null;
             }
-            var headers = aTracer.getSpanHeadersById(String.valueOf(request.getParentTask().getId()));
+            if (aTracer.isEnabled() == false) {
+                return null;
+            }
+            var headers = aTracer.getSpanHeadersById(parentTaskId);
             if (headers == null) {
-                sender.sendRequest(connection, action, request, options, handler);
-                return;
+                return null;
             }
-            try (var ignore = threadContext.removeRequestHeaders(TRACE_HEADERS)) {
-                threadContext.putHeader(headers);
-                sender.sendRequest(connection, action, request, options, handler);
-            }
+            final Releasable releasable = threadContext.removeRequestHeaders(TRACE_HEADERS);
+            threadContext.putHeader(headers);
+            return releasable;
         }
     }
 }

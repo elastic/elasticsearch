@@ -753,6 +753,8 @@ public class Node implements Closeable {
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
+            clusterService.setTaskManager(transportService.getTaskManager());
+
             final TaskTracer taskTracer = transportService.getTaskManager().getTaskTracer();
             final List<Tracer> tracers = pluginComponents.stream()
                 .map(c -> c instanceof Tracer ? (Tracer) c : null)

@@ -28,7 +28,6 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
-
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 
 import org.elasticsearch.Version;
@@ -125,7 +124,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     protected void doStop() {
         destroyApmServices();
         try {
-            shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
+            final boolean stopped = shutdownPermits.tryAcquire(Integer.MAX_VALUE, 30L, TimeUnit.SECONDS);
+            assert stopped : "did not stop tracing within timeout";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -196,7 +196,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
         spans.computeIfAbsent(traceable.getSpanId(), spanId -> {
-            // services might be in shutdown sate by this point, but this is handled by the open telemetry internally
+            // services might be in shutdown state by this point, but this is handled by the open telemetry internally
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
             Context parentContext = getParentSpanContext(services.openTelemetry);
             if (parentContext != null) {

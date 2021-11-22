@@ -11,10 +11,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
@@ -74,8 +71,8 @@ public interface RestHandler {
         return false;
     }
 
-    default MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
-        return XContentType.MEDIA_TYPE_REGISTRY;
+    default boolean mediaTypesValid(RestRequest request) {
+        return request.getXContentType() != null;
     }
 
     class Route {

@@ -11,8 +11,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
@@ -32,10 +30,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT), new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
-    }
-
-    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
-        return SqlMediaTypeParser.MEDIA_TYPE_REGISTRY;
     }
 
     @Override

@@ -302,7 +302,6 @@ exceeds 85%.
 
 **Check JVM memory pressure**
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 include::{es-repo-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
 
 **Check garbage collection logs**

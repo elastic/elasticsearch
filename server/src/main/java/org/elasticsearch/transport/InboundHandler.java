@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -238,7 +237,7 @@ public class InboundHandler {
                     assert reg != null;
                     final T request = reg.newRequest(stream);
                     try {
-                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                        request.remoteAddress(channel.getRemoteAddress());
                         // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                         final int nextByte = stream.read();
                         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
@@ -319,7 +318,7 @@ public class InboundHandler {
         final T response;
         try {
             response = handler.read(stream);
-            response.remoteAddress(new TransportAddress(remoteAddress));
+            response.remoteAddress(remoteAddress);
         } catch (Exception e) {
             final Exception serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,7 +22,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class EvilSchedulerEngineTests extends ESTestCase {
@@ -70,6 +74,7 @@ public class EvilSchedulerEngineTests extends ESTestCase {
                 assertNotNull(maybeThread.get());
                 assertThat(maybeThread.get(), not(equalTo(Thread.currentThread()))); // the error should be rethrown on another thread
                 schedulerLatch.await();
+                verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
                 verifyNoMoreInteractions(mockLogger); // we never logged anything
             } finally {
                 engine.stop();

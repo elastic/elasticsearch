@@ -45,9 +45,14 @@ and enrollment token.
 . Copy the generated password and enrollment token and save them in a secure
 location. These values are shown only when you start {es} for the first time.
 +
-NOTE: If you need to reset the password for the `elastic` user or other
+[NOTE]
+====
+If you need to reset the password for the `elastic` user or other
 built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
-This tool is available in the {es} `/bin` directory.
+To generate new enrollment tokens for {kib} or {es} nodes, run the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool.
+These tools are available in the {es} `bin` directory.
+====
 
 . (Optional) Open a new terminal and verify that you can connect to your {es} 
 cluster by making an authenticated call. Enter the password for the `elastic` 
@@ -85,31 +90,9 @@ when you started {es}.
 [[stack-enroll-nodes]]
 === Enroll additional nodes in your cluster
 
-. In a separate terminal from where {es} is running, navigate to the directory
-where you installed {es} and run the
-<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
-to generate an enrollment token for your additional nodes.
-+
-[source,shell]
-----
-bin/elasticsearch-create-enrollment-token -s node
-----
-+
-Copy the enrollment token, which you'll use to enroll additional nodes with
-your {es} cluster.
+:slash:     /
 
-. From the installation directory of your other node, start {es} and pass the
-enrollment token with the `--enrollment-token` parameter.
-+
-[source,shell]
-----
-bin/elasticsearch --enrollment-token <enrollment-token>
-----
-+
-{es} automatically generates certificates and keys in the
-`config/tls_auto_config_node_<timestamp>` directory.
-
-. Repeat the previous step for any additional nodes that you want to enroll.
+include::enroll-nodes.asciidoc[]
 
 [discrete]
 === What's next?

@@ -95,14 +95,14 @@ public final class AttachmentProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
 
-        Integer indexedChars = this.indexedChars;
+        Integer indexedCharsValue = this.indexedChars;
 
         if (indexedCharsField != null) {
             // If the user provided the number of characters to be extracted as part of the document, we use it
-            indexedChars = ingestDocument.getFieldValue(indexedCharsField, Integer.class, true);
-            if (indexedChars == null) {
+            indexedCharsValue = ingestDocument.getFieldValue(indexedCharsField, Integer.class, true);
+            if (indexedCharsValue == null) {
                 // If the field does not exist we fall back to the global limit
-                indexedChars = this.indexedChars;
+                indexedCharsValue = this.indexedChars;
             }
         }
 
@@ -112,7 +112,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
         String parsedContent = "";
         try {
-            parsedContent = TikaImpl.parse(input, metadata, indexedChars);
+            parsedContent = TikaImpl.parse(input, metadata, indexedCharsValue);
         } catch (ZeroByteFileException e) {
             // tika 1.17 throws an exception when the InputStream has 0 bytes.
             // previously, it did not mind. This is here to preserve that behavior.

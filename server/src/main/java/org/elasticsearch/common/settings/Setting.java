@@ -75,6 +75,11 @@ import java.util.stream.Stream;
  * </pre>
  */
 public class Setting<T> implements ToXContentObject {
+    private static final String DEPRECATED_MESSAGE_TEMPLATE =
+        "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+            + "See the %s changes documentation for the next major version.";
+    private static final String DEPRECATED_WARN_MESSAGE = String.format(Locale.ROOT, DEPRECATED_MESSAGE_TEMPLATE, "deprecation");
+    private static final String DEPRECATED_CRITICAL_MESSAGE = String.format(Locale.ROOT, DEPRECATED_MESSAGE_TEMPLATE, "breaking");
 
     public enum Property {
         /**
@@ -580,12 +585,20 @@ public class Setting<T> implements ToXContentObject {
             final String key = getKey();
             List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
             if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
-                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.";
                 if (this.isDeprecatedWarningOnly()) {
-                    Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+                    Settings.DeprecationLoggerHolder.deprecationLogger.warn(
+                        DeprecationCategory.SETTINGS,
+                        key,
+                        DEPRECATED_WARN_MESSAGE,
+                        key
+                    );
                 } else {
-                    Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
+                    Settings.DeprecationLoggerHolder.deprecationLogger.critical(
+                        DeprecationCategory.SETTINGS,
+                        key,
+                        DEPRECATED_CRITICAL_MESSAGE,
+                        key
+                    );
                 }
             }
         }

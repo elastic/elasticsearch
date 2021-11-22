@@ -43,7 +43,7 @@ public class Distribution {
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.hasJdk = filename.contains("no-jdk") == false;
-        this.baseVersion = filename.split("-", 3)[1];;
+        this.baseVersion = filename.split("-", 3)[1];
         this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
     }
 

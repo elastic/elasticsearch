@@ -585,11 +585,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         protected void syncRetentionLeases(ShardId id, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-            new SyncRetentionLeases(
-                new RetentionLeaseSyncAction.Request(id, leases),
-                this,
-                listener.map(r -> new ReplicationResponse())
-            ).execute();
+            new SyncRetentionLeases(new RetentionLeaseSyncAction.Request(id, leases), this, listener.map(r -> new ReplicationResponse()))
+                .execute();
         }
 
         public synchronized RetentionLease addRetentionLease(

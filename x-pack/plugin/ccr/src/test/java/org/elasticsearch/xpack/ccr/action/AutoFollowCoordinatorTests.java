@@ -72,9 +72,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.cleanFollowedRemoteIndices;
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,7 +84,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
-import static org.hamcrest.core.IsNot.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1956,8 +1953,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         var after = autoFollowCoordinator.getStats();
 
         // then stats are removed as well (but only for the removed pattern)
-        assertThat(before.getRecentAutoFollowErrors().keySet(), contains("pattern1", "pattern2", "pattern3"));
-        assertThat(after.getRecentAutoFollowErrors().keySet(), allOf(contains("pattern1", "pattern2"), not(contains("pattern3"))));
+        assertThat(before.getRecentAutoFollowErrors().keySet(), equalTo(Set.of("pattern1", "pattern2", "pattern3")));
+        assertThat(after.getRecentAutoFollowErrors().keySet(), equalTo(Set.of("pattern1", "pattern2")));
     }
 
     public void testRemovesIndexLevelErrorsOnRemovingAutoFollowPattern() {
@@ -1996,11 +1993,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         var after = autoFollowCoordinator.getStats();
 
         // then stats are removed as well (but only for the removed pattern)
-        assertThat(before.getRecentAutoFollowErrors().keySet(), contains("pattern1:logs-1", "pattern2:logs-1", "pattern3:metrics-1"));
         assertThat(
-            after.getRecentAutoFollowErrors().keySet(),
-            allOf(contains("pattern1:logs-1", "pattern2:logs-1"), not(contains("pattern3:metrics-1")))
+            before.getRecentAutoFollowErrors().keySet(),
+            equalTo(Set.of("pattern1:logs-1", "pattern2:logs-1", "pattern3:metrics-1"))
         );
+        assertThat(after.getRecentAutoFollowErrors().keySet(), equalTo(Set.of("pattern1:logs-1", "pattern2:logs-1")));
     }
 
     public void testRemovesErrorsIfPatternContainsColon() {
@@ -2023,15 +2020,15 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
         );
 
-        // when auto-follow pattern `pattern3` is removed
+        // when auto-follow pattern `pattern:3` is removed
         var before = autoFollowCoordinator.getStats();
         autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of("pattern:1", pattern1, "pattern:2", pattern2)));
         autoFollowCoordinator.updateStats(List.of());// actually triggers the purge
         var after = autoFollowCoordinator.getStats();
 
         // then stats are removed as well (but only for the removed pattern)
-        assertThat(before.getRecentAutoFollowErrors().keySet(), contains("pattern:1", "pattern:2", "pattern:3"));
-        assertThat(after.getRecentAutoFollowErrors().keySet(), allOf(contains("pattern:1", "pattern:2"), not(contains("pattern:3"))));
+        assertThat(before.getRecentAutoFollowErrors().keySet(), equalTo(Set.of("pattern:1", "pattern:2", "pattern:3")));
+        assertThat(after.getRecentAutoFollowErrors().keySet(), equalTo(Set.of("pattern:1", "pattern:2")));
     }
 
     private AutoFollowCoordinator createAutoFollowCoordinator() {

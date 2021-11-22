@@ -226,7 +226,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         );
                         LOGGER.warn(
                             new ParameterizedMessage(
-                                "failure occurred while auto following index [{}] for auto follow " + "pattern [{}]",
+                                "failure occurred while auto following index [{}] for auto follow pattern [{}]",
                                 entry.getKey(),
                                 result.autoFollowPatternName
                             ),
@@ -252,6 +252,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
             return;
         }
+
+        this.patterns = Set.copyOf(autoFollowMetadata.getPatterns().keySet());
 
         final CopyOnWriteHashMap<String, AutoFollower> autoFollowers = CopyOnWriteHashMap.copyOf(this.autoFollowers);
         Set<String> newRemoteClusters = autoFollowMetadata.getPatterns()
@@ -361,7 +363,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
         assert assertNoOtherActiveAutoFollower(newAutoFollowers);
         this.autoFollowers = autoFollowers.copyAndPutAll(newAutoFollowers).copyAndRemoveAll(removedRemoteClusters);
-        this.patterns = Set.copyOf(autoFollowMetadata.getPatterns().keySet());
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {

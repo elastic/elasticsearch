@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -298,8 +299,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             return;
         }
 
-        ActionListener<Boolean> hasRunningDatafeedTaskListener = ActionListener.wrap(hasRunningDatafeed -> {
-            if (hasRunningDatafeed && isMasterNodeVersionOnOrAfter(MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT)) {
+        ActionListener<String> getRunningDatafeedListener = ActionListener.wrap(runningDatafeedId -> {
+            if (runningDatafeedId != null && isMasterNodeVersionOnOrAfter(MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT)) {
 
                 // This job has a running datafeed attached to it.
                 // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
@@ -319,45 +320,84 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             }
         });
 
-        hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
+        getRunningDatafeed(jobTask.getJobId(), getRunningDatafeedListener);
     }
 
     private void failTask(JobTask jobTask, String reason) {
+        String jobId = jobTask.getJobId();
+        auditor.error(jobId, reason);
         JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(
-            failedState,
-            ActionListener.wrap(
-                r -> logger.debug(() -> new ParameterizedMessage("[{}] updated task state to failed", jobTask.getJobId())),
-                e -> {
-                    logger.error(
-                        new ParameterizedMessage(
-                            "[{}] error while setting task state to failed; marking task as failed",
-                            jobTask.getJobId()
-                        ),
-                        e
-                    );
-                    jobTask.markAsFailed(e);
-                }
-            )
-        );
+        jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(r -> {
+            logger.debug("[{}] updated task state to failed", jobId);
+            stopAssociatedDatafeedForFailedJob(jobId);
+        }, e -> {
+            logger.error(new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobId), e);
+            jobTask.markAsFailed(e);
+            stopAssociatedDatafeedForFailedJob(jobId);
+        }));
+    }
+
+    private void stopAssociatedDatafeedForFailedJob(String jobId) {
+
+        if (autodetectProcessManager.isNodeDying()) {
+            // The node shutdown caught us at a bad time, and we cannot stop the datafeed
+            return;
+        }
+
+        ActionListener<String> getRunningDatafeedListener = ActionListener.wrap(runningDatafeedId -> {
+            if (runningDatafeedId == null) {
+                return;
+            }
+            StopDatafeedAction.Request request = new StopDatafeedAction.Request(runningDatafeedId);
+            request.setForce(true);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                StopDatafeedAction.INSTANCE,
+                request,
+                ActionListener.wrap(
+                    // StopDatafeedAction will audit the stopping of the datafeed if it succeeds so we don't need to do that here
+                    r -> logger.info("[{}] stopped associated datafeed [{}] after job failure", jobId, runningDatafeedId),
+                    e -> {
+                        if (autodetectProcessManager.isNodeDying() == false) {
+                            logger.error(
+                                new ParameterizedMessage(
+                                    "[{}] failed to stop associated datafeed [{}] after job failure",
+                                    jobId,
+                                    runningDatafeedId
+                                ),
+                                e
+                            );
+                            auditor.error(jobId, "failed to stop associated datafeed after job failure");
+                        }
+                    }
+                )
+            );
+        }, e -> {
+            if (autodetectProcessManager.isNodeDying() == false) {
+                logger.error(new ParameterizedMessage("[{}] failed to search for associated datafeed", jobId), e);
+            }
+        });
+
+        getRunningDatafeed(jobId, getRunningDatafeedListener);
     }
 
     private boolean isMasterNodeVersionOnOrAfter(Version version) {
         return clusterState.nodes().getMasterNode().getVersion().onOrAfter(version);
     }
 
-    private void hasRunningDatafeedTask(String jobId, ActionListener<Boolean> listener) {
+    private void getRunningDatafeed(String jobId, ActionListener<String> listener) {
         ActionListener<Set<String>> datafeedListener = ActionListener.wrap(datafeeds -> {
             assert datafeeds.size() <= 1;
             if (datafeeds.isEmpty()) {
-                listener.onResponse(false);
+                listener.onResponse(null);
                 return;
             }
 
             String datafeedId = datafeeds.iterator().next();
             PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-            listener.onResponse(datafeedTask != null);
+            listener.onResponse(datafeedTask != null ? datafeedId : null);
         }, listener::onFailure);
 
         datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
@@ -390,9 +430,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                         return;
                     }
                     listener.onFailure(
-                        ExceptionsHelper.serverError(
-                            "[{}] job snapshot [{}] has min version before [{}], "
-                                + "please revert to a newer model snapshot or reset the job",
+                        ExceptionsHelper.badRequestException(
+                            "[{}] job snapshot [{}] has min version before [{}], please revert to a newer model snapshot or reset the job",
                             jobId,
                             jobSnapshotId,
                             MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
@@ -505,7 +544,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 }
             } else if (autodetectProcessManager.isNodeDying() == false) {
                 logger.error(new ParameterizedMessage("[{}] failed to open job", jobTask.getJobId()), e2);
-                failTask(jobTask, "failed to open job");
+                failTask(jobTask, "failed to open job: " + e2.getMessage());
             }
         });
     }

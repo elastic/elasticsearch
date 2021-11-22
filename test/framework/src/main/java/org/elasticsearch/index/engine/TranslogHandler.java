@@ -101,14 +101,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final String indexName = mapperService.index().getName();
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(
-                        indexName,
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing(),
-                        Map.of()
-                    ),
+                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing(), Map.of()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

@@ -43,9 +43,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlInitializationService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -62,42 +61,10 @@ import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
-
-    @Before
-    // upping the logging due to potential failures in: https://github.com/elastic/elasticsearch/issues/63980
-    public void setLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor", "TRACE")
-                    .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager", "TRACE")
-                    .build()
-            )
-            .get();
-    }
-
-    @After
-    public void unsetLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction")
-                    .putNull("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction")
-                    .putNull("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor")
-                    .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager")
-                    .build()
-            )
-            .get();
-    }
 
     public void testFailOverBasics() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
@@ -250,6 +217,14 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             internalCluster().startNode();
         }
         ensureStableCluster(3);
+
+        // By now the ML initialization service should have realised that there are no
+        // legacy ML templates in the cluster and it doesn't need to keep checking
+        MlInitializationService mlInitializationService = internalCluster().getInstance(
+            MlInitializationService.class,
+            internalCluster().getMasterName()
+        );
+        assertBusy(() -> assertThat(mlInitializationService.checkForLegacyMlTemplates(), is(false)));
 
         String jobId = "dedicated-ml-node-job";
         Job.Builder job = createJob(jobId, ByteSizeValue.ofMb(2));

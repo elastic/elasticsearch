@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.time.Clock;
@@ -74,11 +72,9 @@ import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifec
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IndexLifecycleServiceTests extends ESTestCase {
@@ -287,7 +283,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             changedOperationMode.set(true);
             return null;
         }).when(clusterService)
-            .submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"), any(OperationModeUpdateTask.class));
+            .submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());
@@ -345,8 +341,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService)
-            .submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"), any(OperationModeUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class));
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
@@ -360,31 +355,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testExceptionStillProcessesOtherIndicesOnMaster() {
         doTestExceptionStillProcessesOtherIndices(true);
-    }
-
-    public void testOperationModeUpdateTaskPriority() {
-        indexLifecycleService.submitOperationModeUpdate(OperationMode.STOPPING);
-        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPING, Priority.IMMEDIATE);
-        indexLifecycleService.submitOperationModeUpdate(OperationMode.STOPPED);
-        verifyOperationModeUpdateTaskPriority(OperationMode.STOPPED, Priority.IMMEDIATE);
-        indexLifecycleService.submitOperationModeUpdate(OperationMode.RUNNING);
-        verifyOperationModeUpdateTaskPriority(OperationMode.RUNNING, Priority.NORMAL);
-    }
-
-    private void verifyOperationModeUpdateTaskPriority(OperationMode mode, Priority expectedPriority) {
-        verify(clusterService).submitStateUpdateTask(
-            Mockito.eq("ilm_operation_mode_update {OperationMode " + mode.name() + "}"),
-            argThat(new ArgumentMatcher<OperationModeUpdateTask>() {
-
-                Priority actualPriority = null;
-
-                @Override
-                public boolean matches(OperationModeUpdateTask other) {
-                    actualPriority = other.priority();
-                    return actualPriority == expectedPriority;
-                }
-            })
-        );
     }
 
     @SuppressWarnings("unchecked")

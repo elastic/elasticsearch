@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -475,6 +477,46 @@ public final class IndexSettings {
     }
 
     /**
+     * in time series mode, the start time of the index, timestamp must larger than start_time
+     */
+    public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
+        "index.time_series.start_time",
+        Instant.ofEpochMilli(0),
+        v -> {},
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * in time series mode, the end time of the index, timestamp must smaller than start_time
+     */
+    public static final Setting<Instant> TIME_SERIES_END_TIME = Setting.dateSetting(
+        "index.time_series.end_time",
+        DateUtils.MAX_NANOSECOND_INSTANT,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Instant value) {}
+
+            @Override
+            public void validate(Instant value, Map<Setting<?>, Object> settings) {
+                @SuppressWarnings("unchecked")
+                Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
+                if (startTime.toEpochMilli() > value.toEpochMilli()) {
+                    throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
      * The {@link IndexMode "mode"} of the index.
      */
     public static final Setting<IndexMode> MODE = Setting.enumSetting(
@@ -509,6 +551,14 @@ public final class IndexSettings {
      * The {@link IndexMode "mode"} of the index.
      */
     private final IndexMode mode;
+    /**
+     * Start time of the time_series index.
+     */
+    private final long timeSeriesStartTime;
+    /**
+     * End time of the time_series index.
+     */
+    private volatile long timeSeriesEndTime;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -651,7 +701,8 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-
+        timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings).toEpochMilli();
+        timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings).toEpochMilli();
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -712,10 +763,7 @@ public final class IndexSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
             mergePolicyConfig::setMaxMergesAtOnce
         );
-        scopedSettings.addSettingsUpdateConsumer(
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
-            mergePolicyConfig::setMaxMergesAtOnceExplicit
-        );
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING, ignored -> {});
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
             mergePolicyConfig::setMaxMergedSegment
@@ -765,6 +813,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_END_TIME, this::updateTimeSeriesEndTime);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1277,5 +1326,23 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    public long getTimeSeriesStartTime() {
+        return timeSeriesStartTime;
+    }
+
+    public long getTimeSeriesEndTime() {
+        return timeSeriesEndTime;
+    }
+
+    public void updateTimeSeriesEndTime(Instant endTimeInstant) {
+        long endTime = endTimeInstant.toEpochMilli();
+        if (this.timeSeriesEndTime > endTime) {
+            throw new IllegalArgumentException(
+                "index.time_series.end_time must be larger than current value [" + this.timeSeriesEndTime + "]"
+            );
+        }
+        this.timeSeriesEndTime = endTime;
     }
 }

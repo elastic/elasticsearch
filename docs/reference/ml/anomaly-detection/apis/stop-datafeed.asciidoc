@@ -30,16 +30,15 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 A {dfeed} that is stopped ceases to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
-You can stop multiple {dfeeds} in a single API request by using a
-comma-separated list of {dfeeds} or a wildcard expression. You can close all
-{dfeeds} by using `_all` or by specifying `*` as the `<feed_id>`.
-
 [[ml-stop-datafeed-path-parms]]
 == {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+Identifier for the datafeed. You can stop multiple {dfeeds} in a single API
+request by using a comma-separated list of {dfeeds} or a wildcard expression.
+You can close all {dfeeds} by using `_all` or by specifying `*` as the
+identifier.
 
 [[ml-stop-datafeed-query-parms]]
 == {api-query-parms-title}
@@ -52,18 +51,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
   (Optional, Boolean) If true, the {dfeed} is stopped forcefully.
 
 `timeout`::
-  (Optional, time) Controls the amount of time to wait until a {dfeed} stops.
+  (Optional, time) Specifies the amount of time to wait until a {dfeed} stops.
   The default value is 20 seconds.
 
 [[ml-stop-datafeed-request-body]]
 == {api-request-body-title}
 
-`force`::
-  (Optional, Boolean) If true, the {dfeed} is stopped forcefully.
-
-`timeout`::
-  (Optional, time) Controls the amount of time to wait until a {dfeed} stops.
-  The default value is 20 seconds.
+You can also specify the query parameters (such as `allow_no_match` and
+`force`) in the request body.
 
 [[ml-stop-datafeed-response-codes]]
 == {api-response-codes-title}

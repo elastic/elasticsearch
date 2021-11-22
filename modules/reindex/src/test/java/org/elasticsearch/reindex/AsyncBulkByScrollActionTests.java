@@ -954,10 +954,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
             ActionType<Response> action,
             Request request,
-            ActionListener<Response> listener
+            ActionListener<Response> responseActionListener
         ) {
             if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
-                listener.onFailure(
+                responseActionListener.onFailure(
                     new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders())
                 );
                 return;
@@ -970,15 +970,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
             if (request instanceof RefreshRequest) {
                 lastRefreshRequest.set((RefreshRequest) request);
-                listener.onResponse(null);
+                responseActionListener.onResponse(null);
                 return;
             }
             if (request instanceof SearchRequest) {
                 if (searchAttempts.incrementAndGet() <= searchesToReject) {
-                    listener.onFailure(wrappedRejectedException());
+                    responseActionListener.onFailure(wrappedRejectedException());
                     return;
                 }
-                lastSearch.set(new RequestAndListener<>((SearchRequest) request, (ActionListener<SearchResponse>) listener));
+                lastSearch.set(new RequestAndListener<>((SearchRequest) request, (ActionListener<SearchResponse>) responseActionListener));
                 return;
             }
             if (request instanceof SearchScrollRequest) {
@@ -986,16 +986,16 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 boolean newRequest = usedScolls.add(scroll);
                 assertTrue("We can't reuse scroll requests", newRequest);
                 if (scrollAttempts.incrementAndGet() <= scrollsToReject) {
-                    listener.onFailure(wrappedRejectedException());
+                    responseActionListener.onFailure(wrappedRejectedException());
                     return;
                 }
-                lastScroll.set(new RequestAndListener<>(scroll, (ActionListener<SearchResponse>) listener));
+                lastScroll.set(new RequestAndListener<>(scroll, (ActionListener<SearchResponse>) responseActionListener));
                 return;
             }
             if (request instanceof ClearScrollRequest) {
                 ClearScrollRequest clearScroll = (ClearScrollRequest) request;
                 scrollsCleared.addAll(clearScroll.getScrollIds());
-                listener.onResponse((Response) new ClearScrollResponse(true, clearScroll.getScrollIds().size()));
+                responseActionListener.onResponse((Response) new ClearScrollResponse(true, clearScroll.getScrollIds().size()));
                 return;
             }
             if (request instanceof BulkRequest) {
@@ -1054,10 +1054,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                         responses[i] = BulkItemResponse.success(i, item.opType(), response);
                     }
                 }
-                listener.onResponse((Response) new BulkResponse(responses, 1));
+                responseActionListener.onResponse((Response) new BulkResponse(responses, 1));
                 return;
             }
-            super.doExecute(action, request, listener);
+            super.doExecute(action, request, responseActionListener);
         }
 
         private Exception wrappedRejectedException() {

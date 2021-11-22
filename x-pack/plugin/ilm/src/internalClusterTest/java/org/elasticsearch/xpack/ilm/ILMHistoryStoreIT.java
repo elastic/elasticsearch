@@ -76,6 +76,7 @@ public class ILMHistoryStoreIT extends ESIntegTestCase {
         return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, DataStreamsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68468")
     public void testPutAsyncStressTest() {
         final String master = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

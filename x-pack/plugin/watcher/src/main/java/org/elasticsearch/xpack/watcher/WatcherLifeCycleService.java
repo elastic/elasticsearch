@@ -49,10 +49,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(WatcherLifeCycleService.class);
 
-    public static final Set<String> LEGACY_WATCHER_INDEX_TEMPLATES = Set.of(
-        ".watches",
-        ".triggered_watches"
-    );
+    public static final Set<String> LEGACY_WATCHER_INDEX_TEMPLATES = Set.of(".watches", ".triggered_watches");
 
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
@@ -128,18 +125,21 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                     return;
                 }
 
-                MetadataIndexTemplateService.removeTemplates(clusterService, LEGACY_WATCHER_INDEX_TEMPLATES,
-                    ActionListener.wrap(r -> {
-                        legacyTemplatesDeleteInProgress.set(false);
-                        // we've done it so we shouldn't check anymore
-                        checkForLegacyTemplates.set(false);
-                        logger.debug("deleted legacy Watcher index templates [{}]", String.join(",", LEGACY_WATCHER_INDEX_TEMPLATES));
-                    }, e -> {
-                        legacyTemplatesDeleteInProgress.set(false);
-                        logger.debug(new ParameterizedMessage("unable to delete legacy Watcher index templates [{}]",
-                            String.join(",", LEGACY_WATCHER_INDEX_TEMPLATES)), e);
-                    })
-                );
+                MetadataIndexTemplateService.removeTemplates(clusterService, LEGACY_WATCHER_INDEX_TEMPLATES, ActionListener.wrap(r -> {
+                    legacyTemplatesDeleteInProgress.set(false);
+                    // we've done it so we shouldn't check anymore
+                    checkForLegacyTemplates.set(false);
+                    logger.debug("deleted legacy Watcher index templates [{}]", String.join(",", LEGACY_WATCHER_INDEX_TEMPLATES));
+                }, e -> {
+                    legacyTemplatesDeleteInProgress.set(false);
+                    logger.debug(
+                        new ParameterizedMessage(
+                            "unable to delete legacy Watcher index templates [{}]",
+                            String.join(",", LEGACY_WATCHER_INDEX_TEMPLATES)
+                        ),
+                        e
+                    );
+                }));
             }
         }
 

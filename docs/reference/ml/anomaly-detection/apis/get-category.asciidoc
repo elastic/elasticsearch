@@ -68,12 +68,19 @@ Defaults to `100`.
 You can also specify the `partition_field_value` query parameter in the
 request body.
 
-`page`.`from`::
+`page`::
++
+.Properties of `page`
+[%collapsible%open]
+====
+
+`from`:::
 (Optional, integer) Skips the specified number of categories. Defaults to `0`.
 
-`page`.`size`::
+`size`:::
 (Optional, integer) Specifies the maximum number of categories to obtain. 
 Defaults to `100`.
+====
 
 [[ml-get-category-results]]
 == {api-response-body-title}

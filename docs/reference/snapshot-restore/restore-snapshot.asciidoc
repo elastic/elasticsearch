@@ -234,6 +234,26 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 // TEST[s/_restore/_restore?wait_for_completion=true/]
 
 [discrete]
+[[restore-exclude-aliases]]
+==== Excludes aliases
+
+By default, restoring a data stream or index also restores its aliases. To
+exclude aliases from a restore snapshot API request, set `include_aliases` to
+`false`.
+
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
+{
+  "indices": "logs-my_app-default",
+  "include_aliases": false
+}
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/^/DELETE _data_stream\/logs-my_app-default\n/]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+[discrete]
 [[restore-feature-state]]
 === Restore a feature state
 
@@ -673,3 +693,82 @@ snapshot has the same number of primary shards. This error indicates the index
 in the snapshot has a different number of primary shards.
 
 To resolve this error, try one of the methods in <<restore-index-data-stream>>.
+
+[discrete]
+==== [<repo>:<snapshot-id>] the snapshot was created with {es} version [<x.y.z>] which is higher than the version of this node [<x1.y1.z1>].
+
+You can't restore a snapshot to an earlier version of {es}. The snapshot may
+contain mappings, index settings, and other features that aren't supported in
+the earlier version.
+
+To resolve this error, restore the snapshot to a compatible cluster version. See
+<<snapshot-cluster-compatibility>>.
+
+[discrete]
+==== The index [<index>/<index-id>] was created with version [<x.y.z>] but the minimum compatible version is [<x1.y1.z1>]. It should be re-indexed in {es} <x1.y1> before upgrading to <x2.y2.z2>.
+
+include::index.asciidoc[tag=index-compat]
+
+include::index.asciidoc[tag=restore-reindex-workaround]
+
+[discrete]
+==== index, alias, and data stream names need to be unique, but the following duplicates were found [<alias>(alias of [<index>/<index-id>]]
+
+You can't restore an alias with the same name as an existing index or data
+stream. To resolve this error, you can <<restore-exclude-aliases,exclude
+aliases>> from the restore request. Alternatively, if you no longer need it, you
+can <<delete-restore,delete the existing index or data stream>> and retry the
+restore request.
+
+[discrete]
+==== Invalid index name [<index>], already exists as alias
+
+You can't restore an index or data stream with the same name as an existing
+alias. To resolve this error, you can <<rename-on-restore,rename the index or
+data stream on restore>>. Alternatively, you can use the
+<<indices-aliases,aliases API>> to remove the alias from any existing indices or
+data streams.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "remove": {
+        "alias": "my-alias",
+        "index": "*"
+      }
+    }
+  ]
+}
+----
+//TEST[s/^/PUT my-index\nPUT my-index\/_alias\/my-alias\n/]
+
+[discrete]
+==== alias [<alias>] has more than one write index [<index-1>,<index-2>]
+
+An alias can't have more than one write index or write data stream at a time.
+This error indicates the request would restore a write index or write data
+stream to an alias that already has one.
+
+To resolve this error, you can <<restore-exclude-aliases,exclude aliases>> from
+the restore request. Alternatively, you can use the <<indices-aliases,aliases
+API>> to remove the write alias from the existing index or data stream.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "my-index",
+        "alias": "my-alias",
+        "is_write_index": false
+      }
+    }
+  ]
+}
+----
+//TEST[s/^/PUT my-index\n/]

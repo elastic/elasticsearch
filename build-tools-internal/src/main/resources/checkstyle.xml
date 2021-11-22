@@ -114,6 +114,7 @@
         <property name="ignoreSetter" value="true" />
         <property name="setterCanReturnItsClass" value="true"/>
         <property name="ignoreFormat" value="^(threadPool)$"/>
+        <property name="ignoreAbstractMethods" value="true"/>
         <message key="hidden.field" value="''{0}'' hides a field." />
     </module>
     -->

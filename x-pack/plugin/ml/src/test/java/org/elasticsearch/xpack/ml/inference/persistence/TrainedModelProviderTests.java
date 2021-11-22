@@ -188,7 +188,6 @@ public class TrainedModelProviderTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80619")
     public void testGetDefinitionFromDocsTruncated() {
         String modelId = randomAlphaOfLength(10);
         Exception ex = expectThrows(
@@ -199,7 +198,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                         new BytesArray(randomByteArrayOfLength(10)),
                         modelId,
                         0,
-                        randomLongBetween(10, 100),
+                        randomLongBetween(11, 100),
                         10,
                         1,
                         randomBoolean()

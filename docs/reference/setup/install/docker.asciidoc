@@ -179,7 +179,6 @@ When you run the example, {es} uses this file to create a three-node cluster.
 The nodes are named `es01`, `es02`,and `es03`.
 
 ifeval::["{release-state}"=="unreleased"]
-+
 --
 WARNING: Version {version} of {es} has not yet been released, so a
 `docker-compose.yml` is not available for this version.
@@ -204,7 +203,6 @@ the `ELASTIC_PASSWORD` variable. This variable is referenced by the
 `docker-compose.yml` file.
 
 ifeval::["{release-state}"=="unreleased"]
-+
 --
 WARNING: Version {version} of {es} has not yet been released, so a
 `docker-compose.yml` is not available for this version.
@@ -236,7 +234,6 @@ and a certificate authority (CA) certificate and key where {es} expects them.
 These certificates and key are placed in a Docker volume named `es_certs`.
 
 ifeval::["{release-state}"=="unreleased"]
-+
 --
 WARNING: Version {version} of {es} has not yet been released, so a
 `docker-compose.yml` is not available for this version.
@@ -271,7 +268,6 @@ with `127.0.0.1:9200:9200` in the `docker-compose.yml` file. {es} will then only
 be accessible from the host machine itself.
 
 ifeval::["{release-state}"=="unreleased"]
-+
 --
 WARNING: Version {version} of {es} has not yet been released, so a
 `docker-compose.yml` is not available for this version.

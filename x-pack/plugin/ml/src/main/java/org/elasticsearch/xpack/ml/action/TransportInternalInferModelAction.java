@@ -190,7 +190,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             Collections.singletonList(doc),
             TimeValue.MAX_VALUE
         );
-        request.setParentTaskId(taskId);
+        request.setTargetParentTaskId(taskId);
         executeAsyncWithOrigin(
             new ParentTaskAssigningClient(client, taskId),
             ML_ORIGIN,

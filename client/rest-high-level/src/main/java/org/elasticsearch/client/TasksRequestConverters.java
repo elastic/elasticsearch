@@ -42,7 +42,7 @@ final class TasksRequestConverters {
         params.withTimeout(listTaskRequest.getTimeout())
             .withDetailed(listTaskRequest.getDetailed())
             .withWaitForCompletion(listTaskRequest.getWaitForCompletion())
-            .withParentTaskId(listTaskRequest.getParentTaskId())
+            .withParentTaskId(listTaskRequest.getTargetParentTaskId())
             .withNodes(listTaskRequest.getNodes())
             .withActions(listTaskRequest.getActions())
             .putParam("group_by", "none");

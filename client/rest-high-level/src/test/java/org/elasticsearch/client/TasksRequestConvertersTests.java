@@ -72,7 +72,7 @@ public class TasksRequestConvertersTests extends ESTestCase {
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-                    request.setParentTaskId(taskId);
+                    request.setTargetParentTaskId(taskId);
                     expectedParams.put("parent_task_id", taskId.toString());
                 } else {
                     request.setParentTask(TaskId.EMPTY_TASK_ID);

@@ -428,7 +428,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Find tasks with common parent
         listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setParentTaskId(new TaskId(parentNode, parentTaskId));
+        listTasksRequest.setTargetParentTaskId(new TaskId(parentNode, parentTaskId));
         response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(testNodes.length, response.getTasks().size());
         for (TaskInfo task : response.getTasks()) {

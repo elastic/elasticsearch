@@ -84,7 +84,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
             + "], taskId["
             + getTaskId()
             + "], parentTaskId["
-            + getParentTaskId()
+            + getTargetParentTaskId()
             + "], nodes"
             + Arrays.toString(getNodes())
             + ", actions"

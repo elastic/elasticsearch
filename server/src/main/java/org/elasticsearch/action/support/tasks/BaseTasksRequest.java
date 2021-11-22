@@ -38,7 +38,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     private String[] actions = ALL_ACTIONS;
 
-    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+    private TaskId targetParentTaskId = TaskId.EMPTY_TASK_ID;
 
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
 
@@ -49,7 +49,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     protected BaseTasksRequest(StreamInput in) throws IOException {
         super(in);
         taskId = TaskId.readFromStream(in);
-        parentTaskId = TaskId.readFromStream(in);
+        targetParentTaskId = TaskId.readFromStream(in);
         nodes = in.readStringArray();
         actions = in.readStringArray();
         timeout = in.readOptionalTimeValue();
@@ -59,7 +59,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         taskId.writeTo(out);
-        parentTaskId.writeTo(out);
+        targetParentTaskId.writeTo(out);
         out.writeStringArrayNullable(nodes);
         out.writeStringArrayNullable(actions);
         out.writeOptionalTimeValue(timeout);
@@ -118,13 +118,13 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * Returns the parent task id that tasks should be filtered by
      */
-    public TaskId getParentTaskId() {
-        return parentTaskId;
+    public TaskId getTargetParentTaskId() {
+        return targetParentTaskId;
     }
 
     @SuppressWarnings("unchecked")
-    public Request setParentTaskId(TaskId parentTaskId) {
-        this.parentTaskId = parentTaskId;
+    public Request setTargetParentTaskId(TaskId targetParentTaskId) {
+        this.targetParentTaskId = targetParentTaskId;
         return (Request) this;
     }
 
@@ -153,8 +153,8 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
                 return false;
             }
         }
-        if (parentTaskId.isSet()) {
-            if (parentTaskId.equals(task.getParentTaskId()) == false) {
+        if (targetParentTaskId.isSet()) {
+            if (targetParentTaskId.equals(task.getParentTaskId()) == false) {
                 return false;
             }
         }

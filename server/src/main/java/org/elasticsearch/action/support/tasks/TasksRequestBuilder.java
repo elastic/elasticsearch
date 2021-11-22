@@ -57,7 +57,7 @@ public class TasksRequestBuilder<
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setParentTaskId(TaskId taskId) {
-        request.setParentTaskId(taskId);
+        request.setTargetParentTaskId(taskId);
         return (RequestBuilder) this;
     }
 }

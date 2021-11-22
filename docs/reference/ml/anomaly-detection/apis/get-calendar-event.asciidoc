@@ -66,12 +66,20 @@ as the calendar identifier.
 You can also specify the query parameters in the request body; the exception are
 `from` and `size`, use `page` instead:
 
-`page.from`::
-    (Optional, integer) Skips the specified number of events. Defaults to `0`.
+`page`::
++
+.Properties of `page`
+[%collapsible%open]
+====
 
-`page.size`::
-    (Optional, integer) Specifies the maximum number of events to obtain.
-    Defaults to `100`.
+`from`:::
+(Optional, integer) Skips the specified number of events. Defaults to `0`.
+
+`size`:::
+(Optional, integer) Specifies the maximum number of events to obtain. Defaults
+to `100`.
+====
+
 
 [[ml-get-calendar-event-results]]
 == {api-response-body-title}

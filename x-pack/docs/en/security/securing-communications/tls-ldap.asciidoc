@@ -35,7 +35,7 @@ xpack:
 In the example above, the CA certificate must be PEM encoded.
 
 PKCS#12 and JKS files are also supported - see the description of
-`ssl.truststore.path` in <<ldap-realm>>.
+`ssl.truststore.path` in <<ref-ldap-settings>>.
 
 NOTE: You can also specify the individual server certificates rather than the CA
 certificate, but this is only recommended if you have a single LDAP server or

@@ -91,7 +91,22 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     private long numberOfSuccessfulIndicesAutoFollowed = 0;
     private long numberOfFailedIndicesAutoFollowed = 0;
     private long numberOfFailedRemoteClusterStateRequests = 0;
-    private final LinkedHashMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
+    private final LinkedHashMap<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
+
+    private static final class AutoFollowErrorKey {
+        private final String pattern;
+        private final String index;
+
+        private AutoFollowErrorKey(String pattern, String index) {
+            this.pattern = Objects.requireNonNull(pattern);
+            this.index = index;
+        }
+
+        @Override
+        public String toString() {
+            return index != null ? pattern + ':' + index : pattern;
+        }
+    }
 
     public AutoFollowCoordinator(
         final Settings settings,
@@ -111,7 +126,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         this.executor = Objects.requireNonNull(executor);
         this.recentAutoFollowErrors = new LinkedHashMap<>() {
             @Override
-            protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
+            protected boolean removeEldestEntry(final Map.Entry<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> eldest) {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;
             }
         };
@@ -164,11 +179,16 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
 
+        var recentAutoFollowErrorsCopy = new TreeMap<String, Tuple<Long, ElasticsearchException>>();
+        for (var entry : recentAutoFollowErrors.entrySet()) {
+            recentAutoFollowErrorsCopy.put(entry.getKey().toString(), entry.getValue());
+        }
+
         return new AutoFollowStats(
             numberOfFailedIndicesAutoFollowed,
             numberOfFailedRemoteClusterStateRequests,
             numberOfSuccessfulIndicesAutoFollowed,
-            new TreeMap<>(recentAutoFollowErrors),
+            recentAutoFollowErrorsCopy,
             timesSinceLastAutoFollowPerRemoteCluster
         );
     }
@@ -176,22 +196,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     synchronized void updateStats(List<AutoFollowResult> results) {
         // purge stats for removed patterns
         var currentPatterns = this.patterns;
-        recentAutoFollowErrors.keySet().removeIf(key -> {
-            var semicolonPosition = key.lastIndexOf(':');
-            if (semicolonPosition == -1) {
-                return currentPatterns.contains(key) == false;
-            } else {
-                var patternName = key.substring(0, semicolonPosition);
-                return currentPatterns.contains(key) == false && currentPatterns.contains(patternName) == false;
-            }
-        });
+        recentAutoFollowErrors.keySet().removeIf(key -> currentPatterns.contains(key.pattern) == false);
         // add new stats
         long newStatsReceivedTimeStamp = absoluteMillisTimeProvider.getAsLong();
         for (AutoFollowResult result : results) {
+            var onlyPatternKey = new AutoFollowErrorKey(result.autoFollowPatternName, null);
             if (result.clusterStateFetchException != null) {
                 recentAutoFollowErrors.put(
-                    result.autoFollowPatternName,
-                    Tuple.tuple(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException))
+                    onlyPatternKey,
+                    new Tuple<>(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException))
                 );
                 numberOfFailedRemoteClusterStateRequests++;
                 LOGGER.warn(
@@ -202,9 +215,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     result.clusterStateFetchException
                 );
             } else {
-                recentAutoFollowErrors.remove(result.autoFollowPatternName);
+                recentAutoFollowErrors.remove(onlyPatternKey);
                 for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
-                    final String patternAndIndexKey = result.autoFollowPatternName + ":" + entry.getKey().getName();
+                    var patternAndIndexKey = new AutoFollowErrorKey(result.autoFollowPatternName, entry.getKey().getName());
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
                         recentAutoFollowErrors.put(

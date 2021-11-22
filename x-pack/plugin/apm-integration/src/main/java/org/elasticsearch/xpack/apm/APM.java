@@ -69,7 +69,12 @@ public class APM extends Plugin implements NetworkPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(APMTracer.APM_ENABLED_SETTING, APMTracer.APM_ENDPOINT_SETTING, APMTracer.APM_TOKEN_SETTING);
+        return List.of(
+            APMTracer.APM_ENABLED_SETTING,
+            APMTracer.APM_ENDPOINT_SETTING,
+            APMTracer.APM_TOKEN_SETTING,
+            APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING
+        );
     }
 
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {

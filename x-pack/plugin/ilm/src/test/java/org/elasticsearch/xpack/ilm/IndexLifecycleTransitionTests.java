@@ -619,7 +619,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         try (Client client = new NoOpClient(getTestName())) {
             Step.StepKey currentStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
-            Step currentStep = new WaitForRolloverReadyStep(currentStepKey, nextStepKey, client, null, null, null, 1L);
+            Step currentStep = new WaitForRolloverReadyStep(currentStepKey, nextStepKey, client, null, null, null, 1L, null);
             try {
                 IndexLifecycleTransition.validateTransition(
                     meta,
@@ -856,7 +856,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         String index = meta.getIndex().getName();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -998,7 +998,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -1046,7 +1046,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             // the expected new state is that the index is moved into the next action (could be the complete one) and the cached phase
             // definition is updated
             Map<String, LifecycleAction> actionsWitoutSetPriority = new HashMap<>();
-            actionsWitoutSetPriority.put("rollover", new RolloverAction(null, null, null, 1L));
+            actionsWitoutSetPriority.put("rollover", new RolloverAction(null, null, null, 1L, null));
             Phase hotPhaseNoSetPriority = new Phase("hot", TimeValue.ZERO, actionsWitoutSetPriority);
             Map<String, Phase> phasesWithoutSetPriority = Collections.singletonMap("hot", hotPhaseNoSetPriority);
             LifecyclePolicyMetadata updatedPolicyMetadata = new LifecyclePolicyMetadata(

@@ -38,6 +38,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     private final ByteSizeValue maxPrimaryShardSize;
     private final TimeValue maxAge;
     private final Long maxDocs;
+    private final Long maxShardDocs;
 
     public WaitForRolloverReadyStep(
         StepKey key,
@@ -46,13 +47,15 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         ByteSizeValue maxSize,
         ByteSizeValue maxPrimaryShardSize,
         TimeValue maxAge,
-        Long maxDocs
+        Long maxDocs,
+        Long maxShardDocs
     ) {
         super(key, nextStepKey, client);
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
+        this.maxShardDocs = maxShardDocs;
     }
 
     @Override
@@ -192,6 +195,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (maxDocs != null) {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);
         }
+        if (maxShardDocs != null) {
+            rolloverRequest.addMaxShardDocsCondition(maxShardDocs);
+        }
         getClient().admin()
             .indices()
             .rolloverIndex(
@@ -219,9 +225,13 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         return maxDocs;
     }
 
+    public Long getMaxShardDocs() {
+        return maxShardDocs;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
     }
 
     @Override
@@ -237,7 +247,8 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             && Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs);
+            && Objects.equals(maxDocs, other.maxDocs)
+            && Objects.equals(maxShardDocs, other.maxShardDocs);
     }
 
     // We currently have no information to provide for this AsyncWaitStep, so this is an empty object

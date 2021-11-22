@@ -61,6 +61,7 @@ public class RolloverRequestTests extends ESTestCase {
             .field("max_docs", 100)
             .field("max_size", "45gb")
             .field("max_primary_shard_size", "55gb")
+            .field("max_shard_docs", 10)
             .endObject()
             .endObject();
         request.fromXContent(false, createParser(builder));
@@ -76,6 +77,8 @@ public class RolloverRequestTests extends ESTestCase {
             MaxPrimaryShardSizeCondition.NAME
         );
         assertThat(maxPrimaryShardSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(55)));
+        MaxShardDocsCondition maxShardDocsCondition = (MaxShardDocsCondition)conditions.get(MaxShardDocsCondition.NAME);
+        assertThat(maxShardDocsCondition.value, equalTo(10L));
     }
 
     public void testParsingWithIndexSettings() throws Exception {
@@ -85,6 +88,7 @@ public class RolloverRequestTests extends ESTestCase {
             .startObject("conditions")
             .field("max_age", "10d")
             .field("max_docs", 100)
+            .field("max_shard_docs", 10)
             .endObject()
             .startObject("mappings")
             .startObject("properties")
@@ -104,7 +108,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject();
         request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
-        assertThat(conditions.size(), equalTo(2));
+        assertThat(conditions.size(), equalTo(3));
         assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().settings().getAsInt("number_of_shards", 0), equalTo(10));
@@ -142,6 +146,7 @@ public class RolloverRequestTests extends ESTestCase {
         originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
         originalRequest.addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
         originalRequest.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMaxShardDocsCondition(randomNonNegativeLong());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();

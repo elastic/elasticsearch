@@ -75,12 +75,14 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         public final long indexCreated;
         public final ByteSizeValue indexSize;
         public final ByteSizeValue maxPrimaryShardSize;
+        public final long maxShardDocs;
 
-        public Stats(long numDocs, long indexCreated, ByteSizeValue indexSize, ByteSizeValue maxPrimaryShardSize) {
+        public Stats(long numDocs, long indexCreated, ByteSizeValue indexSize, ByteSizeValue maxPrimaryShardSize, long maxShardDocs) {
             this.numDocs = numDocs;
             this.indexCreated = indexCreated;
             this.indexSize = indexSize;
             this.maxPrimaryShardSize = maxPrimaryShardSize;
+            this.maxShardDocs = maxShardDocs;
         }
     }
 

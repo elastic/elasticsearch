@@ -1067,6 +1067,24 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
         {
+            rolloverRequest.addMaxShardDocsCondition(1L);
+            rolloverRequest.dryRun(true);
+            RolloverResponse rolloverResponse = execute(
+                rolloverRequest,
+                highLevelClient().indices()::rollover,
+                highLevelClient().indices()::rolloverAsync
+            );
+            assertFalse(rolloverResponse.isRolledOver());
+            assertTrue(rolloverResponse.isDryRun());
+            Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+            assertEquals(3, conditionStatus.size());
+            assertTrue(conditionStatus.get("[max_docs: 1]"));
+            assertTrue(conditionStatus.get("[max_age: 1ms]"));
+            assertTrue(conditionStatus.get("[max_shard_docs: 1]"));
+            assertEquals("test", rolloverResponse.getOldIndex());
+            assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
+        {
             String mappings = "{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}";
             rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
@@ -1080,9 +1098,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertTrue(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
             Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
-            assertEquals(4, conditionStatus.size());
+            assertEquals(5, conditionStatus.size());
             assertTrue(conditionStatus.get("[max_docs: 1]"));
             assertTrue(conditionStatus.get("[max_age: 1ms]"));
+            assertTrue(conditionStatus.get("[max_shard_docs: 1]"));
             assertFalse(conditionStatus.get("[max_size: 1mb]"));
             assertFalse(conditionStatus.get("[max_primary_shard_size: 1mb]"));
             assertEquals("test", rolloverResponse.getOldIndex());

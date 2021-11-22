@@ -59,7 +59,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        Long maxShardDocs = randomBoolean() ? null : randomNonNegativeLong();
+        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
     }
 
     @Override
@@ -70,8 +71,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
+        Long maxShardDocs = instance.getMaxShardDocs();
 
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0:
                 key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
@@ -96,10 +98,12 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             case 5:
                 maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
                 break;
+            case 6:
+                maxShardDocs = randomValueOtherThan(maxShardDocs, () -> randomNonNegativeLong());
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
     }
 
     @Override
@@ -111,7 +115,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             instance.getMaxSize(),
             instance.getMaxPrimaryShardSize(),
             instance.getMaxAge(),
-            instance.getMaxDocs()
+            instance.getMaxDocs(),
+            instance.getMaxShardDocs()
         );
     }
 

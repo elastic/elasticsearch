@@ -50,6 +50,11 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
+    public RolloverRequestBuilder addMaxShardDocsCondition(long docs) {
+        this.request.addMaxShardDocsCondition(docs);
+        return this;
+    }
+
     public RolloverRequestBuilder dryRun(boolean dryRun) {
         this.request.dryRun(dryRun);
         return this;

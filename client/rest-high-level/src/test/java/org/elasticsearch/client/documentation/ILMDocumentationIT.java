@@ -95,7 +95,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         Map<String, Phase> phases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(RolloverAction.NAME, new RolloverAction(
-                new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
+                new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null, null));
         phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions)); // <1>
 
         Map<String, LifecycleAction> deleteActions =
@@ -163,7 +163,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
-            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
+            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
             Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
             phases.put("delete", new Phase("delete", new TimeValue(90, TimeUnit.DAYS), deleteActions));
@@ -231,7 +231,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
-            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
+            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
 
             Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
@@ -324,7 +324,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> hotActions = new HashMap<>();
-            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null));
+            hotActions.put(RolloverAction.NAME, new RolloverAction(new ByteSizeValue(50, ByteSizeUnit.GB), null, null, null, null));
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
 
             LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases);

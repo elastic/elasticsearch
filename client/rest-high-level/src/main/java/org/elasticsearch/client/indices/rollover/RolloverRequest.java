@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -118,6 +119,17 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
         }
         this.conditions.put(maxPrimaryShardSizeCondition.name(), maxPrimaryShardSizeCondition);
         return this;
+    }
+
+    /**
+     * Adds a size-based condition to check if the docs of the largest shard has at least <code>numDocs</code>
+     */
+    public void addMaxShardDocsCondition(long numDocs) {
+        MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxShardDocsCondition.name())) {
+            throw new IllegalArgumentException(maxShardDocsCondition + " condition is already set");
+        }
+        this.conditions.put(maxShardDocsCondition.name(), maxShardDocsCondition);
     }
 
     /**

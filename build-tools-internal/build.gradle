@@ -6,6 +6,11 @@
  * Side Public License, v 1.
  */
 
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.info.GitInfo
+import org.gradle.util.GradleVersion
+import org.elasticsearch.gradle.internal.conventions.info.GradleVersionInfo
+
 plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
@@ -270,6 +275,7 @@ dependencies {
 tasks.named('test').configure {
   useJUnitPlatform()
 }
+
 tasks.register("integTest", Test) {
   inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
   systemProperty 'test.version_under_test', version
@@ -279,3 +285,14 @@ tasks.register("integTest", Test) {
 }
 
 tasks.named("check").configure { dependsOn("integTest") }
+
+tasks.register("bootstrapPerformanceTests", Copy) {
+  from('performance')
+  into('build/performanceTests')
+  def root = file('..')
+  filter(ReplaceTokens, tokens: [gradleVersion: gradle.gradleVersion,
+                                 oldGradleVersion: GradleVersionInfo.getPreviousRelease(GradleVersionInfo.getLatestReleaseOrRC()),
+                                 testGitCommit:GitInfo.gitInfo(root).revision
+  ]
+  )
+}

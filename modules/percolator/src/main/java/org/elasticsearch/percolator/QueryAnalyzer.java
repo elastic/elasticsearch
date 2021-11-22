@@ -159,17 +159,17 @@ final class QueryAnalyzer {
                 this.verified = false;
                 return QueryVisitor.EMPTY_VISITOR;
             }
-            int minimumShouldMatch = 0;
+            int minimumShouldMatchValue = 0;
             if (parent instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) parent;
                 if (bq.getMinimumNumberShouldMatch() == 0
                     && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
                 }
-                minimumShouldMatch = bq.getMinimumNumberShouldMatch();
+                minimumShouldMatchValue = bq.getMinimumNumberShouldMatch();
             }
             ResultBuilder child = new ResultBuilder(false);
-            child.minimumShouldMatch = minimumShouldMatch;
+            child.minimumShouldMatch = minimumShouldMatchValue;
             children.add(child);
             return child;
         }
@@ -188,11 +188,11 @@ final class QueryAnalyzer {
         }
 
         @Override
-        public void consumeTerms(Query query, Term... terms) {
-            boolean verified = isVerified(query);
-            Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toUnmodifiableSet());
+        public void consumeTerms(Query query, Term... termsToConsume) {
+            boolean isVerified = isVerified(query);
+            Set<QueryExtraction> qe = Arrays.stream(termsToConsume).map(QueryExtraction::new).collect(Collectors.toUnmodifiableSet());
             if (qe.size() > 0) {
-                this.terms.add(new Result(verified, qe, conjunction ? qe.size() : 1));
+                this.terms.add(new Result(isVerified, qe, conjunction ? qe.size() : 1));
             }
         }
 

@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AttachmentProcessorTests extends ESTestCase {
 
-    private AttachmentProcessor processor;
+    private Processor processor;
 
     @Before
     public void createStandardProcessor() {
@@ -265,7 +265,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null)
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(
+        processor = new AttachmentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -284,7 +284,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(
+        processor = new AttachmentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -306,7 +306,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null)
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(
+        processor = new AttachmentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -325,7 +325,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(
+        processor = new AttachmentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -341,18 +341,18 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
 
-    private Map<String, Object> parseDocument(String file, AttachmentProcessor processor) throws Exception {
-        return parseDocument(file, processor, new HashMap<>());
+    private Map<String, Object> parseDocument(String file, Processor attachmentProcessor) throws Exception {
+        return parseDocument(file, attachmentProcessor, new HashMap<>());
     }
 
-    private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields)
+    private Map<String, Object> parseDocument(String file, Processor attachmentProcessor, Map<String, Object> optionalFields)
         throws Exception {
-        return parseDocument(file, processor, optionalFields, false);
+        return parseDocument(file, attachmentProcessor, optionalFields, false);
     }
 
     private Map<String, Object> parseDocument(
         String file,
-        AttachmentProcessor processor,
+        Processor attachmentProcessor,
         Map<String, Object> optionalFields,
         boolean includeResourceName
     ) throws Exception {
@@ -364,7 +364,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         document.putAll(optionalFields);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        processor.execute(ingestDocument);
+        attachmentProcessor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");

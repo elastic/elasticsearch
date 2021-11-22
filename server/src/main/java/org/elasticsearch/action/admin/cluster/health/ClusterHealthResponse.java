@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -152,7 +151,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
-    private boolean return200ForClusterHealthTimeout;
+
+    public ClusterHealthResponse() {}
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
@@ -164,17 +164,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        return200ForClusterHealthTimeout = in.readBoolean();
     }
 
     /** needed for plugins BWC */
-    public ClusterHealthResponse(
-        String clusterName,
-        String[] concreteIndices,
-        ClusterState clusterState,
-        boolean return200ForServerTimeout
-    ) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0), return200ForServerTimeout);
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
     }
 
     public ClusterHealthResponse(
@@ -184,8 +178,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         int delayedUnassignedShards,
-        TimeValue taskMaxWaitingTime,
-        boolean return200ForServerTimeout
+        TimeValue taskMaxWaitingTime
     ) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
@@ -194,7 +187,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         this.taskMaxWaitingTime = taskMaxWaitingTime;
         this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
-        this.return200ForClusterHealthTimeout = return200ForServerTimeout;
     }
 
     /**
@@ -333,7 +325,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        out.writeBoolean(return200ForClusterHealthTimeout);
     }
 
     @Override
@@ -343,16 +334,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status() {
-        return status(RestApiVersion.current());
-    }
-
-    @Override
-    public RestStatus status(RestApiVersion restApiVersion) {
-        // Legacy behaviour
-        if (isTimedOut() && restApiVersion == RestApiVersion.V_7 && return200ForClusterHealthTimeout == false) {
-            return RestStatus.REQUEST_TIMEOUT;
-        }
-        return RestStatus.OK;
+        return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }
 
     @Override

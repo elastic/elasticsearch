@@ -110,7 +110,7 @@ public final class DatabaseNodeService implements Closeable {
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
@@ -147,8 +147,8 @@ public final class DatabaseNodeService implements Closeable {
             Files.createDirectories(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
-        ingestService.addIngestClusterStateListener(this::checkDatabases);
-        this.ingestService = ingestService;
+        ingestServiceArg.addIngestClusterStateListener(this::checkDatabases);
+        this.ingestService = ingestServiceArg;
     }
 
     public DatabaseReaderLazyLoader getDatabase(String name) {

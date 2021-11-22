@@ -204,7 +204,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             if (result.clusterStateFetchException != null) {
                 recentAutoFollowErrors.put(
                     onlyPatternKey,
-                    new Tuple<>(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException))
+                    Tuple.tuple(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException))
                 );
                 numberOfFailedRemoteClusterStateRequests++;
                 LOGGER.warn(

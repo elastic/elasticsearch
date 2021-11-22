@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,6 +47,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class OutboundHandlerTests extends ESTestCase {
@@ -300,8 +303,10 @@ public class OutboundHandlerTests extends ESTestCase {
         RemoteTransportException remoteException = tuple.v2().streamInput().readException();
         assertThat(remoteException.getCause(), instanceOf(ElasticsearchException.class));
         assertEquals(remoteException.getCause().getMessage(), "boom");
-        assertEquals(action, remoteException.action());
-        assertEquals(channel.getLocalAddress(), remoteException.address().address());
+        assertThat(
+            remoteException.getMessage(),
+            allOf(containsString('[' + NetworkAddress.format(channel.getLocalAddress()) + ']'), containsString('[' + action + ']'))
+        );
 
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }

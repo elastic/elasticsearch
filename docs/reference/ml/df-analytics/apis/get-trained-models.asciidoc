@@ -109,9 +109,9 @@ The time when the trained model was created.
 
 `default_field_map` :::
 (object)
-A string object that contains the default field map to use when inferring 
-against the model. For example, {dfanalytics} may train the model on a specific 
-multi-field `foo.keyword`. The analytics job would then supply a default field 
+A string object that contains the default field map to use when inferring
+against the model. For example, {dfanalytics} may train the model on a specific
+multi-field `foo.keyword`. The analytics job would then supply a default field
 map entry for `"foo" : "foo.keyword"`.
 +
 Any field map described in the inference configuration takes precedence.
@@ -120,9 +120,9 @@ Any field map described in the inference configuration takes precedence.
 (string)
 The free-text description of the trained model.
 
-`estimated_heap_memory_usage_bytes`:::
+`model_size_bytes`:::
 (integer)
-The estimated heap usage in bytes to keep the trained model in memory.
+The estimated model size in bytes to keep the trained model in memory.
 
 `estimated_operations`:::
 (integer)
@@ -131,7 +131,7 @@ The estimated number of operations to use the trained model.
 `inference_config`:::
 (object)
 The default configuration for inference. This can be either a `regression`
-or `classification` configuration. It must match the `target_type` of the 
+or `classification` configuration. It must match the `target_type` of the
 underlying `definition.trained_model`.
 +
 .Properties of `inference_config`

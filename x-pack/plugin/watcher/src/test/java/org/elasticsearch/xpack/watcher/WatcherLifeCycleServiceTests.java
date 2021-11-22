@@ -40,6 +40,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -560,6 +561,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("whatever", currentState, previousState);
         lifeCycleService.clusterChanged(event);
         verify(watcherService).reload(eq(event.state()), anyString());
+    }
+
+    public void testLegacyWatcherTemplatesToDelete() {
+        assertThat(WatcherLifeCycleService.LEGACY_WATCHER_INDEX_TEMPLATES.size(), is(2));
+        Iterator<String> legacyTemplatesIterator = WatcherLifeCycleService.LEGACY_WATCHER_INDEX_TEMPLATES.iterator();
+        assertThat(legacyTemplatesIterator.next(), is(".watches"));
+        assertThat(legacyTemplatesIterator.next(), is(".triggered_watches"));
     }
 
     private void startWatcher() {

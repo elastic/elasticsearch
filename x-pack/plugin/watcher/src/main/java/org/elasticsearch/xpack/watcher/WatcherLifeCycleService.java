@@ -8,16 +8,21 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,11 +31,13 @@ import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -41,14 +48,24 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 public class WatcherLifeCycleService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(WatcherLifeCycleService.class);
+
+    public static final Set<String> LEGACY_WATCHER_INDEX_TEMPLATES = Set.of(
+        ".watches",
+        ".triggered_watches"
+    );
+
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
+    private final ClusterService clusterService;
     private volatile WatcherService watcherService;
     private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
+    private final AtomicBoolean legacyTemplatesDeleteInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean checkForLegacyTemplates = new AtomicBoolean(true);
 
     WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
         this.watcherService = watcherService;
+        this.clusterService = clusterService;
         clusterService.addListener(this);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an watch is scheduled.
@@ -94,6 +111,36 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             pauseExecution("write level cluster block");
             return;
+        }
+
+        if (event.localNodeMaster() && checkForLegacyTemplates.get()) {
+            List<String> existingTemplatesToDelete = new ArrayList<>(LEGACY_WATCHER_INDEX_TEMPLATES.size());
+            ImmutableOpenMap<String, IndexTemplateMetadata> clusterLegacyTemplates = event.state().getMetadata().templates();
+            for (String legacyWatcherIndexTemplate : LEGACY_WATCHER_INDEX_TEMPLATES) {
+                if (clusterLegacyTemplates.containsKey(legacyWatcherIndexTemplate)) {
+                    existingTemplatesToDelete.add(legacyWatcherIndexTemplate);
+                }
+            }
+
+            if (existingTemplatesToDelete.isEmpty() == false) {
+                // if someone else is executing the deletion of templates (due to fast successive cluster updates), we'll skip doing so
+                if (legacyTemplatesDeleteInProgress.compareAndSet(false, true) == false) {
+                    return;
+                }
+
+                MetadataIndexTemplateService.removeTemplates(clusterService, LEGACY_WATCHER_INDEX_TEMPLATES,
+                    ActionListener.wrap(r -> {
+                        legacyTemplatesDeleteInProgress.set(false);
+                        // we've done it so we shouldn't check anymore
+                        checkForLegacyTemplates.set(false);
+                        logger.debug("deleted legacy Watcher index templates [{}]", String.join(",", LEGACY_WATCHER_INDEX_TEMPLATES));
+                    }, e -> {
+                        legacyTemplatesDeleteInProgress.set(false);
+                        logger.debug(new ParameterizedMessage("unable to delete legacy Watcher index templates [{}]",
+                            String.join(",", LEGACY_WATCHER_INDEX_TEMPLATES)), e);
+                    })
+                );
+            }
         }
 
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());

@@ -9,10 +9,14 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class WatcherRestartIT extends AbstractUpgradeTestCase {
@@ -46,4 +50,30 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
             assertThat(responseBody, not(containsString("\"watcher_state\":\"stopped\"")));
         });
     }
+
+    public void testEnsureWatcherDeletesLegacyTemplates() throws Exception {
+        client().performRequest(new Request("POST", "/_watcher/_start"));
+        ensureWatcherStarted();
+
+        // All the legacy ML templates we created over the years should be deleted now they're no longer needed
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_template/*watches*");
+            try {
+                Response response = client().performRequest(request);
+                Map<String, Object> responseLevel = entityAsMap(response);
+                assertNotNull(responseLevel);
+
+                assertThat(responseLevel.containsKey(".watches"), is(false));
+                assertThat(responseLevel.containsKey(".triggered_watches"), is(false));
+            } catch (ResponseException e) {
+                // Not found is fine
+                assertThat(
+                    "Unexpected failure getting templates: " + e.getResponse().getStatusLine(),
+                    e.getResponse().getStatusLine().getStatusCode(),
+                    is(404)
+                );
+            }
+        });
+    }
+
 }

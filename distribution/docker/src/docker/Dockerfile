@@ -163,7 +163,7 @@ RUN <%= retry.loop(
       "export DEBIAN_FRONTEND=noninteractive && \n" +
       "${package_manager} update && \n" +
       "${package_manager} upgrade -y && \n" +
-      "${package_manager} install -y --no-install-recommends curl netcat zip unzip vim-tiny && \n" +
+      "${package_manager} install -y --no-install-recommends curl netcat zip unzip vim-tiny ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
       "${package_manager} clean && \n" +
       "rm -rf /var/lib/apt/lists/*"
   ) %>

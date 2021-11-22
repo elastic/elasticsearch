@@ -28,6 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -175,6 +176,71 @@ public class MetadataIndexTemplateService {
                 }
             }
         );
+    }
+
+    /**
+     * Removes the provided legacy index templates if they exist. This only matches the templates using exact name, wildcards are not
+     * supported.
+     *
+     * The provided templates must exist in the cluster, otherwise an {@link IndexTemplateMissingException} is reported.
+     */
+    public static void removeTemplates(ClusterService clusterService, Set<String> templateNames,
+                                      ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("remove-templates [" + String.join(",", templateNames) +
+            "]", new ClusterStateUpdateTask(Priority.URGENT, MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) {
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return innerRemoveTemplates(currentState, templateNames);
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        });
+    }
+
+    /**
+     * Removes the provided legacy templates. If an index name that doesn't exist is provided, it'll fail with
+     * {@link IndexTemplateMissingException}
+     */
+    // Package visible for testing
+    static ClusterState innerRemoveTemplates(ClusterState currentState, Set<String> templateNames) {
+        Set<String> existingTemplatesToDelete = new HashSet<>(templateNames.size(), 1.0f);
+        ImmutableOpenMap<String, IndexTemplateMetadata> clusterLegacyTemplates = currentState.getMetadata().templates();
+        Set<String> missingNames = null;
+        for (String legacyTemplate : templateNames) {
+            if (clusterLegacyTemplates.containsKey(legacyTemplate)) {
+                existingTemplatesToDelete.add(legacyTemplate);
+            } else {
+                if (missingNames == null) {
+                    missingNames = new HashSet<>();
+                }
+
+                missingNames.add(legacyTemplate);
+            }
+        }
+
+        if (missingNames != null) {
+            throw new IndexTemplateMissingException(String.join(",", missingNames));
+        }
+
+        if (existingTemplatesToDelete.isEmpty() == false) {
+            Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+            for (String template : existingTemplatesToDelete) {
+                logger.info("removing template [{}]", template);
+                metadata.removeTemplate(template);
+            }
+            return ClusterState.builder(currentState).metadata(metadata).build();
+        } else {
+            return currentState;
+        }
     }
 
     /**

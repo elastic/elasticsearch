@@ -2128,6 +2128,122 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         return throwables;
     }
 
+    public void testRemoveMultipleLegacyIndexTemplates() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+
+        {
+            PutRequest request = new PutRequest("api", "foo");
+            request.patterns(singletonList("fo*"));
+            request.mappings(new CompressedXContent("{}"));
+            final CountDownLatch latch = new CountDownLatch(1);
+            metadataIndexTemplateService.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+                @Override
+                public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(e.getMessage(), e);
+                    failure.set(e);
+                    latch.countDown();
+                }
+            });
+            latch.await(10, TimeUnit.SECONDS);
+            assertThat("Unable to put template due to: " + failure.get(), failure.get(), nullValue());
+        }
+
+        {
+            PutRequest request = new PutRequest("api", "bar");
+            request.patterns(singletonList("ba*"));
+            request.mappings(new CompressedXContent("{}"));
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            metadataIndexTemplateService.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+                @Override
+                public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(e.getMessage(), e);
+                    failure.set(e);
+                    latch.countDown();
+                }
+            });
+            latch.await(10, TimeUnit.SECONDS);
+            assertThat("Unable to put template due to: " + failure.get(), failure.get(), nullValue());
+        }
+
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        ClusterState nextState = MetadataIndexTemplateService.innerRemoveTemplates(clusterService.state(), Set.of("foo", "bar"));
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = nextState.metadata().templates();
+        assertThat(templates.containsKey("foo"), is(false));
+        assertThat(templates.containsKey("bar"), is(false));
+    }
+
+    public void testRemovingLegacyMissingTemplatesFails() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        {
+            PutRequest request = new PutRequest("api", "foo");
+            request.patterns(singletonList("fo*"));
+            request.mappings(new CompressedXContent("{}"));
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            metadataIndexTemplateService.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+                @Override
+                public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(e.getMessage(), e);
+                    failure.set(e);
+                    latch.countDown();
+                }
+            });
+            latch.await(10, TimeUnit.SECONDS);
+            assertThat("Unable to put template due to: " + failure.get(), failure.get(), nullValue());
+        }
+
+        {
+            PutRequest request = new PutRequest("api", "bar");
+            request.patterns(singletonList("ba*"));
+            request.mappings(new CompressedXContent("{}"));
+            final CountDownLatch latch = new CountDownLatch(1);
+            metadataIndexTemplateService.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+                @Override
+                public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(e.getMessage(), e);
+                    failure.set(e);
+                    latch.countDown();
+                }
+            });
+            latch.await(10, TimeUnit.SECONDS);
+            assertThat("Unable to put template due to: " + failure.get(), failure.get(), nullValue());
+        }
+
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        IndexTemplateMissingException indexTemplateMissingException = expectThrows(IndexTemplateMissingException.class,
+            () -> MetadataIndexTemplateService.innerRemoveTemplates(clusterService.state(),
+                Set.of("foo", "bar", "missing", "other_mssing")));
+        assertThat(indexTemplateMissingException.getMessage(), is("index_template [missing,other_mssing] missing"));
+
+        // let's also test the templates that did exists were not removed
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = clusterService.state().metadata().templates();
+        assertThat(templates.containsKey("foo"), is(true));
+        assertThat(templates.containsKey("bar"), is(true));
+    }
+
     private List<Throwable> putTemplateDetail(PutRequest request) throws Exception {
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
 

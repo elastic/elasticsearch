@@ -32,18 +32,23 @@ import static java.util.stream.Collectors.toSet;
 
 /**
  * "Mode" that controls which behaviors and settings an index supports.
+ * <p>
+ * For the most part this class concentrates on validating settings and
+ * mappings. Most different behavior is controlled by forcing settings
+ * to be set or not set and by enabling extra fields in the mapping.
  */
 public enum IndexMode {
     STANDARD {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            if (false == Objects.equals(
-                IndexMetadata.INDEX_ROUTING_PATH.getDefault(Settings.EMPTY),
-                settings.get(IndexMetadata.INDEX_ROUTING_PATH)
-            )) {
-                throw new IllegalArgumentException(
-                    "[" + IndexMetadata.INDEX_ROUTING_PATH.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]"
-                );
+            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+        }
+
+        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+            if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+                throw new IllegalArgumentException("[" + setting.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]");
             }
         }
 
@@ -67,10 +72,13 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            if (IndexMetadata.INDEX_ROUTING_PATH.getDefault(Settings.EMPTY).equals(settings.get(IndexMetadata.INDEX_ROUTING_PATH))) {
-                throw new IllegalArgumentException(
-                    "[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + IndexMetadata.INDEX_ROUTING_PATH.getKey() + "]"
-                );
+            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            // TODO make start and stop time required
+        }
+
+        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+            if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+                throw new IllegalArgumentException("[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + setting.getKey() + "]");
             }
         }
 
@@ -150,7 +158,12 @@ public enum IndexMode {
 
     static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
         Stream.concat(
-            Stream.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING, IndexMetadata.INDEX_ROUTING_PATH),
+            Stream.of(
+                IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+                IndexMetadata.INDEX_ROUTING_PATH,
+                IndexSettings.TIME_SERIES_START_TIME,
+                IndexSettings.TIME_SERIES_END_TIME
+            ),
             TIME_SERIES_UNSUPPORTED.stream()
         ).collect(toSet())
     );

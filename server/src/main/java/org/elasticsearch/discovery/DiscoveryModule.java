@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -91,7 +90,6 @@ public class DiscoveryModule {
 
     public DiscoveryModule(
         Settings settings,
-        BigArrays bigArrays,
         TransportService transportService,
         Client client,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -185,7 +183,6 @@ public class DiscoveryModule {
                 NODE_NAME_SETTING.get(settings),
                 settings,
                 clusterSettings,
-                bigArrays,
                 transportService,
                 client,
                 namedWriteableRegistry,

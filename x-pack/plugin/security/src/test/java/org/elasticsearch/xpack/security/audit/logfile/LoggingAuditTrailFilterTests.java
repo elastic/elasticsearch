@@ -2872,7 +2872,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         MockIndicesRequest(ThreadContext threadContext, String... indices) throws IOException {
             super(IndicesOptions.strictExpandOpenAndForbidClosed(), indices);
             if (randomBoolean()) {
-                remoteAddress(buildNewFakeTransportAddress());
+                remoteAddress(buildNewFakeTransportAddress().address());
             }
             if (randomBoolean()) {
                 RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));

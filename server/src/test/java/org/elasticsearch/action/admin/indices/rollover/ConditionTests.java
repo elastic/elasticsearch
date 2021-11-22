@@ -141,7 +141,7 @@ public class ConditionTests extends ESTestCase {
 
         long maxShardDocsNotMatch = randomIntBetween(0, 99);
         evaluate = maxShardDocsCondition.evaluate(
-            new Condition.Stats(0, maxShardDocsNotMatch, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+            new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), maxShardDocsNotMatch)
         );
         assertThat(evaluate.condition, equalTo(maxShardDocsCondition));
         assertThat(evaluate.matched, equalTo(false));

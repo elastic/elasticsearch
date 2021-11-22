@@ -10,6 +10,14 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -25,44 +33,33 @@ import static org.hamcrest.Matchers.equalTo;
 public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     public void testConfigureIndex() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         assertSame(IndexMode.TIME_SERIES, IndexSettings.MODE.get(s));
     }
 
     public void testPartitioned() {
-        Settings s = Settings.builder()
-            .put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2)
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
     }
 
     public void testSortField() {
-        Settings s = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a")
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 
     public void testSortMode() {
-        Settings s = Settings.builder()
+        Settings s = Settings.builder().put(getSettings())
             .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last")
-            .put(IndexSettings.MODE.getKey(), "time_series")
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
     public void testSortOrder() {
-        Settings s = Settings.builder()
+        Settings s = Settings.builder().put(getSettings())
             .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
-            .put(IndexSettings.MODE.getKey(), "time_series")
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
@@ -242,5 +239,22 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             };
         }
         return super.compileScript(script, context);
+    }
+
+    private Settings getSettings() {
+        return getSettings(randomAlphaOfLength(5), 1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+    }
+
+    private Settings getSettings(String routingPath) {
+        return getSettings(routingPath, 1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+    }
+
+    private Settings getSettings(String routingPath, long startTime, long endTime) {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
     }
 }

@@ -286,6 +286,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 /*maxUniqueTokens,
                 maxMatchTokens,*/
                 hash,
+                null, // part-of-speech dictionary is not needed for the reduce phase as weights are already decided
                 (float) similarityThreshold / 100.0f
             );
             // Merge all the categories into the newly created empty categorizer to combine them

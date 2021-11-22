@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.ml.aggs.categorization2.TokenListCategory.TokenAndWeight;
@@ -52,6 +53,8 @@ public class TokenListCategorizer implements Accountable {
     private final float upperThreshold;
 
     private final CategorizationBytesRefHash bytesRefHash;
+    @Nullable
+    private final CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
 
     /**
      * Categories stored in such a way that the most common are accessed first.
@@ -61,19 +64,26 @@ public class TokenListCategorizer implements Accountable {
      */
     private final List<TokenListCategory> categoriesByNumMatches;
 
-    public TokenListCategorizer(CategorizationBytesRefHash bytesRefHash, float threshold) {
+    public TokenListCategorizer(
+        CategorizationBytesRefHash bytesRefHash,
+        CategorizationPartOfSpeechDictionary partOfSpeechDictionary,
+        float threshold
+    ) {
 
         if (threshold < 0.01f || threshold > 0.99f) {
             throw new IllegalArgumentException("threshold must be between 0.01 and 0.99: got " + threshold);
         }
 
         this.bytesRefHash = bytesRefHash;
+        this.partOfSpeechDictionary = partOfSpeechDictionary;
         this.lowerThreshold = threshold;
         this.upperThreshold = (1.0f + threshold) / 2.0f;
         this.categoriesByNumMatches = new ArrayList<>();
     }
 
     public TokenListCategory computeCategory(TokenStream ts, int unfilteredStringLen, long numDocs) throws IOException {
+        assert partOfSpeechDictionary != null
+            : "This version of computeCategory should only be used when a part-of-speech dictionary is available";
         if (numDocs <= 0) {
             assert numDocs == 0 : "number of documents was negative: " + numDocs;
             return null;
@@ -81,10 +91,11 @@ public class TokenListCategorizer implements Accountable {
         ArrayList<TokenAndWeight> weightedTokenIds = new ArrayList<>();
         CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
         ts.reset();
+        WeightCalculator weightCalculator = new WeightCalculator(partOfSpeechDictionary);
         // Only categorize the first MAX_MAX_MATCHED_TOKENS tokens
         while (ts.incrementToken() && weightedTokenIds.size() < MAX_MAX_MATCHED_TOKENS) {
             if (termAtt.length() > 0) {
-                int weight = 1; // TODO: incorporate dictionary weighting instead of all weight 1: CharSequence -> weight
+                int weight = weightCalculator.calculateWeight(termAtt);
                 weightedTokenIds.add(new TokenAndWeight(bytesRefHash.put(new BytesRef(termAtt)), weight));
             }
         }
@@ -331,5 +342,47 @@ public class TokenListCategorizer implements Accountable {
                 )
             )
             .toArray(InternalCategorizationAggregation.Bucket[]::new);
+    }
+
+    /**
+     * Equivalent to the <code>TWeightVerbs5Other2AdjacentBoost6</code> type from
+     * <a href="https://github.com/elastic/ml-cpp/blob/main/include/core/CWordDictionary.h"><code>CWordDictionary</code></a>
+     * in the C++ code.
+     */
+    static class WeightCalculator {
+
+        private static final int MIN_DICTIONARY_LENGTH = 2;
+        private static final int CONSECUTIVE_DICTIONARY_WORDS_FOR_EXTRA_WEIGHT = 3;
+
+        private final CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
+        private int consecutiveHighWeights;
+
+        WeightCalculator(CategorizationPartOfSpeechDictionary partOfSpeechDictionary) {
+            this.partOfSpeechDictionary = partOfSpeechDictionary;
+        }
+
+        /**
+         * The idea here is that human readable phrases are more likely to define the message category, with
+         * verbs being more important for distinguishing similar messages (for example, "starting" versus
+         * "stopping" with other tokens being equal). Tokens that aren't in the dictionary are more likely
+         * to be entity names. Therefore, the weighting prefers dictionary words to non-dictionary words,
+         * prefers verbs to nouns, and prefers long uninterrupted sequences of dictionary words over short
+         * sequences.
+         */
+        int calculateWeight(CharSequence term) {
+            if (term.length() < MIN_DICTIONARY_LENGTH) {
+                consecutiveHighWeights = 0;
+                return 1;
+            }
+            CategorizationPartOfSpeechDictionary.PartOfSpeech pos = partOfSpeechDictionary.getPartOfSpeech(term);
+            if (pos == CategorizationPartOfSpeechDictionary.PartOfSpeech.NOT_IN_DICTIONARY) {
+                consecutiveHighWeights = 0;
+                return 1;
+            }
+            ++consecutiveHighWeights;
+            int posWeight = (pos == CategorizationPartOfSpeechDictionary.PartOfSpeech.VERB) ? 6 : 3;
+            int adjacencyBoost = (consecutiveHighWeights >= CONSECUTIVE_DICTIONARY_WORDS_FOR_EXTRA_WEIGHT) ? 6 : 0;
+            return posWeight + adjacencyBoost;
+        }
     }
 }

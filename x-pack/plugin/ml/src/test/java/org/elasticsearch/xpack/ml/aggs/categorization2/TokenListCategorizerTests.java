@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization2;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class TokenListCategorizerTests extends CategorizationTestCase {
@@ -37,5 +40,32 @@ public class TokenListCategorizerTests extends CategorizationTestCase {
         assertThat(TokenListCategorizer.maxMatchingWeight(8, 0.7f), equalTo(11));
         assertThat(TokenListCategorizer.maxMatchingWeight(9, 0.7f), equalTo(12));
         assertThat(TokenListCategorizer.maxMatchingWeight(10, 0.7f), equalTo(14));
+    }
+
+    public void testWeightCalculator() throws IOException {
+
+        CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
+        try (
+            InputStream is = CategorizationPartOfSpeechDictionary.class.getResourceAsStream(CategorizeTextAggregator.DICTIONARY_FILE_PATH)
+        ) {
+            partOfSpeechDictionary = new CategorizationPartOfSpeechDictionary(is);
+        }
+
+        TokenListCategorizer.WeightCalculator weightCalculator = new TokenListCategorizer.WeightCalculator(partOfSpeechDictionary);
+
+        assertThat(weightCalculator.calculateWeight("Info"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
+        assertThat(weightCalculator.calculateWeight("my_host"), equalTo(1)); // not dictionary word
+        assertThat(weightCalculator.calculateWeight("web"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
+        assertThat(weightCalculator.calculateWeight("service"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
+        assertThat(weightCalculator.calculateWeight("starting"), equalTo(12)); // dictionary word, verb, 3rd in a row
+        assertThat(weightCalculator.calculateWeight("user123"), equalTo(1)); // not dictionary word
+        assertThat(weightCalculator.calculateWeight("a"), equalTo(1)); // too short for dictionary weighting
+        assertThat(weightCalculator.calculateWeight("cool"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
+        assertThat(weightCalculator.calculateWeight("web"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
+        assertThat(weightCalculator.calculateWeight("service"), equalTo(9)); // dictionary word, not verb, 3rd in a row
+        assertThat(weightCalculator.calculateWeight("called"), equalTo(9)); // dictionary word, not verb, 4th in a row
+        assertThat(weightCalculator.calculateWeight("my_service"), equalTo(1)); // not dictionary word
+        assertThat(weightCalculator.calculateWeight("is"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
+        assertThat(weightCalculator.calculateWeight("starting"), equalTo(6)); // dictionary word, verb, not 3rd in a row
     }
 }

@@ -86,7 +86,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     private CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private String fieldName;
     private int maxUniqueTokens = 50;
-    private int similarityThreshold = 50;
+    // Default of 70% matches the C++ code
+    private int similarityThreshold = 70;
     private int maxMatchedTokens = 5;
 
     private CategorizeTextAggregationBuilder(String name) {

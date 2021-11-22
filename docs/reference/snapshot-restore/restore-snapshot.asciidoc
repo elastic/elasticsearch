@@ -23,6 +23,8 @@ errors>>.
 [[restore-snapshot-prereqs]]
 === Prerequisites
 
+include::register-repository.asciidoc[tag=kib-snapshot-prereqs]
+
 include::apis/restore-snapshot-api.asciidoc[tag=restore-prereqs]
 
 [discrete]
@@ -65,7 +67,7 @@ GET _snapshot
 // TEST[setup:setup-snapshots]
 
 Then use the get snapshot API to get a list of snapshots in a specific
-repository.
+repository. This also returns each snapshot's contents.
 
 [source,console]
 ----
@@ -235,9 +237,10 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 [[restore-feature-state]]
 === Restore a feature state
 
-You can restore a feature state to recover system indices, system data streams,
-and other configuration data for a feature from a snapshot. Restoring a feature
-state is the preferred way to restore system indices and system data streams.
+You can restore a <<feature-state,feature state>> to recover system indices,
+system data streams, and other configuration data for a feature from a snapshot.
+Restoring a feature state is the preferred way to restore system indices and
+system data streams.
 
 If you restore a snapshot's cluster state, the operation restores all feature
 states in the snapshot by default. Similarly, if you don't restore a snapshot's
@@ -290,8 +293,8 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 === Restore an entire cluster
 
 In some cases, you need to restore an entire cluster from a snapshot, including
-the cluster state and all feature states. These cases should be rare, such as in
-the event of a catastrophic failure.
+the cluster state and all <<feature-state,feature states>>. These cases should
+be rare, such as in the event of a catastrophic failure.
 
 Restoring an entire cluster involves deleting important system indices,
 including those used for authentication. Consider whether you can restore
@@ -529,8 +532,12 @@ After all primary shards are recovered, the replication process creates and
 distributes replicas across eligible data nodes. When replication is complete,
 the cluster health status typically becomes `green`.
 
-You can monitor the cluster health status using the <<cluster-health,cluster
-health API>>.
+Once you start a restore in {kib}, you’re navigated to the **Restore Status**
+page. You can use this page to track the current state for each shard in the
+snapshot.
+
+You can also monitor snapshot recover using {es} APIs. To monitor the cluster
+health status, use the <<cluster-health,cluster health API>>.
 
 [source,console]
 ----
@@ -562,7 +569,7 @@ use the <<cluster-allocation-explain,cluster allocation explanation API>>.
 
 [source,console]
 ----
-GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node_name,node_allocation_decisions.deciders.*
+GET _cluster/allocation/explain
 {
   "index": "my-index",
   "shard": 0,
@@ -602,14 +609,15 @@ clusters].
 
 Snapshots aren't tied to a particular cluster or a cluster name. You can create
 a snapshot in one cluster and restore it in another
-<<snapshot-restore-version-compatibility,compatible cluster>>. The topology of
-the clusters doesn't need to match.
+<<snapshot-restore-version-compatibility,compatible cluster>>. Any data stream
+or index you restore from a snapshot must also be compatible with the current
+cluster’s version. The topology of the clusters doesn't need to match.
 
 To restore a snapshot, its repository must be
 <<snapshots-register-repository,registered>> and available to the new cluster.
 If the original cluster still has write access to the repository, register the
-repository in `readonly` mode. This prevents multiple clusters from writing to
-the repository at the same time and corrupting the repository's contents.
+repository as read-only. This prevents multiple clusters from writing to the
+repository at the same time and corrupting the repository's contents.
 
 Before you start a restore operation, ensure the new cluster has enough capacity
 for any data streams or indices you want to restore. If the new cluster has a

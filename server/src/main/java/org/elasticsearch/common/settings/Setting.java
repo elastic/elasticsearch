@@ -22,6 +22,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -1344,6 +1346,16 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
+        return new Setting<>(
+            key,
+            defaultValue.toString(),
+            (s) -> Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)),
+            validator,
+            properties
+        );
+    }
+
     public static Setting<String> simpleString(String key, Property... properties) {
         return new Setting<>(key, s -> "", Function.identity(), properties);
     }
@@ -1636,6 +1648,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
         return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, Property... properties) {
+        return listSetting(key, List.of(), Function.identity(), v -> {}, properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, Validator<List<String>> validator, Property... properties) {
+        return listSetting(key, List.of(), Function.identity(), validator, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(

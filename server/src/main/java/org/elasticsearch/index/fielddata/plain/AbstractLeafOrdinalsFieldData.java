@@ -37,7 +37,6 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
 
     @Override
     public final DocValuesField<?> getScriptField(String name) {
-        // TODO(stu): this is keyword field path
         return toScriptField.getScriptField(getOrdinalsValues(), name);
     }
 

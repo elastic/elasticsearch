@@ -104,7 +104,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     protected long getDefaultRangeSize() {
         return (context != CACHE_WARMING_CONTEXT)
             ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
-            : fileInfo.partSize().getBytes();
+            : fileInfo.partSize() != null ? fileInfo.partSize().getBytes() : fileInfo.length();
     }
 
     @Override

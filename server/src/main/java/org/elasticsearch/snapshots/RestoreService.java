@@ -928,16 +928,17 @@ public class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        if (snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-            throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
-                "the snapshot was created with Elasticsearch version ["
-                    + snapshotInfo.version()
-                    + "] which is below the current versions minimum index compatibility version ["
-                    + Version.CURRENT.minimumIndexCompatibilityVersion()
-                    + "]"
-            );
-        }
+        // TODO: conditionally allow restoring older stuff
+//        if (snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+//            throw new SnapshotRestoreException(
+//                new Snapshot(repository, snapshotInfo.snapshotId()),
+//                "the snapshot was created with Elasticsearch version ["
+//                    + snapshotInfo.version()
+//                    + "] which is below the current versions minimum index compatibility version ["
+//                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+//                    + "]"
+//            );
+//        }
     }
 
     public static boolean failed(SnapshotInfo snapshot, String index) {
@@ -1206,7 +1207,10 @@ public class RestoreService implements ClusterStateApplier {
 
             final ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
 
-            final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
+            // TODO: conditionally allow restoring older stuff
+            final Version minIndexCompatibilityVersion =
+                Version.fromString("1.0.0");
+                //currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();

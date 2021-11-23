@@ -1769,6 +1769,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            boolean inSyncAllocations = false;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -1786,6 +1787,24 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     } else if ("mappings".equals(currentFieldName)) {
                         // don't try to parse these for now
                         parser.skipChildren();
+                    } else if ("in_sync_allocations".equals(currentFieldName)) {
+                        inSyncAllocations = true;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                String shardId = currentFieldName;
+                                Set<String> allocationIds = new HashSet<>();
+                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                    if (token == XContentParser.Token.VALUE_STRING) {
+                                        allocationIds.add(parser.text());
+                                    }
+                                }
+                                builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
+                            }
+                        }
                     } else {
                         // assume it's custom index metadata
                         parser.skipChildren();
@@ -1816,6 +1835,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+
+            if (inSyncAllocations == false) {
+                for (int i = 0; i < builder.numberOfShards(); i++) {
+                    builder.putInSyncAllocationIds(i, Collections.singleton("_NONE_"));
+                }
+            }
 
             IndexMetadata indexMetadata = builder.build();
             assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());

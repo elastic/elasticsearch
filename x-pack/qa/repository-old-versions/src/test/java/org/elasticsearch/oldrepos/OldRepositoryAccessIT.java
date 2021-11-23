@@ -11,6 +11,8 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -142,6 +144,23 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 assertEquals(0, snapshotStatus.getShardsStats().getFailedShards());
                 assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
                 assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
+
+                // mount as searchable snapshot
+                // RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
+                // .mountSnapshot(
+                // new MountSnapshotRequest("testrepo", "snap1", "test")
+                // .storage(MountSnapshotRequest.Storage.SHARED_CACHE)
+                // .waitForCompletion(true),
+                // RequestOptions.DEFAULT
+                // );
+                RestoreSnapshotResponse mountSnapshotResponse = client.snapshot()
+                    .restore(
+                        new RestoreSnapshotRequest("testrepo", "snap1").indices("test").waitForCompletion(true),
+                        RequestOptions.DEFAULT
+                    );
+                assertNotNull(mountSnapshotResponse.getRestoreInfo());
+                assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
+                assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
             } finally {
                 oldEs.performRequest(new Request("DELETE", "/test"));
             }

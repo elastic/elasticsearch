@@ -12,7 +12,7 @@
     triggers:
       - github-pull-request:
           org-list:
-            - breskeby
+            - elastic
           allow-whitelist-orgs-as-admins: true
           trigger-phrase: '.*run\W+elasticsearch-ci/build-perf.*'
           github-hooks: true
@@ -29,6 +29,6 @@
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          $WORKSPACE/.ci/scripts/run-gradle.sh bootstrapPerformanceTests
-          #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/install-gradle-profiler.sh bootstrapPerformanceTests
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh bootstrapPerformanceTests

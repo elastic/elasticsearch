@@ -93,9 +93,10 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<
                 Map<String, DocumentField> fetchFields = new HashMap<>();
                 int fieldsCount = randomIntBetween(0, 5);
                 for (int j = 0; j < fieldsCount; j++) {
-                    fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
+                    DocumentField doc = randomDocumentField(xType).v2();
+                    fetchFields.put(doc.getName(), doc);
                 }
-                if (fetchFields.isEmpty() && randomBoolean()) {
+                if (fetchFields.isEmpty()) {
                     fetchFields = null;
                 }
                 hits.add(
@@ -262,7 +263,10 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<
     ) {
         assertThat(serverEvents.size(), equalTo(clientEvents.size()));
         for (int j = 0; j < serverEvents.size(); j++) {
-            assertThat(SourceLookup.sourceAsMap(serverEvents.get(j).source()), is(clientEvents.get(j).sourceAsMap()));
+            org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event serverEvent = serverEvents.get(j);
+            EqlSearchResponse.Event clientEvent = clientEvents.get(j);
+            assertThat(SourceLookup.sourceAsMap(serverEvent.source()), is(clientEvent.sourceAsMap()));
+            assertThat(serverEvent.fetchFields(), equalTo(clientEvent.fetchFields()));
         }
     }
 }

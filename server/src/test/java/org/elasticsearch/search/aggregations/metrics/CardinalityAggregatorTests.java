@@ -11,29 +11,106 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.hash.Murmur3Hasher;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
+
+    /** Script to extract the single string value of the 'str_value' field **/
+    public static final String STRING_VALUE_SCRIPT = "doc['str_value'].value";
+
+    /** Script to extract a collection of string values from the 'str_values' field **/
+    public static final String STRING_VALUES_SCRIPT = "doc['str_values']";
+
+    /** Script to extract a single numeric value from the 'number' field **/
+    public static final String NUMERIC_VALUE_SCRIPT = "doc['number'].value";
+
+    /** Script to extract a collection of numeric values from the 'numbers' field **/
+    public static final String NUMERIC_VALUES_SCRIPT = "doc['numbers']";
+
+    public static final int HASHER_DEFAULT_SEED = 17;
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        final Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+        scripts.put(STRING_VALUE_SCRIPT, vars -> {
+            final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            return doc.get("str_value");
+        });
+
+        scripts.put(STRING_VALUES_SCRIPT, vars -> {
+            final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            final ScriptDocValues.Strings strValues = (ScriptDocValues.Strings) doc.get("str_values");
+            return strValues;
+        });
+
+        scripts.put(NUMERIC_VALUE_SCRIPT, vars -> {
+            final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            return doc.get("number");
+        });
+
+        scripts.put(NUMERIC_VALUES_SCRIPT, vars -> {
+            final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            return (ScriptDocValues<?>) doc.get("numbers");
+        });
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(
+            MockScriptEngine.NAME,
+            scripts,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+    }
 
     public void testNoDocs() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
@@ -112,8 +189,125 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testSingleValuedString() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
+            iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
+        }, card -> {
+            assertEquals(2, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testSingleValuedStringScript() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "doc['str_value'].value", emptyMap())
+        );
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
+            iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
+            iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
+        }, card -> {
+            assertEquals(2, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testMultiValuedStringScript() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "doc['str_values']", emptyMap())
+        );
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("unrelatedField", new BytesRef("two")),
+                    new SortedSetDocValuesField("unrelatedField", new BytesRef("three"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("two")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testMultiValuedString() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("three")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("three")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedSetDocValuesField("str_values", new BytesRef("two")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
     public void testUnmappedMissingString() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number")
+            .missing("🍌🍌🍌");
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
@@ -126,7 +320,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingNumber() throws IOException {
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing(1234);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing(1234);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
@@ -136,6 +330,100 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
+    }
+
+    public void testSingleValuedNumericScript() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "doc['number'].value", emptyMap())
+        );
+        final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 10)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField("unrelatedField", 11)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 12)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 12)));
+        }, card -> {
+            assertEquals(2, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testMultiValuedNumericScript() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").script(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "doc['numbers']", emptyMap())
+        );
+        final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("numbers", NumberFieldMapper.NumberType.INTEGER);
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 10), new SortedNumericDocValuesField("numbers", 12)));
+            iw.addDocument(
+                Arrays.asList(new SortedNumericDocValuesField("unrelatedField", 11), new SortedNumericDocValuesField("unrelatedField", 12))
+            );
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 11), new SortedNumericDocValuesField("numbers", 12)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
+        }, card -> {
+            assertEquals(4, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testMultiValuedNumeric() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number");
+        final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 8)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 9)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 9), new SortedNumericDocValuesField("number", 8)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 8), new SortedNumericDocValuesField("number", 7)));
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testSingleValuedFieldGlobalAggregation() throws IOException {
+        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+
+        final AggregationBuilder aggregationBuilder = AggregationBuilders.global("global")
+            .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
+
+        final Directory directory = newDirectory();
+        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
+            indexWriter.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
+        }
+        indexWriter.close();
+
+        final IndexReader indexReader = DirectoryReader.open(directory);
+        final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+        final GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        final Global global = (Global) aggregator.buildTopLevel();
+        assertNotNull(global);
+        assertEquals("global", global.getName());
+        assertEquals(numDocs * 2, global.getDocCount());
+        assertNotNull(global.getAggregations());
+        assertEquals(1, global.getAggregations().asMap().size());
+
+        final Cardinality cardinality = global.getAggregations().get("cardinality");
+        assertNotNull(cardinality);
+        assertEquals("cardinality", cardinality.getName());
+        assertEquals(numDocs, cardinality.getValue(), 0);
+        assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
+        assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
+        assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
+
+        indexReader.close();
+        directory.close();
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -150,6 +438,35 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
+    }
+
+    public void testSingleValuedStringHashed() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value.hash");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value.hash");
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(
+                singleton(new SortedDocValuesField("str_value.hash", new BytesRef(hash("one".getBytes(StandardCharsets.UTF_8)))))
+            );
+            iw.addDocument(
+                singleton(new SortedDocValuesField("unrelatedField.hash", new BytesRef(hash("two".getBytes(StandardCharsets.UTF_8)))))
+            );
+            iw.addDocument(
+                singleton(new SortedDocValuesField("str_value.hash", new BytesRef(hash("three".getBytes(StandardCharsets.UTF_8)))))
+            );
+            iw.addDocument(
+                singleton(new SortedDocValuesField("str_value.hash", new BytesRef(hash("four".getBytes(StandardCharsets.UTF_8)))))
+            );
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    private static byte[] hash(final byte[] value) {
+        final Murmur3Hasher hasher = new Murmur3Hasher(HASHER_DEFAULT_SEED);
+        hasher.update(value);
+        return hasher.digest();
     }
 
     private void testAggregation(

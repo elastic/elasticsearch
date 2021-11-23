@@ -118,6 +118,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * @deprecated Use {@link #getTargetTaskId()}
      */
+    @Deprecated
     public TaskId getTaskId() {
         return getTargetTaskId();
     }
@@ -125,6 +126,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * @deprecated Use {@link #setTargetTaskId(TaskId)}
      */
+    @Deprecated
     public final Request setTaskId(TaskId taskId) {
         return setTargetTaskId(taskId);
     }
@@ -145,6 +147,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * @deprecated Use {@link #getTargetParentTaskId()}
      */
+    @Deprecated
     public TaskId getParentTaskId() {
         return getTargetParentTaskId();
     }
@@ -152,6 +155,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * @deprecated Use {@link #setTargetParentTaskId(TaskId)}
      */
+    @Deprecated
     public Request setParentTaskId(TaskId parentTaskId) {
         return setTargetParentTaskId(parentTaskId);
     }

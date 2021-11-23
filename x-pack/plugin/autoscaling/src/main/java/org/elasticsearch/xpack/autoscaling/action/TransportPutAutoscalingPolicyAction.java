@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 
 public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMasterNodeAction<PutAutoscalingPolicyAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
     private final PolicyValidator policyValidator;
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
@@ -119,7 +119,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         clusterService.submitStateUpdateTask("put-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                return putAutoscalingPolicy(currentState, request, policyValidator, logger);
+                return putAutoscalingPolicy(currentState, request, policyValidator, LOGGER);
             }
         });
     }

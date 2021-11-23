@@ -150,9 +150,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     public synchronized AutoFollowStats getStats() {
-        final Map<String, AutoFollower> autoFollowers = this.autoFollowers;
+        final Map<String, AutoFollower> autoFollowersCopy = this.autoFollowers;
         final TreeMap<String, AutoFollowedCluster> timesSinceLastAutoFollowPerRemoteCluster = new TreeMap<>();
-        for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
+        for (Map.Entry<String, AutoFollower> entry : autoFollowersCopy.entrySet()) {
             long lastAutoFollowTimeInMillis = entry.getValue().lastAutoFollowTimeInMillis;
             long lastSeenMetadataVersion = entry.getValue().metadataVersion;
             if (lastAutoFollowTimeInMillis != -1) {
@@ -231,13 +231,13 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             return;
         }
 
-        final CopyOnWriteHashMap<String, AutoFollower> autoFollowers = CopyOnWriteHashMap.copyOf(this.autoFollowers);
+        final CopyOnWriteHashMap<String, AutoFollower> autoFollowersCopy = CopyOnWriteHashMap.copyOf(this.autoFollowers);
         Set<String> newRemoteClusters = autoFollowMetadata.getPatterns()
             .values()
             .stream()
             .filter(AutoFollowPattern::isActive)
             .map(AutoFollowPattern::getRemoteCluster)
-            .filter(remoteCluster -> autoFollowers.containsKey(remoteCluster) == false)
+            .filter(remoteCluster -> autoFollowersCopy.containsKey(remoteCluster) == false)
             .collect(Collectors.toSet());
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
@@ -317,7 +317,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         List<String> removedRemoteClusters = new ArrayList<>();
-        for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
+        for (Map.Entry<String, AutoFollower> entry : autoFollowersCopy.entrySet()) {
             String remoteCluster = entry.getKey();
             AutoFollower autoFollower = entry.getValue();
             boolean exist = autoFollowMetadata.getPatterns()
@@ -338,7 +338,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
         assert assertNoOtherActiveAutoFollower(newAutoFollowers);
-        this.autoFollowers = autoFollowers.copyAndPutAll(newAutoFollowers).copyAndRemoveAll(removedRemoteClusters);
+        this.autoFollowers = autoFollowersCopy.copyAndPutAll(newAutoFollowers).copyAndRemoveAll(removedRemoteClusters);
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
@@ -531,7 +531,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         private void checkAutoFollowPattern(
             String autoFollowPattenName,
-            String remoteCluster,
+            String remoteClusterString,
             AutoFollowPattern autoFollowPattern,
             List<Index> leaderIndicesToFollow,
             Map<String, String> headers,
@@ -617,7 +617,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
                         followLeaderIndex(
                             autoFollowPattenName,
-                            remoteCluster,
+                            remoteClusterString,
                             indexToFollow,
                             autoFollowPattern,
                             headers,
@@ -647,7 +647,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         private void followLeaderIndex(
             String autoFollowPattenName,
-            String remoteCluster,
+            String remoteClusterString,
             Index indexToFollow,
             AutoFollowPattern pattern,
             Map<String, String> headers,
@@ -657,7 +657,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
             PutFollowAction.Request request = new PutFollowAction.Request();
-            request.setRemoteCluster(remoteCluster);
+            request.setRemoteCluster(remoteClusterString);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
             request.setSettings(pattern.getSettings());
@@ -866,13 +866,13 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         AutoFollowResult(String autoFollowPatternName, List<Tuple<Index, Exception>> results) {
             this.autoFollowPatternName = autoFollowPatternName;
 
-            Map<Index, Exception> autoFollowExecutionResults = new HashMap<>();
+            Map<Index, Exception> mutableAutoFollowExecutionResults = new HashMap<>();
             for (Tuple<Index, Exception> result : results) {
-                autoFollowExecutionResults.put(result.v1(), result.v2());
+                mutableAutoFollowExecutionResults.put(result.v1(), result.v2());
             }
 
             this.clusterStateFetchException = null;
-            this.autoFollowExecutionResults = Collections.unmodifiableMap(autoFollowExecutionResults);
+            this.autoFollowExecutionResults = Collections.unmodifiableMap(mutableAutoFollowExecutionResults);
         }
 
         AutoFollowResult(String autoFollowPatternName, Exception e) {

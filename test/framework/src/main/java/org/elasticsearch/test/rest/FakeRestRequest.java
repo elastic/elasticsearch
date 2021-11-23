@@ -109,17 +109,17 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public HttpResponse createResponse(RestStatus status, BytesReference content) {
-            Map<String, String> headers = new HashMap<>();
+        public HttpResponse createResponse(RestStatus status, BytesReference unused) {
+            Map<String, String> responseHeaders = new HashMap<>();
             return new HttpResponse() {
                 @Override
                 public void addHeader(String name, String value) {
-                    headers.put(name, value);
+                    responseHeaders.put(name, value);
                 }
 
                 @Override
                 public boolean containsHeader(String name) {
-                    return headers.containsKey(name);
+                    return responseHeaders.containsKey(name);
                 }
             };
         }
@@ -209,8 +209,8 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withContent(BytesReference content, XContentType xContentType) {
-            this.content = content;
+        public Builder withContent(BytesReference contentBytes, XContentType xContentType) {
+            this.content = contentBytes;
             if (xContentType != null) {
                 headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             }
@@ -227,8 +227,8 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withRemoteAddress(InetSocketAddress address) {
-            this.address = address;
+        public Builder withRemoteAddress(InetSocketAddress remoteAddress) {
+            this.address = remoteAddress;
             return this;
         }
 

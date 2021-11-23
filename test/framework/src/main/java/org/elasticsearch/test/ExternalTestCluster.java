@@ -88,10 +88,10 @@ public final class ExternalTestCluster extends TestCluster {
             }
         }
         Settings clientSettings = clientSettingsBuilder.build();
-        MockTransportClient client = new MockTransportClient(clientSettings, pluginClasses);
+        MockTransportClient mockClient = new MockTransportClient(clientSettings, pluginClasses);
         try {
-            client.addTransportAddresses(transportAddresses);
-            NodesInfoResponse nodeInfos = client.admin()
+            mockClient.addTransportAddresses(transportAddresses);
+            NodesInfoResponse nodeInfos = mockClient.admin()
                 .cluster()
                 .prepareNodesInfo()
                 .clear()
@@ -113,11 +113,11 @@ public final class ExternalTestCluster extends TestCluster {
             }
             this.numDataNodes = dataNodes;
             this.numMasterAndDataNodes = masterAndDataNodes;
-            this.client = client;
+            this.client = mockClient;
 
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (Exception e) {
-            client.close();
+            mockClient.close();
             throw e;
         }
     }

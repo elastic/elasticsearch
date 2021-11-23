@@ -20,7 +20,7 @@ public class CancelTasksRequestTests extends ESTestCase {
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setActions("action1", "action2");
         cancelTasksRequest.setNodes("node1", "node2");
-        cancelTasksRequest.setTaskId(new TaskId("node1", 1));
+        cancelTasksRequest.setTargetTaskId(new TaskId("node1", 1));
         cancelTasksRequest.setTargetParentTaskId(new TaskId("node1", 0));
         assertEquals(
             "reason[by user request], waitForCompletion[false], taskId[node1:1], "

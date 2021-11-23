@@ -34,8 +34,8 @@ final class TasksRequestConverters {
     }
 
     static Request listTasks(ListTasksRequest listTaskRequest) {
-        if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
-            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
+        if (listTaskRequest.getTargetTaskId() != null && listTaskRequest.getTargetTaskId().isSet()) {
+            throw new IllegalArgumentException("TargetTaskId cannot be used for list tasks request");
         }
         Request request = new Request(HttpGet.METHOD_NAME, "/_tasks");
         RequestConverters.Params params = new RequestConverters.Params();

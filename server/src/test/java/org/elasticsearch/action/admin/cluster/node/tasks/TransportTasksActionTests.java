@@ -506,7 +506,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Try to cancel main task using id
         request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setTaskId(new TaskId(testNodes[0].getNodeId(), task.getId()));
+        request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), task.getId()));
         response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
             request

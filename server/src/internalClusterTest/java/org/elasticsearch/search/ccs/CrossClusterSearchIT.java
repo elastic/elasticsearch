@@ -213,7 +213,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .filter(t -> t.getParentTaskId().isSet() == false)
             .findFirst()
             .get();
-        final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTaskId(rootTask.getTaskId());
+        final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTask.getTaskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
         final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
         assertBusy(() -> {

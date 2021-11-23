@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -100,6 +101,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 break;
             case 6:
                 maxShardDocs = randomValueOtherThan(maxShardDocs, () -> randomNonNegativeLong());
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
@@ -267,6 +269,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            if (step.getMaxShardDocs() != null) {
+                expectedConditions.add(new MaxShardDocsCondition(step.getMaxShardDocs()));
             }
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
@@ -470,6 +475,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
+            if (step.getMaxShardDocs() != null) {
+                expectedConditions.add(new MaxShardDocsCondition(step.getMaxShardDocs()));
+            }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> false));
@@ -525,6 +533,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            if (step.getMaxShardDocs() != null) {
+                expectedConditions.add(new MaxShardDocsCondition(step.getMaxShardDocs()));
             }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);

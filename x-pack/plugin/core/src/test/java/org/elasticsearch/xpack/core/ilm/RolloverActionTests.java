@@ -57,7 +57,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
         Long maxShardDocs = instance.getMaxShardDocs();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0:
                 maxSize = randomValueOtherThan(maxSize, () -> {
                     ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
@@ -78,6 +78,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 break;
             case 4:
                 maxShardDocs = maxShardDocs == null ? randomNonNegativeLong() : maxShardDocs + 1;
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }

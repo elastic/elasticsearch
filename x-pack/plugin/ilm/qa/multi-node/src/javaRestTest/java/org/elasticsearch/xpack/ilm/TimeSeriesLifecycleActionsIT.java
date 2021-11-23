@@ -541,7 +541,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(templateRequest);
 
         policy = randomAlphaOfLengthBetween(5, 20);
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
 
         index = indexPrefix + "-000001";
         final StringEntity putIndex = new StringEntity(
@@ -661,7 +661,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
         // Set up a policy with rollover
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
         createIndexWithSettings(
             client(),
             originalIndex,
@@ -748,7 +748,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
 
         // create policy
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
@@ -780,7 +780,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testHistoryIsWrittenWithSuccess() throws Exception {
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
         createIndexTemplate.setJsonEntity(
             "{"
@@ -821,7 +821,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testHistoryIsWrittenWithFailure() throws Exception {
         createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), false);
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
         updatePolicy(client(), index + "-1", policy);
 
         // Index a document
@@ -896,7 +896,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testRefreshablePhaseJson() throws Exception {
         String index = "refresh-index";
 
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 100L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 100L, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
         createIndexTemplate.setJsonEntity(
             "{"
@@ -933,7 +933,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index + "-1").getName(), equalTo(WaitForRolloverReadyStep.NAME)));
 
         // Update the policy to allow rollover at 1 document instead of 100
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
 
         // Index should now have been able to roll over, creating the new index and proceeding to the "complete" step
         assertBusy(() -> assertThat(indexExists(index + "-000002"), is(true)));

@@ -81,6 +81,14 @@ replicas are ignored.
 TIP: To see the current shard size, use the <<cat-shards, _cat shards>> API.
 The `store` value shows the size each shard, and `prirep` indicates whether a
 shard is a primary (`p`) or a replica (`r`).
+
+`max_shard_docs`::
+(Optional, integer)
+Triggers rollover when the largest shard in the index reaches a certain number of documents.
+This is the maximum docs of the shards in the index. As with `max_docs`
++
+TIP: To see the current shard docs, use the <<cat-shards, _cat shards>> API.
+The `docs` value shows the number of documents each shard.
 // end::rollover-conditions[]
 
 [[ilm-rollover-ex]]
@@ -147,6 +155,29 @@ PUT _ilm/policy/my_policy
         "actions": {
           "rollover" : {
             "max_docs": 100000000
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[ilm-rollover-documents-ex]]
+===== Roll over based on document count of the largest shard
+
+This example rolls the index over when it contains at least ten million documents of the largest shard.
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover" : {
+            "max_shard_docs": 10000000
           }
         }
       }

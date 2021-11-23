@@ -91,9 +91,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             );
             task.setBreakingChangesAreaTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes-area.asciidoc"));
             task.setBreakingChangesDirectory(
-                projectDirectory.dir(
-                    String.format("docs/reference/migration/migrate_%d_%d", version.getMajor(), version.getMinor())
-                )
+                projectDirectory.dir(String.format("docs/reference/migration/migrate_%d_%d", version.getMajor(), version.getMinor()))
             );
 
             task.dependsOn(validateChangelogsTask);

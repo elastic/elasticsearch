@@ -561,7 +561,7 @@ public class IndexDeprecationChecks {
             if (tierPreference.isEmpty()) {
                 String indexName = indexMetadata.getIndex().getName();
                 return new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "Index ["
                         + indexName
                         + "] does not have a ["

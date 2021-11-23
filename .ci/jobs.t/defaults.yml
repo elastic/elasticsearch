@@ -30,7 +30,7 @@
           reference-repo: "/var/lib/jenkins/.git-references/elasticsearch.git"
           branches:
             - "${branch_specifier}"
-          url: "https://github.com/breskeby/elasticsearch.git"
+          url: "https://github.com/elastic/elasticsearch.git"
           basedir: ""
           wipe-workspace: true
     triggers: []

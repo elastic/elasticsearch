@@ -562,11 +562,7 @@ public class IndexDeprecationChecks {
                 String indexName = indexMetadata.getIndex().getName();
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "No ["
-                        + DataTier.TIER_PREFERENCE
-                        + "] is set for index ["
-                        + indexName
-                        + "].",
+                    "No [" + DataTier.TIER_PREFERENCE + "] is set for index [" + indexName + "].",
                     "https://ela.st/es-deprecation-7-empty-tier-preference",
                     "Specify a data tier preference for this index.",
                     false,

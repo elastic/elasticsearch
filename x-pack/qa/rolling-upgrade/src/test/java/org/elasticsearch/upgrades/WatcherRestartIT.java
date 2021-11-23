@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -20,10 +21,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class WatcherRestartIT extends AbstractUpgradeTestCase {
@@ -129,6 +132,34 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
             templateNames,
             hasItem(expectedTemplate)
         );
+    }
+
+    public void testEnsureWatcherDeletesLegacyTemplates() throws Exception {
+        client().performRequest(new Request("POST", "/_watcher/_start"));
+        ensureWatcherStarted();
+
+        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+            // legacy index template created in previous releases should not be present anymore
+            assertBusy(() -> {
+                Request request = new Request("GET", "/_template/*watch*");
+                try {
+                    Response response = client().performRequest(request);
+                    Map<String, Object> responseLevel = entityAsMap(response);
+                    assertNotNull(responseLevel);
+
+                    assertThat(responseLevel.containsKey(".watches"), is(false));
+                    assertThat(responseLevel.containsKey(".triggered_watches"), is(false));
+                    assertThat(responseLevel.containsKey(".watch-history-9"), is(false));
+                } catch (ResponseException e) {
+                    // Not found is fine
+                    assertThat(
+                        "Unexpected failure getting templates: " + e.getResponse().getStatusLine(),
+                        e.getResponse().getStatusLine().getStatusCode(),
+                        is(404)
+                    );
+                }
+            }, 30, TimeUnit.SECONDS);
+        }
     }
 
     private void ensureWatcherStopped() throws Exception {

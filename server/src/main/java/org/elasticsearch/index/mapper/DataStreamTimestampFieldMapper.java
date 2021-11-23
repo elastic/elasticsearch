@@ -230,12 +230,22 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         long startTime = context.indexSettings().getTimeSeriesStartTime();
         if (value < startTime) {
-            throw new IllegalArgumentException("time series index @timestamp value [" + resolution.toInstant(originValue) + "] must be larger than " + Instant.ofEpochMilli(startTime));
+            throw new IllegalArgumentException(
+                "time series index @timestamp value ["
+                    + resolution.toInstant(originValue)
+                    + "] must be larger than "
+                    + Instant.ofEpochMilli(startTime)
+            );
         }
 
         long endTime = context.indexSettings().getTimeSeriesEndTime();
         if (value >= endTime) {
-            throw new IllegalArgumentException("time series index @timestamp value [" + resolution.toInstant(originValue) + "] must be smaller than " + Instant.ofEpochMilli(endTime));
+            throw new IllegalArgumentException(
+                "time series index @timestamp value ["
+                    + resolution.toInstant(originValue)
+                    + "] must be smaller than "
+                    + Instant.ofEpochMilli(endTime)
+            );
         }
     }
 

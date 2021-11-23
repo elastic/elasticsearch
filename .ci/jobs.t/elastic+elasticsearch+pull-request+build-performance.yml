@@ -27,8 +27,15 @@
           black-list-labels:
             - '>test-mute'
     builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA11_HOME=$HOME/.java/java11
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          $WORKSPACE/.ci/scripts/install-gradle-profiler.sh bootstrapPerformanceTests
-          #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh bootstrapPerformanceTests
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/install-gradle-profiler.sh bootstrapPerformanceTests

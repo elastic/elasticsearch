@@ -292,28 +292,36 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+        private static final ParseField TYPE = new ParseField("type");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0], a[1] != null && (boolean) a[1])
+            a -> new DataStreamTemplate(
+                a[0] != null && (boolean) a[0],
+                a[1] != null && (boolean) a[1],
+                DataStream.Type.fromString((String) a[2])
+            )
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TYPE);
         }
 
         private final boolean hidden;
         private final boolean allowCustomRouting;
+        private final DataStream.Type type;
 
         public DataStreamTemplate() {
-            this(false, false);
+            this(false, false, DataStream.Type.DEFAULT);
         }
 
-        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
+        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, DataStream.Type type) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
+            this.type = type;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
@@ -323,6 +331,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             } else {
                 allowCustomRouting = false;
             }
+            type = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readEnum(DataStream.Type.class) : DataStream.Type.DEFAULT;
         }
 
         public String getTimestampField() {
@@ -355,11 +364,18 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return allowCustomRouting;
         }
 
+        public DataStream.Type getType() {
+            return type;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeBoolean(allowCustomRouting);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeEnum(type);
             }
         }
 
@@ -368,6 +384,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+            builder.field(TYPE.getPreferredName(), type);
             builder.endObject();
             return builder;
         }
@@ -377,12 +394,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && type.equals(that.type);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden, allowCustomRouting);
+            return Objects.hash(hidden, allowCustomRouting, type);
         }
     }
 

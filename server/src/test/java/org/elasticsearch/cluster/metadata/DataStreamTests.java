@@ -426,6 +426,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
+            preSnapshotDataStream.getType(),
             preSnapshotDataStream.getTimeStampField(),
             postSnapshotIndices,
             preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
@@ -467,6 +468,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
+            preSnapshotDataStream.getType(),
             preSnapshotDataStream.getTimeStampField(),
             indicesToAdd,
             preSnapshotDataStream.getGeneration(),

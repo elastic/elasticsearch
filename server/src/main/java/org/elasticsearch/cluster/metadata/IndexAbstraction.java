@@ -51,6 +51,10 @@ public interface IndexAbstraction {
     @Nullable
     Index getWriteIndex();
 
+    default Index getWriteIndex(long timestamp, Metadata metadata) {
+        return getWriteIndex();
+    }
+
     /**
      * @return the data stream to which this index belongs or <code>null</code> if this is not a concrete index or
      * if it is a concrete index that does not belong to a data stream.
@@ -409,6 +413,11 @@ public interface IndexAbstraction {
 
         public Index getWriteIndex() {
             return dataStream.getWriteIndex();
+        }
+
+        @Override
+        public Index getWriteIndex(long timestamp, Metadata metadata) {
+            return dataStream.getWriteIndex(timestamp, metadata);
         }
 
         @Override

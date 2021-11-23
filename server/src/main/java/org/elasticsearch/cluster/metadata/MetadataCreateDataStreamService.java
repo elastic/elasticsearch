@@ -23,9 +23,13 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -33,6 +37,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -202,7 +208,22 @@ public class MetadataCreateDataStreamService {
                 firstBackingIndexName
             ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
 
-            if (isSystem == false) {
+            if (template.getDataStreamTemplate().getType() == DataStream.Type.TSDB) {
+                Instant start = Instant.ofEpochMilli(request.startTime);
+                Instant end = start.plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);
+
+                // start - 5 minutes, because there may be docs still inflight before request.startTime?
+                start = start.minus(5, ChronoUnit.MINUTES);
+
+                Settings.Builder indexSettingsBuilder = Settings.builder();
+                DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+                indexSettingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), dateFormatter.format(start));
+                indexSettingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), dateFormatter.format(end));
+                if (isSystem == false) {
+                    indexSettingsBuilder.put(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
+                }
+                createIndexRequest.settings(indexSettingsBuilder.build());
+            } else if (isSystem == false) {
                 createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
             }
 
@@ -231,6 +252,7 @@ public class MetadataCreateDataStreamService {
         boolean hidden = isSystem ? false : template.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(
             dataStreamName,
+            template.getDataStreamTemplate().getType(),
             timestampField,
             dsBackingIndices,
             1L,

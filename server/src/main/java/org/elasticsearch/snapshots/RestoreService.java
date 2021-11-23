@@ -642,6 +642,7 @@ public class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toList());
         return new DataStream(
             dataStreamName,
+            dataStream.getType(),
             dataStream.getTimeStampField(),
             updatedIndices,
             dataStream.getGeneration(),

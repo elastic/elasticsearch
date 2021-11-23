@@ -80,6 +80,7 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .collect(Collectors.toList());
         return new DataStream(
             name,
+            DataStream.Type.DEFAULT,
             new TimestampField("@timestamp"),
             backingIndices,
             backingIndices.size(),
@@ -92,7 +93,8 @@ public class TransportPutFollowActionTests extends ESTestCase {
 
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
-        return new DataStream(name, new TimestampField("@timestamp"), backingIndices, generation, Map.of(), false, replicate, false);
+        TimestampField timestampField = new TimestampField("@timestamp");
+        return new DataStream(name, DataStream.Type.DEFAULT, timestampField, backingIndices, generation, Map.of(), false, replicate, false);
     }
 
 }

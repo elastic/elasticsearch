@@ -1458,7 +1458,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 if (indexMetadata == null) {
                     throw new IndexNotFoundException(index);
                 }
-                put(IndexMetadata.builder(indexMetadata).settings(Settings.builder().put(indexMetadata.getSettings()).put(settings)));
+                put(
+                    IndexMetadata.builder(indexMetadata)
+                        .settings(Settings.builder().put(indexMetadata.getSettings()).put(settings))
+                        .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                );
             }
             return this;
         }

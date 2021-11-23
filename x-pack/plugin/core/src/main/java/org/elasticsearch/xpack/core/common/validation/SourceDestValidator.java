@@ -189,7 +189,8 @@ public final class SourceDestValidator {
                         IndicesOptions.lenientExpandOpen(),
                         destIndex,
                         true,
-                        false
+                        false,
+                        null
                     );
 
                     resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : destIndex;

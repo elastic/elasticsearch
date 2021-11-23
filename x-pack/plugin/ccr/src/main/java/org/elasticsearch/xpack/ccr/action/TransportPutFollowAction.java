@@ -305,6 +305,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             // just copying the data stream is in this case safe.
             return new DataStream(
                 remoteDataStream.getName(),
+                remoteDataStream.getType(),
                 remoteDataStream.getTimeStampField(),
                 List.of(backingIndexToFollow),
                 remoteDataStream.getGeneration(),
@@ -335,6 +336,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
             return new DataStream(
                 localDataStream.getName(),
+                localDataStream.getType(),
                 localDataStream.getTimeStampField(),
                 backingIndices,
                 remoteDataStream.getGeneration(),

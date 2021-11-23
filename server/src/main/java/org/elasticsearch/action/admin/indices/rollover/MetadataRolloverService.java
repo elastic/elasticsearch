@@ -26,15 +26,19 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -294,6 +298,21 @@ public class MetadataRolloverService {
             createIndexRequest,
             systemDataStreamDescriptor
         );
+
+        if (dataStream.getDataStream().getType() == DataStream.Type.TSDB) {
+            DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+            Metadata metadata = currentState.metadata();
+            IndexMetadata previousHeadIndex = metadata.indices().get(originalWriteIndex.getName());
+            long previousEnd = dateFormatter.parseMillis(previousHeadIndex.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey()));
+            Instant start = Instant.ofEpochMilli(previousEnd);
+            Instant end = start.plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);
+
+            Settings.Builder indexSettingsBuilder = Settings.builder();
+            indexSettingsBuilder.put(createIndexClusterStateRequest.settings());
+            indexSettingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), dateFormatter.format(start));
+            indexSettingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), dateFormatter.format(end));
+            createIndexClusterStateRequest.settings(indexSettingsBuilder.build());
+        }
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,

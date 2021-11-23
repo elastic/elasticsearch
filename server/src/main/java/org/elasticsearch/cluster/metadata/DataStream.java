@@ -12,6 +12,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
@@ -22,6 +24,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -29,6 +33,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,8 +74,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         }
     }).reversed();
 
+    public static final TemporalAmount DEFAULT_LOOK_AHEAD_TIME = Duration.ofMinutes(30);
+
     private final LongSupplier timeProvider;
     private final String name;
+    private final Type type;
     private final TimestampField timeStampField;
     private final List<Index> indices;
     private final long generation;
@@ -79,11 +89,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean allowCustomRouting;
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
-        this(name, timeStampField, indices, generation, metadata, false, false, false, false);
+        this(name, Type.DEFAULT, timeStampField, indices, generation, metadata, false, false, false, false);
     }
 
     public DataStream(
         String name,
+        Type type,
         TimestampField timeStampField,
         List<Index> indices,
         long generation,
@@ -92,11 +103,24 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         boolean replicated,
         boolean allowCustomRouting
     ) {
-        this(name, timeStampField, indices, generation, metadata, hidden, replicated, false, System::currentTimeMillis, allowCustomRouting);
+        this(
+            name,
+            type,
+            timeStampField,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            false,
+            System::currentTimeMillis,
+            allowCustomRouting
+        );
     }
 
     public DataStream(
         String name,
+        Type type,
         TimestampField timeStampField,
         List<Index> indices,
         long generation,
@@ -108,6 +132,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     ) {
         this(
             name,
+            type,
             timeStampField,
             indices,
             generation,
@@ -123,6 +148,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     // visible for testing
     DataStream(
         String name,
+        Type type,
         TimestampField timeStampField,
         List<Index> indices,
         long generation,
@@ -134,6 +160,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         boolean allowCustomRouting
     ) {
         this.name = name;
+        this.type = type;
         this.timeStampField = timeStampField;
         this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
@@ -154,6 +181,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return name;
     }
 
+    public Type getType() {
+        return type;
+    }
+
     public TimestampField getTimeStampField() {
         return timeStampField;
     }
@@ -168,6 +199,37 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
+    }
+
+    public Index getWriteIndex(DocWriteRequest<?> request, Metadata metadata) {
+        if (type != Type.TSDB ) {
+            return getWriteIndex();
+        }
+
+        if (request instanceof IndexRequest == false || request.opType() != DocWriteRequest.OpType.CREATE) {
+            return getWriteIndex();
+        }
+
+        // TODO: this really needs be parsed in a streaming manner:
+        String timestampAsString = (String) ((IndexRequest) request).sourceAsMap().get("@timestamp");
+        long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(timestampAsString);
+
+        for (int i = indices.size() - 1; i >= 0; i--) {
+            Index index = indices.get(i);
+            IndexMetadata im = metadata.index(index);
+
+            // TODO: make start and end time fields in IndexMetadata class.
+            // (this to avoid the Settings overhead that happens here now)
+            String startAsString = im.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey());
+            long start = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(startAsString)).toEpochMilli();
+            String endAsString = im.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey());
+            long end = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(endAsString)).toEpochMilli();
+            if (timestamp > start && timestamp <= end) {
+                return index;
+            }
+        }
+
+        throw new IllegalArgumentException("no index available for a document with an @timestamp of [" + timestampAsString + "]");
     }
 
     @Nullable
@@ -211,7 +273,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting);
+        return new DataStream(name, type, timeStampField, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting);
     }
 
     /**
@@ -271,6 +333,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         assert backingIndices.size() == indices.size() - 1;
         return new DataStream(
             name,
+            type,
             timeStampField,
             backingIndices,
             generation + 1,
@@ -313,6 +376,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         backingIndices.set(backingIndexPosition, newBackingIndex);
         return new DataStream(
             name,
+            type,
             timeStampField,
             backingIndices,
             generation + 1,
@@ -370,12 +434,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated, system);
+        return new DataStream(name, type, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated, system);
     }
 
     public DataStream promoteDataStream() {
         return new DataStream(
             name,
+            type,
             timeStampField,
             indices,
             getGeneration(),
@@ -410,6 +475,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
         return new DataStream(
             name,
+            type,
             timeStampField,
             reconciledIndices,
             generation,
@@ -455,6 +521,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream(StreamInput in) throws IOException {
         this(
             in.readString(),
+            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readEnum(Type.class) : Type.DEFAULT,
             new TimestampField(in),
             in.readList(Index::new),
             in.readVLong(),
@@ -473,6 +540,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeEnum(type);
+        }
         timeStampField.writeTo(out);
         out.writeList(indices);
         out.writeVLong(generation);
@@ -486,6 +556,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
@@ -500,19 +571,21 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         "data_stream",
         args -> new DataStream(
             (String) args[0],
-            (TimestampField) args[1],
-            (List<Index>) args[2],
-            (Long) args[3],
-            (Map<String, Object>) args[4],
-            args[5] != null && (boolean) args[5],
+            Type.fromString((String) args[1]),
+            (TimestampField) args[2],
+            (List<Index>) args[3],
+            (Long) args[4],
+            (Map<String, Object>) args[5],
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
-            args[8] != null && (boolean) args[8]
+            args[8] != null && (boolean) args[8],
+            args[9] != null && (boolean) args[9]
         )
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
@@ -531,6 +604,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
+        builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
@@ -551,6 +625,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
         return name.equals(that.name)
+            && type.equals(that.type)
             && timeStampField.equals(that.timeStampField)
             && indices.equals(that.indices)
             && generation == that.generation
@@ -562,7 +637,18 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, metadata, hidden, replicated, allowCustomRouting);
+        return Objects.hash(name, type, timeStampField, indices, generation, metadata, hidden, replicated, allowCustomRouting);
+    }
+
+    public enum Type {
+
+        DEFAULT,
+        TSDB;
+
+        public static Type fromString(String name) {
+            return name != null ? valueOf(name.trim().toUpperCase(Locale.ROOT)) : DEFAULT;
+        }
+
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

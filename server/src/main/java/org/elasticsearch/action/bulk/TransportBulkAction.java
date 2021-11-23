@@ -51,6 +51,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -747,12 +748,27 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
                 try {
+                    // TODO: This is broken, because concreteIndex is cached here. For demo / prototype purpose this is ok for now.
+                    // (Subsequent documents for same data stream in the same bulk request for different timestamp fail during indexing.)
+                    // (Should refactor this code is prototype evolves into something better)
+                    final LongSupplier timestampSupplier;
+                    if (includeDataStreams) {
+                        IndexRequest indexRequest = (IndexRequest) request;
+                        timestampSupplier = () -> {
+                            // TODO: this really be streaming parsed:
+                            String timestamp = (String) indexRequest.sourceAsMap().get("@timestamp");
+                            return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(timestamp);
+                        };
+                    } else {
+                        timestampSupplier = null;
+                    }
                     concreteIndex = indexNameExpressionResolver.concreteWriteIndex(
                         state,
                         request.indicesOptions(),
                         request.indices()[0],
                         false,
-                        includeDataStreams
+                        includeDataStreams,
+                        timestampSupplier
                     );
                 } catch (IndexNotFoundException e) {
                     if (includeDataStreams == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {

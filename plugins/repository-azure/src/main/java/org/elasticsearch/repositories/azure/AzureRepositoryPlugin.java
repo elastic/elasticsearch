@@ -100,8 +100,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         return List.of(azureClientProvider);
     }
 
-    AzureStorageService createAzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
-        return new AzureStorageService(settings, azureClientProvider);
+    AzureStorageService createAzureStorageService(Settings settingsToUse, AzureClientProvider azureClientProvider) {
+        return new AzureStorageService(settingsToUse, azureClientProvider);
     }
 
     @Override
@@ -120,8 +120,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return List.of(executorBuilder(), nettyEventLoopExecutorBuilder(settings));
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
+        return List.of(executorBuilder(), nettyEventLoopExecutorBuilder(settingsToUse));
     }
 
     public static ExecutorBuilder<?> executorBuilder() {
@@ -134,9 +134,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public void reload(Settings settings) {
+    public void reload(Settings settingsToLoad) {
         // secure settings should be readable
-        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
+        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settingsToLoad);
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
         storageService.refreshSettings(clientsSettings);

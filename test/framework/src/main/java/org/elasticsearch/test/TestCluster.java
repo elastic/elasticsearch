@@ -53,8 +53,8 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random) throws IOException, InterruptedException {
-        this.random = new Random(random.nextLong());
+    public void beforeTest(Random randomGenerator) throws IOException, InterruptedException {
+        this.random = new Random(randomGenerator.nextLong());
     }
 
     /**

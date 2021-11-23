@@ -160,11 +160,11 @@ reject @timestamp with wrong type:
 ---
 reject timestamp meta field with wrong type:
   - skip:
-      version: " - 7.99.99"
+      version: " - 8.0.99"
       reason: introduced in 8.0.0 to be backported to 7.16.0
 
   - do:
-      catch: /.* time series index \[_data_stream_timestamp\] meta field must be enabled/
+      catch: /\[_data_stream_timestamp\] meta field has been disabled/
       indices.create:
         index: test
         body:

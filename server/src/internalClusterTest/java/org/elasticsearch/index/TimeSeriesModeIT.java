@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -486,6 +487,7 @@ public class TimeSeriesModeIT extends ESIntegTestCase {
         assertThat(getMappingsResponse.getMappings().get(index).source().string(), equalTo(Strings.toString(expect)));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80918")
     public void testAddTimeStampMeta() throws IOException {
         Settings s = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")

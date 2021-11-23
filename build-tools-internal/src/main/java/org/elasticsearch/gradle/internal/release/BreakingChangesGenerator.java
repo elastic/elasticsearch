@@ -36,6 +36,23 @@ import static java.util.stream.Collectors.toCollection;
  * and the individual pages for each breaking area.
  */
 public class BreakingChangesGenerator {
+
+    // Needs to match `changelog-schema.json`
+    private static final List<String> BREAKING_AREAS = List.of(
+        "Cluster and node setting",
+        "Command line tool",
+        "Index setting",
+        "JVM option",
+        "Java API",
+        "Logging",
+        "Mapping",
+        "Packaging",
+        "Painless",
+        "REST API",
+        "System requirement",
+        "Transform"
+    );
+
     static void update(
         File indexTemplateFile,
         File indexOutputFile,
@@ -61,25 +78,9 @@ public class BreakingChangesGenerator {
             );
         }
 
-        // Needs to match `changelog-schema.json`
-        final List<String> breakingAreas = List.of(
-            "Cluster and node setting",
-            "Command line tool",
-            "Index setting",
-            "JVM option",
-            "Java API",
-            "Logging",
-            "Mapping",
-            "Packaging",
-            "Painless",
-            "REST API",
-            "System requirement",
-            "Transform"
-        );
-
         String areaTemplate = Files.readString(areaTemplateFile.toPath());
 
-        for (String breakingArea : breakingAreas) {
+        for (String breakingArea : BREAKING_AREAS) {
             final List<ChangelogEntry.Breaking> entriesForArea = entries.stream()
                 .map(ChangelogEntry::getBreaking)
                 .filter(entry -> entry != null && breakingArea.equals(entry.getArea()))

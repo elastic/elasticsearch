@@ -129,11 +129,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                             request.snapshot(),
                             "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed"
                         );
-                        // Add each failed shard's exception as suppressed, the exception contains
-                        // information about which shard failed
-                        // TODO: this seems wrong, investigate whether we actually need all the shard level exception here given that we
-                        // could be dealing with tens of thousands of them at a time
-                        snapInfo.shardFailures().forEach(e::addSuppressed);
                         // Call the failure handler to register this as a failure and persist it
                         onFailure(e);
                     }
@@ -188,13 +183,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             );
     }
 
+    public static String exceptionToString(Exception ex) {
+        return Strings.toString((builder, params) -> {
+            ElasticsearchException.generateThrowableXContent(builder, params, ex);
+            return builder;
+        }, ToXContent.EMPTY_PARAMS);
+    }
+
     /**
      * A cluster state update task to write the result of a snapshot job to the cluster metadata for the associated policy.
      */
     private static class WriteJobStatus extends ClusterStateUpdateTask {
-        private static final ToXContent.Params EXCEPTION_SERIALIZATION_PARAMS = new ToXContent.MapParams(
-            Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true")
-        );
 
         private final String policyName;
         private final String snapshotName;
@@ -222,13 +221,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         static WriteJobStatus failure(String policyId, String snapshotName, long timestamp, Exception exception) {
             return new WriteJobStatus(policyId, snapshotName, timestamp, timestamp, Optional.of(exception));
-        }
-
-        private String exceptionToString() {
-            return exception.map(e -> Strings.toString((builder, params) -> {
-                ElasticsearchException.generateThrowableXContent(builder, EXCEPTION_SERIALIZATION_PARAMS, e);
-                return builder;
-            }, EXCEPTION_SERIALIZATION_PARAMS)).orElse(null);
         }
 
         @Override
@@ -263,7 +255,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             if (exception.isPresent()) {
                 stats.snapshotFailed(policyName);
-                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, null, snapshotFinishTime, exceptionToString()));
+                newPolicyMetadata.setLastFailure(
+                    new SnapshotInvocationRecord(
+                        snapshotName,
+                        null,
+                        snapshotFinishTime,
+                        exception.map(SnapshotLifecycleTask::exceptionToString).orElse(null)
+                    )
+                );
             } else {
                 stats.snapshotTaken(policyName);
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, snapshotFinishTime, null));

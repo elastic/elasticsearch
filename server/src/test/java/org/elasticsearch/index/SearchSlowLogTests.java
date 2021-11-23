@@ -235,6 +235,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.get("elasticsearch.slowlog.total_hits"), equalTo("-1"));
         assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[]"));
         assertThat(p.get("elasticsearch.slowlog.search_type"), Matchers.nullValue());
+        assertThat(p.get("elasticsearch.slowlog.search_action"), equalTo("n/a"));
         assertThat(p.get("elasticsearch.slowlog.total_shards"), equalTo("1"));
         assertThat(p.get("elasticsearch.slowlog.source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
     }

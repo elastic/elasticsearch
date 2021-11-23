@@ -28,6 +28,7 @@ import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 import static org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.MAX_MAX_MATCHED_TOKENS;
 
 /**
@@ -227,7 +228,7 @@ public class TokenListCategorizer implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + 1; // TODO
+        return SHALLOW_SIZE + sizeOfCollection(categoriesByNumMatches);
     }
 
     public int getCategoryCount() {

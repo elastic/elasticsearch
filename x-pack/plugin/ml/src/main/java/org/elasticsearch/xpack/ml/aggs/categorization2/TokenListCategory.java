@@ -19,6 +19,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
+
 /**
  * Port of the C++ class <a href="https://github.com/elastic/ml-cpp/blob/main/include/model/CTokenListCategory.h">
  * <code>CTokenListCategory</code></a>.
@@ -602,7 +604,8 @@ public class TokenListCategory implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + 1; // TODO
+        return SHALLOW_SIZE + sizeOfCollection(baseWeightedTokenIds) + sizeOfCollection(commonUniqueTokenIds);
+        // TODO: should subAggs be included, or are nested aggregations accounted for separately?
     }
 
     @Override

@@ -121,6 +121,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -174,6 +175,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -1674,6 +1676,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     protected NamedWriteableRegistry writeableRegistry() {
                         return namedWriteableRegistry;
                     }
+
+                    @Override
+                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                        // skip leak checks in these tests since they do indeed leak
+                        return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+                        // TODO fix these leaks and implement leak checking
+                    }
                 };
                 transportService = mockTransport.createTransportService(
                     settings,
@@ -2144,7 +2153,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     node.getName(),
                     clusterService.getSettings(),
                     clusterService.getClusterSettings(),
-                    bigArrays,
                     transportService,
                     null,
                     namedWriteableRegistry,

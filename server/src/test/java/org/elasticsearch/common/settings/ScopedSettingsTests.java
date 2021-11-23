@@ -114,9 +114,9 @@ public class ScopedSettingsTests extends ESTestCase {
             currentSettings,
             new HashSet<>(Arrays.asList(dynamicSetting, IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING))
         );
-        Map<String, String> s = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(currentSettings);
+        var s = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(currentSettings);
         assertEquals(1, s.size());
-        assertEquals("192.168.0.1,127.0.0.1", s.get("_ip"));
+        assertEquals(List.of("192.168.0.1", "127.0.0.1"), s.get("_ip"));
         Settings.Builder builder = Settings.builder();
         Settings updates = Settings.builder().putNull("index.routing.allocation.require._ip").put("index.some.dyn.setting", 1).build();
         settings.validate(updates, false);

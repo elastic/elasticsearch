@@ -74,6 +74,9 @@ public class HiddenFieldCheck extends AbstractCheck {
     /** Control whether to ignore parameters of abstract methods. */
     private boolean ignoreAbstractMethods;
 
+    /** If set, specifies a regex of method names that should be ignored */
+    private String ignoredMethodNames;
+
     @Override
     public int[] getDefaultTokens() {
         return getAcceptableTokens();
@@ -238,7 +241,10 @@ public class HiddenFieldCheck extends AbstractCheck {
      * @return true if parameter is ignored.
      */
     private boolean isIgnoredParam(DetailAST ast, String name) {
-        return isIgnoredSetterParam(ast, name) || isIgnoredConstructorParam(ast) || isIgnoredParamOfAbstractMethod(ast);
+        return isVariableInIgnoredMethod(ast, name)
+            || isIgnoredSetterParam(ast, name)
+            || isIgnoredConstructorParam(ast)
+            || isIgnoredParamOfAbstractMethod(ast);
     }
 
     /**
@@ -411,6 +417,30 @@ public class HiddenFieldCheck extends AbstractCheck {
     }
 
     /**
+     * Decides whether to ignore an AST node that is the parameter of a method whose
+     * name matches the {@link #ignoredMethodNames} regex, if set.
+     * @param ast the AST to check
+     * @return true is the ast should be ignored because the parameter belongs to a
+     *      method whose name matches the regex.
+     */
+    private boolean isVariableInIgnoredMethod(DetailAST ast, String name) {
+        boolean result = false;
+        if (ignoredMethodNames != null && (ast.getType() == TokenTypes.PARAMETER_DEF || ast.getType() == TokenTypes.VARIABLE_DEF)) {
+            DetailAST method = ast.getParent().getParent();
+            if (method.getType() == TokenTypes.LAMBDA) {
+                do {
+                    method = method.getParent();
+                } while (method != null && method.getType() != TokenTypes.METHOD_DEF);
+            }
+            if (method != null && method.getType() == TokenTypes.METHOD_DEF) {
+                final String methodName = method.findFirstToken(TokenTypes.IDENT).getText();
+                result = methodName.matches(ignoredMethodNames);
+            }
+        }
+        return result;
+    }
+
+    /**
      * Setter to define the RegExp for names of variables and parameters to ignore.
      *
      * @param pattern a pattern.
@@ -461,6 +491,10 @@ public class HiddenFieldCheck extends AbstractCheck {
      */
     public void setIgnoreAbstractMethods(boolean ignoreAbstractMethods) {
         this.ignoreAbstractMethods = ignoreAbstractMethods;
+    }
+
+    public void setIgnoredMethodNames(String ignoredMethodNames) {
+        this.ignoredMethodNames = ignoredMethodNames;
     }
 
     /**

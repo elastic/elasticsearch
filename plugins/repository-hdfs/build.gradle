@@ -347,6 +347,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
 }
 
 tasks.named("thirdPartyAudit").configure {
+  enabled = false
   ignoreMissingClasses()
   ignoreViolations(
     // internal java api: sun.misc.Unsafe

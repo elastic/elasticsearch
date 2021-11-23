@@ -8,13 +8,21 @@
 
 package org.elasticsearch.bootstrap;
 
+import jdk.incubator.foreign.Addressable;
+import jdk.incubator.foreign.CLinker;
+import jdk.incubator.foreign.FunctionDescriptor;
+import jdk.incubator.foreign.MemoryAccess;
+import jdk.incubator.foreign.MemorySegment;
+import jdk.incubator.foreign.ResourceScope;
+import jdk.incubator.foreign.SegmentAllocator;
+import jdk.incubator.foreign.SymbolLookup;
+
 import com.sun.jna.Library;
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
-import com.sun.jna.ptr.PointerByReference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +30,8 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
@@ -30,6 +40,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static jdk.incubator.foreign.CLinker.C_INT;
+import static jdk.incubator.foreign.CLinker.C_LONG_LONG;
+import static jdk.incubator.foreign.CLinker.C_POINTER;
 
 /**
  * Installs a system call filter to block process execution.
@@ -81,6 +95,8 @@ import java.util.Map;
 // not an example of how to write code!!!
 final class SystemCallFilter {
     private static final Logger logger = LogManager.getLogger(SystemCallFilter.class);
+
+    static final CLibrary cLibrary = CLibrary.getInstance().orElseThrow();
 
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 
@@ -281,7 +297,7 @@ final class SystemCallFilter {
                 case EINVAL:
                     break; // ok
                 default:
-                    throw new UnsupportedOperationException("seccomp(BOGUS_OPERATION): " + JNACLibrary.strerror(errno));
+                    throw new UnsupportedOperationException("seccomp(BOGUS_OPERATION): " + cLibrary.strerror(errno));
             }
         }
 
@@ -297,7 +313,7 @@ final class SystemCallFilter {
                 case EINVAL:
                     break; // ok
                 default:
-                    throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): " + JNACLibrary.strerror(errno));
+                    throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): " + cLibrary.strerror(errno));
             }
         }
 
@@ -313,7 +329,7 @@ final class SystemCallFilter {
                 case EINVAL:
                     break; // ok
                 default:
-                    throw new UnsupportedOperationException("prctl(BOGUS_OPTION): " + JNACLibrary.strerror(errno));
+                    throw new UnsupportedOperationException("prctl(BOGUS_OPTION): " + cLibrary.strerror(errno));
             }
         }
 
@@ -333,7 +349,7 @@ final class SystemCallFilter {
                         "seccomp unavailable: requires kernel 3.5+ with" + " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
                     );
                 } else {
-                    throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(errno));
+                    throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + cLibrary.strerror(errno));
                 }
         }
         // check for SECCOMP
@@ -350,7 +366,7 @@ final class SystemCallFilter {
                             + " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed"
                     );
                 } else {
-                    throw new UnsupportedOperationException("prctl(PR_GET_SECCOMP): " + JNACLibrary.strerror(errno));
+                    throw new UnsupportedOperationException("prctl(PR_GET_SECCOMP): " + cLibrary.strerror(errno));
                 }
         }
         // check for SECCOMP_MODE_FILTER
@@ -365,19 +381,19 @@ final class SystemCallFilter {
                             + " compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed"
                     );
                 default:
-                    throw new UnsupportedOperationException("prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(errno));
+                    throw new UnsupportedOperationException("prctl(PR_SET_SECCOMP): " + cLibrary.strerror(errno));
             }
         }
 
         // ok, now set PR_SET_NO_NEW_PRIVS, needed to be able to set a seccomp filter as ordinary user
         if (linux_prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
-            throw new UnsupportedOperationException("prctl(PR_SET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
+            throw new UnsupportedOperationException("prctl(PR_SET_NO_NEW_PRIVS): " + cLibrary.strerror(Native.getLastError()));
         }
 
         // check it worked
         if (linux_prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) {
             throw new UnsupportedOperationException(
-                "seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError())
+                "seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " + cLibrary.strerror(Native.getLastError())
             );
         }
 
@@ -407,18 +423,15 @@ final class SystemCallFilter {
             method = 0;
             int errno1 = Native.getLastError();
             if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...",
-                    JNACLibrary.strerror(errno1)
-                );
+                logger.debug("seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...", cLibrary.strerror(errno1));
             }
             if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) != 0) {
                 int errno2 = Native.getLastError();
                 throw new UnsupportedOperationException(
                     "seccomp(SECCOMP_SET_MODE_FILTER): "
-                        + JNACLibrary.strerror(errno1)
+                        + cLibrary.strerror(errno1)
                         + ", prctl(PR_SET_SECCOMP): "
-                        + JNACLibrary.strerror(errno2)
+                        + cLibrary.strerror(errno2)
                 );
             }
         }
@@ -426,8 +439,7 @@ final class SystemCallFilter {
         // now check that the filter was really installed, we should be in filter mode.
         if (linux_prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != 2) {
             throw new UnsupportedOperationException(
-                "seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): "
-                    + JNACLibrary.strerror(Native.getLastError())
+                "seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): " + cLibrary.strerror(Native.getLastError())
             );
         }
 
@@ -442,12 +454,12 @@ final class SystemCallFilter {
         /**
          * maps to sandbox_init(3), since Leopard
          */
-        int sandbox_init(String profile, long flags, PointerByReference errorbuf);
+        int sandbox_init(Addressable profile, long flags, Addressable errorbuf);
 
         /**
          * releases memory when an error occurs during initialization (e.g. syntax bug)
          */
-        void sandbox_free_error(Pointer errorbuf);
+        void sandbox_free_error(Addressable errorbuf);
     }
 
     // null if unavailable, or something goes wrong.
@@ -457,8 +469,39 @@ final class SystemCallFilter {
         MacLibrary lib = null;
         if (Constants.MAC_OS_X) {
             try {
-                lib = Native.loadLibrary("c", MacLibrary.class);
-            } catch (UnsatisfiedLinkError e) {
+                lib = new MacLibrary() {
+                    @Override
+                    public int sandbox_init(Addressable profile, long flags, Addressable errorbuf) {
+                        try {
+                            return (int) sandbox_init$MH.invokeExact(profile.address(), flags, errorbuf.address());
+                        } catch (Throwable ex$) {
+                            throw new AssertionError("should not reach here", ex$);
+                        }
+                    }
+
+                    @Override
+                    public void sandbox_free_error(Addressable errorbuf) {
+                        try {
+                            sandbox_free_error$MH.invokeExact(errorbuf.address());
+                        } catch (Throwable ex$) {
+                            throw new AssertionError("should not reach here", ex$);
+                        }
+                    }
+
+                    private static final MethodHandle sandbox_init$MH = downcallHandle(
+                        CLinker.systemLookup(),
+                        "sandbox_init",
+                        "(Ljdk/incubator/foreign/MemoryAddress;JLjdk/incubator/foreign/MemoryAddress;)I",
+                        FunctionDescriptor.of(C_INT, C_POINTER, C_LONG_LONG, C_POINTER)
+                    );
+                    private static final MethodHandle sandbox_free_error$MH = downcallHandle(
+                        CLinker.systemLookup(),
+                        "sandbox_free_error",
+                        "(Ljdk/incubator/foreign/MemoryAddress;)V",
+                        FunctionDescriptor.ofVoid(C_POINTER)
+                    );
+                };
+            } catch (UnsatisfiedLinkError | IllegalArgumentException e) {
                 logger.warn("unable to link C library. native methods (seatbelt) will be disabled.", e);
             }
         }
@@ -488,14 +531,17 @@ final class SystemCallFilter {
         Files.write(rules, Collections.singleton(SANDBOX_RULES));
 
         boolean success = false;
-        try {
-            PointerByReference errorRef = new PointerByReference();
-            int ret = libc_mac.sandbox_init(rules.toAbsolutePath().toString(), SANDBOX_NAMED, errorRef);
+        try (ResourceScope scope = ResourceScope.newConfinedScope()) {
+            Addressable profileAddress = CLinker.toCString(rules.toAbsolutePath().toString(), scope).address();
+            MemorySegment errorRefSegment = SegmentAllocator.ofScope(scope).allocate(C_POINTER);
+            int ret = libc_mac.sandbox_init(profileAddress, SANDBOX_NAMED, errorRefSegment.address());
+
             // if sandbox_init() fails, add the message from the OS (e.g. syntax error) and free the buffer
             if (ret != 0) {
-                Pointer errorBuf = errorRef.getValue();
-                RuntimeException e = new UnsupportedOperationException("sandbox_init(): " + errorBuf.getString(0));
-                libc_mac.sandbox_free_error(errorBuf);
+                String errorString = CLinker.toJavaString(MemoryAccess.getAddressAtOffset(errorRefSegment, 0));
+                RuntimeException e = new UnsupportedOperationException("sandbox_init(): " + errorString); // errorBuf.getString(0));
+                //
+                libc_mac.sandbox_free_error(MemoryAccess.getAddressAtOffset(errorRefSegment, 0));
                 throw e;
             }
             logger.debug("OS X seatbelt initialization successful");
@@ -555,7 +601,7 @@ final class SystemCallFilter {
 
         // drop a null-terminated list of privileges
         if (libc_solaris.priv_set(PRIV_OFF, PRIV_ALLSETS, PRIV_PROC_FORK, PRIV_PROC_EXEC, null) != 0) {
-            throw new UnsupportedOperationException("priv_set unavailable: priv_set(): " + JNACLibrary.strerror(Native.getLastError()));
+            throw new UnsupportedOperationException("priv_set unavailable: priv_set(): " + cLibrary.strerror(Native.getLastError()));
         }
 
         logger.debug("Solaris priv_set initialization successful");
@@ -575,12 +621,11 @@ final class SystemCallFilter {
         if (supported == false) {
             throw new IllegalStateException("bug: should not be trying to initialize RLIMIT_NPROC for an unsupported OS");
         }
-
-        JNACLibrary.Rlimit limit = new JNACLibrary.Rlimit();
-        limit.rlim_cur.setValue(0);
-        limit.rlim_max.setValue(0);
-        if (JNACLibrary.setrlimit(RLIMIT_NPROC, limit) != 0) {
-            throw new UnsupportedOperationException("RLIMIT_NPROC unavailable: " + JNACLibrary.strerror(Native.getLastError()));
+        CLibrary.Rlimit limit = cLibrary.newRlimit();
+        limit.setrlim_cur(0);
+        limit.setrlim_max(0);
+        if (cLibrary.setrlimit(RLIMIT_NPROC, limit) != 0) {
+            throw new UnsupportedOperationException("RLIMIT_NPROC unavailable: " + cLibrary.strerror(Native.getLastError()));
         }
 
         logger.debug("BSD RLIMIT_NPROC initialization successful");
@@ -654,5 +699,14 @@ final class SystemCallFilter {
         } else {
             throw new UnsupportedOperationException("syscall filtering not supported for OS: '" + Constants.OS_NAME + "'");
         }
+    }
+
+    // -- utilities
+
+    private static MethodHandle downcallHandle(SymbolLookup LOOKUP, String name, String desc, FunctionDescriptor fdesc) {
+        return LOOKUP.lookup(name).map(addr -> {
+            MethodType mt = MethodType.fromMethodDescriptorString(desc, SystemCallFilter.class.getClassLoader());
+            return CLinker.getInstance().downcallHandle(addr, mt, fdesc);
+        }).orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + name));
     }
 }

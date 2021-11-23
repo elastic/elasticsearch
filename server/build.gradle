@@ -124,6 +124,23 @@ def generatePluginsList = tasks.register("generatePluginsList") {
     }
 }
 
+tasks.named("compileJava").configure {
+  it.getOptions().compilerArgs.add("--add-modules=jdk.incubator.foreign");
+}
+
+tasks.named('test') {testTask ->
+  jvmArgs += ["--add-modules=jdk.incubator.foreign", "--enable-native-access=ALL-UNNAMED"]
+}
+
+tasks.named('internalClusterTest') {testTask ->
+  jvmArgs += ["--add-modules=jdk.incubator.foreign", "--enable-native-access=ALL-UNNAMED"]
+}
+
+// temporarily disable, an issue with javadoc and incubator modules
+tasks.named('javadoc') {
+  enabled = false
+}
+
 tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }

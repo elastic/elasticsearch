@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class JNANativesTests extends ESTestCase {
     public void testMlockall() {
         if (Constants.MAC_OS_X) {
-            assertFalse("Memory locking is not available on OS X platforms", JNANatives.LOCAL_MLOCKALL);
+            assertFalse("Memory locking is not available on OS X platforms", Natives.isMemoryLocked());
         }
     }
 

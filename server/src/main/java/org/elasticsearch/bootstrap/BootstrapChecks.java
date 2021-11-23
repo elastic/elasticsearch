@@ -35,6 +35,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -331,38 +333,44 @@ final class BootstrapChecks {
         // this should be plenty for machines up to 256 cores
         private static final long MAX_NUMBER_OF_THREADS_THRESHOLD = 1 << 12;
 
-        @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
+        private static BootstrapCheckResult checkSize(long size) {
+            if (size < MAX_NUMBER_OF_THREADS_THRESHOLD) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
-                    getMaxNumberOfThreads(),
+                    size,
                     BootstrapInfo.getSystemProperties().get("user.name"),
                     MAX_NUMBER_OF_THREADS_THRESHOLD
                 );
                 return BootstrapCheckResult.failure(message);
-            } else {
-                return BootstrapCheckResult.success();
             }
+            return BootstrapCheckResult.success();
+        }
+
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            return Optional.of(maxNumberOfThreads())
+                .filter(OptionalLong::isPresent)
+                .map(OptionalLong::getAsLong)
+                .map(MaxNumberOfThreadsCheck::checkSize)
+                .orElseGet(BootstrapCheckResult::success);
         }
 
         // visible for testing
-        long getMaxNumberOfThreads() {
-            return JNANatives.MAX_NUMBER_OF_THREADS;
+        OptionalLong maxNumberOfThreads() {
+            return Natives.maxNumberOfThreads();
         }
 
     }
 
     static class MaxSizeVirtualMemoryCheck implements BootstrapCheck {
 
-        @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != getRlimInfinity()) {
+        private BootstrapCheckResult checkSize(long size) {
+            if (size != getRlimInfinity()) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
-                    getMaxSizeVirtualMemory(),
+                    size,
                     BootstrapInfo.getSystemProperties().get("user.name")
                 );
                 return BootstrapCheckResult.failure(message);
@@ -371,16 +379,24 @@ final class BootstrapChecks {
             }
         }
 
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            return Optional.of(maxVirtualMemorySize())
+                .filter(OptionalLong::isPresent)
+                .map(OptionalLong::getAsLong)
+                .map(this::checkSize)
+                .orElseGet(BootstrapCheckResult::success);
+        }
+
         // visible for testing
         long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
+            return CLibrary.RLIM_INFINITY;
         }
 
         // visible for testing
-        long getMaxSizeVirtualMemory() {
-            return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+        OptionalLong maxVirtualMemorySize() {
+            return Natives.maxVirtualMemorySize();
         }
-
     }
 
     /**
@@ -388,14 +404,12 @@ final class BootstrapChecks {
      */
     static class MaxFileSizeCheck implements BootstrapCheck {
 
-        @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            final long maxFileSize = getMaxFileSize();
-            if (maxFileSize != Long.MIN_VALUE && maxFileSize != getRlimInfinity()) {
+        private BootstrapCheckResult checkSize(long size) {
+            if (size != getRlimInfinity()) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
-                    getMaxFileSize(),
+                    size,
                     BootstrapInfo.getSystemProperties().get("user.name")
                 );
                 return BootstrapCheckResult.failure(message);
@@ -404,14 +418,22 @@ final class BootstrapChecks {
             }
         }
 
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            return Optional.of(maxFileSize())
+                .filter(OptionalLong::isPresent)
+                .map(OptionalLong::getAsLong)
+                .map(this::checkSize)
+                .orElseGet(BootstrapCheckResult::success);
+        }
+
         long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
+            return CLibrary.RLIM_INFINITY;
         }
 
-        long getMaxFileSize() {
-            return JNANatives.MAX_FILE_SIZE;
+        OptionalLong maxFileSize() {
+            return Natives.maxFileSize();
         }
-
     }
 
     static class MaxMapCountCheck implements BootstrapCheck {

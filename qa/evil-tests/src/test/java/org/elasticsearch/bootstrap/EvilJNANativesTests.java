@@ -16,45 +16,49 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.OptionalLongMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalLongMatchers.isPresent;
+import static org.elasticsearch.test.hamcrest.OptionalLongMatchers.optionalWithValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EvilJNANativesTests extends ESTestCase {
 
-    public void testSetMaximumNumberOfThreads() throws IOException {
+    public void testRetrieveMaximumNumberOfThreads() throws IOException {
         if (Constants.LINUX) {
             final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
             for (final String line : lines) {
                 if (line != null && line.startsWith("Max processes")) {
                     final String[] fields = line.split("\\s+");
-                    final long limit = "unlimited".equals(fields[2]) ? JNACLibrary.RLIM_INFINITY : Long.parseLong(fields[2]);
-                    assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(limit));
+                    final long limit = "unlimited".equals(fields[2]) ? CLibrary.RLIM_INFINITY : Long.parseLong(fields[2]);
+                    assertThat(Natives.maxNumberOfThreads(), optionalWithValue(equalTo(limit)));
                     return;
                 }
             }
             fail("should have read max processes from /proc/self/limits");
         } else {
-            assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(-1L));
+            assertThat(Natives.maxNumberOfThreads(), isEmpty());
         }
     }
 
-    public void testSetMaxSizeVirtualMemory() throws IOException {
+    public void testRetrieveMaxSizeVirtualMemory() throws IOException {
         if (Constants.LINUX) {
             final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
             for (final String line : lines) {
                 if (line != null && line.startsWith("Max address space")) {
                     final String[] fields = line.split("\\s+");
                     final String limit = fields[3];
-                    assertThat(JNANatives.rlimitToString(JNANatives.MAX_SIZE_VIRTUAL_MEMORY), equalTo(limit));
+                    assertThat(Natives.maxNumberOfThreads(), isPresent());
+                    assertThat(NativeOperationsImpl.rlimitToString(Natives.maxVirtualMemorySize().getAsLong()), equalTo(limit));
                     return;
                 }
             }
             fail("should have read max size virtual memory from /proc/self/limits");
         } else if (Constants.MAC_OS_X) {
-            assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
+            assertThat(Natives.maxVirtualMemorySize(), anyOf(isEmpty(), optionalWithValue(greaterThanOrEqualTo(0L))));
         } else {
-            assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, equalTo(Long.MIN_VALUE));
+            assertThat(Natives.maxVirtualMemorySize(), isEmpty());
         }
     }
 
@@ -65,15 +69,16 @@ public class EvilJNANativesTests extends ESTestCase {
                 if (line != null && line.startsWith("Max file size")) {
                     final String[] fields = line.split("\\s+");
                     final String limit = fields[3];
-                    assertThat(JNANatives.rlimitToString(JNANatives.MAX_FILE_SIZE), equalTo(limit));
+                    assertThat(Natives.maxFileSize(), isPresent());
+                    assertThat(NativeOperationsImpl.rlimitToString(Natives.maxFileSize().getAsLong()), equalTo(limit));
                     return;
                 }
             }
             fail("should have read max file size from /proc/self/limits");
         } else if (Constants.MAC_OS_X) {
-            assertThat(JNANatives.MAX_FILE_SIZE, anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
+            assertThat(Natives.maxFileSize(), anyOf(isEmpty(), optionalWithValue(greaterThanOrEqualTo(0L))));
         } else {
-            assertThat(JNANatives.MAX_FILE_SIZE, equalTo(Long.MIN_VALUE));
+            assertThat(Natives.maxVirtualMemorySize(), isEmpty());
         }
     }
 

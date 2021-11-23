@@ -24,3 +24,7 @@ dependencies {
 tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'
 }
+
+tasks.named('test') {testTask ->
+  jvmArgs += ["--add-modules=jdk.incubator.foreign", "--enable-native-access=ALL-UNNAMED"]
+}

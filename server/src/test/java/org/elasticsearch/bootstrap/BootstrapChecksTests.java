@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -158,12 +159,32 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         assertThat(suppressed[1], hasToString(containsString("second")));
     }
 
-    public void testHeapSizeCheck() throws NodeValidationException {
+    public void testHeapSizeCheckMLocked() throws NodeValidationException {
+        testHeapSizeCheck(true);
+    }
+
+    public void testHeapSizeCheckMUnlocked() throws NodeValidationException {
+        testHeapSizeCheck(false);
+    }
+
+    private void initializeMlock() {
+        Natives.tryLockMemory();
+        // assert locked? if Mac or Linux
+    }
+
+    private void testHeapSizeCheck(boolean mlocked) throws NodeValidationException {
         final int initial = randomIntBetween(0, Integer.MAX_VALUE - 1);
         final int max = randomIntBetween(initial + 1, Integer.MAX_VALUE);
         final AtomicLong initialHeapSize = new AtomicLong(initial);
         final AtomicLong maxHeapSize = new AtomicLong(max);
-        final boolean isMemoryLocked = randomBoolean();
+        final boolean isMemoryLocked = mlocked;
+        System.out.println(
+            "isMemoryLocked:" + isMemoryLocked + ", initialHeapSize:" + initialHeapSize.get() + ", maxHeapSize:" + maxHeapSize
+        );
+
+        if (isMemoryLocked) {
+            initializeMlock();
+        }
 
         final BootstrapChecks.HeapSizeCheck check = new BootstrapChecks.HeapSizeCheck() {
 
@@ -177,10 +198,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 return maxHeapSize.get();
             }
 
-            @Override
-            boolean isMemoryLocked() {
-                return isMemoryLocked;
-            }
+            // @Override
+            // boolean isMemoryLocked() {
+            // return isMemoryLocked;
+            // }
 
         };
 
@@ -196,7 +217,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         );
         final String memoryLockingMessage = "and prevents memory locking from locking the entire heap";
         final Matcher<String> memoryLockingMatcher;
-        if (isMemoryLocked) {
+        if (Natives.isMemoryLocked()) {
             memoryLockingMatcher = containsString(memoryLockingMessage);
         } else {
             memoryLockingMatcher = not(containsString(memoryLockingMessage));
@@ -309,10 +330,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testMaxNumberOfThreadsCheck() throws NodeValidationException {
         final int limit = 1 << 11;
-        final AtomicLong maxNumberOfThreads = new AtomicLong(randomIntBetween(1, limit - 1));
+        final AtomicReference<OptionalLong> maxNumberOfThreads = new AtomicReference<>(OptionalLong.of(randomIntBetween(1, limit - 1)));
         final BootstrapChecks.MaxNumberOfThreadsCheck check = new BootstrapChecks.MaxNumberOfThreadsCheck() {
             @Override
-            long getMaxNumberOfThreads() {
+            OptionalLong maxNumberOfThreads() {
                 return maxNumberOfThreads.get();
             }
         };
@@ -323,22 +344,24 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         );
         assertThat(e.getMessage(), containsString("max number of threads"));
 
-        maxNumberOfThreads.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
+        maxNumberOfThreads.set(OptionalLong.of(randomIntBetween(limit + 1, Integer.MAX_VALUE)));
 
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
         // nothing should happen if current max number of threads is
         // not available
-        maxNumberOfThreads.set(-1);
+        maxNumberOfThreads.set(OptionalLong.empty());
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 
     public void testMaxSizeVirtualMemory() throws NodeValidationException {
         final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
-        final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
+        final AtomicReference<OptionalLong> maxSizeVirtualMemory = new AtomicReference<>(
+            OptionalLong.of(randomIntBetween(0, Integer.MAX_VALUE))
+        );
         final BootstrapChecks.MaxSizeVirtualMemoryCheck check = new BootstrapChecks.MaxSizeVirtualMemoryCheck() {
             @Override
-            long getMaxSizeVirtualMemory() {
+            OptionalLong maxVirtualMemorySize() {
                 return maxSizeVirtualMemory.get();
             }
 
@@ -354,21 +377,21 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         );
         assertThat(e.getMessage(), containsString("max size virtual memory"));
 
-        maxSizeVirtualMemory.set(rlimInfinity);
+        maxSizeVirtualMemory.set(OptionalLong.of(rlimInfinity));
 
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
         // nothing should happen if max size virtual memory is not available
-        maxSizeVirtualMemory.set(Long.MIN_VALUE);
+        maxSizeVirtualMemory.set(OptionalLong.empty());
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 
     public void testMaxFileSizeCheck() throws NodeValidationException {
         final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
-        final AtomicLong maxFileSize = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
+        final AtomicReference<OptionalLong> maxFileSize = new AtomicReference<>(OptionalLong.of(randomIntBetween(0, Integer.MAX_VALUE)));
         final BootstrapChecks.MaxFileSizeCheck check = new BootstrapChecks.MaxFileSizeCheck() {
             @Override
-            long getMaxFileSize() {
+            OptionalLong maxFileSize() {
                 return maxFileSize.get();
             }
 
@@ -384,12 +407,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         );
         assertThat(e.getMessage(), containsString("max file size"));
 
-        maxFileSize.set(rlimInfinity);
+        maxFileSize.set(OptionalLong.of(rlimInfinity));
 
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
         // nothing should happen if max file size is not available
-        maxFileSize.set(Long.MIN_VALUE);
+        maxFileSize.set(OptionalLong.empty());
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 

@@ -33,7 +33,7 @@ public final class BootstrapInfo {
      * memory did not work.
      */
     public static boolean isNativesAvailable() {
-        return Natives.JNA_AVAILABLE;
+        return Natives.NATIVES_AVAILABLE;
     }
 
     /**

@@ -14,53 +14,100 @@ import com.sun.jna.Structure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * java mapping to some libc functions
  */
-final class JNACLibrary {
+final class JNACLibrary implements CLibrary {
 
     private static final Logger logger = LogManager.getLogger(JNACLibrary.class);
 
-    public static final int MCL_CURRENT = 1;
-    public static final int ENOMEM = 12;
-    public static final int RLIMIT_MEMLOCK = Constants.MAC_OS_X ? 6 : 8;
-    public static final int RLIMIT_AS = Constants.MAC_OS_X ? 5 : 9;
-    public static final int RLIMIT_FSIZE = Constants.MAC_OS_X ? 1 : 1;
-    public static final long RLIM_INFINITY = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
+    private static final JNACLibrary INSTANCE = instanceOrNull();
 
-    static {
+    private static JNACLibrary instanceOrNull() {
         try {
             Native.register("c");
+            return new JNACLibrary();
         } catch (UnsatisfiedLinkError e) {
             logger.warn("unable to link C library. native methods (mlockall) will be disabled.", e);
         }
+        return null;
     }
 
-    static native int mlockall(int flags);
+    static Optional<CLibrary> instance() {
+        return Optional.ofNullable(INSTANCE);
+    }
 
-    static native int geteuid();
+    @Override
+    public native int mlockall(int flags);
+
+    @Override
+    public int getLastError() {
+        return Native.getLastError();
+    }
+
+    @Override
+    public native int geteuid();
 
     /** corresponds to struct rlimit */
-    public static final class Rlimit extends Structure implements Structure.ByReference {
-        public NativeLong rlim_cur = new NativeLong(0);
-        public NativeLong rlim_max = new NativeLong(0);
+    public static final class JNARlimit extends Structure implements Structure.ByReference, CLibrary.Rlimit {
+        private NativeLong rlim_cur = new NativeLong(0);
+        private NativeLong rlim_max = new NativeLong(0);
 
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("rlim_cur", "rlim_max");
         }
+
+        @Override
+        public long rlim_cur() {
+            return rlim_cur.longValue();
+        }
+
+        @Override
+        public long rlim_max() {
+            return rlim_max.longValue();
+        }
+
+        @Override
+        public void setrlim_cur(long value) {
+            rlim_cur.setValue(value);
+        }
+
+        @Override
+        public void setrlim_max(long value) {
+            rlim_max.setValue(value);
+        }
+
+        @Override
+        public void close() {}
     }
 
-    static native int getrlimit(int resource, Rlimit rlimit);
+    @Override
+    public int getrlimit(int resource, Rlimit rlimit) {
+        return getrlimit(resource, (JNARlimit) rlimit);
+    }
 
-    static native int setrlimit(int resource, Rlimit rlimit);
+    private native int getrlimit(int resource, JNARlimit rlimit);
 
-    static native String strerror(int errno);
+    @Override
+    public int setrlimit(int resource, Rlimit rlimit) {
+        return setrlimit(resource, (JNARlimit) rlimit);
+    }
+
+    private native int setrlimit(int resource, JNARlimit rlimit);
+
+    @Override
+    public native String strerror(int errno);
+
+    @Override
+    public Rlimit newRlimit() {
+        return new JNARlimit();
+    }
 
     private JNACLibrary() {}
 }

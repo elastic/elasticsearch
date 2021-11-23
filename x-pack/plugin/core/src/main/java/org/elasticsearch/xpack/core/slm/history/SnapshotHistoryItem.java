@@ -243,19 +243,14 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        boolean result;
-        if (this == o) result = true;
-        if (o == null || getClass() != o.getClass()) result = false;
-        SnapshotHistoryItem that1 = (SnapshotHistoryItem) o;
-        result = isSuccess() == that1.isSuccess()
-            && timestamp == that1.getTimestamp()
-            && Objects.equals(getPolicyId(), that1.getPolicyId())
-            && Objects.equals(getRepository(), that1.getRepository())
-            && Objects.equals(getSnapshotName(), that1.getSnapshotName())
-            && Objects.equals(getOperation(), that1.getOperation());
-        if (result == false) return false;
         SnapshotHistoryItem that = (SnapshotHistoryItem) o;
-        return Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration())
+        return isSuccess() == that.isSuccess()
+            && timestamp == that.getTimestamp()
+            && Objects.equals(getPolicyId(), that.getPolicyId())
+            && Objects.equals(getRepository(), that.getRepository())
+            && Objects.equals(getSnapshotName(), that.getSnapshotName())
+            && Objects.equals(getOperation(), that.getOperation())
+            && Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration())
             && Objects.equals(getErrorDetails(), that.getErrorDetails());
     }
 

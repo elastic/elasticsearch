@@ -467,8 +467,8 @@ public class InstallPluginAction implements Closeable {
     }
 
     // for testing only
-    void setEnvironment(Environment env) {
-        this.env = env;
+    void setEnvironment(Environment environment) {
+        this.env = environment;
     }
 
     // for testing only

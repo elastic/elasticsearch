@@ -248,8 +248,8 @@ public class BackgroundIndexer implements AutoCloseable {
 
     private volatile TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
 
-    public void setRequestTimeout(TimeValue timeout) {
-        this.timeout = timeout;
+    public void setRequestTimeout(TimeValue requestTimeout) {
+        this.timeout = requestTimeout;
     }
 
     private volatile boolean ignoreIndexingFailures;

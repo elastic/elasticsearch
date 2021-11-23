@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Holds an object and allows to extract specific values from it given their path
+ * Holds an object and allows extraction of specific values from it, given their path
  */
 public class ObjectPath {
 
@@ -77,24 +77,24 @@ public class ObjectPath {
     @SuppressWarnings("unchecked")
     public <T> T evaluate(String path, Stash stash) throws IOException {
         String[] parts = parsePath(path);
-        Object object = this.object;
+        Object result = this.object;
         for (String part : parts) {
-            object = evaluate(part, object, stash);
-            if (object == null) {
+            result = evaluate(part, result, stash);
+            if (result == null) {
                 return null;
             }
         }
-        return (T) object;
+        return (T) result;
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object object, Stash stash) throws IOException {
+    private Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
         if (stash.containsStashedValue(key)) {
             key = stash.getValue(key).toString();
         }
 
-        if (object instanceof Map) {
-            final Map<String, Object> objectAsMap = (Map<String, Object>) object;
+        if (objectToEvaluate instanceof Map) {
+            final Map<String, Object> objectAsMap = (Map<String, Object>) objectToEvaluate;
             if ("_arbitrary_key_".equals(key)) {
                 if (objectAsMap.isEmpty()) {
                     throw new IllegalArgumentException("requested [" + key + "] but the map was empty");
@@ -106,10 +106,10 @@ public class ObjectPath {
             }
             return objectAsMap.get(key);
         }
-        if (object instanceof List) {
-            List<Object> list = (List<Object>) object;
+        if (objectToEvaluate instanceof List) {
+            List<Object> list = (List<Object>) objectToEvaluate;
             try {
-                return list.get(Integer.valueOf(key));
+                return list.get(Integer.parseInt(key));
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("element was a list, but [" + key + "] was not numeric", e);
             } catch (IndexOutOfBoundsException e) {
@@ -120,7 +120,9 @@ public class ObjectPath {
             }
         }
 
-        throw new IllegalArgumentException("no object found for [" + key + "] within object of class [" + object.getClass() + "]");
+        throw new IllegalArgumentException(
+            "no object found for [" + key + "] within object of class [" + objectToEvaluate.getClass() + "]"
+        );
     }
 
     private String[] parsePath(String path) {

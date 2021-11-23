@@ -128,13 +128,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     @Before
     public void setup() {
-        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
-        state = addRandomIndices(hotNodes, hotNodes, state);
-        state = addDataNodes(DATA_HOT_NODE_ROLE, "hot", state, hotNodes);
-        state = addDataNodes(DATA_WARM_NODE_ROLE, "warm", state, warmNodes);
-        this.state = state;
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+        clusterState = addRandomIndices(hotNodes, hotNodes, clusterState);
+        clusterState = addDataNodes(DATA_HOT_NODE_ROLE, "hot", clusterState, hotNodes);
+        clusterState = addDataNodes(DATA_WARM_NODE_ROLE, "warm", clusterState, warmNodes);
+        this.state = clusterState;
 
-        Set<ShardId> shardIds = shardIds(state.getRoutingNodes().unassigned());
+        Set<ShardId> shardIds = shardIds(clusterState.getRoutingNodes().unassigned());
         this.subjectShards = new HashSet<>(randomSubsetOf(randomIntBetween(1, shardIds.size()), shardIds));
     }
 
@@ -353,8 +353,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private void verify(VerificationSubject subject, long expected, DiscoveryNodeRole role, AllocationDecider... allocationDeciders) {
-        ClusterState state = this.state;
-        verify(state, subject, expected, role, allocationDeciders);
+        verify(this.state, subject, expected, role, allocationDeciders);
     }
 
     private static void verify(

@@ -901,7 +901,7 @@ public final class InternalTestCluster extends TestCluster {
             this.name = name;
             this.originalNodeSettings = originalNodeSettings;
             this.nodeAndClientId = nodeAndClientId;
-            markNodeDataDirsAsNotEligibleForWipe(node);
+            markNodeDataDirsAsNotEligibleForWipe();
         }
 
         Node node() {
@@ -1018,7 +1018,7 @@ public final class InternalTestCluster extends TestCluster {
                 }
             });
             closed.set(false);
-            markNodeDataDirsAsNotEligibleForWipe(node);
+            markNodeDataDirsAsNotEligibleForWipe();
         }
 
         @Override
@@ -1028,7 +1028,7 @@ public final class InternalTestCluster extends TestCluster {
                 resetClient();
             } finally {
                 closed.set(true);
-                markNodeDataDirsAsPendingForWipe(node);
+                markNodeDataDirsAsPendingForWipe();
                 node.close();
                 try {
                     if (node.awaitClose(10, TimeUnit.SECONDS) == false) {
@@ -1040,17 +1040,17 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        private void markNodeDataDirsAsPendingForWipe(Node node) {
+        private void markNodeDataDirsAsPendingForWipe() {
             assert Thread.holdsLock(InternalTestCluster.this);
-            NodeEnvironment nodeEnv = node.getNodeEnvironment();
+            NodeEnvironment nodeEnv = this.node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
                 dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
             }
         }
 
-        private void markNodeDataDirsAsNotEligibleForWipe(Node node) {
+        private void markNodeDataDirsAsNotEligibleForWipe() {
             assert Thread.holdsLock(InternalTestCluster.this);
-            NodeEnvironment nodeEnv = node.getNodeEnvironment();
+            NodeEnvironment nodeEnv = this.node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
                 dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
             }
@@ -1984,14 +1984,14 @@ public final class InternalTestCluster extends TestCluster {
         if (clusterService().state().routingTable().hasIndex(index)) {
             List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
             DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-            Set<String> nodes = new HashSet<>();
+            Set<String> nodeNames = new HashSet<>();
             for (ShardRouting shardRouting : allShards) {
                 if (shardRouting.assignedToNode()) {
                     DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
-                    nodes.add(discoveryNode.getName());
+                    nodeNames.add(discoveryNode.getName());
                 }
             }
-            return nodes;
+            return nodeNames;
         }
         return Collections.emptySet();
     }
@@ -2088,7 +2088,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized List<String> startNodes(Settings... extraSettings) {
         final int newMasterCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isMasterNode).count());
-        final List<NodeAndClient> nodes = new ArrayList<>();
+        final List<NodeAndClient> nodeList = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
         int autoBootstrapMasterNodeIndex = autoManageMasterNodes
             && prevMasterCount == 0
@@ -2127,15 +2127,15 @@ public final class InternalTestCluster extends TestCluster {
                 firstNodeId + i,
                 builder.put(nodeSettings).build(),
                 false,
-                () -> rebuildUnicastHostFiles(nodes)
+                () -> rebuildUnicastHostFiles(nodeList)
             );
-            nodes.add(nodeAndClient);
+            nodeList.add(nodeAndClient);
         }
-        startAndPublishNodesAndClients(nodes);
+        startAndPublishNodesAndClients(nodeList);
         if (autoManageMasterNodes) {
             validateClusterFormed();
         }
-        return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
+        return nodeList.stream().map(NodeAndClient::getName).collect(Collectors.toList());
     }
 
     public List<String> startMasterOnlyNodes(int numNodes) {

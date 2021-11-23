@@ -41,7 +41,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_tsid";
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
-    private static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
+    public static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
 
     /**
      * The maximum length of the tsid. The value itself comes from a range check in
@@ -82,22 +82,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    /**
-     * A no-op builder does not return an instance of the field mapper. Instead, it returns null
-     * This is going to be used for non-time-series indices that should have this
-     *
-     */
-    public static class NoopBuilder extends Builder {
-        @Override
-        public TimeSeriesIdFieldMapper build() {
-            return null;
-        }
-    }
-
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? new TimeSeriesIdFieldMapper() : null,
-        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? new Builder() : new NoopBuilder()
-    );
+    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().buildTimeSeriesIdFieldMapper());
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {

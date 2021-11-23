@@ -186,6 +186,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 escapeJson(ESLogMessage.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
             );
             messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
+            messageFields.put("elasticsearch.slowlog.search_action", context.getTask().getAction());
             messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());
 
             if (context.request().source() != null) {

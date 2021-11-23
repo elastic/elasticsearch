@@ -9,7 +9,8 @@
 package org.elasticsearch.xcontent;
 
 import java.io.IOException;
-import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
@@ -20,7 +21,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
     private static class WrappingParser extends DelegatingXContentParser {
 
-        final Stack<XContentParser> parsers = new Stack<>();
+        final Deque<XContentParser> parsers = new ArrayDeque<>();
 
         WrappingParser(XContentParser in) throws IOException {
             parsers.push(in);
@@ -34,7 +35,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
             Token token;
             while ((token = delegate().nextToken()) == null) {
                 parsers.pop();
-                if (parsers.empty()) {
+                if (parsers.isEmpty()) {
                     return null;
                 }
             }

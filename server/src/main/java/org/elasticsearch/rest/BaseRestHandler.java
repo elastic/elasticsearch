@@ -105,7 +105,7 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public boolean mediaTypesValid(RestRequest request) {
-        return false;
+        return request.getXContentType() != null;
     }
 
     protected final String unrecognized(

@@ -44,6 +44,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -94,7 +95,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -471,11 +474,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
      *
+     * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
+     * in order to mak sure the implementation does not leak.
+     *
      * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.
      */
-    @SuppressWarnings("unchecked")
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
         IndexSettings indexSettings,
         IndexSearcher searcher,
@@ -485,11 +490,56 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean splitLeavesIntoSeparateAggregators,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        // First run it to find circuit breaker leaks on the aggregator
+        CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
+        for (int i = 0; i < 5; i++) {
+            try {
+                searchAndReduce(
+                    indexSettings,
+                    searcher,
+                    query,
+                    builder,
+                    maxBucket,
+                    splitLeavesIntoSeparateAggregators,
+                    crankyService,
+                    fieldTypes
+                );
+            } catch (CircuitBreakingException e) {
+                // expected
+            } catch (IOException e) {
+                throw e;
+            }
+        }
+        // Second run it to the end
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        return searchAndReduce(
+            indexSettings,
+            searcher,
+            query,
+            builder,
+            maxBucket,
+            splitLeavesIntoSeparateAggregators,
+            breakerService,
+            fieldTypes
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBucket,
+        boolean splitLeavesIntoSeparateAggregators,
+        CircuitBreakerService breakerService,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
-        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+
         AggregationContext context = createAggregationContext(
             searcher,
             indexSettings,
@@ -1311,6 +1361,78 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     (ContextParser<String, AggCardinalityUpperBoundAggregationBuilder>) (p, c) -> null
                 ).addResultReader(InternalAggCardinalityUpperBound::new)
             );
+        }
+    }
+
+    private static class CrankyCircuitBreakerService extends CircuitBreakerService {
+
+        private final CircuitBreaker breaker = new CircuitBreaker() {
+            @Override
+            public void circuitBreak(String fieldName, long bytesNeeded) {
+
+            }
+
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (random().nextInt(20) == 0) {
+                    throw new CircuitBreakingException("fake error", Durability.PERMANENT);
+                }
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+
+            }
+
+            @Override
+            public long getUsed() {
+                return 0;
+            }
+
+            @Override
+            public long getLimit() {
+                return 0;
+            }
+
+            @Override
+            public double getOverhead() {
+                return 0;
+            }
+
+            @Override
+            public long getTrippedCount() {
+                return 0;
+            }
+
+            @Override
+            public String getName() {
+                return CircuitBreaker.FIELDDATA;
+            }
+
+            @Override
+            public Durability getDurability() {
+                return null;
+            }
+
+            @Override
+            public void setLimitAndOverhead(long limit, double overhead) {
+
+            }
+        };
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            return breaker;
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            return new AllCircuitBreakerStats(new CircuitBreakerStats[] { stats(CircuitBreaker.FIELDDATA) });
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
         }
     }
 }

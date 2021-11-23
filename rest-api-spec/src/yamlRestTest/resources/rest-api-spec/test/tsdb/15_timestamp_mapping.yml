@@ -161,7 +161,7 @@ reject @timestamp with wrong type:
 reject timestamp meta field with wrong type:
   - skip:
       version: " - 8.0.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[_data_stream_timestamp\] meta field has been disabled/
@@ -182,7 +182,7 @@ reject timestamp meta field with wrong type:
 enable timestamp meta field:
   - skip:
       version: " - 8.0.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -208,7 +208,7 @@ enable timestamp meta field:
 reject bad timestamp meta field:
   - skip:
       version: " - 8.0.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[_data_stream_timestamp\] config must be an object/
@@ -227,8 +227,8 @@ reject bad timestamp meta field:
 ---
 write without timestamp:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -262,10 +262,10 @@ write without timestamp:
           "metricset": "pod"
 
 ---
-add timestamp meta:
+explicitly enable timestamp meta field:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:

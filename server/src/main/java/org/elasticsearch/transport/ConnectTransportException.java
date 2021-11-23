@@ -44,7 +44,7 @@ public class ConnectTransportException extends ActionTransportException {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().before(Version.V_8_1_0)) {
-            out.writeBoolean(false); // optional & unused node field
+            out.writeMissingWriteable(DiscoveryNode.class);
         }
     }
 }

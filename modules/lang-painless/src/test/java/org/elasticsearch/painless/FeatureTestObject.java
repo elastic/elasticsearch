@@ -105,8 +105,8 @@ public class FeatureTestObject {
         return this.x * fn.apply(arg) * (inject1 + inject2 + inject3);
     }
 
-    public Double mixedAdd(int i, Byte b, char c, Float f) {
-        return (double) (i + b + c + f);
+    public Double mixedAdd(int someInt, Byte b, char c, Float f) {
+        return (double) (someInt + b + c + f);
     }
 
     /** method taking two functions! */

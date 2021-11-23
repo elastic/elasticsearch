@@ -184,6 +184,11 @@ set start_time and end_time:
               time_series:
                 start_time: 1632625782000
                 end_time: 1632625792000
+          mappings:
+            properties:
+              metricset:
+                type: keyword
+                time_series_dimension: true
 
   - do:
       indices.put_settings:
@@ -201,6 +206,23 @@ set start_time and end_time:
           index:
             time_series:
               end_time: 1632625792000
+
+  - do:
+      index:
+        refresh: true
+        index: test_index
+        body: {
+          "@timestamp": 1632625792000,
+          "metricset": "pod"
+        }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          docvalue_fields: [ '@timestamp' ]
+  - match: { hits.total.value: 1 }
+  - match: { "hits.hits.0.fields.@timestamp": [ "2021-09-26T03:09:52.000Z" ] }
 
   - do:
       indices.delete:
@@ -230,3 +252,202 @@ set start_time and end_time without timeseries mode:
             index:
               time_series:
                 end_time: 1632625782000
+
+---
+set bad start_time and end_time:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ metricset ]
+              time_series:
+                start_time: 1632625782000
+                end_time: 1632625792000
+          mappings:
+            properties:
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      catch: /time series index @timestamp value \[2021-09-26T03:09:41Z\] must be larger than 2021-09-26T03:09:42Z/
+      index:
+        index: test_index
+        body: {
+          "@timestamp": 1632625781000,
+          "metricset": "pod"
+        }
+
+  - do:
+      catch: /time series index @timestamp value \[2021-09-26T03:09:53Z\] must be smaller than 2021-09-26T03:09:52Z/
+      index:
+        index: test_index
+        body: {
+          "@timestamp": 1632625793000,
+          "metricset": "pod"
+        }
+
+---
+check start_time and end_time with data_nano:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              time_series:
+                start_time: 2021-09-26T03:09:42Z
+                end_time: 2021-09-26T03:09:52Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date_nanos
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      index:
+        refresh: true
+        index: test_index
+        body: {
+          "@timestamp": "2021-09-26T03:09:51.123456789Z",
+          "metricset": "pod"
+        }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          docvalue_fields: [ '@timestamp' ]
+  - match: { hits.total.value: 1 }
+  - match: { "hits.hits.0.fields.@timestamp": [ "2021-09-26T03:09:51.123456789Z" ] }
+
+  - do:
+      catch: /time series index @timestamp value \[2010-09-26T03:09:52.123456789Z\] must be larger than 2021-09-26T03:09:42Z/
+      index:
+        index: test_index
+        body: {
+          "@timestamp": "2010-09-26T03:09:52.123456789Z",
+          "metricset": "pod"
+        }
+
+  - do:
+      catch: /time series index @timestamp value \[2031-09-26T03:09:52.123456789Z\] must be smaller than 2021-09-26T03:09:52Z/
+      index:
+        index: test_index
+        body: {
+          "@timestamp": "2031-09-26T03:09:52.123456789Z",
+          "metricset": "pod"
+        }
+
+---
+check start_time boundary with data_nano:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              time_series:
+                start_time: 2021-09-26T03:09:42Z
+                end_time: 2021-09-26T03:09:52Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date_nanos
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      index:
+        refresh: true
+        index: test_index
+        body: {
+          "@timestamp": "2021-09-26T03:09:42.123456789Z",
+          "metricset": "pod"
+        }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          docvalue_fields: [ '@timestamp' ]
+  - match: { hits.total.value: 1 }
+  - match: { "hits.hits.0.fields.@timestamp": [ "2021-09-26T03:09:42.123456789Z" ] }
+
+  - do:
+      catch: /time series index @timestamp value \[2021-09-26T03:09:41.123456789Z\] must be larger than 2021-09-26T03:09:42Z/
+      index:
+        index: test_index
+        body: {
+          "@timestamp": "2021-09-26T03:09:41.123456789Z",
+          "metricset": "pod"
+        }
+
+---
+check end_time boundary with data_nano:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              time_series:
+                start_time: 2021-09-26T03:09:42Z
+                end_time: 2021-09-26T03:09:52Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date_nanos
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      index:
+        refresh: true
+        index: test_index
+        body: {
+          "@timestamp": "2021-09-26T03:09:51.123456789Z",
+          "metricset": "pod"
+        }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          docvalue_fields: [ '@timestamp' ]
+  - match: { hits.total.value: 1 }
+  - match: { "hits.hits.0.fields.@timestamp": [ "2021-09-26T03:09:51.123456789Z" ] }
+
+  - do:
+      catch: /time series index @timestamp value \[2021-09-26T03:09:52.123456789Z\] must be smaller than 2021-09-26T03:09:52Z/
+      index:
+        index: test_index
+        body: {
+          "@timestamp": "2021-09-26T03:09:52.123456789Z",
+          "metricset": "pod"
+        }

@@ -49,6 +49,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTestsByFilePattern("**/indices.upgrade/*.yml", "upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex")
   task.skipTestsByFilePattern("**/indices.stats/60_field_usage/*/*.yml", "field usage results will be different between lucene versions")
 
+  task.skipTest("bulk/11_dynamic_templates/Dynamic templates", "Error message has changed")
   task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
   task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
   task.skipTest("delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types", "Type information about the type is removed and not passed down. The logic to check for this is also removed.");

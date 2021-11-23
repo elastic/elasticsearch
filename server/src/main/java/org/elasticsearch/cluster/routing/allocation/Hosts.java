@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.Strings;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,44 +20,57 @@ import java.util.Map;
  * which makes it easy to find nodes on the same host
  */
 public class Hosts {
-    private final Map<String, ModelHost> node2Host = new HashMap<>();
-    private final Map<String, ModelHost> hostNameMap = new HashMap<>();
-    private final Map<String, ModelHost> hostAddressMap = new HashMap<>();
+    private final Map<String, Host> node2Host;
 
-    public Hosts(Iterable<RoutingNode> nodesToShards) {
-        for (RoutingNode checkNode : nodesToShards) {
-            ModelHost host = getOrCreateHost(checkNode);
-            if (host != null) {
-                host.addNode(checkNode);
-                node2Host.put(checkNode.nodeId(), host);
+    public Hosts(Iterable<RoutingNode> nodes) {
+        Map<String, HostBuilder> node2HostBuilder = new HashMap<>();
+        Map<String, HostBuilder> hostNameMap = new HashMap<>();
+        Map<String, HostBuilder> hostAddressMap = new HashMap<>();
+        for (RoutingNode checkNode : nodes) {
+            HostBuilder hostBuilder = getOrCreateHost(checkNode, hostNameMap, hostAddressMap);
+            if (hostBuilder != null) {
+                hostBuilder.addNode(checkNode);
+                node2HostBuilder.put(checkNode.nodeId(), hostBuilder);
             }
         }
+        Map<String, Host> tmpNode2Host = new HashMap<>(node2HostBuilder.size());
+        for (String node : node2HostBuilder.keySet()) {
+            tmpNode2Host.put(node, node2HostBuilder.get(node).builder());
+        }
+        this.node2Host = Collections.unmodifiableMap(tmpNode2Host);
     }
 
-    private ModelHost getOrCreateHost(RoutingNode node) {
+    private HostBuilder getOrCreateHost(RoutingNode node, Map<String, HostBuilder> hostNameMap, Map<String, HostBuilder> hostAddressMap) {
         // skip if the DiscoveryNode of a deleted RoutingNode is empty
         if (node.node() == null) {
             return null;
         }
         String hostName = node.node().getHostName();
         String hostAddress = node.node().getHostAddress();
-        ModelHost host = null;
+        HostBuilder hostBuilder;
         if (Strings.hasLength(hostAddress)) {
-            host = hostAddressMap.get(hostAddress);
+            hostBuilder = hostAddressMap.get(hostAddress);
         } else if (Strings.hasLength(hostName)) {
-            host = hostNameMap.get(hostName);
-        }
-        if (host != null) {
-            return host;
+            hostBuilder = hostNameMap.get(hostName);
         } else {
-            ModelHost newHost = new ModelHost();
-            hostAddressMap.put(hostAddress, newHost);
-            hostNameMap.put(hostName, newHost);
-            return newHost;
+            return null;
+        }
+
+        if (hostBuilder != null) {
+            return hostBuilder;
+        } else {
+            HostBuilder newHostBuilder = new HostBuilder();
+            if (Strings.hasLength(hostAddress)) {
+                hostAddressMap.put(hostAddress, newHostBuilder);
+            }
+            if (Strings.hasLength(hostName)) {
+                hostNameMap.put(hostName, newHostBuilder);
+            }
+            return newHostBuilder;
         }
     }
 
-    public ModelHost getHost(String nodeId) {
+    public Host getHost(String nodeId) {
         return node2Host.get(nodeId);
     }
 }

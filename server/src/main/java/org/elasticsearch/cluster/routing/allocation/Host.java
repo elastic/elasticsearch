@@ -11,18 +11,17 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.routing.RoutingNode;
 
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
  * A model host hold all the node on it.
  *
  */
-public final class ModelHost implements Iterable<RoutingNode> {
-    private final List<RoutingNode> nodes = new LinkedList<>();
+public final class Host implements Iterable<RoutingNode> {
+    private final List<RoutingNode> nodes;
 
-    public void addNode(RoutingNode node) {
-        nodes.add(node);
+    Host(List<RoutingNode> nodes) {
+        this.nodes = List.copyOf(nodes);
     }
 
     public Iterator<RoutingNode> iterator() {

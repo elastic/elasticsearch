@@ -39,7 +39,10 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        Long maxShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
+            ? randomNonNegativeLong()
+            : null;
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
     }
 
     @Override
@@ -53,6 +56,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
+        Long maxShardDocs = instance.getMaxShardDocs();
         switch (between(0, 3)) {
             case 0:
                 maxSize = randomValueOtherThan(maxSize, () -> {
@@ -72,14 +76,16 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
             case 3:
                 maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
                 break;
+            case 4:
+                maxShardDocs = maxShardDocs == null ? randomNonNegativeLong() : maxShardDocs + 1;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
     }
 
     public void testNoConditions() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverAction(null, null, null, null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverAction(null, null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 
@@ -117,6 +123,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(action.getMaxPrimaryShardSize(), firstStep.getMaxPrimaryShardSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
+        assertEquals(action.getMaxShardDocs(), firstStep.getMaxShardDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
     }
 }

@@ -156,6 +156,10 @@ public class RolloverAction implements LifecycleAction {
         return maxDocs;
     }
 
+    public Long getMaxShardDocs() {
+        return maxShardDocs;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

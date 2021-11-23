@@ -80,7 +80,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         String index = meta.getIndex().getName();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -316,7 +316,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -391,7 +391,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, TimeValue.timeValueSeconds(5), null));
+            actions.put("rollover", new RolloverAction(null, null, TimeValue.timeValueSeconds(5), null, null));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
@@ -425,7 +425,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -446,7 +446,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             IndexMetadata meta = mkMeta().putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap()).build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -472,14 +472,14 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertTrue(eligibleToCheckForRefresh(meta));
 
         Map<String, LifecycleAction> oldActions = new HashMap<>();
-        oldActions.put("rollover", new RolloverAction(null, null, null, 1L));
+        oldActions.put("rollover", new RolloverAction(null, null, null, 1L, null));
         oldActions.put("set_priority", new SetPriorityAction(100));
         Phase oldHotPhase = new Phase("hot", TimeValue.ZERO, oldActions);
         Map<String, Phase> oldPhases = Collections.singletonMap("hot", oldHotPhase);
         LifecyclePolicy oldPolicy = new LifecyclePolicy("my-policy", oldPhases);
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -499,7 +499,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(updatedState, equalTo(existingState));
 
         actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 2L));
+        actions.put("rollover", new RolloverAction(null, null, null, 2L, null));
         actions.put("set_priority", new SetPriorityAction(150));
         hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         phases = Collections.singletonMap("hot", hotPhase);

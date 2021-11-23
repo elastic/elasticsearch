@@ -25,7 +25,7 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
     protected final Ordinals ordinals;
 
     public PagedBytesLeafFieldData(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset, Ordinals ordinals) {
-        super(DEFAULT_SCRIPT_FUNCTION);
+        super(DEFAULT_TO_SCRIPT_FIELD);
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;

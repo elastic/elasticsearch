@@ -569,7 +569,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     fieldName,
                     CoreValuesSourceType.KEYWORD,
                     breakerService,
-                    AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+                    AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD
                 );
                 return new KeyedFlattenedFieldData(key, delegate);
             }

@@ -146,7 +146,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         private final SortedSetDocValues docValues;
 
         MockLeafOrdinalsFieldData(BytesRef[] allTerms, long[] documentOrds) {
-            super(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+            super(AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD);
             this.docValues = new MockSortedSetDocValues(allTerms, documentOrds);
         }
 

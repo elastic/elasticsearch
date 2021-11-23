@@ -78,7 +78,7 @@ public class FieldDataCacheTests extends ESTestCase {
             fieldName,
             CoreValuesSourceType.KEYWORD,
             new NoneCircuitBreakerService(),
-            AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+            AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD
         );
     }
 

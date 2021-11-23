@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -279,7 +280,11 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), VersionScriptDocValues::new, CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                (dv, n) -> new DelegateDocValuesField(new VersionScriptDocValues(dv), n),
+                CoreValuesSourceType.KEYWORD
+            );
         }
 
         @Override

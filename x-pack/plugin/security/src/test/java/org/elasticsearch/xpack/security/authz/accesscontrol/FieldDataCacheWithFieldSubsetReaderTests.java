@@ -63,7 +63,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             name,
             CoreValuesSourceType.KEYWORD,
             circuitBreakerService,
-            AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+            AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD
         );
         pagedBytesIndexFieldData = new PagedBytesIndexFieldData(
             name,

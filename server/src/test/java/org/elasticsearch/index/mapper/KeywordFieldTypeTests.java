@@ -49,6 +49,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD;
+
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
@@ -214,9 +216,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(), ScriptCompiler.NONE).normalizer(
-            "lowercase"
-        ).build(MapperBuilderContext.ROOT).fieldType();
+        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder(
+            "field",
+            createIndexAnalyzers(),
+            ScriptCompiler.NONE,
+            DEFAULT_TO_SCRIPT_FIELD
+        ).normalizer("lowercase").build(MapperBuilderContext.ROOT).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));

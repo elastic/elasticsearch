@@ -60,7 +60,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final String value;
 
         ConstantLeafFieldData(String value) {
-            super(DEFAULT_SCRIPT_FUNCTION);
+            super(DEFAULT_TO_SCRIPT_FIELD);
             this.value = value;
         }
 
@@ -121,7 +121,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     private final ConstantLeafFieldData atomicFieldData;
 
     private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType) {
-        super(name, valuesSourceType, null, null, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        super(name, valuesSourceType, null, null, AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD);
         atomicFieldData = new ConstantLeafFieldData(value);
     }
 

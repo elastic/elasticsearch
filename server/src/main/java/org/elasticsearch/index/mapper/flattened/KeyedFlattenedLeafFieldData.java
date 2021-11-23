@@ -17,7 +17,6 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
@@ -80,7 +79,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public DocValuesField<?> getScriptField(String name) {
-        return new DelegateDocValuesField(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION.apply(getOrdinalsValues()), name);
+        return AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD.getScriptField(getOrdinalsValues(), name);
     }
 
     @Override

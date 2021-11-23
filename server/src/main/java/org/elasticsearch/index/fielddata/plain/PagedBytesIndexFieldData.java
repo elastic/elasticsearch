@@ -74,7 +74,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         double maxFrequency,
         int minSegmentSize
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        super(fieldName, valuesSourceType, cache, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD);
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
         this.minSegmentSize = minSegmentSize;

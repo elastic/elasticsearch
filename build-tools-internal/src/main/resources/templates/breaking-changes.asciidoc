@@ -9,11 +9,11 @@ your application to {es} ${majorDotMinor}.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 <% if (isElasticsearchSnapshot) { %>
-coming[${version}]
+coming::[${version}]
 <% } %>
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
-<% if (breakingChangesByNotabilityByArea.isEmpty() == false) { %>
+<% if (breakingIncludeList.isEmpty() == false) { %>
 [discrete]
 [[breaking-changes-${majorDotMinor}]]
 === Breaking changes
@@ -29,41 +29,14 @@ Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
 <%
-[true, false].each { isNotable ->
-    def breakingChangesByArea = breakingChangesByNotabilityByArea.getOrDefault(isNotable, [])
+  for (include in breakingIncludeList) {
+      print "include::migrate_${version.major}_${version.minor}/${include}.asciidoc[]\n";
+  }
 
-    breakingChangesByArea.eachWithIndex { area, breakingChanges, i ->
-        print "\n"
-
-        if (isNotable) {
-            print "// tag::notable-breaking-changes[]\n"
-        }
-
-        print "[discrete]\n"
-        print "[[breaking_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }]]\n"
-        print "==== ${area}\n"
-
-        for (breaking in breakingChanges) { %>
-[[${ breaking.anchor }]]
-.${breaking.title}
-[%collapsible]
-====
-*Details* +
-${breaking.details.trim()}
-
-*Impact* +
-${breaking.impact.trim()}
-====
-<%
-        }
-
-        if (isNotable) {
-            print "// end::notable-breaking-changes[]\n"
-        }
-    }
 }
-}
+
 if (deprecationsByArea.empty == false) { %>
 
 [discrete]

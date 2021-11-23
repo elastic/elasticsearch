@@ -116,6 +116,20 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     /**
+     * @deprecated Use {@link #getTargetTaskId()}
+     */
+    public TaskId getTaskId() {
+        return getTargetTaskId();
+    }
+
+    /**
+     * @deprecated Use {@link #setTargetTaskId(TaskId)}
+     */
+    public final Request setTaskId(TaskId taskId) {
+        return setTargetTaskId(taskId);
+    }
+
+    /**
      * Returns the parent task id that tasks should be filtered by
      */
     public TaskId getTargetParentTaskId() {
@@ -126,6 +140,20 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     public Request setTargetParentTaskId(TaskId targetParentTaskId) {
         this.targetParentTaskId = targetParentTaskId;
         return (Request) this;
+    }
+
+    /**
+     * @deprecated Use {@link #getTargetParentTaskId()}
+     */
+    public TaskId getParentTaskId() {
+        return getTargetParentTaskId();
+    }
+
+    /**
+     * @deprecated Use {@link #setTargetParentTaskId(TaskId)}
+     */
+    public Request setParentTaskId(TaskId parentTaskId) {
+        return setTargetParentTaskId(parentTaskId);
     }
 
     public TimeValue getTimeout() {

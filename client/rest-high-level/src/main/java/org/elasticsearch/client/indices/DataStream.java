@@ -49,7 +49,8 @@ public final class DataStream {
         boolean hidden,
         boolean system,
         boolean allowCustomRouting,
-        boolean replicated) {
+        boolean replicated
+    ) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;

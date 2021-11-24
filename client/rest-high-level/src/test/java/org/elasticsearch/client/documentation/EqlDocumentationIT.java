@@ -72,17 +72,21 @@ public class EqlDocumentationIT extends ESRestHighLevelClientTestCase {
         request.timestampField("timestamp"); // <5>
         request.filter(QueryBuilders.matchAllQuery()); // <6>
         request.resultPosition("head"); // <7>
+
         List<FieldAndFormat> fields = new ArrayList<>();
         fields.add(new FieldAndFormat("hostname", null));
         request.fetchFields(fields); // <8>
+
         IndicesOptions op = IndicesOptions.fromOptions(true, true, true, false);
         request.indicesOptions(op); // <9>
+
         Map<String, Object> settings = new HashMap<>();
         settings.put("type", "keyword");
         settings.put("script", "emit(doc['host.keyword'].value)");
         Map<String, Object> field = new HashMap<>();
         field.put("hostname", settings);
         request.runtimeMappings(field); // <10>
+
         request.waitForCompletionTimeout(TimeValue.timeValueMinutes(1)); // <11>
         request.keepOnCompletion(true); // <12>
         request.keepAlive(TimeValue.timeValueHours(12)); // <13>

@@ -43,7 +43,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Releasable;
@@ -61,9 +66,12 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -75,8 +83,10 @@ import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -614,6 +624,53 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // allow memory for bulk request items to be reclaimed before all items have been completed
             bulkRequest.requestMemory().releaseCoordinatingMemory();
             bulkRequest = null;
+        }
+
+        private void copySourceBytes(List<BulkShardRequest> bulkShardRequests) {
+            try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                for (BulkShardRequest bulkShardRequest : bulkShardRequests) {
+                    copySourceBytes(streamOutput, bulkShardRequest);
+                }
+                List<ReleasableBytesReference> pages = streamOutput.retainPages();
+                int currentPage = 0;
+                for (BulkShardRequest bulkShardRequest : bulkShardRequests) {
+                    for (BulkItemRequest item : bulkShardRequest.items()) {
+                        DocWriteRequest<?> request = item.request();
+                        if (request instanceof IndexRequest) {
+
+                        } else if (request instanceof UpdateRequest) {
+                            UpdateRequest updateRequest = (UpdateRequest) request;
+                            if (updateRequest.upsertRequest() != null) {
+
+                            }
+                            if (updateRequest.doc() != null) {
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void copySourceBytes(BytesStream streamOutput, BulkShardRequest bulkShardRequest) {
+            try {
+                for (BulkItemRequest item : bulkShardRequest.items()) {
+                    DocWriteRequest<?> request = item.request();
+                    if (request instanceof IndexRequest) {
+                        ((IndexRequest) request).source().writeTo(streamOutput);
+                    } else if (request instanceof UpdateRequest) {
+                        UpdateRequest updateRequest = (UpdateRequest) request;
+                        if (updateRequest.upsertRequest() != null) {
+                            updateRequest.upsertRequest().source().writeTo(streamOutput);
+                        }
+                        if (updateRequest.doc() != null) {
+                            updateRequest.doc().source().writeTo(streamOutput);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
         }
 
         private boolean handleBlockExceptions(ClusterState state) {

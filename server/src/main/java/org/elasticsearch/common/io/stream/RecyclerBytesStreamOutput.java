@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -22,6 +23,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
@@ -195,6 +197,10 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 return CompositeBytesReference.of(references);
             }
         }
+    }
+
+    public List<ReleasableBytesReference> retainPages() {
+        return new ArrayList<>(pages.size());
     }
 
     private void ensureCapacity(int bytesNeeded) {

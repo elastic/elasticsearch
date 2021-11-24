@@ -30,9 +30,7 @@ public class VectorTileCCSIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         final String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private int createIndex(RestClient client, String indexName) throws IOException {
@@ -41,13 +39,7 @@ public class VectorTileCCSIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         final Request mappingRequest = new Request(HttpPut.METHOD_NAME, indexName + "/_mapping");
         mappingRequest.setJsonEntity(
-            "{\n"
-                + "  \"properties\": {\n"
-                + "    \"location\": {\n"
-                + "      \"type\": \"geo_shape\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
+            "{\n" + "  \"properties\": {\n" + "    \"location\": {\n" + "      \"type\": \"geo_shape\"\n" + "    }\n" + "  }\n" + "}"
         );
         response = client.performRequest(mappingRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
@@ -113,8 +105,11 @@ public class VectorTileCCSIT extends ESRestTestCase {
 
     private RestClient buildClient(final String url) throws IOException {
         final int portSeparator = url.lastIndexOf(':');
-        final HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
-        return buildClient(restAdminSettings(), new HttpHost[]{httpHost});
+        final HttpHost httpHost = new HttpHost(
+            url.substring(0, portSeparator),
+            Integer.parseInt(url.substring(portSeparator + 1)),
+            getProtocol()
+        );
+        return buildClient(restAdminSettings(), new HttpHost[] { httpHost });
     }
 }

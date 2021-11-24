@@ -216,7 +216,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<Boolean> CACHE_REPOSITORY_DATA = Setting.boolSetting(
         "cache_repository_data",
         true,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -275,6 +275,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
+        (repoName, parser) -> IndexMetadata.Builder.legacyFromXContent(parser),
         (repoName, parser) -> IndexMetadata.fromXContent(parser)
     );
 
@@ -1390,11 +1391,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             final ActionListener<Void> allMetaListener = new GroupedActionListener<>(ActionListener.wrap(v -> {
+                final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),
                     Version.CURRENT,
                     snapshotInfo.startTime(),
-                    snapshotInfo.endTime()
+                    snapshotInfo.endTime(),
+                    slmPolicy
                 );
                 writeIndexGen(
                     existingRepositoryData.addSnapshot(snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers),
@@ -2241,40 +2244,36 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .collect(Collectors.toList());
             if (snapshotIdsWithMissingDetails.isEmpty() == false) {
                 final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
-                getSnapshotInfo(
-                    new GetSnapshotInfoContext(
-                        snapshotIdsWithMissingDetails,
-                        false,
-                        () -> false,
-                        (context, snapshotInfo) -> extraDetailsMap.put(
-                            snapshotInfo.snapshotId(),
-                            new SnapshotDetails(
-                                snapshotInfo.state(),
-                                snapshotInfo.version(),
-                                snapshotInfo.startTime(),
-                                snapshotInfo.endTime()
+                getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsWithMissingDetails, false, () -> false, (context, snapshotInfo) -> {
+                    final String slmPolicy = slmPolicy(snapshotInfo);
+                    extraDetailsMap.put(
+                        snapshotInfo.snapshotId(),
+                        new SnapshotDetails(
+                            snapshotInfo.state(),
+                            snapshotInfo.version(),
+                            snapshotInfo.startTime(),
+                            snapshotInfo.endTime(),
+                            slmPolicy
+                        )
+                    );
+                }, ActionListener.runAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        logger.info(
+                            "Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
+                            AllocationService.firstListElementsToCommaDelimitedString(
+                                snapshotIdsWithMissingDetails,
+                                SnapshotId::toString,
+                                logger.isDebugEnabled()
                             )
-                        ),
-                        ActionListener.runAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                logger.info(
-                                    "Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
-                                    AllocationService.firstListElementsToCommaDelimitedString(
-                                        snapshotIdsWithMissingDetails,
-                                        SnapshotId::toString,
-                                        logger.isDebugEnabled()
-                                    )
-                                );
-                            }
+                        );
+                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("Failure when trying to load missing details from snapshot metadata", e);
-                            }
-                        }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap)))
-                    )
-                );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failure when trying to load missing details from snapshot metadata", e);
+                    }
+                }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap)))));
             } else {
                 filterRepositoryDataStep.onResponse(repositoryData);
             }
@@ -2373,6 +2372,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             );
         }, listener::onFailure);
+    }
+
+    /**
+     * Extract slm policy from snapshot info. If none can be found, empty string is returned.
+     */
+    private static String slmPolicy(SnapshotInfo snapshotInfo) {
+        final String slmPolicy;
+        if (snapshotInfo.userMetadata() == null) {
+            slmPolicy = "";
+        } else {
+            final Object policyFound = snapshotInfo.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+            if (policyFound instanceof String) {
+                slmPolicy = (String) policyFound;
+            } else {
+                slmPolicy = "";
+            }
+        }
+        return slmPolicy;
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, Version repositoryMetaversion, long newGen) {
@@ -2963,7 +2980,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final boolean added = ongoingRestores.add(shardId);
             assert added : "add restore for [" + shardId + "] that already has an existing restore";
         }
-        executor.execute(ActionRunnable.wrap(ActionListener.runAfter(restoreListener, () -> {
+        executor.execute(ActionRunnable.wrap(ActionListener.runBefore(restoreListener, () -> {
             final List<ActionListener<Void>> onEmptyListeners;
             synchronized (ongoingRestores) {
                 if (ongoingRestores.remove(shardId) && ongoingRestores.isEmpty() && emptyListeners != null) {

@@ -51,19 +51,25 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
         assertThat(System.getProperty("test.google.bucket"), not(blankOrNullString()));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setFile("gcs.client.default.credentials_file",
-            Base64.getDecoder().decode(System.getProperty("test.google.account")));
+        secureSettings.setFile(
+            "gcs.client.default.credentials_file",
+            Base64.getDecoder().decode(System.getProperty("test.google.account"))
+        );
         return secureSettings;
     }
 
     @Override
     protected void createRepository(final String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository("test-repo")
             .setType("gcs")
-            .setSettings(Settings.builder()
-                .put("bucket", System.getProperty("test.google.bucket"))
-                .put("base_path", System.getProperty("test.google.base", "/"))
-            ).get();
+            .setSettings(
+                Settings.builder()
+                    .put("bucket", System.getProperty("test.google.bucket"))
+                    .put("base_path", System.getProperty("test.google.base", "/"))
+            )
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 }

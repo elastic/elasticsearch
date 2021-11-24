@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.stats;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -22,7 +22,7 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
         if (randomBoolean()) {
             return createRandom(1, 22);
         }
-        return new ForecastStats(0, null,null,null,null);
+        return new ForecastStats(0, null, null, null, null);
     }
 
     @Override
@@ -46,7 +46,8 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
             SimpleStatsTests.createRandom(),
             SimpleStatsTests.createRandom(),
             SimpleStatsTests.createRandom(),
-            createCountStats());
+            createCountStats()
+        );
     }
 
     private static Map<String, Long> createCountStats() {

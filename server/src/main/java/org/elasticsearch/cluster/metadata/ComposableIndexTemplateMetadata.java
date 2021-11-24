@@ -12,11 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -34,8 +34,11 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE,
-        false, a -> new ComposableIndexTemplateMetadata((Map<String, ComposableIndexTemplate>) a[0]));
+    private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        a -> new ComposableIndexTemplateMetadata((Map<String, ComposableIndexTemplate>) a[0])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -99,7 +102,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(INDEX_TEMPLATE.getPreferredName());
         for (Map.Entry<String, ComposableIndexTemplate> template : indexTemplates.entrySet()) {
-            builder.field(template.getKey(), template.getValue());
+            builder.field(template.getKey(), template.getValue(), params);
         }
         builder.endObject();
         return builder;
@@ -132,13 +135,20 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
         final Diff<Map<String, ComposableIndexTemplate>> indexTemplateDiff;
 
         ComposableIndexTemplateMetadataDiff(ComposableIndexTemplateMetadata before, ComposableIndexTemplateMetadata after) {
-            this.indexTemplateDiff = DiffableUtils.diff(before.indexTemplates, after.indexTemplates,
-                DiffableUtils.getStringKeySerializer());
+            this.indexTemplateDiff = DiffableUtils.diff(
+                before.indexTemplates,
+                after.indexTemplates,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         ComposableIndexTemplateMetadataDiff(StreamInput in) throws IOException {
-            this.indexTemplateDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                ComposableIndexTemplate::new, ComposableIndexTemplate::readITV2DiffFrom);
+            this.indexTemplateDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                ComposableIndexTemplate::new,
+                ComposableIndexTemplate::readITV2DiffFrom
+            );
         }
 
         @Override

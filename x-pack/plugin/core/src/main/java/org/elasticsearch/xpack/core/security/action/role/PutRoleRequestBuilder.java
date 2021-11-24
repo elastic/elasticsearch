@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.security.action.role;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
@@ -21,7 +21,8 @@ import java.util.Map;
  * Builder for requests to add a role to the administrative index
  */
 public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse>
-        implements WriteRequestBuilder<PutRoleRequestBuilder> {
+    implements
+        WriteRequestBuilder<PutRoleRequestBuilder> {
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
         this(client, PutRoleAction.INSTANCE);
@@ -64,8 +65,14 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         return this;
     }
 
-    public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges, String[] grantedFields, String[] deniedFields,
-                                            @Nullable BytesReference query, boolean allowRestrictedIndices) {
+    public PutRoleRequestBuilder addIndices(
+        String[] indices,
+        String[] privileges,
+        String[] grantedFields,
+        String[] deniedFields,
+        @Nullable BytesReference query,
+        boolean allowRestrictedIndices
+    ) {
         request.addIndex(indices, privileges, grantedFields, deniedFields, query, allowRestrictedIndices);
         return this;
     }

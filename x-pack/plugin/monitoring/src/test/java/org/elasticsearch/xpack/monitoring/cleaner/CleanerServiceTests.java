@@ -53,10 +53,17 @@ public class CleanerServiceTests extends ESTestCase {
         // invalid setting
         expectedException.expect(IllegalArgumentException.class);
 
-        TimeValue expected = TimeValue.timeValueHours(1);
-        Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        try {
+            TimeValue expected = TimeValue.timeValueHours(1);
+            Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-        new CleanerService(settings, clusterSettings, threadPool, licenseState);
+            new CleanerService(settings, clusterSettings, threadPool, licenseState);
+        } finally {
+            assertWarnings(
+                "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in "
+                    + "a future release! See the breaking changes documentation for the next major version."
+            );
+        }
     }
 
     public void testGetRetention() {
@@ -64,6 +71,11 @@ public class CleanerServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
         assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
+
+        assertWarnings(
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in "
+                + "a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testSetGlobalRetention() {
@@ -79,7 +91,7 @@ public class CleanerServiceTests extends ESTestCase {
     public void testNextExecutionDelay() {
         CleanerService.ExecutionScheduler scheduler = new CleanerService.DefaultExecutionScheduler();
 
-        ZonedDateTime now = ZonedDateTime.of(2015, 1, 1, 0, 0,0,0, ZoneOffset.UTC);
+        ZonedDateTime now = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(TimeValue.timeValueHours(1).millis()));
 
         now = ZonedDateTime.of(2015, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC);
@@ -93,8 +105,7 @@ public class CleanerServiceTests extends ESTestCase {
 
         ZoneId defaultZone = Clock.systemDefaultZone().getZone();
         now = ZonedDateTime.of(2015, 1, 1, 12, 34, 56, 0, defaultZone);
-        long nextScheduledMillis = ZonedDateTime.of(2015, 1, 2, 1, 0, 0,0,
-            defaultZone).toInstant().toEpochMilli();
+        long nextScheduledMillis = ZonedDateTime.of(2015, 1, 2, 1, 0, 0, 0, defaultZone).toInstant().toEpochMilli();
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(nextScheduledMillis - now.toInstant().toEpochMilli()));
 
     }
@@ -105,8 +116,13 @@ public class CleanerServiceTests extends ESTestCase {
 
         logger.debug("--> creates a cleaner service that cleans every second");
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, licenseState, threadPool,
-                new TestExecutionScheduler(1_000));
+        CleanerService service = new CleanerService(
+            Settings.EMPTY,
+            clusterSettings,
+            licenseState,
+            threadPool,
+            new TestExecutionScheduler(1_000)
+        );
 
         logger.debug("--> registers cleaning listener");
         TestListener listener = new TestListener(latch);

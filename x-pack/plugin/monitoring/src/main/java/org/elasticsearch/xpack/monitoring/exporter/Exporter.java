@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
@@ -31,83 +31,101 @@ public abstract class Exporter implements AutoCloseable {
 
     public static Setting.AffixSettingDependency TYPE_DEPENDENCY = () -> Exporter.TYPE_SETTING;
 
-    private static final Setting.AffixSetting<Boolean> ENABLED_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","enabled",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+    private static final Setting.AffixSetting<Boolean> ENABLED_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "enabled",
+        key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        TYPE_DEPENDENCY
+    );
 
     public static final Setting.AffixSetting<String> TYPE_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "type",
-        key -> Setting.simpleString(
-            key,
-            new Setting.Validator<String>() {
+        key -> Setting.simpleString(key, new Setting.Validator<String>() {
 
-                @Override
-                public void validate(final String value) {
+            @Override
+            public void validate(final String value) {
 
+            }
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                switch (value) {
+                    case "":
+                        break;
+                    case "http":
+                        // if the type is http, then hosts must be set
+                        final String namespace = TYPE_SETTING.getNamespace(TYPE_SETTING.getConcreteSetting(key));
+                        final Setting<List<String>> hostsSetting = HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace);
+                        @SuppressWarnings("unchecked")
+                        final List<String> hosts = (List<String>) settings.get(hostsSetting);
+                        if (hosts.isEmpty()) {
+                            throw new SettingsException("host list for [" + hostsSetting.getKey() + "] is empty");
+                        }
+                        break;
+                    case "local":
+                        break;
+                    default:
+                        throw new SettingsException(
+                            "type [" + value + "] for key [" + key + "] is invalid, only [http] and [local] are allowed"
+                        );
                 }
 
-                @Override
-                public void validate(final String value, final Map<Setting<?>, Object> settings) {
-                    switch (value) {
-                        case "":
-                            break;
-                        case "http":
-                            // if the type is http, then hosts must be set
-                            final String namespace = TYPE_SETTING.getNamespace(TYPE_SETTING.getConcreteSetting(key));
-                            final Setting<List<String>> hostsSetting = HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace);
-                            @SuppressWarnings("unchecked") final List<String> hosts = (List<String>) settings.get(hostsSetting);
-                            if (hosts.isEmpty()) {
-                                throw new SettingsException("host list for [" + hostsSetting.getKey() + "] is empty");
-                            }
-                            break;
-                        case "local":
-                            break;
-                        default:
-                            throw new SettingsException(
-                                "type [" + value + "] for key [" + key + "] is invalid, only [http] and [local] are allowed");
-                    }
+            }
 
-                }
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = Exporter.TYPE_SETTING.getNamespace(Exporter.TYPE_SETTING.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
 
-                @Override
-                public Iterator<Setting<?>> settings() {
-                    final String namespace =
-                        Exporter.TYPE_SETTING.getNamespace(Exporter.TYPE_SETTING.getConcreteSetting(key));
-                    final List<Setting<?>> settings = List.of(HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace));
-                    return settings.iterator();
-                }
-
-            },
-            Property.Dynamic,
-            Property.NodeScope));
+        }, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning)
+    );
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */
-    public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.enabled",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+    public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "cluster_alerts.management.enabled",
+        key -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
+        TYPE_DEPENDENCY
+    );
     /**
      * Every {@code Exporter} allows users to explicitly disable specific cluster alerts.
      * <p>
      * When cluster alerts management is enabled, this should delete anything blacklisted here in addition to not creating it.
      */
-    public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting
-                .affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.blacklist",
-                    key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope),
-                    TYPE_DEPENDENCY);
+    public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "cluster_alerts.management.blacklist",
+        key -> Setting.listSetting(
+            key,
+            Collections.emptyList(),
+            Function.identity(),
+            Property.Dynamic,
+            Property.NodeScope,
+            Property.DeprecatedWarning
+        ),
+        TYPE_DEPENDENCY
+    );
 
     /**
      * Every {@code Exporter} allows users to use a different index time format.
      */
-    static final Setting.AffixSetting<DateFormatter> INDEX_NAME_TIME_FORMAT_SETTING =
-                Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
-                        key -> new Setting<DateFormatter>(
-                                key,
-                                Exporter.INDEX_FORMAT,
-                                DateFormatter::forPattern,
-                                Property.Dynamic,
-                                Property.NodeScope), TYPE_DEPENDENCY);
+    static final Setting.AffixSetting<DateFormatter> INDEX_NAME_TIME_FORMAT_SETTING = Setting.affixKeySetting(
+        "xpack.monitoring.exporters.",
+        "index.name.time_format",
+        key -> new Setting<DateFormatter>(
+            key,
+            Exporter.INDEX_FORMAT,
+            DateFormatter::forPattern,
+            Property.Dynamic,
+            Property.NodeScope,
+            Property.DeprecatedWarning
+        ),
+        TYPE_DEPENDENCY
+    );
 
     private static final String INDEX_FORMAT = "yyyy.MM.dd";
 
@@ -170,8 +188,13 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {
-        return Arrays.asList(CLUSTER_ALERTS_MANAGEMENT_SETTING, TYPE_SETTING, ENABLED_SETTING,
-                INDEX_NAME_TIME_FORMAT_SETTING, CLUSTER_ALERTS_BLACKLIST_SETTING);
+        return Arrays.asList(
+            CLUSTER_ALERTS_MANAGEMENT_SETTING,
+            TYPE_SETTING,
+            ENABLED_SETTING,
+            INDEX_NAME_TIME_FORMAT_SETTING,
+            CLUSTER_ALERTS_BLACKLIST_SETTING
+        );
     }
 
     public static class Config {
@@ -183,8 +206,7 @@ public abstract class Exporter implements AutoCloseable {
         private final ClusterService clusterService;
         private final XPackLicenseState licenseState;
 
-        public Config(String name, String type, Settings settings,
-                      ClusterService clusterService, XPackLicenseState licenseState) {
+        public Config(String name, String type, Settings settings, ClusterService clusterService, XPackLicenseState licenseState) {
             this.name = name;
             this.type = type;
             this.settings = settings;

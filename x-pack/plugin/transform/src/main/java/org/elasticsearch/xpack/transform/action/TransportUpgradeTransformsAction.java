@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,32 +67,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         Client client,
         Settings settings
     ) {
-        this(
-            UpgradeTransformsAction.NAME,
-            transportService,
-            actionFilters,
-            clusterService,
-            threadPool,
-            indexNameExpressionResolver,
-            transformServices,
-            client,
-            settings
-        );
-    }
-
-    protected TransportUpgradeTransformsAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformServices transformServices,
-        Client client,
-        Settings settings
-    ) {
         super(
-            name,
+            UpgradeTransformsAction.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -128,7 +106,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), ActionListener.wrap(updatesByStatus -> {
+        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), request.timeout(), ActionListener.wrap(updatesByStatus -> {
             final long updated = updatesByStatus.getOrDefault(UpdateResult.Status.UPDATED, 0L);
             final long noAction = updatesByStatus.getOrDefault(UpdateResult.Status.NONE, 0L);
             final long needsUpdate = updatesByStatus.getOrDefault(UpdateResult.Status.NEEDS_UPDATE, 0L);
@@ -152,11 +130,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void updateOneTransform(String id, boolean dryRun, ActionListener<UpdateResult> listener) {
+    private void updateOneTransform(String id, boolean dryRun, TimeValue timeout, ActionListener<UpdateResult> listener) {
         final ClusterState clusterState = clusterService.state();
 
         transformConfigManager.getTransformConfigurationForUpdate(id, ActionListener.wrap(configAndVersion -> {
-            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+            TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
             TransformConfig config = configAndVersion.v1();
 
             /*
@@ -186,15 +164,24 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 false, // defer validation
                 dryRun,
                 false, // check access,
+                timeout,
                 listener
             );
-        }, listener::onFailure));
+        }, failure -> {
+            // ignore if transform got deleted while upgrade was running
+            if (failure instanceof ResourceNotFoundException) {
+                listener.onResponse(new UpdateResult(null, UpdateResult.Status.DELETED));
+            } else {
+                listener.onFailure(failure);
+            }
+        }));
     }
 
     private void recursiveUpdate(
         Deque<String> transformsToUpgrade,
         Map<UpdateResult.Status, Long> updatesByStatus,
         boolean dryRun,
+        TimeValue timeout,
         ActionListener<Void> listener
     ) {
         String next = transformsToUpgrade.pollFirst();
@@ -205,21 +192,25 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        updateOneTransform(next, dryRun, ActionListener.wrap(updateResponse -> {
-            TransformConfig updatedConfig = updateResponse.getConfig();
-            auditor.info(updatedConfig.getId(), "Updated transform.");
-            logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResponse.getStatus());
-            updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
-
+        updateOneTransform(next, dryRun, timeout, ActionListener.wrap(updateResponse -> {
+            if (UpdateResult.Status.DELETED.equals(updateResponse.getStatus()) == false) {
+                auditor.info(next, "Updated transform.");
+                logger.debug("[{}] Updated transform [{}]", next, updateResponse.getStatus());
+                updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
+            }
             if (transformsToUpgrade.isEmpty() == false) {
-                recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, listener);
+                recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, timeout, listener);
             } else {
                 listener.onResponse(null);
             }
         }, listener::onFailure));
     }
 
-    private void recursiveExpandTransformIdsAndUpgrade(boolean dryRun, ActionListener<Map<UpdateResult.Status, Long>> listener) {
+    private void recursiveExpandTransformIdsAndUpgrade(
+        boolean dryRun,
+        TimeValue timeout,
+        ActionListener<Map<UpdateResult.Status, Long>> listener
+    ) {
         transformConfigManager.getAllOutdatedTransformIds(ActionListener.wrap(totalAndIds -> {
 
             // exit quickly if there is nothing to do
@@ -237,6 +228,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 ids,
                 updatesByStatus,
                 dryRun,
+                timeout,
                 ActionListener.wrap(r -> listener.onResponse(updatesByStatus), listener::onFailure)
             );
         }, listener::onFailure));

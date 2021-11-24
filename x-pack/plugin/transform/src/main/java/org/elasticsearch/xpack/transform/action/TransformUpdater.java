@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -49,7 +51,8 @@ public class TransformUpdater {
         public enum Status {
             NONE, // all checks passed, no action taken
             UPDATED, // updated
-            NEEDS_UPDATE // special dry run status
+            NEEDS_UPDATE, // special dry run status
+            DELETED // internal status if a transform got deleted during upgrade
         }
 
         // the new config after the update
@@ -67,6 +70,7 @@ public class TransformUpdater {
             return status;
         }
 
+        @Nullable
         public TransformConfig getConfig() {
             return config;
         }
@@ -106,6 +110,7 @@ public class TransformUpdater {
         final boolean deferValidation,
         final boolean dryRun,
         final boolean checkAccess,
+        final TimeValue timeout,
         ActionListener<UpdateResult> listener
     ) {
         // rewrite config into a new format if necessary
@@ -170,7 +175,7 @@ public class TransformUpdater {
 
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> { validateTransform(updatedConfig, client, deferValidation, validateTransformListener); },
+            aVoid -> { validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener); },
             listener::onFailure
         );
 
@@ -195,11 +200,12 @@ public class TransformUpdater {
         TransformConfig config,
         Client client,
         boolean deferValidation,
+        TimeValue timeout,
         ActionListener<Map<String, String>> listener
     ) {
         client.execute(
             ValidateTransformAction.INSTANCE,
-            new ValidateTransformAction.Request(config, deferValidation),
+            new ValidateTransformAction.Request(config, deferValidation, timeout),
             ActionListener.wrap(response -> listener.onResponse(response.getDestIndexMappings()), listener::onFailure)
         );
     }
@@ -218,14 +224,16 @@ public class TransformUpdater {
 
             long lastCheckpoint = currentState.v1().getTransformState().getCheckpoint();
 
+            // if: the state is stored on the latest index, it does not need an update
             if (currentState.v2().getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
                 listener.onResponse(lastCheckpoint);
                 return;
             }
 
+            // else: the state is on an old index, update by persisting it to the latest index
             transformConfigManager.putOrUpdateTransformStoredDoc(
                 currentState.v1(),
-                currentState.v2(),
+                null, // set seqNoPrimaryTermAndIndex to `null` to force optype `create`, gh#80073
                 ActionListener.wrap(r -> { listener.onResponse(lastCheckpoint); }, e -> {
                     if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // if a version conflict occurs a new state has been written between us reading and writing.

@@ -40,34 +40,32 @@ import static org.hamcrest.Matchers.nullValue;
 public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private static final String JOB_ID = "ml-hidden-indices-old-cluster-job";
-    private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS =
-        List.of(
-            Tuple.tuple(List.of(".ml-annotations-6"), ".ml-annotations-read"),
-            Tuple.tuple(List.of(".ml-annotations-6"), ".ml-annotations-write"),
-            Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
-            Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
-            Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
-        );
+    private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS = List.of(
+        Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-read"),
+        Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-write"),
+        Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
+        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
+        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
+    );
 
     @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
-            ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
-            : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
-        boolean clusterUnderstandsComposableTemplates =
-            isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
+        // We shouldn't wait for ML templates during the upgrade - production won't
+        if (isRunningAgainstOldCluster()) {
+            XPackRestTestHelper.waitForTemplates(
+                client(),
+                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
+                getOldClusterVersion().onOrAfter(Version.V_7_8_0)
+            );
+        }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78913")
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
             // trigger ML indices creation
@@ -84,9 +82,11 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     @SuppressWarnings("unchecked")
                     Map<String, Object> settings = (Map<String, Object>) e.getValue();
                     assertThat(settings, is(notNullValue()));
-                    assertThat("Index " + indexName + " expected not to be hidden but was, settings = " + settings,
+                    assertThat(
+                        "Index " + indexName + " expected not to be hidden but was, settings = " + settings,
                         XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
-                        is(nullValue()));
+                        is(nullValue())
+                    );
                 }
 
                 for (Tuple<List<String>, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
@@ -96,7 +96,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                         assertThat(
                             indexAndAlias + " expected not be hidden but was, aliasesMap = " + aliasesMap,
                             XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden"),
-                            is(nullValue()));
+                            is(nullValue())
+                        );
                     }
                 }
             }
@@ -110,9 +111,11 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                 @SuppressWarnings("unchecked")
                 Map<String, Object> settings = (Map<String, Object>) e.getValue();
                 assertThat(settings, is(notNullValue()));
-                assertThat("Index " + indexName + " expected to be hidden but wasn't, settings = " + settings,
+                assertThat(
+                    "Index " + indexName + " expected to be hidden but wasn't, settings = " + settings,
                     XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
-                    is(equalTo("true")));
+                    is(equalTo("true"))
+                );
             }
 
             for (Tuple<List<String>, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
@@ -121,32 +124,29 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                 assertThat(
                     indexAndAlias + " expected to be hidden but wasn't, aliasesMap = " + aliasesMap,
                     indices.stream()
-                        .anyMatch(index ->
-                            Boolean.TRUE.equals(XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden"))),
-                    is(true));
+                        .anyMatch(
+                            index -> Boolean.TRUE.equals(XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden"))
+                        ),
+                    is(true)
+                );
             }
         }
     }
 
     private Response getMlIndicesSettings() throws IOException {
-        Request getSettingsRequest =
-            new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_settings");
-        getSettingsRequest
-            .setOptions(RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(WarningsHandler.PERMISSIVE)
-                .build());
+        Request getSettingsRequest = new Request(
+            "GET",
+            ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_settings"
+        );
+        getSettingsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
         assertThat(getSettingsResponse, is(notNullValue()));
         return getSettingsResponse;
     }
 
     private Response getMlAliases() throws IOException {
-        Request getAliasesRequest =
-            new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
-        getAliasesRequest
-            .setOptions(RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(WarningsHandler.PERMISSIVE)
-                .build());
+        Request getAliasesRequest = new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
+        getAliasesRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         Response getAliasesResponse = client().performRequest(getAliasesRequest);
         assertThat(getAliasesResponse, is(notNullValue()));
         return getAliasesResponse;
@@ -155,22 +155,25 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     @SuppressWarnings("unchecked")
     private static Map<String, Object> contentAsMap(Response response) throws IOException {
         return new ObjectMapper().readValue(
-            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8), HashMap.class);
+            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8),
+            HashMap.class
+        );
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig =
-            "{\n" +
-            "    \"job_id\": \"" + jobId + "\",\n" +
-            "    \"analysis_config\": {\n" +
-            "        \"bucket_span\": \"10m\",\n" +
-            "        \"detectors\": [{\n" +
-            "            \"function\": \"metric\",\n" +
-            "            \"field_name\": \"responsetime\"\n" +
-            "        }]\n" +
-            "    },\n" +
-            "    \"data_description\": {}\n" +
-            "}";
+        String jobConfig = "{\n"
+            + "    \"job_id\": \""
+            + jobId
+            + "\",\n"
+            + "    \"analysis_config\": {\n"
+            + "        \"bucket_span\": \"10m\",\n"
+            + "        \"detectors\": [{\n"
+            + "            \"function\": \"metric\",\n"
+            + "            \"field_name\": \"responsetime\"\n"
+            + "        }]\n"
+            + "    },\n"
+            + "    \"data_description\": {}\n"
+            + "}";
 
         Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
         putJobRequest.setJsonEntity(jobConfig);

@@ -41,8 +41,16 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final boolean extractDeviceType;
     private final boolean ignoreMissing;
 
-    public UserAgentProcessor(String tag, String description, String field, String targetField, UserAgentParser parser,
-                              Set<Property> properties, boolean extractDeviceType, boolean ignoreMissing) {
+    public UserAgentProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        UserAgentParser parser,
+        Set<Property> properties,
+        boolean extractDeviceType,
+        boolean ignoreMissing
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -183,8 +191,12 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
 
         @Override
-        public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
-                                         String description, Map<String, Object> config) throws Exception {
+        public UserAgentProcessor create(
+            Map<String, Processor.Factory> factories,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
@@ -193,14 +205,21 @@ public class UserAgentProcessor extends AbstractProcessor {
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             Object ecsValue = config.remove("ecs");
             if (ecsValue != null) {
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "ingest_useragent_ecs_settings",
-                    "setting [ecs] is deprecated as ECS format is the default and only option");
+                deprecationLogger.warn(
+                    DeprecationCategory.SETTINGS,
+                    "ingest_useragent_ecs_settings",
+                    "setting [ecs] is deprecated as ECS format is the default and only option"
+                );
             }
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
-                throw newConfigurationException(TYPE, processorTag,
-                        "regex_file", "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "regex_file",
+                    "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)"
+                );
             }
 
             final Set<Property> properties;
@@ -217,8 +236,16 @@ public class UserAgentProcessor extends AbstractProcessor {
                 properties = EnumSet.allOf(Property.class);
             }
 
-            return new
-                UserAgentProcessor(processorTag, description, field, targetField, parser, properties, extractDeviceType, ignoreMissing);
+            return new UserAgentProcessor(
+                processorTag,
+                description,
+                field,
+                targetField,
+                parser,
+                properties,
+                extractDeviceType,
+                ignoreMissing
+            );
         }
     }
 
@@ -234,8 +261,12 @@ public class UserAgentProcessor extends AbstractProcessor {
             try {
                 return valueOf(propertyName.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("illegal property value [" + propertyName + "]. valid values are " +
-                        Arrays.toString(EnumSet.allOf(Property.class).toArray()));
+                throw new IllegalArgumentException(
+                    "illegal property value ["
+                        + propertyName
+                        + "]. valid values are "
+                        + Arrays.toString(EnumSet.allOf(Property.class).toArray())
+                );
             }
         }
     }

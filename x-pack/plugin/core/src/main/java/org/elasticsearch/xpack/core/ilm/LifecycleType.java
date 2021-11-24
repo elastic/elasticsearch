@@ -61,7 +61,6 @@ public interface LifecycleType extends NamedWriteable {
      */
     String getNextActionName(String currentActionName, Phase phase);
 
-
     /**
      * validates whether the specified <code>phases</code> are valid for this
      * policy instance.

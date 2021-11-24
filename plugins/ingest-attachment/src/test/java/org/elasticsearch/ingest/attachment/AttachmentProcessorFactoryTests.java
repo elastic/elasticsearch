@@ -124,4 +124,19 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
     }
+
+    public void testRemoveBinary() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("remove_binary", true);
+
+        String processorTag = randomAlphaOfLength(10);
+
+        AttachmentProcessor processor = factory.create(null, processorTag, null, config);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
+        assertTrue(processor.isRemoveBinary());
+    }
 }

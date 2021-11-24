@@ -17,15 +17,11 @@ In production, we strongly recommend you set the `path.data` and `path.logs` in
 `.msi`>> installations write data and log to locations outside of `$ES_HOME` by
 default.
 
-IMPORTANT: To avoid errors, only {es} should open files in the `path.data`
-directory. Exclude the `path.data` directory from other services that may open
-and lock its files, such as antivirus or backup programs.
-
 Supported `path.data` and `path.logs` values vary by platform:
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
-
 include::{es-repo-dir}/tab-widgets/customize-data-log-path-widget.asciidoc[]
+
+include::{es-repo-dir}/modules/node.asciidoc[tag=modules-node-data-path-warning-tag]
 
 [discrete]
 ==== Multiple data paths

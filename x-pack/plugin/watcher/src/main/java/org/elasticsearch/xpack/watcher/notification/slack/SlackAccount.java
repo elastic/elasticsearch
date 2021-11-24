@@ -72,43 +72,43 @@ public class SlackAccount {
 
     public SentMessages.SentMessage send(final String to, final SlackMessage message, final HttpProxy proxy) {
         HttpRequest request = HttpRequest.builder(url.getHost(), url.getPort())
-                .path(url.getPath())
-                .method(HttpMethod.POST)
-                .proxy(proxy)
-                .scheme(Scheme.parse(url.getScheme()))
-                .jsonBody(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        if (to != null) {
-                            builder.field("channel", to);
-                        }
-                        if (message.getFrom() != null) {
-                            builder.field("username", message.getFrom());
-                        }
-                        String icon = message.getIcon();
-                        if (icon != null) {
-                            if (icon.startsWith("http")) {
-                                builder.field("icon_url", icon);
-                            } else {
-                                builder.field("icon_emoji", icon);
-                            }
-                        }
-                        if (message.getText() != null) {
-                            builder.field("text", message.getText());
-                        }
-                        Attachment[] attachments = message.getAttachments();
-                        if (attachments != null && attachments.length > 0) {
-                            builder.startArray("attachments");
-                            for (Attachment attachment : attachments) {
-                                attachment.toXContent(builder, params);
-                            }
-                            builder.endArray();
-
-                        }
-                        return builder;
+            .path(url.getPath())
+            .method(HttpMethod.POST)
+            .proxy(proxy)
+            .scheme(Scheme.parse(url.getScheme()))
+            .jsonBody(new ToXContent() {
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    if (to != null) {
+                        builder.field("channel", to);
                     }
-                })
-                .build();
+                    if (message.getFrom() != null) {
+                        builder.field("username", message.getFrom());
+                    }
+                    String icon = message.getIcon();
+                    if (icon != null) {
+                        if (icon.startsWith("http")) {
+                            builder.field("icon_url", icon);
+                        } else {
+                            builder.field("icon_emoji", icon);
+                        }
+                    }
+                    if (message.getText() != null) {
+                        builder.field("text", message.getText());
+                    }
+                    Attachment[] attachments = message.getAttachments();
+                    if (attachments != null && attachments.length > 0) {
+                        builder.startArray("attachments");
+                        for (Attachment attachment : attachments) {
+                            attachment.toXContent(builder, params);
+                        }
+                        builder.endArray();
+
+                    }
+                    return builder;
+                }
+            })
+            .build();
 
         try {
             HttpResponse response = httpClient.execute(request);
@@ -123,13 +123,16 @@ public class SlackAccount {
         SecureString secureStringUrl = SECURE_URL_SETTING.get(settings);
         if (secureStringUrl == null || secureStringUrl.length() < 1) {
             throw new SettingsException(
-                    "invalid slack [" + name + "] account settings. missing required [" + SECURE_URL_SETTING.getKey() + "] setting");
+                "invalid slack [" + name + "] account settings. missing required [" + SECURE_URL_SETTING.getKey() + "] setting"
+            );
         }
         try {
             return new URI(secureStringUrl.toString());
         } catch (URISyntaxException e) {
             throw new SettingsException(
-                    "invalid slack [" + name + "] account settings. invalid [" + SECURE_URL_SETTING.getKey() + "] setting", e);
+                "invalid slack [" + name + "] account settings. invalid [" + SECURE_URL_SETTING.getKey() + "] setting",
+                e
+            );
         }
     }
 }

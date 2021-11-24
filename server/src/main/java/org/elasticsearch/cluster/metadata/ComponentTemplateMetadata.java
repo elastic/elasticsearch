@@ -12,11 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -34,8 +34,11 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "component_template";
     private static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ComponentTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false,
-        a -> new ComponentTemplateMetadata((Map<String, ComponentTemplate>) a[0]));
+    private static final ConstructingObjectParser<ComponentTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        false,
+        a -> new ComponentTemplateMetadata((Map<String, ComponentTemplate>) a[0])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -98,7 +101,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(COMPONENT_TEMPLATE.getPreferredName());
         for (Map.Entry<String, ComponentTemplate> template : componentTemplates.entrySet()) {
-            builder.field(template.getKey(), template.getValue());
+            builder.field(template.getKey(), template.getValue(), params);
         }
         builder.endObject();
         return builder;
@@ -131,13 +134,20 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;
 
         ComponentTemplateMetadataDiff(ComponentTemplateMetadata before, ComponentTemplateMetadata after) {
-            this.componentTemplateDiff = DiffableUtils.diff(before.componentTemplates, after.componentTemplates,
-                DiffableUtils.getStringKeySerializer());
+            this.componentTemplateDiff = DiffableUtils.diff(
+                before.componentTemplates,
+                after.componentTemplates,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         ComponentTemplateMetadataDiff(StreamInput in) throws IOException {
-            this.componentTemplateDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                ComponentTemplate::new, ComponentTemplate::readComponentTemplateDiffFrom);
+            this.componentTemplateDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                ComponentTemplate::new,
+                ComponentTemplate::readComponentTemplateDiffFrom
+            );
         }
 
         @Override

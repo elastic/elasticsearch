@@ -19,9 +19,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -29,6 +26,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,8 +60,13 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
-                                   ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
+    public TransportRankEvalAction(
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ScriptService scriptService,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
         super(RankEvalAction.NAME, transportService, actionFilters, RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -91,8 +96,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 String templateId = ratedRequest.getTemplateId();
                 TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
                 String resolvedRequest = templateScript.newInstance(params).execute();
-                try (XContentParser subParser = createParser(namedXContentRegistry,
-                    LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
+                try (
+                    XContentParser subParser = createParser(
+                        namedXContentRegistry,
+                        LoggingDeprecationHandler.INSTANCE,
+                        new BytesArray(resolvedRequest),
+                        XContentType.JSON
+                    )
+                ) {
                     evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
@@ -120,8 +131,15 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             msearchRequest.add(searchRequest);
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
-        client.multiSearch(msearchRequest, new RankEvalActionListener(listener, metric,
-                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]), errors));
+        client.multiSearch(
+            msearchRequest,
+            new RankEvalActionListener(
+                listener,
+                metric,
+                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]),
+                errors
+            )
+        );
     }
 
     static class RankEvalActionListener extends ActionListener.Delegating<MultiSearchResponse, RankEvalResponse> {
@@ -131,8 +149,12 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         private final Map<String, Exception> errors;
         private final EvaluationMetric metric;
 
-        RankEvalActionListener(ActionListener<RankEvalResponse> listener, EvaluationMetric metric, RatedRequest[] specifications,
-                Map<String, Exception> errors) {
+        RankEvalActionListener(
+            ActionListener<RankEvalResponse> listener,
+            EvaluationMetric metric,
+            RatedRequest[] specifications,
+            Map<String, Exception> errors
+        ) {
             super(listener);
             this.metric = metric;
             this.errors = errors;

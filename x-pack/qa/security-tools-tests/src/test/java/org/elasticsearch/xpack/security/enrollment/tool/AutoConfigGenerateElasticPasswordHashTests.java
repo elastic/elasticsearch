@@ -82,7 +82,8 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
         }
     }
 
-    @Override protected Command newCommand() {
+    @Override
+    protected Command newCommand() {
         return new AutoConfigGenerateElasticPasswordHash() {
             @Override
             protected Environment createEnv(Map<String, String> settings) throws UserException {
@@ -97,8 +98,7 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
         KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
         assertNotNull(keyStoreWrapper);
         keyStoreWrapper.decrypt(new char[0]);
-        assertThat(keyStoreWrapper.getSettingNames(),
-            containsInAnyOrder(AUTOCONFIG_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
+        assertThat(keyStoreWrapper.getSettingNames(), containsInAnyOrder(AUTOCONFIG_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
     }
 
     public void testExistingKeystoreWithWrongPassword() throws Exception {

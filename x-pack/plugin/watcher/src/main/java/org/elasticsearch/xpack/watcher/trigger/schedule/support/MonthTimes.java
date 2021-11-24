@@ -46,7 +46,7 @@ public class MonthTimes implements Times {
 
     void validate() {
         for (int day : days) {
-            if (day < 1 || day > 32) { //32 represents the last day of the month
+            if (day < 1 || day > 32) { // 32 represents the last day of the month
                 throw illegalArgument("invalid month day [{}]", day);
             }
         }
@@ -96,16 +96,11 @@ public class MonthTimes implements Times {
 
     @Override
     public String toString() {
-        return String.format(
-                Locale.ROOT,
-                "days [%s], times [%s]",
-                join(",", days),
-                Strings.arrayToCommaDelimitedString(times)
-        );
+        return String.format(Locale.ROOT, "days [%s], times [%s]", join(",", days), Strings.arrayToCommaDelimitedString(times));
     }
 
     public boolean contains(int day, DayTimes dayTimes) {
-        if (Arrays.binarySearch(days, day) == -1) { //days are already sorted
+        if (Arrays.binarySearch(days, day) == -1) { // days are already sorted
             return false;
         }
         for (DayTimes dayTimes1 : this.times()) {
@@ -161,8 +156,12 @@ public class MonthTimes implements Times {
                         daysSet.add(parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid month day value for [{}] field. expected string/number value or an " +
-                            "array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "invalid month day value for [{}] field. expected string/number value or an "
+                            + "array of string/number values, but found [{}]",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_ARRAY) {
@@ -213,8 +212,7 @@ public class MonthTimes implements Times {
         private final Set<Integer> days = new HashSet<>();
         private final Set<DayTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder on(int... days) {
             Arrays.stream(days).forEach(this.days::add);

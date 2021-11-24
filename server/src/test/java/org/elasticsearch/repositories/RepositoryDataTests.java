@@ -111,7 +111,8 @@ public class RepositoryDataTests extends ESTestCase {
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                 randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             ),
             shardGenerations,
             indexLookup,
@@ -142,7 +143,8 @@ public class RepositoryDataTests extends ESTestCase {
                     randomFrom(SnapshotState.values()),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(10)
                 )
             );
         }
@@ -209,7 +211,8 @@ public class RepositoryDataTests extends ESTestCase {
                 state,
                 randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             ),
             ShardGenerations.EMPTY,
             Collections.emptyMap(),
@@ -241,7 +244,8 @@ public class RepositoryDataTests extends ESTestCase {
                     parsedRepositoryData.getSnapshotState(snapshotId),
                     parsedRepositoryData.getVersion(snapshotId),
                     parsedRepositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis(),
-                    parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis()
+                    parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis(),
+                    randomAlphaOfLength(10)
                 )
             );
         }
@@ -389,7 +393,8 @@ public class RepositoryDataTests extends ESTestCase {
             SnapshotState.SUCCESS,
             Version.CURRENT,
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomAlphaOfLength(10)
         );
         final RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, details, shardGenerations, indexLookup, newIdentifiers);
         assertEquals(
@@ -451,7 +456,8 @@ public class RepositoryDataTests extends ESTestCase {
                     randomFrom(SnapshotState.values()),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(10)
                 ),
                 builder.build(),
                 indexLookup,

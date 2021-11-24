@@ -19,10 +19,9 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.netty4.CopyBytesServerSocketChannel;
-import org.elasticsearch.transport.netty4.CopyBytesSocketChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -151,26 +150,26 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
         }
 
         @Override
-        protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-            assertTrue("IO Buffer must be a direct byte buffer", ioBuffer.isDirect());
-            int remaining = ioBuffer.remaining();
-            int originalLimit = ioBuffer.limit();
+        protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer buffer) throws IOException {
+            assertTrue("IO Buffer must be a direct byte buffer", buffer.isDirect());
+            int remaining = buffer.remaining();
+            int originalLimit = buffer.limit();
             // If greater than a KB, possibly invoke a partial write.
             if (remaining > 1024) {
                 if (randomBoolean()) {
                     int bytes = randomIntBetween(remaining / 2, remaining);
-                    ioBuffer.limit(ioBuffer.position() + bytes);
+                    buffer.limit(buffer.position() + bytes);
                 }
             }
-            int written = socketChannel.write(ioBuffer);
-            ioBuffer.limit(originalLimit);
+            int written = socketChannel.write(buffer);
+            buffer.limit(originalLimit);
             return written;
         }
 
         @Override
-        protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-            assertTrue("IO Buffer must be a direct byte buffer", ioBuffer.isDirect());
-            return socketChannel.read(ioBuffer);
+        protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer buffer) throws IOException {
+            assertTrue("IO Buffer must be a direct byte buffer", buffer.isDirect());
+            return socketChannel.read(buffer);
         }
     }
 }

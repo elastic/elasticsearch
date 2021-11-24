@@ -12,15 +12,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,12 +42,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
     private final String[] indices;
 
-    public GetIndexResponse(String[] indices,
-                     ImmutableOpenMap<String, MappingMetadata> mappings,
-                     ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-                     ImmutableOpenMap<String, Settings> settings,
-                     ImmutableOpenMap<String, Settings> defaultSettings,
-                     ImmutableOpenMap<String, String> dataStreams) {
+    public GetIndexResponse(
+        String[] indices,
+        ImmutableOpenMap<String, MappingMetadata> mappings,
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        ImmutableOpenMap<String, Settings> settings,
+        ImmutableOpenMap<String, Settings> defaultSettings,
+        ImmutableOpenMap<String, String> dataStreams
+    ) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -72,17 +74,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         super(in);
         this.indices = in.readStringArray();
         mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
-                    int numMappings = i.readVInt();
-                    assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
-                    if (numMappings == 1) {
-                        String type = i.readString();
-                        assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
-                        return new MappingMetadata(i);
-                    } else {
-                        return MappingMetadata.EMPTY_MAPPINGS;
-                    }
-                } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS
-        );
+            int numMappings = i.readVInt();
+            assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
+            if (numMappings == 1) {
+                String type = i.readString();
+                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
+                return new MappingMetadata(i);
+            } else {
+                return MappingMetadata.EMPTY_MAPPINGS;
+            }
+        } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
         aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
         settings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
@@ -196,8 +197,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     if (indexMappings == null) {
                         builder.startObject("mappings").endObject();
                     } else {
-                        if (builder.getRestApiVersion() == RestApiVersion.V_7 &&
-                            params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                        if (builder.getRestApiVersion() == RestApiVersion.V_7
+                            && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
                             builder.startObject("mappings");
                             builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
                             builder.endObject();
@@ -240,26 +241,18 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o== null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass()) return false;
         GetIndexResponse that = (GetIndexResponse) o;
-        return Arrays.equals(indices, that.indices) &&
-            Objects.equals(aliases, that.aliases) &&
-            Objects.equals(mappings, that.mappings) &&
-            Objects.equals(settings, that.settings) &&
-            Objects.equals(defaultSettings, that.defaultSettings) &&
-            Objects.equals(dataStreams, that.dataStreams);
+        return Arrays.equals(indices, that.indices)
+            && Objects.equals(aliases, that.aliases)
+            && Objects.equals(mappings, that.mappings)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(defaultSettings, that.defaultSettings)
+            && Objects.equals(dataStreams, that.dataStreams);
     }
 
     @Override
     public int hashCode() {
-        return
-            Objects.hash(
-                Arrays.hashCode(indices),
-                aliases,
-                mappings,
-                settings,
-                defaultSettings,
-                dataStreams
-            );
+        return Objects.hash(Arrays.hashCode(indices), aliases, mappings, settings, defaultSettings, dataStreams);
     }
 }

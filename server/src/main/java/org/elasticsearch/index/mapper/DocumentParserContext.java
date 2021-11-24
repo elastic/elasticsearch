@@ -10,10 +10,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.xcontent.DotExpandingXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,11 +54,6 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public boolean isWithinMultiFields() {
-            return in.isWithinMultiFields();
-        }
-
-        @Override
         public ContentPath path() {
             return in.path();
         }
@@ -87,7 +85,6 @@ public abstract class DocumentParserContext {
     private final Function<DateFormatter, MappingParserContext> parserContextFunction;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final Set<String> fieldNameFields;
     private final List<Mapper> dynamicMappers;
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -102,7 +99,6 @@ public abstract class DocumentParserContext {
         this.parserContextFunction = in.parserContextFunction;
         this.sourceToParse = in.sourceToParse;
         this.ignoredFields = in.ignoredFields;
-        this.fieldNameFields = in.fieldNameFields;
         this.dynamicMappers = in.dynamicMappers;
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
@@ -111,18 +107,19 @@ public abstract class DocumentParserContext {
         this.seqID = in.seqID;
     }
 
-    protected DocumentParserContext(MappingLookup mappingLookup,
-                                    IndexSettings indexSettings,
-                                    IndexAnalyzers indexAnalyzers,
-                                    Function<DateFormatter, MappingParserContext> parserContextFunction,
-                                    SourceToParse source) {
+    protected DocumentParserContext(
+        MappingLookup mappingLookup,
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        Function<DateFormatter, MappingParserContext> parserContextFunction,
+        SourceToParse source
+    ) {
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
         this.indexAnalyzers = indexAnalyzers;
         this.parserContextFunction = parserContextFunction;
         this.sourceToParse = source;
         this.ignoredFields = new HashSet<>();
-        this.fieldNameFields = new HashSet<>();
         this.dynamicMappers = new ArrayList<>();
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
@@ -178,14 +175,10 @@ public abstract class DocumentParserContext {
      * or norms.
      */
     public final void addToFieldNames(String field) {
-        fieldNameFields.add(field);
-    }
-
-    /**
-     * Return the collection of fields to be added to the _field_names field
-     */
-    public final Collection<String> getFieldNames() {
-        return Collections.unmodifiableCollection(fieldNameFields);
+        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) getMetadataMapper(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldMapper != null) {
+            fieldNamesFieldMapper.addFieldNames(this, field);
+        }
     }
 
     public final Field version() {
@@ -211,13 +204,13 @@ public abstract class DocumentParserContext {
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
-        if (mappingLookup.getMapper(mapper.name()) == null &&
-            mappingLookup.objectMappers().containsKey(mapper.name()) == false &&
-            newFieldsSeen.add(mapper.name())) {
+        if (mappingLookup.getMapper(mapper.name()) == null
+            && mappingLookup.objectMappers().containsKey(mapper.name()) == false
+            && newFieldsSeen.add(mapper.name())) {
             mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
         }
         if (mapper instanceof ObjectMapper) {
-            dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
+            dynamicObjectMappers.put(mapper.name(), (ObjectMapper) mapper);
         }
         dynamicMappers.add(mapper);
     }
@@ -257,35 +250,7 @@ public abstract class DocumentParserContext {
      */
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
-    /**
-     * Return a new context that will be within a copy-to operation.
-     */
-    public final DocumentParserContext createCopyToContext() {
-        return new Wrapper(this) {
-            @Override
-            public boolean isWithinCopyTo() {
-                return true;
-            }
-        };
-    }
-
     public boolean isWithinCopyTo() {
-        return false;
-    }
-
-    /**
-     * Return a new context that will be within multi-fields.
-     */
-    public final DocumentParserContext createMultiFieldContext() {
-        return new Wrapper(this) {
-            @Override
-            public boolean isWithinMultiFields() {
-                return true;
-            }
-        };
-    }
-
-    public boolean isWithinMultiFields() {
         return false;
     }
 
@@ -293,6 +258,10 @@ public abstract class DocumentParserContext {
      * Return a new context that will be used within a nested document.
      */
     public final DocumentParserContext createNestedContext(String fullPath) {
+        if (isWithinCopyTo()) {
+            // nested context will already have been set up for copy_to fields
+            return this;
+        }
         final LuceneDocument doc = new LuceneDocument(fullPath, doc());
         addDoc(doc);
         return switchDoc(doc);
@@ -311,20 +280,42 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Return a new context that will have the provided path.
+     * Return a context for copy_to directives
+     * @param copyToField   the name of the field to copy to
+     * @param doc           the document to target
      */
-    public final DocumentParserContext overridePath(final ContentPath path) {
+    public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
+        ContentPath path = new ContentPath(0);
+        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()));
         return new Wrapper(this) {
             @Override
             public ContentPath path() {
                 return path;
             }
+
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+
+            @Override
+            public boolean isWithinCopyTo() {
+                return true;
+            }
+
+            @Override
+            public LuceneDocument doc() {
+                return doc;
+            }
         };
     }
 
     /**
-     * @deprecated we are actively deprecating and removing the ability to pass
-     *             complex objects to multifields, so try and avoid using this method
+     *  @deprecated we are actively deprecating and removing the ability to pass
+     *              complex objects to multifields, so try and avoid using this method
+     * Replace the XContentParser used by this context
+     * @param parser    the replacement parser
+     * @return  a new context with a replaced parser
      */
     @Deprecated
     public final DocumentParserContext switchParser(XContentParser parser) {
@@ -364,8 +355,50 @@ public abstract class DocumentParserContext {
         }
         if (matchTemplateName != null) {
             throw new MapperParsingException(
-                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]");
+                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]"
+            );
         }
         return null;
+    }
+
+    // XContentParser that wraps an existing parser positioned on a value,
+    // and a field name, and returns a stream that looks like { 'field' : 'value' }
+    private static class CopyToParser extends FilterXContentParser {
+
+        enum State {
+            FIELD,
+            VALUE
+        }
+
+        private State state = State.FIELD;
+        private final String field;
+
+        CopyToParser(String fieldName, XContentParser in) {
+            super(in);
+            this.field = fieldName;
+            assert in.currentToken().isValue() || in.currentToken() == Token.VALUE_NULL;
+        }
+
+        @Override
+        public Token nextToken() throws IOException {
+            if (state == State.FIELD) {
+                state = State.VALUE;
+                return in.currentToken();
+            }
+            return Token.END_OBJECT;
+        }
+
+        @Override
+        public Token currentToken() {
+            if (state == State.FIELD) {
+                return Token.FIELD_NAME;
+            }
+            return in.currentToken();
+        }
+
+        @Override
+        public String currentName() throws IOException {
+            return field;
+        }
     }
 }

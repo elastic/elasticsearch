@@ -12,13 +12,13 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
-import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.time.ZonedDateTime;
@@ -59,8 +59,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void restoreState(StateStreamer stateStreamer, ModelSnapshot modelSnapshot) {
-    }
+    public void restoreState(StateStreamer stateStreamer, ModelSnapshot modelSnapshot) {}
 
     @Override
     public boolean isReady() {
@@ -78,28 +77,22 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void writeResetBucketsControlMessage(DataLoadParams params) {
-    }
+    public void writeResetBucketsControlMessage(DataLoadParams params) {}
 
     @Override
-    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) {
-    }
+    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) {}
 
     @Override
-    public void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
-    }
+    public void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {}
 
     @Override
-    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) {
-    }
+    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) {}
 
     @Override
-    public void writeUpdateFiltersMessage(List<MlFilter> filters) {
-    }
+    public void writeUpdateFiltersMessage(List<MlFilter> filters) {}
 
     @Override
-    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) {
-    }
+    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) {}
 
     /**
      * Accept the request do nothing with it but write the flush acknowledgement to {@link #readAutodetectResults()}
@@ -109,30 +102,53 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     @Override
     public String flushJob(FlushJobParams params) {
         FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, 0L);
-        AutodetectResult result =
-            new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null, flushAcknowledgement);
+        AutodetectResult result = new AutodetectResult(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            flushAcknowledgement
+        );
         results.add(result);
         return FLUSH_ID;
     }
 
     @Override
-    public void persistState() {
-    }
+    public void persistState() {}
 
     @Override
-    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
-    }
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {}
 
     @Override
-    public void flushStream() {
-    }
+    public void flushStream() {}
 
     @Override
     public void close() {
         if (open) {
             Quantiles quantiles = new Quantiles(jobId, new Date(), "black hole quantiles");
-            AutodetectResult result =
-                new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null, null, null);
+            AutodetectResult result = new AutodetectResult(
+                null,
+                null,
+                null,
+                quantiles,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             results.add(result);
             open = false;
         }
@@ -175,8 +191,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void consumeAndCloseOutputStream() {
-    }
+    public void consumeAndCloseOutputStream() {}
 
     @Override
     public ZonedDateTime getProcessStartTime() {
@@ -204,6 +219,5 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void forecastJob(ForecastParams params) {
-    }
+    public void forecastJob(ForecastParams params) {}
 }

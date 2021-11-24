@@ -47,6 +47,11 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
         return DUMMY;
     }
 
+    @Override
+    protected IpFieldScript.Factory fromSource() {
+        return IpFieldScript.PARSE_FROM_SOURCE;
+    }
+
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));

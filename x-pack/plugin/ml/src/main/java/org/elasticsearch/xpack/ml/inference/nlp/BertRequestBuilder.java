@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
@@ -32,14 +33,13 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     }
 
     @Override
-    public NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
+    public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException {
         if (tokenizer.getPadToken().isEmpty()) {
-            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
-                " token in its vocabulary");
+            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN + " token in its vocabulary");
         }
 
         TokenizationResult tokenization = tokenizer.buildTokenizationResult(
-            inputs.stream().map(tokenizer::tokenize).collect(Collectors.toList())
+            inputs.stream().map(s -> tokenizer.tokenize(s, truncate)).collect(Collectors.toList())
         );
         return buildRequest(tokenization, requestId);
     }
@@ -47,15 +47,12 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     @Override
     public NlpTask.Request buildRequest(TokenizationResult tokenization, String requestId) throws IOException {
         if (tokenizer.getPadToken().isEmpty()) {
-            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
-                " token in its vocabulary");
+            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN + " token in its vocabulary");
         }
         return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadToken().getAsInt(), requestId));
     }
 
-    static BytesReference jsonRequest(TokenizationResult tokenization,
-                                      int padToken,
-                                      String requestId) throws IOException {
+    static BytesReference jsonRequest(TokenizationResult tokenization, int padToken, String requestId) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(REQUEST_ID, requestId);
@@ -70,6 +67,5 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
         // BytesReference.bytes closes the builder
         return BytesReference.bytes(builder);
     }
-
 
 }

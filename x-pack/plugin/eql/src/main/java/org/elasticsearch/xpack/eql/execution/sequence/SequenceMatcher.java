@@ -42,11 +42,14 @@ public class SequenceMatcher {
 
         @Override
         public String toString() {
-            return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Rejected {Maxspan [{}]/Until [{}]}",
-                    seen,
-                    ignored,
-                    rejectionMaxspan,
-                    rejectionUntil);
+            return LoggerMessageFormat.format(
+                null,
+                "Stats: Seen [{}]/Ignored [{}]/Rejected {Maxspan [{}]/Until [{}]}",
+                seen,
+                ignored,
+                rejectionMaxspan,
+                rejectionUntil
+            );
         }
 
         public void clear() {
@@ -334,9 +337,12 @@ public class SequenceMatcher {
 
     @Override
     public String toString() {
-        return LoggerMessageFormat.format(null, "Tracking [{}] keys with [{}] completed and {} in-flight",
-                keyToSequences,
-                completed.size(),
-                stageToKeys);
+        return LoggerMessageFormat.format(
+            null,
+            "Tracking [{}] keys with [{}] completed and {} in-flight",
+            keyToSequences,
+            completed.size(),
+            stageToKeys
+        );
     }
 }

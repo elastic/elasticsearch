@@ -65,7 +65,6 @@ public class PutCalendarJobRequest implements Validatable {
         }
 
         PutCalendarJobRequest that = (PutCalendarJobRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(calendarId, that.calendarId);
+        return Objects.equals(jobIds, that.jobIds) && Objects.equals(calendarId, that.calendarId);
     }
 }

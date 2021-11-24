@@ -74,9 +74,12 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
 
         final String to;
         final SlackMessage message;
-        @Nullable final HttpRequest request;
-        @Nullable final HttpResponse response;
-        @Nullable final Exception exception;
+        @Nullable
+        final HttpRequest request;
+        @Nullable
+        final HttpResponse response;
+        @Nullable
+        final Exception exception;
 
         public static SentMessage responded(String to, SlackMessage message, HttpRequest request, HttpResponse response) {
             return new SentMessage(to, message, request, response, null);
@@ -119,8 +122,7 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
                     if (WatcherParams.hideSecrets(params)) {
                         // this writes out the request to the byte array output stream with the correct excludes
                         // for slack
-                        try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType(),
-                            params, "path")) {
+                        try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType(), params, "path")) {
                             builder.rawField(REQUEST.getPreferredName(), is, builder.contentType());
                         }
                     } else {

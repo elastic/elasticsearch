@@ -43,8 +43,7 @@ public class SecurityHttpClientConfigCallbackTests extends ESTestCase {
     public void testCustomizeHttpClientWithOptionalParameters() {
         final CredentialsProvider optionalCredentialsProvider = randomFrom(credentialsProvider, null);
 
-        final SecurityHttpClientConfigCallback callback =
-            new SecurityHttpClientConfigCallback(sslStrategy, optionalCredentialsProvider);
+        final SecurityHttpClientConfigCallback callback = new SecurityHttpClientConfigCallback(sslStrategy, optionalCredentialsProvider);
 
         assertSame(builder, callback.customizeHttpClient(builder));
         assertSame(optionalCredentialsProvider, callback.getCredentialsProvider());

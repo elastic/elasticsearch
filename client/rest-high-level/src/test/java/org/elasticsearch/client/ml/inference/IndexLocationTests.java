@@ -9,8 +9,8 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

@@ -13,6 +13,7 @@ import com.ibm.icu.lang.UProperty;
 import com.ibm.icu.lang.UScript;
 import com.ibm.icu.text.BreakIterator;
 import com.ibm.icu.text.RuleBasedBreakIterator;
+
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.icu.segmentation.DefaultICUTokenizerConfig;
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
@@ -45,7 +46,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         if (config == null) {
             return new ICUTokenizer();
-        }else{
+        } else {
             return new ICUTokenizer(config);
         }
     }
@@ -77,7 +78,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                     breakers[code] = parseRules(resourcePath, env);
                 }
                 // cjkAsWords nor myanmarAsWords are not configurable yet.
-                ICUTokenizerConfig config = new DefaultICUTokenizerConfig(true, true) {
+                ICUTokenizerConfig tokenizerConfig = new DefaultICUTokenizerConfig(true, true) {
                     @Override
                     public RuleBasedBreakIterator getBreakIterator(int script) {
                         if (breakers[script] != null) {
@@ -87,21 +88,18 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                         }
                     }
                 };
-                return config;
+                return tokenizerConfig;
             }
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load ICU rule files", e);
         }
     }
 
-    //parse a single RBBi rule file
+    // parse a single RBBi rule file
     private BreakIterator parseRules(String filename, Environment env) throws IOException {
 
         final Path path = env.configFile().resolve(filename);
-        String rules = Files.readAllLines(path)
-            .stream()
-            .filter((v) -> v.startsWith("#") == false)
-            .collect(Collectors.joining("\n"));
+        String rules = Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));
 
         return new RuleBasedBreakIterator(rules.toString());
     }

@@ -16,7 +16,7 @@ import java.util.Map;
  */
 public abstract class UpdateScript {
 
-    public static final String[] PARAMETERS = { };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link UpdateScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("update", Factory.class);

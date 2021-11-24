@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -35,16 +34,13 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
-    private boolean return200ForClusterHealthTimeout;
-
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
      */
     private Level level = Level.CLUSTER;
 
-    public ClusterHealthRequest() {
-    }
+    public ClusterHealthRequest() {}
 
     public ClusterHealthRequest(String... indices) {
         this.indices = indices;
@@ -64,14 +60,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             waitForEvents = Priority.readFrom(in);
         }
         waitForNoInitializingShards = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            indicesOptions = IndicesOptions.lenientExpandOpen();
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            return200ForClusterHealthTimeout = in.readBoolean();
-        }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -99,14 +88,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             Priority.writeTo(waitForEvents, out);
         }
         out.writeBoolean(waitForNoInitializingShards);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions.writeIndicesOptions(out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(return200ForClusterHealthTimeout);
-        } else if (return200ForClusterHealthTimeout) {
-            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());
-        }
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -250,18 +232,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return this.waitForEvents;
     }
 
-    public boolean doesReturn200ForClusterHealthTimeout() {
-        return return200ForClusterHealthTimeout;
-    }
-
-    /**
-     * Sets whether to return HTTP 200 status code instead of HTTP 408 in case of a
-     * cluster health timeout from the server side.
-     */
-    public void return200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
-        this.return200ForClusterHealthTimeout = return200ForClusterHealthTimeout;
-    }
-
     /**
      * Set the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
@@ -284,6 +254,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     public enum Level {
-        CLUSTER, INDICES, SHARDS
+        CLUSTER,
+        INDICES,
+        SHARDS
     }
 }

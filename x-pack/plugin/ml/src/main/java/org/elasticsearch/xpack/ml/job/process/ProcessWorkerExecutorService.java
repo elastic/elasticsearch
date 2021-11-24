@@ -45,14 +45,18 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
     /**
      * @param contextHolder the thread context holder
      * @param processName the name of the process to be used in logging
-     * @param queueSize the size of the queue holding operations. If an operation is added
+     * @param queueCapacity the capacity of the queue holding operations. If an operation is added
      *                  for execution when the queue is full a 429 error is thrown.
      */
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    public ProcessWorkerExecutorService(ThreadContext contextHolder, String processName, int queueSize) {
+    public ProcessWorkerExecutorService(ThreadContext contextHolder, String processName, int queueCapacity) {
         this.contextHolder = Objects.requireNonNull(contextHolder);
         this.processName = Objects.requireNonNull(processName);
-        this.queue = new LinkedBlockingQueue<>(queueSize);
+        this.queue = new LinkedBlockingQueue<>(queueCapacity);
+    }
+
+    public int queueSize() {
+        return queue.size();
     }
 
     @Override
@@ -120,7 +124,7 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
                     String msg = "unable to process as " + processName + " worker service has shutdown";
                     for (Runnable runnable : notExecuted) {
                         if (runnable instanceof AbstractRunnable) {
-                            ((AbstractRunnable) runnable).onRejection( new EsRejectedExecutionException(msg, true));
+                            ((AbstractRunnable) runnable).onRejection(new EsRejectedExecutionException(msg, true));
                         }
                     }
                 }

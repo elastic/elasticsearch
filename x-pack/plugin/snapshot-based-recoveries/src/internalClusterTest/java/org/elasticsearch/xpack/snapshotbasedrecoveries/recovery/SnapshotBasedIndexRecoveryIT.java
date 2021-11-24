@@ -86,6 +86,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
@@ -974,9 +975,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     );
                     assertBusy(() -> {
                         // Wait until the current RecoveryTarget releases the snapshot download permit
-                        Releasable snapshotDownloadPermit = peerRecoveryTargetService.tryAcquireSnapshotDownloadPermits();
-                        assertThat(snapshotDownloadPermit, is(notNullValue()));
-                        snapshotDownloadPermit.close();
+                        try (Releasable snapshotDownloadPermit = peerRecoveryTargetService.tryAcquireSnapshotDownloadPermits()) {
+                            assertThat(snapshotDownloadPermit, is(notNullValue()));
+                        }
                     });
                 }
 
@@ -1159,7 +1160,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                         .put("index.routing.allocation.require._name", dataNodes.get(0))
-                        .put("index.allocation.max_retries", 0)
+                        .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
                         .build()
                 );
                 indices.add(indexName);

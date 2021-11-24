@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
@@ -98,9 +99,21 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     protected void getIndexCheckpoints(ActionListener<Map<String, long[]>> listener) {
+        logger.info("getting index checkpoints");
+
         try {
             ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
-            ActionListener<Map<String, long[]>> groupedListener = listener;
+            ActionListener<Map<String, long[]>> groupedListener = ActionListener.wrap(r -> {
+                getCheckpointsFromOneClusterV2(
+                    client,
+                    transformConfig.getHeaders(),
+                    resolvedIndexes.getLocalIndices().toArray(new String[0]),
+                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                    r,
+                    listener
+
+                );
+            }, listener::onFailure);
 
             if (resolvedIndexes.numClusters() > 1) {
                 ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
@@ -137,6 +150,47 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static void getCheckpointsFromOneClusterV2(
+        Client client,
+        Map<String, String> headers,
+        String[] indices,
+        String prefix,
+        Map<String, long[]> toCompare,
+        ActionListener<Map<String, long[]>> listener
+    ) {
+        GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(indices, IndicesOptions.LENIENT_EXPAND_OPEN);
+        logger.info("get checkpoints");
+
+        ClientHelper.executeWithHeadersAsync(
+            headers,
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            GetCheckpointAction.INSTANCE,
+            getCheckpointRequest,
+            ActionListener.wrap(checkpointResponse -> {
+
+                logger.info("got response for checkpoint indexes {}", checkpointResponse.getCheckpoints().size());
+
+                if (toCompare.size() != checkpointResponse.getCheckpoints().size()) {
+                    listener.onFailure(new RuntimeException("checkpoints differ!"));
+                    return;
+                }
+
+                if (checkpointResponse.getCheckpoints()
+                    .entrySet()
+                    .stream()
+                    .allMatch(e -> Arrays.equals(e.getValue(), toCompare.get(e.getKey()))) == false) {
+                    listener.onFailure(new RuntimeException("checkpoints differ!"));
+                    return;
+                }
+
+                logger.info("both checkpoints are equal");
+                listener.onResponse(toCompare);
+            }, listener::onFailure)
+        );
+
     }
 
     private static void getCheckpointsFromOneCluster(

@@ -17,7 +17,7 @@ return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
 
-tag::allow-no-datafeeds[]
+tag::allow-no-match-datafeeds[]
 Specifies what to do when the request:
 +
 --
@@ -30,9 +30,9 @@ there are no matches and the subset of results when there are partial matches.
 If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.
 --
-end::allow-no-datafeeds[]
+end::allow-no-match-datafeeds[]
 
-tag::allow-no-jobs[]
+tag::allow-no-match-jobs[]
 Specifies what to do when the request:
 +
 --
@@ -45,7 +45,7 @@ when there are no matches and the subset of results when there are partial
 matches. If this parameter is `false`, the request returns a `404` status code
 when there are no matches or only partial matches.
 --
-end::allow-no-jobs[]
+end::allow-no-match-jobs[]
 
 tag::allow-no-match[]
  Specifies what to do when the request:

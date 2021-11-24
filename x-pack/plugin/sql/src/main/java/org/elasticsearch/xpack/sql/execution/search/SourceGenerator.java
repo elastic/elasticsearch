@@ -56,7 +56,7 @@ public abstract class SourceGenerator {
         // need to be retrieved from the result documents
 
         // NB: the sortBuilder takes care of eliminating duplicates
-        container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
+        container.fields().forEach(f -> f.extraction().collectFields(sortBuilder));
         sortBuilder.build(source);
 
         // add the aggs (if present)

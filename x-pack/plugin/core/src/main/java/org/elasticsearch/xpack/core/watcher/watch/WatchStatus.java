@@ -60,11 +60,11 @@ public class WatchStatus implements ToXContentObject, Writeable {
         lastChecked = readOptionalDate(in);
         lastMetCondition = readOptionalDate(in);
         int count = in.readInt();
-        Map<String, ActionStatus> mutableActions = new HashMap<>(count);
+        Map<String, ActionStatus> actions = new HashMap<>(count);
         for (int i = 0; i < count; i++) {
-            mutableActions.put(in.readString(), ActionStatus.readFrom(in));
+            actions.put(in.readString(), ActionStatus.readFrom(in));
         }
-        this.actions = unmodifiableMap(mutableActions);
+        this.actions = unmodifiableMap(actions);
         state = new State(in.readBoolean(), Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC));
         boolean executionStateExists = in.readBoolean();
         if (executionStateExists) {

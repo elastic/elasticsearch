@@ -77,15 +77,15 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         super(name, context, parent, metadata);
         this.size = size;
         // In case of failure we are releasing this objects outside therefore we need to set it at the end.
-        TopMetricsAggregator.Metrics aggregatorMetrics = new TopMetricsAggregator.Metrics(metricValues);
+        TopMetricsAggregator.Metrics metrics = new TopMetricsAggregator.Metrics(metricValues);
         /*
          * If we're only collecting a single value then only provided *that*
          * value to the sort so that swaps and loads are just a little faster
          * in that *very* common case.
          */
-        BucketedSort.ExtraData values = aggregatorMetrics.values.length == 1 ? aggregatorMetrics.values[0] : aggregatorMetrics;
+        BucketedSort.ExtraData values = metrics.values.length == 1 ? metrics.values[0] : metrics;
         this.sort = context.buildBucketedSort(sort, size, values);
-        this.metrics = aggregatorMetrics;
+        this.metrics = metrics;
     }
 
     @Override

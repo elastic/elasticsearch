@@ -71,6 +71,9 @@ public class HiddenFieldCheck extends AbstractCheck {
     /** Control whether to ignore constructor parameters. */
     private boolean ignoreConstructorParameter;
 
+    /** Control whether to ignore variables in constructor bodies. */
+    private boolean ignoreConstructorBody;
+
     /** Control whether to ignore parameters of abstract methods. */
     private boolean ignoreAbstractMethods;
 
@@ -227,7 +230,8 @@ public class HiddenFieldCheck extends AbstractCheck {
 
             if ((frame.containsStaticField(name) || isInstanceField(ast, name))
                 && isMatchingRegexp(name) == false
-                && isIgnoredParam(ast, name) == false) {
+                && isIgnoredParam(ast, name) == false
+                && isIgnoredVariable(ast, name) == false) {
                 log(nameAST, MSG_KEY, name);
             }
         }
@@ -245,6 +249,10 @@ public class HiddenFieldCheck extends AbstractCheck {
             || isIgnoredSetterParam(ast, name)
             || isIgnoredConstructorParam(ast)
             || isIgnoredParamOfAbstractMethod(ast);
+    }
+
+    private boolean isIgnoredVariable(DetailAST ast, String name) {
+        return isIgnoredVariableInConstructorBody(ast, name);
     }
 
     /**
@@ -426,17 +434,33 @@ public class HiddenFieldCheck extends AbstractCheck {
     private boolean isVariableInIgnoredMethod(DetailAST ast, String name) {
         boolean result = false;
         if (ignoredMethodNames != null && (ast.getType() == TokenTypes.PARAMETER_DEF || ast.getType() == TokenTypes.VARIABLE_DEF)) {
-            DetailAST method = ast.getParent().getParent();
-            if (method.getType() == TokenTypes.LAMBDA) {
-                do {
-                    method = method.getParent();
-                } while (method != null && method.getType() != TokenTypes.METHOD_DEF);
+            DetailAST method = ast.getParent();
+            while (method != null && method.getType() != TokenTypes.METHOD_DEF) {
+                method = method.getParent();
             }
             if (method != null && method.getType() == TokenTypes.METHOD_DEF) {
                 final String methodName = method.findFirstToken(TokenTypes.IDENT).getText();
                 result = methodName.matches(ignoredMethodNames);
             }
         }
+        return result;
+    }
+
+    private boolean isIgnoredVariableInConstructorBody(DetailAST ast, String name) {
+        boolean result = false;
+
+        if (name.equals("actions")) {
+            System.err.println("Hello");
+        }
+
+        if (ignoreConstructorBody && ast.getType() == TokenTypes.VARIABLE_DEF) {
+            DetailAST method = ast.getParent();
+            while (method != null && method.getType() != TokenTypes.CTOR_DEF) {
+                method = method.getParent();
+            }
+            result = method != null && method.getType() == TokenTypes.CTOR_DEF;
+        }
+
         return result;
     }
 
@@ -495,6 +519,10 @@ public class HiddenFieldCheck extends AbstractCheck {
 
     public void setIgnoredMethodNames(String ignoredMethodNames) {
         this.ignoredMethodNames = ignoredMethodNames;
+    }
+
+    public void setIgnoreConstructorBody(boolean ignoreConstructorBody) {
+        this.ignoreConstructorBody = ignoreConstructorBody;
     }
 
     /**

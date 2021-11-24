@@ -111,8 +111,8 @@ public class WatchSourceBuilder implements ToXContentObject {
         return addAction(id, throttlePeriod, transformBuilder.build(), action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform transform, Action action) {
-        actions.put(id, new TransformedAction(id, action, throttlePeriod, null, transform, null));
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform aTransform, Action action) {
+        actions.put(id, new TransformedAction(id, action, throttlePeriod, null, aTransform, null));
         return this;
     }
 

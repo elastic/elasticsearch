@@ -67,10 +67,8 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
     'org.apache.http.HttpEntity',
-    'org.apache.http.HttpHost',
     'org.apache.http.HttpResponse',
     'org.apache.http.StatusLine',
-    'org.apache.http.auth.UsernamePasswordCredentials',
     'org.apache.http.client.config.RequestConfig$Builder',
     'org.apache.http.client.config.RequestConfig',
     'org.apache.http.client.methods.CloseableHttpResponse',

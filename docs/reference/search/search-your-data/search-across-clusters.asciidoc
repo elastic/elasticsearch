@@ -33,7 +33,7 @@ can search across clusters and <<ccr-getting-started-tutorial,set up {ccr}>>.
 
 In a {ccs}, you submit a search request to a local cluster. A coordinating node
 on the local cluster parses the request and passes any relevant searches to a
-<<gateway-nodes-selection,gateway node>> in on the remote cluster specified in
+<<gateway-nodes-selection,gateway node>> on the remote cluster specified in
 the request.
 
 To run the search, the local coordinating node and the remote gateway node must

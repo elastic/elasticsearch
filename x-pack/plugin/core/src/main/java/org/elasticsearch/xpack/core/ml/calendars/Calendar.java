@@ -152,8 +152,8 @@ public class Calendar implements ToXContentObject, Writeable {
             return calendarId;
         }
 
-        public void setId(String calendarId) {
-            this.calendarId = calendarId;
+        public void setId(String id) {
+            this.calendarId = id;
         }
 
         public Builder setJobIds(List<String> jobIds) {

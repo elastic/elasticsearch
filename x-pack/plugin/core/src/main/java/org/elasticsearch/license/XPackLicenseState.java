@@ -376,17 +376,17 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return executeAgainstStatus(status -> status.mode);
+        return executeAgainstStatus(_status -> _status.mode);
     }
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return checkAgainstStatus(status -> status.active);
+        return checkAgainstStatus(_status -> _status.active);
     }
 
     public String statusDescription() {
-        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
+        return executeAgainstStatus(_status -> (_status.active ? "active" : "expired") + ' ' + _status.mode.description() + " license");
     }
 
     void featureUsed(LicensedFeature feature) {
@@ -458,7 +458,7 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status -> new XPackLicenseState(listeners, status, usage, epochMillisProvider));
+        return executeAgainstStatus(_status -> new XPackLicenseState(listeners, _status, usage, epochMillisProvider));
     }
 
     /**
@@ -471,11 +471,11 @@ public class XPackLicenseState {
      */
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
-        return checkAgainstStatus(status -> {
-            if (needActive && false == status.active) {
+        return checkAgainstStatus(_status -> {
+            if (needActive && false == _status.active) {
                 return false;
             }
-            return isAllowedByOperationMode(status.mode, minimumMode);
+            return isAllowedByOperationMode(_status.mode, minimumMode);
         });
     }
 

@@ -326,7 +326,7 @@ public class OutlierDetection implements DataFrameAnalysis {
             this.standardizationEnabled = other.standardizationEnabled;
         }
 
-        public Builder setNNeighbors(Integer nNeighbors) {
+        public Builder nNeighbors(Integer nNeighbors) {
             this.nNeighbors = nNeighbors;
             return this;
         }

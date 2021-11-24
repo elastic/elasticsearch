@@ -108,7 +108,13 @@ public class TransportRolloverActionTests extends ESTestCase {
             ByteSizeValue.ofMb(randomIntBetween(10, 100))
         );
         MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(10L);
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition, maxShardDocsCondition);
+        final Set<Condition<?>> conditions = Set.of(
+            maxAgeCondition,
+            maxDocsCondition,
+            maxSizeCondition,
+            maxPrimaryShardSizeCondition,
+            maxShardDocsCondition
+        );
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
@@ -167,7 +173,13 @@ public class TransportRolloverActionTests extends ESTestCase {
             new ByteSizeValue(randomNonNegativeLong())
         );
         MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(randomNonNegativeLong());
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition, maxShardDocsCondition);
+        final Set<Condition<?>> conditions = Set.of(
+            maxAgeCondition,
+            maxDocsCondition,
+            maxSizeCondition,
+            maxPrimaryShardSizeCondition,
+            maxShardDocsCondition
+        );
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -208,7 +220,13 @@ public class TransportRolloverActionTests extends ESTestCase {
             ByteSizeValue.ofMb(randomIntBetween(10, 100))
         );
         MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(10L);
-        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition, maxShardDocsCondition);
+        final Set<Condition<?>> conditions = Set.of(
+            maxAgeCondition,
+            maxDocsCondition,
+            maxSizeCondition,
+            maxPrimaryShardSizeCondition,
+            maxShardDocsCondition
+        );
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

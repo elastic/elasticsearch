@@ -92,7 +92,7 @@ public class RolloverAction implements LifecycleAction {
         @Nullable Long maxDocs,
         @Nullable Long maxShardDocs
     ) {
-        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null) {
+        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxShardDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
         this.maxSize = maxSize;

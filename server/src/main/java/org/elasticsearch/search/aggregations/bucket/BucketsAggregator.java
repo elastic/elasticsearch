@@ -99,8 +99,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      */
     public final void rewriteBuckets(long newNumBuckets, LongUnaryOperator mergeMap) {
-        try (LongArray oldDocCounts = docCounts) {
+        LongArray oldDocCounts = docCounts;
+        boolean success = false;
+        try {
             docCounts = bigArrays().newLongArray(newNumBuckets, true);
+            success = true;
             docCounts.fill(0, newNumBuckets, 0);
             for (long i = 0; i < oldDocCounts.size(); i++) {
                 long docCount = oldDocCounts.get(i);
@@ -112,6 +115,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 if (destinationOrdinal != -1) {
                     docCounts.increment(destinationOrdinal, docCount);
                 }
+            }
+        } finally {
+            if (success) {
+                oldDocCounts.close();
             }
         }
     }

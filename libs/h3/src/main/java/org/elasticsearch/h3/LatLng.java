@@ -92,10 +92,10 @@ public final class LatLng {
     }
 
     /**
-     * Determines the azimuth to p2 from p1 in radians.
+     * Determines the azimuth to the provided LatLng in radians.
      *
-     * @param p The first spherical coordinates.
-     * @return The azimuth in radians from p1 to p2.
+     * @param p The spherical coordinates.
+     * @return The azimuth in radians.
      */
     private double geoAzimuthRads(LatLng p) {
         return Math.atan2(

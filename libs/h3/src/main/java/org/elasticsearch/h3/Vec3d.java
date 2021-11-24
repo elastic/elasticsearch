@@ -10,7 +10,7 @@ package org.elasticsearch.h3;
 
 public class Vec3d {
 
-    /** @brief icosahedron face centers in x/y/z on the unit sphere */
+    /** icosahedron face centers in x/y/z on the unit sphere */
     public static final double[][] faceCenterPoint = new double[][] {
         { 0.2199307791404606, 0.6583691780274996, 0.7198475378926182 },     // face 0
         { -0.2139234834501421, 0.1478171829550703, 0.9656017935214205 },    // face 1

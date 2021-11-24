@@ -245,18 +245,15 @@ class H3Index {
      * @param h The H3Index.
      * @param fijk The FaceIJK address, initialized with the desired face
      *        and normalized base cell coordinates.
-     * @return Returns 1 if the possibility of overage exists, otherwise 0.
+     * @return Returns true if the possibility of overage exists, otherwise false.
      */
     private static boolean h3ToFaceIjkWithInitializedFijk(long h, FaceIJK fijk) {
 
-        int res = H3Index.H3_get_resolution(h);
+        final int res = H3Index.H3_get_resolution(h);
 
         // center base cell hierarchy is entirely on this face
-        boolean possibleOverage = true;
-        if (BaseCells.isBaseCellPentagon(H3_get_base_cell(h)) == false
-            && (res == 0 || (fijk.coord.i == 0 && fijk.coord.j == 0 && fijk.coord.k == 0))) {
-            possibleOverage = false;
-        }
+        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h)) != false
+            || (res != 0 && (fijk.coord.i != 0 || fijk.coord.j != 0 || fijk.coord.k != 0));
 
         for (int r = 1; r <= res; r++) {
             if (isResolutionClassIII(r)) {
@@ -266,7 +263,6 @@ class H3Index {
                 // Class II == rotate cw
                 fijk.coord.downAp7r();
             }
-
             fijk.coord.neighbor(H3_get_index_digit(h, r));
         }
 

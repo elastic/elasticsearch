@@ -49,7 +49,8 @@ Recovery automatically occurs during the following processes:
 * Primary shard replication.
 * Relocation of a shard to a different node in the same cluster.
 * <<snapshots-restore-snapshot,Snapshot restore>> operation.
-* <<indices-shrink-index,Shrink index>> operation.
+* <<indices-clone-index,cClone>>, <<indices-shrink-index,shrink>>, or
+<<indices-split-index,split>> operation.
 // end::shard-recovery-desc[]
 
 [[index-recovery-api-path-params]]
@@ -91,8 +92,9 @@ The store of an existing primary shard. Indicates recovery is related
 to node startup or the allocation of an existing primary shard.
 
 `LOCAL_SHARDS`::
-Shards of another index on the same node. Indicates recovery is related to
-a <<indices-shrink-index,shrink index>> operation.
+Shards of another index on the same node. Indicates recovery is related to a
+<<indices-clone-index,clone>>, <<indices-shrink-index,shrink>>, or
+<<indices-split-index,split>> operation.
 
 `PEER`::
 A primary shard on another node. Indicates recovery is related to shard

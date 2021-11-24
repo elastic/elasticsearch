@@ -2,7 +2,7 @@
 == Search across clusters
 
 {ccs-cap} ({ccs-init}) lets you run a single search request against one or more
-remote clusters. For example, you can use {ccs-init} to filter and analyze log
+remote clusters. For example, you can use {ccs} to filter and analyze log
 data stored on clusters in different data centers.
 
 [discrete]
@@ -24,10 +24,17 @@ The following APIs support {ccs}:
 [[ccs-cluster-compatability]]
 === Cluster compatability
 
-{ccs-init} requires <<remote-clusters,remote clusters>>. In a {ccs-init}, you
+To perform a {ccs}, you must have at least one
+<<remote-clusters-connect,remote cluster configured>>.
+
+TIP: If you want to search across clusters in the cloud, you can
+link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
+can search across clusters and <<ccr-getting-started-tutorial,set up {ccr}>>.
+
+In a {ccs}, you
 submit a search request to a local cluster. A coordinating node on the local
 cluster parses the request and passes any relevant searches to a
-<<gateway-nodes-selection,gateway node>> in any remote cluster specified in the
+<<gateway-nodes-selection,gateway node>> in on the remote cluster specified in the
 request.
 
 To run the search, the local coordinating node and the remote gateway node must
@@ -57,11 +64,11 @@ aren't tested by Elastic, and their behavior isn't guaranteed.
 [[ccs-ensure-cluster-compatibility]]
 ==== Ensure cluster compatibility
 
-The simplest way to ensure cluster compatibility for {ccs-init} is to keep each
+The simplest way to ensure cluster compatibility for {ccs} is to keep each
 cluster on the same version of {es}. If you need to maintain clusters with
 separate versions, you can:
 
-* Maintain a local cluster for {ccs-init}. Keep this cluster on the earliest
+* Maintain a local cluster for {ccs}. Keep this cluster on the earliest
 release needed to search the other clusters.
 +
 For example, if you have 7.14 and 8.0 clusters, you can maintain a 7.13
@@ -82,19 +89,36 @@ WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
 
 [discrete]
+[[ccs-gateway-seed-nodes]]
+==== Selecting gateway and seed nodes in sniff mode
+
+For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
+seed nodes need to be accessible from the local cluster on your network.
+
+By default, any non-<<master-node,master-eligible>> node can act as a
+gateway node. If wanted, you can define the gateway nodes for a cluster by
+setting `cluster.remote.node.attr.gateway` to `true`.
+
+For {ccs}, we recommend you use gateway nodes that are capable of serving as
+<<coordinating-node,coordinating nodes>> for search requests. If
+wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
+
+[discrete]
+[[ccs-proxy-mode]]
+==== {ccs-cap} in proxy mode
+
+<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
+connections connect to the configured `proxy_address`. Any desired connection
+routing to gateway or <<coordinating-node,coordinating nodes>> must
+be implemented by the intermediate proxy at this configured address.
+
+[discrete]
 [[ccs-example]]
 === {ccs-cap} examples
 
 [discrete]
 [[ccs-remote-cluster-setup]]
 ==== Remote cluster setup
-
-To perform a {ccs}, you must have at least one
-<<remote-clusters-connect,remote cluster configured>>.
-
-TIP: If you want to search across clusters in the cloud, you can
-link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
-can search across clusters and <<ccr-getting-started-tutorial,set up {ccr}>>.
 
 The following <<cluster-update-settings,cluster update settings>> API request
 adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
@@ -345,30 +369,6 @@ PUT _cluster/settings
 
 If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
-
-[discrete]
-[[ccs-gateway-seed-nodes]]
-=== Selecting gateway and seed nodes in sniff mode
-
-For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
-seed nodes need to be accessible from the local cluster via your network.
-
-By default, any non-<<master-node,master-eligible>> node can act as a
-gateway node. If wanted, you can define the gateway nodes for a cluster by
-setting `cluster.remote.node.attr.gateway` to `true`.
-
-For {ccs}, we recommend you use gateway nodes that are capable of serving as
-<<coordinating-node,coordinating nodes>> for search requests. If
-wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
-
-[discrete]
-[[ccs-proxy-mode]]
-=== {ccs-cap} in proxy mode
-
-<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
-connections connect to the configured `proxy_address`. Any desired connection
-routing to gateway or <<coordinating-node,coordinating nodes>> must
-be implemented by the intermediate proxy at this configured address.
 
 [discrete]
 [[ccs-network-delays]]

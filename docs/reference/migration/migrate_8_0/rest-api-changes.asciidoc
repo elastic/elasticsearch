@@ -28,7 +28,8 @@ Elastic now only supports cross-cluster searches from a local cluster to a
 remote cluster running:
 
 * The previous minor version
-* Any minor release in the local cluster's major version
+* The same minor version
+* A later release in the local cluster's major version
 * Any minor release in the next major version
 
 IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
@@ -37,7 +38,7 @@ remote clusters must use the same {es} version.
 For example, a local 8.0 cluster can search a remote cluster running:
 
 * 7.16 (the previous minor version)
-* Any 8.x version
+* Any later 8.x version
 * Any 9.x version
 
 However, a search from a local 8.0 cluster to a remote 7.15 or 6.8 cluster is

@@ -31,18 +31,18 @@ TIP: If you want to search across clusters in the cloud, you can
 link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
 can search across clusters and <<ccr-getting-started-tutorial,set up {ccr}>>.
 
-In a {ccs}, you
-submit a search request to a local cluster. A coordinating node on the local
-cluster parses the request and passes any relevant searches to a
-<<gateway-nodes-selection,gateway node>> in on the remote cluster specified in the
-request.
+In a {ccs}, you submit a search request to a local cluster. A coordinating node
+on the local cluster parses the request and passes any relevant searches to a
+<<gateway-nodes-selection,gateway node>> in on the remote cluster specified in
+the request.
 
 To run the search, the local coordinating node and the remote gateway node must
 use compatible versions of {es}. Elastic only supports searches from a local
 cluster to a remote cluster running:
 
 * The previous minor version
-* Any minor release in the local cluster's major version
+* The same minor version
+* A later release in the local cluster's major version
 * Any minor release in the next major version
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
@@ -51,7 +51,7 @@ clusters must use the same {es} version.
 For example, a local 8.0 cluster can search a remote cluster running:
 
 * 7.16 (the previous minor version)
-* Any 8.x version
+* Any later 8.x version
 * Any 9.x version
 
 However, a search from a local 8.0 cluster to a remote 7.15 or 6.8 cluster is

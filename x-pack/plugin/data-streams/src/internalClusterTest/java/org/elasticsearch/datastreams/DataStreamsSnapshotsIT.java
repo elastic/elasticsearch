@@ -310,16 +310,16 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         String id2 = indexResponse.getId();
 
-        String id;
+        String idToGet;
         String dataStreamToSnapshot;
         String backingIndexName;
         if (randomBoolean()) {
             dataStreamToSnapshot = "ds";
-            id = this.id;
+            idToGet = this.id;
             backingIndexName = this.dsBackingIndexName;
         } else {
             dataStreamToSnapshot = "other-ds";
-            id = id2;
+            idToGet = id2;
             backingIndexName = this.otherDsBackingIndexName;
         }
         boolean filterDuringSnapshotting = randomBoolean();
@@ -354,7 +354,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(backingIndexName, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(backingIndexName, idToGet).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch(backingIndexName).get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -845,7 +845,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeleteDataStreamDuringSnapshot() throws Exception {
-        Client client = client();
+        Client client1 = client();
 
         // this test uses a MockRepository
         assertAcked(client().admin().cluster().prepareDeleteRepository(REPO));
@@ -866,7 +866,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client.prepareIndex(dataStream)
+            client1.prepareIndex(dataStream)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
                 .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
@@ -877,7 +877,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertDocCount(dataStream, 100L);
 
         logger.info("--> snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client.admin()
+        ActionFuture<CreateSnapshotResponse> future = client1.admin()
             .cluster()
             .prepareCreateSnapshot(repositoryName, SNAPSHOT)
             .setIndices(dataStream)
@@ -890,7 +890,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {
             logger.info("--> delete index while non-partial snapshot is running");
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStream })).actionGet();
+            client1.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStream })).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
             assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [" + dataStream));

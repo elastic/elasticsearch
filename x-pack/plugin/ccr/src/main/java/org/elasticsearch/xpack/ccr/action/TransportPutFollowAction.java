@@ -274,7 +274,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     }
 
     private void initiateFollowing(
-        final Client client,
+        final Client clientWithHeaders,
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener
     ) {
@@ -283,7 +283,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
-        client.execute(
+        clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
             ActionListener.wrap(

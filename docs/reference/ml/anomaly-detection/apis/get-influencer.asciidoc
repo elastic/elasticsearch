@@ -74,15 +74,22 @@ timestamps.
 [[ml-get-influencer-request-body]]
 == {api-request-body-title}
 
-You can also specify the query parameters (such as `desc` and
-`end`) in the request body.
+You can also specify the query parameters in the request body; the exception are
+`from` and `size`, use `page` instead:
 
-`page`.`from`::
+`page`::
++
+.Properties of `page`
+[%collapsible%open]
+====
+
+`from`:::
 (Optional, integer) Skips the specified number of influencers. Defaults to `0`.
 
-`page`.`size`::
+`size`:::
 (Optional, integer) Specifies the maximum number of influencers to obtain. 
 Defaults to `100`.
+====
 
 [[ml-get-influencer-results]]
 == {api-response-body-title}

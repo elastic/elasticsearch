@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -34,7 +33,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/77190")
 public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
     private GitWrapper gitWrapper;
 

@@ -17,7 +17,6 @@ import java.util.Base64;
 
 public final class Uid {
 
-    public static final char DELIMITER = '#';
     public static final byte DELIMITER_BYTE = 0x23;
 
     private static final int UTF8 = 0xff;

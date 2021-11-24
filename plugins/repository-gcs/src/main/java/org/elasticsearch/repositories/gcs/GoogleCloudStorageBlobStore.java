@@ -71,6 +71,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     // called "resumable upload")
     // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
     public static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+    public static final int MAX_DELETES_PER_BATCH = 1000;
 
     static {
         final String key = "es.repository_gcs.large_blob_threshold_byte_size";
@@ -542,7 +543,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         try {
             SocketAccess.doPrivilegedVoidIOException(() -> {
                 final AtomicReference<StorageException> ioe = new AtomicReference<>();
-                final StorageBatch batch = client().batch();
+                StorageBatch batch = client().batch();
+                int pendingDeletesInBatch = 0;
                 while (blobIdsToDelete.hasNext()) {
                     BlobId blob = blobIdsToDelete.next();
                     batch.delete(blob).notify(new BatchResult.Callback<>() {
@@ -562,8 +564,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             }
                         }
                     });
+                    pendingDeletesInBatch++;
+                    if (pendingDeletesInBatch % MAX_DELETES_PER_BATCH == 0) {
+                        batch.submit();
+                        batch = client().batch();
+                        pendingDeletesInBatch = 0;
+                    }
                 }
-                batch.submit();
+                if (pendingDeletesInBatch > 0) {
+                    batch.submit();
+                }
 
                 final StorageException exception = ioe.get();
                 if (exception != null) {

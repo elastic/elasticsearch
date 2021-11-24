@@ -42,7 +42,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> b.startObject("_source").endObject()));
         ParsedDocument doc = documentMapper.parse(
             new SourceToParse(
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON
@@ -53,7 +52,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
         doc = documentMapper.parse(
             new SourceToParse(
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.smileBuilder().startObject().field("field", "value").endObject()),
                 XContentType.SMILE
@@ -126,7 +124,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
             // extra end object (invalid JSON))
-            () -> documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), XContentType.JSON))
+            () -> documentMapper.parse(new SourceToParse("1", new BytesArray("{}}"), XContentType.JSON))
         );
         assertNotNull(exception.getRootCause());
         assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));

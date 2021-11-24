@@ -74,7 +74,6 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -125,7 +124,6 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -171,7 +169,6 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -217,7 +214,6 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -274,7 +270,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals(
             "contexts must be a string, number or boolean or a list of string, number or boolean, but was [VALUE_NULL]",
@@ -306,7 +302,6 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -350,7 +345,6 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         ParsedDocument parsedDocument = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     jsonBuilder().startObject()
@@ -403,7 +397,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());
     }
@@ -446,9 +440,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endArray()
             .endObject();
-        ParsedDocument parsedDocument = defaultMapper.parse(
-            new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON)
-        );
+        ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }

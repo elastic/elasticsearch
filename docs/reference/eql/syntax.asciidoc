@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[eql-syntax]]
 == EQL syntax reference
 ++++
@@ -35,7 +34,7 @@ process where process.name == "svchost.exe"
 
 [discrete]
 [[eql-syntax-match-any-event-category]]
-=== Match any event category
+==== Match any event category
 
 To match events of any category, use the `any` keyword. You can also use the
 `any` keyword to search for documents without a event category field.
@@ -50,7 +49,7 @@ any where network.protocol == "http"
 
 [discrete]
 [[eql-syntax-escape-an-event-category]]
-=== Escape an event category
+==== Escape an event category
 
 Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to
 escape event categories that:
@@ -74,7 +73,7 @@ escape event categories that:
 
 [discrete]
 [[eql-syntax-escape-a-field-name]]
-=== Escape a field name
+==== Escape a field name
 
 Use enclosing backticks (+++`+++) to escape field names that:
 
@@ -107,7 +106,7 @@ EQL operators are case-sensitive by default.
 
 [discrete]
 [[eql-syntax-comparison-operators]]
-=== Comparison operators
+==== Comparison operators
 
 [source,eql]
 ----
@@ -150,7 +149,7 @@ NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
 [discrete]
 [[eql-syntax-pattern-comparison-keywords]]
-=== Pattern comparison keywords
+==== Pattern comparison keywords
 
 [source,eql]
 ----
@@ -175,7 +174,7 @@ only be used to compare strings. For case-insensitive matching, use `regex~`.
 
 [discrete]
 [[limitations-for-comparisons]]
-=== Limitations for comparisons
+===== Limitations for comparisons
 
 You cannot chain comparisons. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
@@ -208,7 +207,7 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [discrete]
 [[eql-syntax-logical-operators]]
-=== Logical operators
+==== Logical operators
 
 [source,eql]
 ----
@@ -228,7 +227,7 @@ Returns `true` if the condition to the right is `false`.
 
 [discrete]
 [[eql-syntax-lookup-operators]]
-=== Lookup operators
+==== Lookup operators
 
 [source,eql]
 ----
@@ -272,7 +271,7 @@ Can only be used to compare strings. For case-insensitive matching, use
 
 [discrete]
 [[eql-syntax-math-operators]]
-=== Math operators
+==== Math operators
 
 [source,eql]
 ----
@@ -332,7 +331,7 @@ Divides the value to the left of the operator by the value to the right. Returns
 
 [discrete]
 [[eql-syntax-match-any-condition]]
-=== Match any condition
+==== Match any condition
 
 To match events solely on event category, use the `where true` condition.
 
@@ -352,15 +351,48 @@ any where true
 ----
 
 [discrete]
+[[eql-syntax-optional-fields]]
+=== Optional fields
+
+By default, an EQL query can only contain fields that exist in the dataset
+you're searching. A field exists in a dataset if it has an
+<<explicit-mapping,explicit>>, <<dynamic-mapping,dynamic>>, or
+<<eql-use-runtime-fields,runtime>> mapping. If an EQL query contains a field
+that doesn't exist, it returns an error.
+
+If you aren't sure if a field exists in a dataset, use the `?` operator to mark
+the field as optional. If an optional field doesn't exist, the query replaces it
+with `null` instead of returning an error.
+
+*Example* +
+In the following query, the `user.id` field is optional.
+
+[source,eql]
+----
+network where ?user.id != null
+----
+
+If the `user.id` field exists in the dataset you're searching, the query matches
+any `network` event that contains a `user.id` value. If the `user.id` field
+doesn't exist in the dataset, EQL interprets the query as:
+
+[source,eql]
+----
+network where null != null
+----
+
+In this case, the query matches no events.
+
+[discrete]
 [[eql-syntax-check-field-exists]]
-=== Check if a field exists
+==== Check if a field exists
 
 To match events containing any value for a field, compare the field to `null`
 using the `!=` operator:
 
 [source,eql]
 ----
-my_field != null
+?my_field != null
 ----
 
 To match events that do not contain a field value, compare the field to `null`
@@ -368,11 +400,8 @@ using the `==` operator:
 
 [source,eql]
 ----
-my_field == null
+?my_field == null
 ----
-
-IMPORTANT: To avoid errors, the field must contain a non-`null` value in at
-least one document or be <<explicit-mapping,explicitly mapped>>.
 
 [discrete]
 [[eql-syntax-strings]]
@@ -389,7 +418,7 @@ Strings enclosed in single quotes (`'`) are not supported.
 
 [discrete]
 [[eql-syntax-escape-characters]]
-=== Escape characters in a string
+==== Escape characters in a string
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).
@@ -423,7 +452,7 @@ double quote (`\"`) instead.
 
 [discrete]
 [[eql-syntax-raw-strings]]
-=== Raw strings
+==== Raw strings
 
 Raw strings treat special characters, such as backslashes (`\`), as literal
 characters. Raw strings are enclosed in three double quotes (`"""`).
@@ -443,7 +472,7 @@ use a regular string with the `\"` escape sequence.
 
 [discrete]
 [[eql-syntax-wildcards]]
-=== Wildcards
+==== Wildcards
 
 For string comparisons using the `:` operator or `like` keyword, you can use the
 `*` and `?` wildcards to match specific patterns. The `*` wildcard matches zero
@@ -517,7 +546,7 @@ sequence
 
 [discrete]
 [[eql-with-maxspan-keywords]]
-=== `with maxspan` statement
+==== `with maxspan` statement
 
 You can use `with maxspan` to constrain a sequence to a specified timespan. All
 events in a matching sequence must occur within this duration, starting at the
@@ -547,11 +576,12 @@ sequence with maxspan=15m
 
 [discrete]
 [[eql-by-keyword]]
-=== `by` keyword
+==== `by` keyword
 
-You can use the `by` keyword with sequences to only match events that share the
-same field values. If a field value should be shared across all events, you
-can use `sequence by`.
+Use the `by` keyword in a sequence query to only match events that share the
+same values, even if those values are in different fields. These shared values
+are called join keys. If a join key should be in the same field across all
+events, use `sequence by`.
 
 [source,eql]
 ----
@@ -593,8 +623,8 @@ field values and a timespan.
 [source,eql]
 ----
 sequence by field_foo with maxspan=30s
-  [ event_category_1 where condition_1 ] by field_baz
-  [ event_category_2 where condition_2 ] by field_bar
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
   ...
 ----
 
@@ -608,13 +638,42 @@ a sequence of events that:
 [source,eql]
 ----
 sequence by user.name with maxspan=15m
-  [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.executable
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+
+[discrete]
+[[eql-syntax-optional-by-fields]]
+==== Optional `by` fields
+
+By default, a join key must be a non-`null` field value. To allow `null` join
+keys, use the `?` operator to mark the `by` field as
+<<eql-syntax-optional-fields,optional>>. This is also helpful if you aren't sure
+the dataset you're searching contains the `by` field.
+
+*Example* +
+The following sequence query uses `sequence by` to constrain matching events
+to:
+
+* Events with the same `process.pid` value, excluding `null` values. If the
+  `process.pid` field doesn't exist in the dataset you're searching, the query
+  returns an error.
+
+* Events with the same `process.entity_id` value, including `null` values. If
+  an event doesn't contain the `process.entity_id` field, its
+  `process.entity_id` value is considered `null`. This applies even if the
+  `process.pid` field doesn't exist in the dataset you're searching.
+
+[source,eql]
+----
+sequence by process.pid, ?process.entity_id
+  [process where process.name == "regsvr32.exe"]
+  [network where true]
 ----
 
 [discrete]
 [[eql-until-keyword]]
-=== `until` keyword
+==== `until` keyword
 
 You can use the `until` keyword to specify an expiration event for a sequence.
 If this expiration event occurs _between_ matching events in a sequence, the
@@ -696,7 +755,7 @@ until [ process where event.type == "stop" ]
 
 [discrete]
 [[eql-with-runs-statement]]
-=== `with runs` statement
+==== `with runs` statement
 
 Use a `with runs` statement to run the same event criteria successively within a
 sequence query. For example:
@@ -722,7 +781,7 @@ sequence
 ----
 
 The `runs` value must be between `1` and `100` (inclusive).
- 
+
 You can use a `with runs` statement with the <<eql-by-keyword,`by` keyword>>.
 For example:
 
@@ -742,7 +801,7 @@ strings, and more. For a list of supported functions, see <<eql-function-ref>>.
 
 [discrete]
 [[eql-case-insensitive-functions]]
-=== Case-insensitive functions
+==== Case-insensitive functions
 
 Most EQL functions are case-sensitive by default. To make a function
 case-insensitive, use the `~` operator after the function name:
@@ -755,7 +814,7 @@ stringContains~(process.name,".exe") // Matches ".exe", ".EXE", or ".Exe"
 
 [discrete]
 [[eql-how-functions-impact-search-performance]]
-=== How functions impact search performance
+==== How functions impact search performance
 
 Using functions in EQL queries can result in slower search speeds. If you
 often use functions to transform indexed data, you can speed up search by making

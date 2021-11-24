@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -91,33 +90,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         Settings settings,
         IngestService ingestService
     ) {
-        this(
-            PreviewTransformAction.NAME,
-            licenseState,
-            transportService,
-            actionFilters,
-            client,
-            threadPool,
-            indexNameExpressionResolver,
-            clusterService,
-            settings,
-            ingestService
-        );
-    }
-
-    protected TransportPreviewTransformAction(
-        String name,
-        XPackLicenseState licenseState,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client,
-        ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        Settings settings,
-        IngestService ingestService
-    ) {
-        super(name, transportService, actionFilters, Request::new);
+        super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new);
         this.licenseState = licenseState;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -244,7 +217,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
 
             List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-            warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
+            warnings.forEach(warning -> HeaderWarning.addWarning(warning));
             listener.onResponse(new Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
 
@@ -256,7 +229,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     Clock.systemUTC()
                 );
                 List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-                warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
+                warnings.forEach(warning -> HeaderWarning.addWarning(warning));
                 listener.onResponse(new Response(docs, generatedDestIndexSettings));
             } else {
                 List<Map<String, Object>> results = docs.stream().map(doc -> {

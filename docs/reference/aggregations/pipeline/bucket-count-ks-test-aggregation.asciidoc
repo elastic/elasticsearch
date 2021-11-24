@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-bucket-count-ks-test-aggregation]]
 === Bucket count K-S test correlation aggregation
 ++++

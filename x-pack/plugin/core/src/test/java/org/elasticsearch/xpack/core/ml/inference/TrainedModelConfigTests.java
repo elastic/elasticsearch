@@ -89,7 +89,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setModelType(randomFrom(TrainedModelType.values()))
             .setCreatedBy(randomAlphaOfLength(10))
             .setDescription(randomBoolean() ? null : randomAlphaOfLength(10))
-            .setEstimatedHeapMemory(randomNonNegativeLong())
+            .setModelSize(randomNonNegativeLong())
             .setEstimatedOperations(randomNonNegativeLong())
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(), License.OperationMode.BASIC.description()))
             .setInferenceConfig(randomFrom(inferenceConfigs))
@@ -386,14 +386,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     @Override
     protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
         TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
-        if (version.before(Version.V_7_7_0)) {
-            builder.setDefaultFieldMap(null);
-        }
-        if (version.before(Version.V_7_8_0)) {
-            builder.setInferenceConfig(null);
-        }
         if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            builder.setModelType((TrainedModelType) null);
+            builder.setModelType(null);
             builder.setLocation(null);
         }
         return builder.build();

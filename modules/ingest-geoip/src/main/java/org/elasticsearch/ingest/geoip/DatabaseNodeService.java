@@ -110,7 +110,7 @@ public final class DatabaseNodeService implements Closeable {
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
@@ -147,8 +147,8 @@ public final class DatabaseNodeService implements Closeable {
             Files.createDirectories(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
-        ingestService.addIngestClusterStateListener(this::checkDatabases);
-        this.ingestService = ingestService;
+        ingestServiceArg.addIngestClusterStateListener(this::checkDatabases);
+        this.ingestService = ingestServiceArg;
     }
 
     public DatabaseReaderLazyLoader getDatabase(String name) {
@@ -324,10 +324,11 @@ public final class DatabaseNodeService implements Closeable {
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
                 var ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class, predicate);
                 if (ids.isEmpty() == false) {
+                    LOGGER.debug("pipelines [{}] found to reload", ids);
                     for (var id : ids) {
                         try {
                             ingestService.reloadPipeline(id);
-                            LOGGER.debug(
+                            LOGGER.trace(
                                 "successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
                                 id,
                                 databaseFileName
@@ -343,6 +344,8 @@ public final class DatabaseNodeService implements Closeable {
                             );
                         }
                     }
+                } else {
+                    LOGGER.debug("no pipelines found to reload");
                 }
             }
             LOGGER.info("successfully reloaded changed geoip database file [{}]", file);

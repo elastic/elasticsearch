@@ -359,7 +359,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, CoreValuesSourceType.KEYWORD);
+            return new KeyedFlattenedFieldData.Builder(name(), key);
         }
 
         @Override
@@ -369,7 +369,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     "Field [" + rootName + "." + key + "] of type [" + typeName() + "] doesn't support formats."
                 );
             }
-            return SourceValueFetcher.identity(rootName + "." + key, context, format);
+            return SourceValueFetcher.identity(rootName + "." + key, context, null);
         }
     }
 
@@ -556,12 +556,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
-            private final ValuesSourceType valuesSourceType;
 
-            Builder(String fieldName, String key, ValuesSourceType valuesSourceType) {
+            Builder(String fieldName, String key) {
                 this.fieldName = fieldName;
                 this.key = key;
-                this.valuesSourceType = valuesSourceType;
             }
 
             @Override
@@ -569,7 +567,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(
                     cache,
                     fieldName,
-                    valuesSourceType,
+                    CoreValuesSourceType.KEYWORD,
                     breakerService,
                     AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
                 );

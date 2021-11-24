@@ -14,11 +14,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
@@ -27,6 +33,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -34,9 +41,12 @@ import org.elasticsearch.test.MockLogAppender;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -726,4 +736,67 @@ public class RolloverIT extends ESIntegTestCase {
         // We should *NOT* have a third index, it should have rolled over *exactly* once
         expectThrows(Exception.class, () -> client().admin().indices().prepareGetIndex().addIndices(writeIndexPrefix + "000003").get());
     }
+
+    public void testRolloverConcurrently() throws Exception {
+        int numOfThreads = 5;
+        int numberOfRolloversPerThread = 20;
+
+        var putTemplateRequest = new PutComposableIndexTemplateAction.Request("my-template");
+        var template = new Template(
+            Settings.builder()
+                // Avoid index check, which gets randomly inserted by test framework. This slows down the test a bit.
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build(),
+            null,
+            null
+        );
+        putTemplateRequest.indexTemplate(new ComposableIndexTemplate(List.of("test-*"), template, null, 100L, null, null));
+        assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
+
+        final CyclicBarrier barrier = new CyclicBarrier(numOfThreads);
+        final Thread[] threads = new Thread[numOfThreads];
+        for (int i = 0; i < numOfThreads; i++) {
+            var aliasName = "test-" + i;
+            threads[i] = new Thread(() -> {
+                assertAcked(prepareCreate(aliasName + "-000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+                for (int j = 1; j <= numberOfRolloversPerThread; j++) {
+                    try {
+                        barrier.await();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    var response = client().admin()
+                        .indices()
+                        .prepareRolloverIndex(aliasName)
+                        .waitForActiveShards(ActiveShardCount.NONE)
+                        .get();
+                    assertThat(response.getOldIndex(), equalTo(aliasName + String.format(Locale.ROOT, "-%06d", j)));
+                    assertThat(response.getNewIndex(), equalTo(aliasName + String.format(Locale.ROOT, "-%06d", j + 1)));
+                    assertThat(response.isDryRun(), equalTo(false));
+                    assertThat(response.isRolledOver(), equalTo(true));
+                }
+            });
+            threads[i].start();
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        for (int i = 0; i < numOfThreads; i++) {
+            var aliasName = "test-" + i;
+            var response = client().admin().indices().getAliases(new GetAliasesRequest(aliasName)).get();
+            List<Map.Entry<String, List<AliasMetadata>>> actual = response.getAliases().stream().collect(Collectors.toList());
+            List<Map.Entry<String, List<AliasMetadata>>> expected = new ArrayList<>(numberOfRolloversPerThread);
+            int numOfIndices = numberOfRolloversPerThread + 1;
+            for (int j = 1; j <= numOfIndices; j++) {
+                AliasMetadata.Builder amBuilder = new AliasMetadata.Builder(aliasName);
+                amBuilder.writeIndex(j == numOfIndices);
+                expected.add(Map.entry(aliasName + String.format(Locale.ROOT, "-%06d", j), List.of(amBuilder.build())));
+            }
+            assertThat(actual, containsInAnyOrder(expected.toArray(Object[]::new)));
+        }
+    }
+
 }

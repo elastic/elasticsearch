@@ -13,6 +13,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -22,7 +24,6 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -102,10 +103,9 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     public void testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 10; i++) {
             int precision = randomIntBetween(0, 3);
-            GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-            Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
+            Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, randomValueOtherThanMany(g -> {
                 try {
-                    indexer.prepareForIndexing(g);
+                    GeometryNormalizer.apply(Orientation.CCW, g);
                     return false;
                 } catch (Exception e) {
                     return true;
@@ -148,16 +148,14 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 1000; i++) {
             int precision = randomIntBetween(0, 3);
-            GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-            Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
+            Geometry geometry = randomValueOtherThanMany(g -> {
                 try {
-                    indexer.prepareForIndexing(g);
+                    GeometryNormalizer.apply(Orientation.CCW, g);
                     return false;
                 } catch (Exception e) {
                     return true;
                 }
-            }, () -> boxToGeo(randomBBox())));
-
+            }, () -> boxToGeo(randomBBox()));
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
             GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
                 makeGeoShapeValues(value),

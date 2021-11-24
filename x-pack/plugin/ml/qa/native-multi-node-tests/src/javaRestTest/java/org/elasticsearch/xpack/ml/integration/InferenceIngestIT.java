@@ -489,8 +489,8 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(stringResponse, containsString("\"predicted_value\":\"ko\""));
     }
 
-    private static Request simulateRequest(String jsonEntity) {
-        Request request = new Request("POST", "_ingest/pipeline/_simulate");
+    static Request simulateRequest(String jsonEntity) {
+        Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
         request.setJsonEntity(jsonEntity);
         return request;
     }
@@ -511,7 +511,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         return request;
     }
 
-    private static Request putPipeline(String pipelineId, String pipelineDefinition) {
+    static Request putPipeline(String pipelineId, String pipelineDefinition) {
         Request request = new Request("PUT", "_ingest/pipeline/" + pipelineId);
         request.setJsonEntity(pipelineDefinition);
         return request;

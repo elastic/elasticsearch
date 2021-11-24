@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -88,12 +89,28 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
     private volatile TimeValue waitForMetadataTimeOut;
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
+    private volatile Set<String> patterns = Collections.emptySet();
 
     // The following fields are read and updated under a lock:
     private long numberOfSuccessfulIndicesAutoFollowed = 0;
     private long numberOfFailedIndicesAutoFollowed = 0;
     private long numberOfFailedRemoteClusterStateRequests = 0;
-    private final LinkedHashMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
+    private final LinkedHashMap<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
+
+    private static final class AutoFollowErrorKey {
+        private final String pattern;
+        private final String index;
+
+        private AutoFollowErrorKey(String pattern, String index) {
+            this.pattern = Objects.requireNonNull(pattern);
+            this.index = index;
+        }
+
+        @Override
+        public String toString() {
+            return index != null ? pattern + ':' + index : pattern;
+        }
+    }
 
     public AutoFollowCoordinator(
         final Settings settings,
@@ -111,9 +128,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         this.absoluteMillisTimeProvider = absoluteMillisTimeProvider;
         this.executor = Objects.requireNonNull(executor);
-        this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
+        this.recentAutoFollowErrors = new LinkedHashMap<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>>() {
             @Override
-            protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
+            protected boolean removeEldestEntry(final Map.Entry<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> eldest) {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;
             }
         };
@@ -166,21 +183,31 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
 
+        TreeMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrorsCopy = new TreeMap<>();
+        for (Map.Entry<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> entry : recentAutoFollowErrors.entrySet()) {
+            recentAutoFollowErrorsCopy.put(entry.getKey().toString(), entry.getValue());
+        }
+
         return new AutoFollowStats(
             numberOfFailedIndicesAutoFollowed,
             numberOfFailedRemoteClusterStateRequests,
             numberOfSuccessfulIndicesAutoFollowed,
-            new TreeMap<>(recentAutoFollowErrors),
+            recentAutoFollowErrorsCopy,
             timesSinceLastAutoFollowPerRemoteCluster
         );
     }
 
     synchronized void updateStats(List<AutoFollowResult> results) {
+        // purge stats for removed patterns
+        Set<String> currentPatterns = this.patterns;
+        recentAutoFollowErrors.keySet().removeIf(key -> currentPatterns.contains(key.pattern) == false);
+        // add new stats
         long newStatsReceivedTimeStamp = absoluteMillisTimeProvider.getAsLong();
         for (AutoFollowResult result : results) {
+            AutoFollowErrorKey onlyPatternKey = new AutoFollowErrorKey(result.autoFollowPatternName, null);
             if (result.clusterStateFetchException != null) {
                 recentAutoFollowErrors.put(
-                    result.autoFollowPatternName,
+                    onlyPatternKey,
                     Tuple.tuple(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException))
                 );
                 numberOfFailedRemoteClusterStateRequests++;
@@ -192,9 +219,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     result.clusterStateFetchException
                 );
             } else {
-                recentAutoFollowErrors.remove(result.autoFollowPatternName);
+                recentAutoFollowErrors.remove(onlyPatternKey);
                 for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
-                    final String patternAndIndexKey = result.autoFollowPatternName + ":" + entry.getKey().getName();
+                    AutoFollowErrorKey patternAndIndexKey = new AutoFollowErrorKey(result.autoFollowPatternName, entry.getKey().getName());
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
                         recentAutoFollowErrors.put(
@@ -203,7 +230,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         );
                         LOGGER.warn(
                             new ParameterizedMessage(
-                                "failure occurred while auto following index [{}] for auto follow " + "pattern [{}]",
+                                "failure occurred while auto following index [{}] for auto follow pattern [{}]",
                                 entry.getKey(),
                                 result.autoFollowPatternName
                             ),
@@ -215,7 +242,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     }
                 }
             }
-
         }
     }
 
@@ -230,6 +256,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
             return;
         }
+
+        this.patterns = Sets.newHashSet(autoFollowMetadata.getPatterns().keySet());
 
         final CopyOnWriteHashMap<String, AutoFollower> autoFollowersCopy = CopyOnWriteHashMap.copyOf(this.autoFollowers);
         Set<String> newRemoteClusters = autoFollowMetadata.getPatterns()

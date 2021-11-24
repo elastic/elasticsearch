@@ -39,7 +39,7 @@ public class RestSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_search").build();
 
         dispatchRequest(request);
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeParameter() {
@@ -51,7 +51,7 @@ public class RestSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
         dispatchRequest(request);
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**

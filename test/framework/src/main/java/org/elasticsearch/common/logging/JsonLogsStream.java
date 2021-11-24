@@ -8,10 +8,9 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
@@ -38,11 +37,7 @@ public class JsonLogsStream {
 
     private JsonLogsStream(BufferedReader reader, ObjectParser<JsonLogLine, Void> logLineParser) throws IOException {
         this.reader = reader;
-        this.parser = JsonXContent.jsonXContent.createParser(
-            NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            reader
-        );
+        this.parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, reader);
         this.logLineParser = logLineParser;
     }
 

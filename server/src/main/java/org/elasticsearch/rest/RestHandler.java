@@ -8,7 +8,9 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.xcontent.MediaType;
@@ -85,10 +87,19 @@ public interface RestHandler {
         private final RestApiVersion restApiVersion;
 
         private final String deprecationMessage;
+        @Nullable
+        private final Level deprecationLevel;
 
         private final Route replacedRoute;
 
-        private Route(Method method, String path, RestApiVersion restApiVersion, String deprecationMessage, Route replacedRoute) {
+        private Route(
+            Method method,
+            String path,
+            RestApiVersion restApiVersion,
+            String deprecationMessage,
+            Level deprecationLevel,
+            Route replacedRoute
+        ) {
             this.method = Objects.requireNonNull(method);
             this.path = Objects.requireNonNull(path);
             this.restApiVersion = Objects.requireNonNull(restApiVersion);
@@ -96,6 +107,7 @@ public interface RestHandler {
             // a deprecated route will have a deprecation message, and the restApiVersion
             // will represent the version when the route was deprecated
             this.deprecationMessage = deprecationMessage;
+            this.deprecationLevel = deprecationLevel;
 
             // a route that replaces another route will have a reference to the route that was replaced
             this.replacedRoute = replacedRoute;
@@ -110,7 +122,7 @@ public interface RestHandler {
          * @param path   the path, e.g. "/"
          */
         public Route(Method method, String path) {
-            this(method, path, RestApiVersion.current(), null, null);
+            this(method, path, RestApiVersion.current(), null, null, null);
         }
 
         public static class RouteBuilder {
@@ -120,6 +132,8 @@ public interface RestHandler {
             private RestApiVersion restApiVersion;
 
             private String deprecationMessage;
+            @Nullable
+            private Level deprecationLevel;
 
             private Route replacedRoute;
 
@@ -151,6 +165,29 @@ public interface RestHandler {
             }
 
             /**
+             * Marks that the route being built has been deprecated (for some reason -- the deprecationMessage), and notes the major
+             * version in which that deprecation occurred.
+             * <p>
+             * For example:
+             * <pre> {@code
+             * Route.builder(GET, "_upgrade")
+             *  .deprecated("The _upgrade API is no longer useful and will be removed.", RestApiVersion.V_7)
+             *  .build()}</pre>
+             *
+             * @param deprecationMessage the user-visible explanation of this deprecation
+             * @param deprecationLevel the level at which to log the deprecation
+             * @param deprecatedInVersion the major version in which the deprecation occurred
+             * @return a reference to this object.
+             */
+            public RouteBuilder deprecated(String deprecationMessage, Level deprecationLevel, RestApiVersion deprecatedInVersion) {
+                assert this.replacedRoute == null;
+                this.restApiVersion = Objects.requireNonNull(deprecatedInVersion);
+                this.deprecationMessage = Objects.requireNonNull(deprecationMessage);
+                this.deprecationLevel = deprecationLevel;
+                return this;
+            }
+
+            /**
              * Marks that the route being built replaces another route, and notes the major version in which that replacement occurred.
              * <p>
              * For example:
@@ -165,18 +202,18 @@ public interface RestHandler {
              */
             public RouteBuilder replaces(Method method, String path, RestApiVersion replacedInVersion) {
                 assert this.deprecationMessage == null;
-                this.replacedRoute = new Route(method, path, replacedInVersion, null, null);
+                this.replacedRoute = new Route(method, path, replacedInVersion, null, null, null);
                 return this;
             }
 
             public Route build() {
                 if (replacedRoute != null) {
-                    return new Route(method, path, restApiVersion, null, replacedRoute);
+                    return new Route(method, path, restApiVersion, null, null, replacedRoute);
                 } else if (deprecationMessage != null) {
-                    return new Route(method, path, restApiVersion, deprecationMessage, null);
+                    return new Route(method, path, restApiVersion, deprecationMessage, deprecationLevel, null);
                 } else {
                     // this is a little silly, but perfectly legal
-                    return new Route(method, path, restApiVersion, null, null);
+                    return new Route(method, path, restApiVersion, null, null, null);
                 }
             }
         }
@@ -199,6 +236,11 @@ public interface RestHandler {
 
         public String getDeprecationMessage() {
             return deprecationMessage;
+        }
+
+        @Nullable
+        public Level getDeprecationLevel() {
+            return deprecationLevel;
         }
 
         public boolean isDeprecated() {

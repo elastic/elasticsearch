@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[delete-trained-models-aliases]]
 = Delete trained model aliases API
 [subs="attributes"]

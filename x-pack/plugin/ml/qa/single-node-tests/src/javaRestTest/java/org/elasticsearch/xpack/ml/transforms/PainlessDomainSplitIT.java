@@ -12,7 +12,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.time.ZoneOffset;
@@ -309,7 +308,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         for (int i = 1; i <= 100; i++) {
             ZonedDateTime time = baseTime.plusHours(i);
-            String formattedTime = DateFormatter.forPattern("strict_date_optional_time").format(time);
+            String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
             if (i % 50 == 0) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {

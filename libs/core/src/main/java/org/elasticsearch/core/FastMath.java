@@ -1,12 +1,5 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-
-/* @notice
+ * @notice
  * Copyright 2012 Jeff Hain
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,9 +24,7 @@
  * software is freely granted, provided that this notice
  * is preserved.
  * =============================================================================
- */
-
-/*
+ *
  * This code sourced from:
  * https://github.com/yannrichet/jmathplot/blob/f25426e0ab0e68647ad2b75f577c7be050ecac86/src/main/java/org/math/plot/utils/FastMath.java
  */

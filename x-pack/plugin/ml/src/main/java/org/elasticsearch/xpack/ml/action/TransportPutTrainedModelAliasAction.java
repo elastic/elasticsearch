@@ -21,9 +21,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -91,7 +91,9 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
         final boolean mlSupported = MachineLearningField.ML_API_FEATURE.check(licenseState);
-        final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported || licenseState.isAllowedByLicense(model.getLicenseLevel());
+        final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported
+            // Either we support plat+ or the model is basic licensed
+            || model.getLicenseLevel() == License.OperationMode.BASIC;
         final String oldModelId = ModelAliasMetadata.fromState(state).getModelId(request.getModelAlias());
 
         if (oldModelId != null && (request.isReassign() == false)) {
@@ -170,7 +172,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                     String warning = Messages.getMessage(TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY, request.getModelId(), oldModelId);
                     auditor.warning(oldModelId, warning);
                     logger.warn("[{}] {}", oldModelId, warning);
-                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                    HeaderWarning.addWarning(warning);
                 }
             }
             clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {

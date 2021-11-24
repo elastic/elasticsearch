@@ -23,7 +23,7 @@ public interface LeafFieldData extends Accountable, Releasable {
     /**
      * Returns an {@code Field} for use in accessing field values in scripting.
      */
-    DocValuesField getScriptField(String name);
+    DocValuesField<?> getScriptField(String name);
 
     /**
      * Return a String representation of the values.

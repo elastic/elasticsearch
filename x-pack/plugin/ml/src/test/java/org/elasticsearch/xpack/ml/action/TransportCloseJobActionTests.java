@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
@@ -37,13 +36,11 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
@@ -252,8 +249,6 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     public void testDoExecute_whenNothingToClose() {
-        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
-        mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("foo").build(new Date()), false);
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         addJobTask("foo", null, JobState.CLOSED, tasksBuilder);
@@ -275,7 +270,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         // This method should return immediately because the job is already closed.
         // Check that the listener is called. If a different code path was taken the
         // listener wouldn't be called without extensive mocking
-        transportAction.doExecute(mock(Task.class), request, new ActionListener<CloseJobAction.Response>() {
+        transportAction.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
             public void onResponse(CloseJobAction.Response response) {
                 gotResponse.set(response.isClosed());
@@ -283,7 +278,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assertNull(e.getMessage(), e);
+                fail(e.getMessage());
             }
         });
 

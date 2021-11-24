@@ -114,7 +114,7 @@ public class AnnotationIndex {
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(LATEST_INDEX_NAME).alias(READ_ALIAS_NAME).isHidden(true))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(LATEST_INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true));
             for (String oldIndexName : OLD_INDEX_NAMES) {
-                if (state.getMetadata().getIndicesLookup().containsKey(oldIndexName)) {
+                if (state.getMetadata().hasIndexAbstraction(oldIndexName)) {
                     requestBuilder.removeAlias(oldIndexName, WRITE_ALIAS_NAME);
                 }
             }

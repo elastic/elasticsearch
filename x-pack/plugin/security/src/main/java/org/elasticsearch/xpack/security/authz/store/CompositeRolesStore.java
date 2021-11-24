@@ -239,7 +239,7 @@ public class CompositeRolesStore {
                     rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY),
                     "Please check the documentation"
                 );
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.SECURITY,
                     "deprecated_role-" + rd.getName(),
                     "The role [" + rd.getName() + "] is deprecated and will be removed in a future version of Elasticsearch. " + reason
@@ -281,26 +281,37 @@ public class CompositeRolesStore {
             return;
         }
 
-        if (authentication.isServiceAccount()) {
-            getRolesForServiceAccount(authentication, roleActionListener);
-        } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
-            getRolesForApiKey(authentication, roleActionListener);
+        if (user.isRunAs()) {
+            // The runas user currently must be from a realm and have regular roles
+            getRolesForUser(user, roleActionListener);
         } else {
-            Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
-            if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                }
-                Collections.addAll(roleNames, anonymousUser.roles());
-            }
-
-            if (roleNames.isEmpty()) {
-                roleActionListener.onResponse(Role.EMPTY);
-            } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-                roleActionListener.onResponse(superuserRole);
+            // The authenticated user may not come from a realm and they need to be handled specially
+            if (authentication.isAuthenticatedWithServiceAccount()) {
+                getRolesForServiceAccount(authentication, roleActionListener);
+            } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
+                // API key role descriptors are stored in the authentication metadata
+                getRolesForApiKey(authentication, roleActionListener);
             } else {
-                roles(roleNames, roleActionListener);
+                getRolesForUser(user, roleActionListener);
             }
+        }
+    }
+
+    private void getRolesForUser(User user, ActionListener<Role> roleActionListener) {
+        Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
+        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (anonymousUser.roles().length == 0) {
+                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            }
+            Collections.addAll(roleNames, anonymousUser.roles());
+        }
+
+        if (roleNames.isEmpty()) {
+            roleActionListener.onResponse(Role.EMPTY);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+            roleActionListener.onResponse(superuserRole);
+        } else {
+            roles(roleNames, roleActionListener);
         }
     }
 

@@ -415,7 +415,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 assertEquals(2, searchSourceBuilder.indexBoosts().size());
                 assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
                 assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
-                assertWarnings("Object format in indices_boost is deprecated, please use array format instead");
+                assertCriticalWarnings("Object format in indices_boost is deprecated, please use array format instead");
             }
         }
 
@@ -488,7 +488,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
             assertEquals(-1, searchSourceBuilder.size());
         }
-        assertWarnings(
+        assertCriticalWarnings(
             "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
                 + "parameter if you don't want to set it explicitly."
         );
@@ -534,7 +534,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
         return Rewriteable.rewrite(
             searchSourceBuilder,
-            new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, Long.valueOf(1)::longValue)
+            new QueryRewriteContext(parserConfig(), writableRegistry(), null, Long.valueOf(1)::longValue)
         );
     }
 }

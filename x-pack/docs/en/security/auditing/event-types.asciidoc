@@ -1,15 +1,18 @@
 [role="xpack"]
 [[audit-event-types]]
-=== Audit event types
+=== Audit events
 
 When you are <<enable-audit-logging,auditing security events>>, a single client
 request might generate multiple audit events, across multiple cluster nodes.
 The common `request.id` attribute can be used to correlate the associated events.
 
-To specify the type of events you want to include in the auditing output, add
-one or more of the following values for
-<<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>> in
-`elasticsearch.yml`.
+Use the <<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>> 
+setting in `elasticsearch.yml` to specify the kind of events you want to include
+in the auditing output.
+
+NOTE: Certain audit events require the `security_config_change` event type to
+audit the related event action. The description of impacted audit events
+indicate whether that event type is required.
 
 [[event-access-denied]]
 `access_denied`::
@@ -106,6 +109,9 @@ Logged when a user successfully authenticates.
 Logged when the <<security-api-enable-user,enable user API>> is invoked to
 disable a native or a built-in user.
 +
+You must include the `security_config_change` event type to
+audit the related event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -120,6 +126,9 @@ action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg",
 `change_enable_user`::
 Logged when the <<security-api-enable-user,enable user API>> is invoked to
 enable a native or a built-in user.
++
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -136,6 +145,9 @@ action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ",
 Logged when the <<security-api-change-password,change password API>> is
 invoked to change the password of a native or built-in user.
 +
+You must include the `security_config_change` event type to audit the related
+event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -151,6 +163,9 @@ action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw",
 `create_service_token`::
 Logged when the <<security-api-create-service-token,create service account token API>> is
 invoked to create a new index-based token for a service account.
++
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -198,6 +213,9 @@ Logged when the <<security-api-create-api-key,create API key>> or the
 <<security-api-grant-api-key, grant API key>> APIs are invoked to create a new
 API key.
 +
+You must include the `security_config_change` event type to audit the related
+event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -219,6 +237,9 @@ Logged when the
 <<security-api-delete-privilege,delete application privileges API>> is invoked
 to remove one or more application privileges.
 +
+You must include the `security_config_change` event type to audit the related
+event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -233,6 +254,9 @@ action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g",
 `delete_role`::
 Logged when the <<security-api-delete-role,delete role API>> is invoked to
 delete a role.
++
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -249,6 +273,9 @@ delete a role.
 Logged when the <<security-api-delete-role-mapping,delete role mapping API>>
 is invoked to delete a role mapping.
 +
+You must include the `security_config_change` event type to audit the related
+event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -263,6 +290,9 @@ action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g",
 `delete_service_token`::
 Logged when the <<security-api-delete-service-token,delete service account token API>> is
 invoked to delete an index-based token for a service account.
++
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -279,6 +309,9 @@ action":"delete_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
 Logged when the <<security-api-delete-user,delete user API>> is invoked to
 delete a specific native user.
 +
+You must include the `security_config_change` event type to audit the related
+event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -293,6 +326,9 @@ delete a specific native user.
 `invalidate_apikeys`::
 Logged when the <<security-api-invalidate-api-key,invalidate API key API>> is
 invoked to invalidate one or more API keys.
++
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -310,6 +346,9 @@ action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ",
 Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
 to add or update one or more application privileges.
 +
+You must include the `security_config_change` event type to audit the related
+event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -325,6 +364,9 @@ to add or update one or more application privileges.
 `put_role`::
 Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
 update a role.
++
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -345,6 +387,9 @@ update a role.
 Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
 invoked to create or update a role mapping.
 +
+You must include the `security_config_change` event type to audit the related
+event action.
++
 .Example
 [%collapsible%open]
 ====
@@ -361,6 +406,9 @@ action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA",
 Logged when the <<security-api-put-user,create or update user API>> is invoked to create or
 update a native user. Note that user updates can also change the
 user's password.
++
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -478,16 +526,18 @@ The following list shows attributes that are common to all audit event types:
                         of transport messages, generating audit events with
                         `origin.type: rest` and `event.type: transport`.
 `event.action`    ::    The type of event that occurred: `anonymous_access_denied`,
-                        `authentication_failed`, `authentication_success`,
-                        `realm_authentication_failed`, `access_denied`, `access_granted`,
-                        `connection_denied`, `connection_granted`, `tampered_request`,
-                        `run_as_denied`, or `run_as_granted`. In addition, if
-                        `event.type` equals `security_config_change`, the
-                        `event.action` attribute takes one of the following values:
-                        `put_user`, `change_password`, `put_role`, `put_role_mapping`,
-                        `change_enable_user`, `change_disable_user`, `put_privileges`,
-                        `create_apikey`, `delete_user`, `delete_role`,
-                        `delete_role_mapping`, `invalidate_apikeys` or `delete_privileges`.
+`authentication_failed`, `authentication_success`,
+`realm_authentication_failed`, `access_denied`, `access_granted`,
+`connection_denied`, `connection_granted`, `tampered_request`,
+`run_as_denied`, or `run_as_granted`.
++
+In addition, if `event.type` equals <<security-config-change,`security_config_change`>>,
+the `event.action` attribute takes one of the following values:
+`put_user`, `change_password`, `put_role`, `put_role_mapping`,
+`change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, 
+`delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys` or 
+`delete_privileges`.
+
 `request.id`      ::    A synthetic identifier that can be used to correlate the events
                         associated with a particular REST request.
 
@@ -521,7 +571,7 @@ show more details about the requesting client:
                         designated by the `origin.address` field).
 
 
-==== Audit event attributes of the REST event type
+==== Audit event attributes of the `rest` event type
 
 The events with `event.type` equal to `rest` have one of the following `event.action`
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
@@ -541,7 +591,7 @@ common ones):
                         event, if enabled. This contains the HTTP request body.
                         The body is escaped as a string value according to the JSON RFC 4627.
 
-==== Audit event attributes of the transport event type
+==== Audit event attributes of the `transport` event type
 
 The events with `event.type` equal to `transport` have one of the following `event.action`
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
@@ -556,7 +606,7 @@ ones):
                             with this event pertains to (when applicable).
 `request.name`        ::    The name of the request handler that was executed.
 
-==== Audit event attributes of the ip_filter event type
+==== Audit event attributes of the `ip_filter` event type
 
 The events with `event.type` equal to `ip_filter` have one of the following `event.action`
 attribute values: `connection_granted` or `connection_denied`.
@@ -567,14 +617,16 @@ ones):
 `rule`                ::    The <<ip-filtering, IP filtering>> rule that denied
                             the request.
 
-==== Audit event attributes of the security_config_change event type
+[[security-config-change]]
+==== Audit event attributes of the `security_config_change` event type
 
 The events with the `event.type` attribute equal to `security_config_change` have one of the following
 `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`,
 `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`,
 `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, or `delete_privileges`.
+
 These events also have *one* of the following extra attributes (in addition to the common
-ones). The attribute's value is a nested JSON object:
+ones), which is specific to the `event.type` attribute. The attribute's value is a nested JSON object:
 
 `put`                 ::    The object representation of the security config that
                             is being created, or the overwrite of an existing config.
@@ -600,40 +652,116 @@ ones). The attribute's value is a nested JSON object:
 The schemas of the security config objects mentioned above are as follows. They are very similar to the
 request bodies of the corresponding security APIs.
 
-`user`                ::     An object like `{"name": <string>, "enabled": <boolean>, "roles": <string_list>,
-                             "full_name": <string>, "email": <string>, "has_password": <boolean>,
-                             "metadata": <object>}`. The `full_name`, `email` and `metadata` fields are omitted if empty.
+`user`                ::     An object like:
++
+[source,js]
+----
+`{"name": <string>, "enabled": <boolean>, "roles": <string_list>,
+"full_name": <string>, "email": <string>, "has_password": <boolean>,
+"metadata": <object>}`.
+----
+// NOTCONSOLE
++
+The `full_name`, `email` and `metadata` fields are omitted if empty.
 
-`role`                ::     An object like `{"name": <string>, "role_descriptor": {"cluster": <string_list>, "global":
-                             {"application":{"manage":{<string>:<string_list>}}}, "indices": [
-                             {"names": <string_list>, "privileges": <string_list>, "field_security":
-                             {"grant": <string_list>, "except": <string_list>}, "query": <string>,
-                             "allow_restricted_indices": <boolean>}], "applications":[{"application": <string>,
-                             "privileges": <string_list>, "resources": <string_list>}], "run_as": <string_list>,
-                             "metadata": <object>}}`. The `global`, `field_security`, `except`, `query`,
-                             `allow_restricted_indices` and `metadata` fields are omitted if empty.
+`role`                ::     An object like:
++
+[source,js]
+----
+`{"name": <string>, "role_descriptor": {"cluster": <string_list>, "global":
+{"application":{"manage":{<string>:<string_list>}}}, "indices": [                             {"names": <string_list>, "privileges": <string_list>, "field_security":
+{"grant": <string_list>, "except": <string_list>}, "query": <string>,
+"allow_restricted_indices": <boolean>}], "applications":[{"application": <string>,
+"privileges": <string_list>, "resources": <string_list>}], "run_as": <string_list>,
+"metadata": <object>}}`.
+----
+// NOTCONSOLE
++
+The `global`, `field_security`, `except`, `query`,
+`allow_restricted_indices` and `metadata` fields are omitted if empty.
 
-`role_mapping`        ::     An object like `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
-                             "format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`.
-                             The `roles` and `role_templates` fields are omitted if empty.
-                             The `rules` object has a recursively nested schema, identical to what is passed in
-                             the <<mapping-roles, API request for mapping roles>>.
+`role_mapping`        ::     An object like:
++
+[source,js]
+----
+`{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
+"format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`.
+----
+// NOTCONSOLE
++
+The `roles` and `role_templates` fields are omitted if empty.
+The `rules` object has a recursively nested schema, identical to what is passed in
+the <<mapping-roles, API request for mapping roles>>.
 
-`privileges`          ::     An array of objects like `{"application": <string>, "name": <string>, "actions": <string_list>,
-                             "metadata": <object>}`.
+`privileges`          ::     An array of objects like:
++
+[source,js]
+----
+`{"application": <string>, "name": <string>, "actions": <string_list>,
+"metadata": <object>}`.
+----
+// NOTCONSOLE
 
-`password`            ::     A simple object like `{"user":{"name": <string>}}`.
-`enable`              ::     A simple object like `{"user":{"name": <string>}}`.
-`disable`             ::     A simple object like `{"user":{"name": <string>}}`.
-`apikey`              ::     An object like `{"name": <string>, "expiration": <string>, "role_descriptors" [<object>]}`.
-                             The `role_descriptors` objects have the same schema as the `role_descriptor` object that
-                             is part of the above `role` config object.
-`grant`               ::     An object like `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
-                             "has_access_token": <boolean>}`
-`apikeys`             ::     An object like `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
-                             <boolean>, "user":{"name": <string>, "realm": <string>}}`.
+`password`            ::     A simple object like:
++
+[source,js]
+----
+`{"user":{"name": <string>}}`
+----
+// NOTCONSOLE
 
-`service_token`       ::   An object like `{"namespace":<string>,"service":<string>,"name":<string>}`.
+`enable`              ::     A simple object like:
++
+[source,js]
+----
+`{"user":{"name": <string>}}`
+----
+// NOTCONSOLE
+
+`disable`             ::     A simple object like:
++
+[source,js]
+----
+`{"user":{"name": <string>}}`
+----
+// NOTCONSOLE
+
+`apikey`              ::     An object like:
++
+[source,js]
+----
+`{"name": <string>, "expiration": <string>, "role_descriptors" [<object>]}`
+----
+// NOTCONSOLE
++
+The `role_descriptors` objects have the same schema as the `role_descriptor`
+object that is part of the above `role` config object.
+
+`grant`               ::     An object like:
++
+[source,js]
+----
+`{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
+"has_access_token": <boolean>}`
+----
+// NOTCONSOLE
+
+`apikeys`             ::     An object like:
++
+[source,js]
+----
+`{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
+<boolean>, "user":{"name": <string>, "realm": <string>}}`
+----
+// NOTCONSOLE
+
+`service_token`       ::   An object like:
++
+[source,js]
+----
+`{"namespace":<string>,"service":<string>,"name":<string>}`
+----
+// NOTCONSOLE
 
 ==== Extra audit event attributes for specific events
 

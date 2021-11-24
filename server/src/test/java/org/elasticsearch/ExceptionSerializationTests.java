@@ -410,12 +410,10 @@ public class ExceptionSerializationTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("thenode", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
-        assertEquals(node, ex.node());
         assertNull(ex.getCause());
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
-        assertEquals(node, ex.node());
         assertTrue(ex.getCause() instanceof NullPointerException);
     }
 

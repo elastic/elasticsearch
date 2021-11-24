@@ -306,8 +306,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingString() throws IOException {
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number")
-            .missing("🍌🍌🍌");
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
@@ -320,7 +319,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMissingNumber() throws IOException {
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing(1234);
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing(1234);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));

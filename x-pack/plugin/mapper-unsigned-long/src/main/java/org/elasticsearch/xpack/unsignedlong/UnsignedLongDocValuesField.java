@@ -95,13 +95,13 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
             return Collections.emptyList();
         }
 
-        List<Long> values = new ArrayList<>(count);
+        List<Long> longValues = new ArrayList<>(count);
 
         for (int index = 0; index < count; ++index) {
-            values.add(toFormatted(index));
+            longValues.add(toFormatted(index));
         }
 
-        return values;
+        return longValues;
     }
 
     @Override
@@ -154,13 +154,13 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
             return Collections.emptyList();
         }
 
-        List<BigInteger> values = new ArrayList<>(count);
+        List<BigInteger> bigIntegerValues = new ArrayList<>(count);
 
         for (int index = 0; index < count; ++index) {
-            values.add(toBigInteger(index));
+            bigIntegerValues.add(toBigInteger(index));
         }
 
-        return values;
+        return bigIntegerValues;
     }
 
     @Override

@@ -47,7 +47,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class EnsembleInferenceModelTests extends ESTestCase {
 
     private static final int NUMBER_OF_TEST_RUNS = 20;
-    private final double eps = 1.0E-8;
 
     public static EnsembleInferenceModel serializeFromTrainedModel(Ensemble ensemble) throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -518,6 +517,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         double[][] featureImportance = ensemble.featureImportance(new double[] { 0.0, 0.9 });
+        final double eps = 1.0E-8;
         assertThat(featureImportance[0][0], closeTo(-1.653200025, eps));
         assertThat(featureImportance[1][0], closeTo(-0.12444978, eps));
 

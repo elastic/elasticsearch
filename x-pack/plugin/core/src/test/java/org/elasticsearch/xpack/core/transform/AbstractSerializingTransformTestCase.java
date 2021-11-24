@@ -104,7 +104,7 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
 
     protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
         X original,
-        NamedWriteableRegistry namedWriteableRegistry,
+        NamedWriteableRegistry registry,
         Writeable.Writer<X> writer,
         Writeable.Reader<Y> reader,
         Version version

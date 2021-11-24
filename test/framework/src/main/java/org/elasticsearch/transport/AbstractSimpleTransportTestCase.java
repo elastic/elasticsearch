@@ -87,6 +87,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1721,7 +1722,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     Throwable cause = ExceptionsHelper.unwrapCause(exp);
                     assertThat(cause, instanceOf(ConnectTransportException.class));
-                    assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
+                    assertThat(cause.getMessage(), allOf(containsString(nodeA.getName()), containsString(nodeA.getAddress().toString())));
                 }
             }
         );
@@ -1729,7 +1730,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final ExecutionException e = expectThrows(ExecutionException.class, res::get);
         Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
         assertThat(cause, instanceOf(ConnectTransportException.class));
-        assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
+        assertThat(cause.getMessage(), allOf(containsString(nodeA.getName()), containsString(nodeA.getAddress().toString())));
 
         // wait for the transport to process the sending failure and disconnect from node
         assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));

@@ -48,7 +48,7 @@ Recovery automatically occurs during the following processes:
 * Primary shard replication.
 * Relocation of a shard to a different node in the same cluster.
 * <<snapshots-restore-snapshot,Snapshot restore>> operation.
-* <<indices-clone-index,cClone>>, <<indices-shrink-index,shrink>>, or
+* <<indices-clone-index,Clone>>, <<indices-shrink-index,shrink>>, or
 <<indices-split-index,split>> operation.
 // end::shard-recovery-desc[]
 

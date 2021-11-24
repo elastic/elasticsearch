@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.network.NetworkNatives;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -156,6 +157,9 @@ final class Bootstrap {
 
         // init filesystem natives
         FileSystemNatives.init();
+
+        // init network natives
+        NetworkNatives.init();
     }
 
     static void initializeProbes() {

@@ -265,7 +265,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             assertThat(clusterState.routingTable().index("test1").shard(i).replicaShards().get(0).state(), equalTo(STARTED));
         }
 
-        logger.info("Add another node and perform rerouting, nothing will happen since primary not started");
+        logger.info("Add another node and perform rerouting, relocate shards to new node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, not(equalTo(clusterState)));

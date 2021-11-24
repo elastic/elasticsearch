@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -33,7 +35,15 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
@@ -56,7 +66,21 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(state);
-        searchResources(request, ActionListener.wrap(r -> listener.onResponse(new Response(r.results(), r.count())), listener::onFailure));
+
+        ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = ActionListener.wrap(r -> {
+            Set<String> transformConfigIds = r.results().stream().map(TransformConfig::getId).collect(toSet());
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findTransformTasks(
+                request.getId(),
+                state
+            );
+            List<String> transformWithoutConfigIds = transformTasks.stream()
+                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                .filter(not(transformConfigIds::contains))
+                .collect(toList());
+            listener.onResponse(new Response(r.results(), r.count(), transformWithoutConfigIds));
+        }, listener::onFailure);
+
+        searchResources(request, searchTransformConfigsListener);
     }
 
     @Override

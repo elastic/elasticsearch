@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.transform.DeleteTransformRequest;
@@ -36,21 +39,27 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.CoreMatchers.is;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 @SuppressWarnings("removal")
@@ -71,8 +80,8 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
-        setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
-        setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
+        setupUser(TEST_USER_NAME, singletonList("transform_user"));
+        setupUser(TEST_ADMIN_USER_NAME, singletonList("transform_admin"));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -175,6 +184,181 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
         stopTransform("pivot_continuous", false);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetAndGetStatsForTransformWithoutConfig() throws Exception {
+        createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
+        createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
+        createContinuousPivotReviewsTransform("pivot_continuous", "pivot_reviews_continuous", null);
+
+        startAndWaitForTransform("pivot_1", "pivot_reviews_1");
+        startAndWaitForTransform("pivot_2", "pivot_reviews_2");
+        startAndWaitForContinuousTransform("pivot_continuous", "pivot_reviews_continuous", null);
+        stopTransform("pivot_1", false);
+        stopTransform("pivot_2", false);
+
+        {  // Make sure the config document is there
+            Request getTransformConfigRequest = new Request(
+                "GET",
+                TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/data_frame_transform_config-pivot_continuous"
+            );
+            getTransformConfigRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            Response getTransformConfigResponse = client().performRequest(getTransformConfigRequest);
+            assertThat(entityAsMap(getTransformConfigResponse), hasEntry("found", true));
+        }
+        {  // Delete the config document while the continuous transform is running
+            Request deleteTransformConfigRequest = new Request(
+                "DELETE",
+                TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/data_frame_transform_config-pivot_continuous?refresh=true"
+            );
+            deleteTransformConfigRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            Response deleteTransformConfigResponse = client().performRequest(deleteTransformConfigRequest);
+            assertThat(entityAsMap(deleteTransformConfigResponse), hasEntry("result", "deleted"));
+        }
+
+        // Check all the different ways to retrieve transforms
+        verifyGetResponse(getTransformEndpoint(), 2, List.of("pivot_continuous"));
+        verifyGetResponse(getTransformEndpoint() + "_all", 2, List.of("pivot_continuous"));
+        verifyGetResponse(getTransformEndpoint() + "*", 2, List.of("pivot_continuous"));
+        verifyGetResponse(getTransformEndpoint() + "pivot_*", 2, List.of("pivot_continuous"));
+        verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
+        verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
+        verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);
+        {
+            Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_continuous", BASIC_AUTH_VALUE_TRANSFORM_USER);
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(404)));
+        }
+
+        // Check all the different ways to retrieve transform stats
+        verifyGetStatsResponse(getTransformEndpoint() + "_stats", 2);
+        verifyGetStatsResponse(getTransformEndpoint() + "_all/_stats", 2);
+        verifyGetStatsResponse(getTransformEndpoint() + "*/_stats", 2);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_*/_stats", 2);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_1,pivot_2/_stats", 2);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_1/_stats", 1);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_2/_stats", 1);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_continuous/_stats", 0);
+
+        // "force" is needed as we deleted the config document for this transform
+        stopTransform("pivot_continuous", true);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetAndGetStatsWhenTransformInternalIndexDisappears() throws Exception {
+        createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
+        createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
+        createContinuousPivotReviewsTransform("pivot_continuous", "pivot_reviews_continuous", null);
+
+        startAndWaitForTransform("pivot_1", "pivot_reviews_1");
+        startAndWaitForTransform("pivot_2", "pivot_reviews_2");
+        startAndWaitForContinuousTransform("pivot_continuous", "pivot_reviews_continuous", null);
+        stopTransform("pivot_1", false);
+        stopTransform("pivot_2", false);
+
+        {  // Make sure the config document is there
+            Request getTransformConfigRequest = new Request(
+                "GET",
+                TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/data_frame_transform_config-pivot_continuous"
+            );
+            getTransformConfigRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            Response getTransformConfigResponse = client().performRequest(getTransformConfigRequest);
+            assertThat(entityAsMap(getTransformConfigResponse), hasEntry("found", true));
+        }
+        {  // Delete the transform internal index while the continuous transform is running
+            Request deleteIndexRequest = new Request("DELETE", TransformInternalIndexConstants.LATEST_INDEX_NAME);
+            deleteIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            Response deleteIndexResponse = client().performRequest(deleteIndexRequest);
+            assertThat(entityAsMap(deleteIndexResponse), hasEntry("acknowledged", true));
+        }
+
+        // Check all the different ways to retrieve transforms
+        verifyGetResponse(getTransformEndpoint(), 0, List.of("pivot_continuous"));
+        verifyGetResponse(getTransformEndpoint() + "_all", 0, List.of("pivot_continuous"));
+        verifyGetResponse(getTransformEndpoint() + "*", 0, List.of("pivot_continuous"));
+        verifyGetResponse(getTransformEndpoint() + "pivot_*", 0, List.of("pivot_continuous"));
+        {
+            Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1,pivot_2", BASIC_AUTH_VALUE_TRANSFORM_USER);
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(404)));
+        }
+        {
+            Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1", BASIC_AUTH_VALUE_TRANSFORM_USER);
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(404)));
+        }
+        {
+            Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_2", BASIC_AUTH_VALUE_TRANSFORM_USER);
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(404)));
+        }
+        {
+            Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_continuous", BASIC_AUTH_VALUE_TRANSFORM_USER);
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(404)));
+        }
+
+        // Check all the different ways to retrieve transform stats
+        verifyGetStatsResponse(getTransformEndpoint() + "_stats", 0);
+        verifyGetStatsResponse(getTransformEndpoint() + "_all/_stats", 0);
+        verifyGetStatsResponse(getTransformEndpoint() + "*/_stats", 0);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_*/_stats", 0);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_1,pivot_2/_stats", 0);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_1/_stats", 0);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_2/_stats", 0);
+        verifyGetStatsResponse(getTransformEndpoint() + "pivot_continuous/_stats", 0);
+
+        // "force" is needed as we deleted the config document for this transform
+        stopTransform("pivot_continuous", true);
+    }
+
+    private void verifyGetResponse(String path, int expectedCount, List<String> expectedInvalidTransforms) throws IOException {
+        // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
+        String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
+
+        Request request = createRequestWithAuth("GET", path, authHeader);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        Response response = client().performRequest(request);
+        Map<String, Object> transforms = entityAsMap(response);
+        assertThat(XContentMapValues.extractValue("count", transforms), is(equalTo(expectedCount)));
+        if (expectedInvalidTransforms != null) {
+            assertThat(response.getWarnings(), contains("Found [1] invalid transforms"));
+            assertThat(
+                XContentMapValues.extractValue("invalid_transforms.count", transforms),
+                is(equalTo(expectedInvalidTransforms.size()))
+            );
+            assertThat(XContentMapValues.extractValue("invalid_transforms.transforms", transforms), is(equalTo(expectedInvalidTransforms)));
+        } else {
+            assertThat(XContentMapValues.extractValue("invalid_transforms", transforms), is(nullValue()));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> verifyGetStatsResponse(String path, int expectedCount) throws IOException {
+        // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
+        String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
+
+        Request request = createRequestWithAuth("GET", path, authHeader);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        Response response = client().performRequest(request);
+        Map<String, Object> stats = entityAsMap(response);
+        assertThat(XContentMapValues.extractValue("count", stats), is(equalTo(expectedCount)));
+
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
+        assertThat(transformsStats, hasSize(expectedCount));
+        // Verify that all the transforms have valid stats
+        for (Map<String, Object> transformStats : transformsStats) {
+            assertThat(XContentMapValues.extractValue("state", transformStats), is(equalTo("stopped")));
+            assertThat(XContentMapValues.extractValue("checkpointing.next.position", transformStats), is(nullValue()));
+            assertThat(XContentMapValues.extractValue("checkpointing.last.checkpoint", transformStats), is(equalTo(1)));
+
+            Map<String, Object> stat = (Map<String, Object>) transformStats.get("stats");
+            assertThat("documents_processed is not > 0.", ((Integer) stat.get("documents_processed")), is(greaterThan(0)));
+            assertThat("search_total is not > 0.", ((Integer) stat.get("search_total")), is(greaterThan(0)));
+            assertThat("pages_processed is not > 0.", ((Integer) stat.get("pages_processed")), is(greaterThan(0)));
+        }
+        return transformsStats;
     }
 
     @SuppressWarnings("unchecked")
@@ -425,7 +609,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
     }
 
     protected static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, Collections.emptyList())
+        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, emptyList())
             .getNamedXContents();
 
         TestRestHighLevelClient() {

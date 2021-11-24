@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -84,24 +85,28 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
 
-        public Response(List<TransformConfig> transformConfigs, long count) {
-            super(new QueryPage<>(transformConfigs, count, TransformField.TRANSFORMS));
-        }
+        private final List<String> transformsWithoutConfig;
 
-        public Response() {
-            super();
+        public Response(List<TransformConfig> transformConfigs, long count, List<String> transformsWithoutConfig) {
+            super(new QueryPage<>(transformConfigs, count, TransformField.TRANSFORMS));
+            this.transformsWithoutConfig = transformsWithoutConfig;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            this.transformsWithoutConfig = in.readOptionalStringList();
         }
 
         public List<TransformConfig> getTransformConfigurations() {
             return getResources().results();
         }
 
-        public long getCount() {
+        public long getTransformConfigurationCount() {
             return getResources().count();
+        }
+
+        public List<String> getTransformsWithoutConfig() {
+            return transformsWithoutConfig;
         }
 
         @Override
@@ -119,6 +124,9 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                     invalidTransforms.add(configResponse.getId());
                 }
             }
+            if (transformsWithoutConfig != null) {
+                invalidTransforms.addAll(transformsWithoutConfig);
+            }
             builder.endArray();
             if (invalidTransforms.isEmpty() == false) {
                 builder.startObject(INVALID_TRANSFORMS.getPreferredName());
@@ -132,9 +140,14 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                     invalidTransforms.size()
                 );
             }
-
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalStringCollection(transformsWithoutConfig);
         }
 
         @Override

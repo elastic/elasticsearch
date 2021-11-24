@@ -44,8 +44,7 @@ the replica shard is available for search.
 
 Recovery automatically occurs during the following processes:
 
-* Node startup or failure. This type of recovery is called a local store
-  recovery.
+* Node startup. This type of recovery is called a local store recovery.
 * Primary shard replication.
 * Relocation of a shard to a different node in the same cluster.
 * <<snapshots-restore-snapshot,Snapshot restore>> operation.

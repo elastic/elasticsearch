@@ -43,7 +43,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
     }
 

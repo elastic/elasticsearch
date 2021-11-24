@@ -638,7 +638,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                             bw.newLine();
                             bw.write(
                                 ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()
-                                    + ":"
+                                    + ": "
                                     + initialMasterNodesSettingValue(localFinalEnv)
                             );
                             bw.newLine();

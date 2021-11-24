@@ -408,14 +408,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     + "}"
             );
 
+            Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
+            assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
             // create a transform
             String endpoint = getOldClusterVersion().onOrAfter(Version.V_7_5_0)
                 ? "_transform/transform-full-cluster-restart-test"
                 : "_data_frame/transforms/transform-full-cluster-restart-test";
             final Request createTransformRequest = new Request("PUT", endpoint);
-
-            Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
-            assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             createTransformRequest.setJsonEntity(
                 "{"
@@ -457,7 +457,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     assertNotNull(responseLevel);
                     assertThat(responseLevel.keySet(), empty());
                 } catch (ResponseException e) {
-                    // Not found is fine
+                    // not found is fine
                     assertThat(
                         "Unexpected failure getting templates: " + e.getResponse().getStatusLine(),
                         e.getResponse().getStatusLine().getStatusCode(),

@@ -8,6 +8,8 @@
 
 experimental::[]
 
+Stops a trained model deployment.
+
 [[stop-trained-model-deployment-request]]
 == {api-request-title}
 

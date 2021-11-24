@@ -558,7 +558,7 @@ public class RolloverIT extends ESIntegTestCase {
             final RolloverResponse response = client().admin()
                 .indices()
                 .prepareRolloverIndex("test_alias")
-                .addMaxShardDocsCondition(randomIntBetween(21,30))
+                .addMaxShardDocsCondition(randomIntBetween(21, 30))
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-1"));
             assertThat(response.getNewIndex(), equalTo("test-000002"));
@@ -569,7 +569,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         // A small max_shard_docs
         {
-            MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(randomLongBetween(1,9));
+            MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(randomLongBetween(1, 9));
             long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
             final RolloverResponse response = client().admin()
                 .indices()
@@ -603,7 +603,6 @@ public class RolloverIT extends ESIntegTestCase {
             assertThat(oldIndex.getRolloverInfos().size(), equalTo(0));
         }
     }
-
 
     public void testRejectIfAliasFoundInTemplate() throws Exception {
         client().admin()

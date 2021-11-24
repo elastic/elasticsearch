@@ -147,14 +147,14 @@ public class SamlIdentityProvider {
         }, listener::onFailure));
     }
 
-    private void resolveWildcardService(String entityId, String acs, ActionListener<SamlServiceProvider> listener) {
+    private void resolveWildcardService(String spEntityId, String acs, ActionListener<SamlServiceProvider> listener) {
         if (acs == null) {
-            logger.debug("No ACS provided for [{}], skipping wildcard matching", entityId);
+            logger.debug("No ACS provided for [{}], skipping wildcard matching", spEntityId);
             listener.onResponse(null);
         } else {
             try {
-                final SamlServiceProvider sp = wildcardServiceResolver.resolve(entityId, acs);
-                logger.debug("Wildcard service provider for [{}][{}] is [{}]", entityId, acs, sp);
+                final SamlServiceProvider sp = wildcardServiceResolver.resolve(spEntityId, acs);
+                logger.debug("Wildcard service provider for [{}][{}] is [{}]", spEntityId, acs, sp);
                 listener.onResponse(sp);
             } catch (Exception e) {
                 listener.onFailure(e);

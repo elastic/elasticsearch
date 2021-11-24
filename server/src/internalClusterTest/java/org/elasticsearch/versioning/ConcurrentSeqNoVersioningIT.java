@@ -380,8 +380,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         public void consume(Version version) {
-            if (version == null) return;
-            this.current.updateAndGet(current -> version.compareTo(current) <= 0 ? current : version);
+            if (version == null) {
+                return;
+            }
+            this.current.updateAndGet(currentVersion -> version.compareTo(currentVersion) <= 0 ? currentVersion : version);
         }
     }
 

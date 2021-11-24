@@ -239,13 +239,13 @@ public class SamlIdentityProviderBuilder {
         return this;
     }
 
-    public SamlIdentityProviderBuilder singleSignOnEndpoints(Map<String, URL> ssoEndpoints) {
-        this.ssoEndpoints = ssoEndpoints;
+    public SamlIdentityProviderBuilder singleSignOnEndpoints(Map<String, URL> ssoEndpointsMap) {
+        this.ssoEndpoints = ssoEndpointsMap;
         return this;
     }
 
-    public SamlIdentityProviderBuilder singleLogoutEndpoints(Map<String, URL> sloEndpoints) {
-        this.sloEndpoints = sloEndpoints;
+    public SamlIdentityProviderBuilder singleLogoutEndpoints(Map<String, URL> sloEndpointsMap) {
+        this.sloEndpoints = sloEndpointsMap;
         return this;
     }
 

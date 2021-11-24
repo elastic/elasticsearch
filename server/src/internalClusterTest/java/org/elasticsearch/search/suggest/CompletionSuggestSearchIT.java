@@ -1053,11 +1053,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .put("index.analysis.filter.suggest_stop_filter.type", "stop")
             .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 
-        CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
-        completionMappingBuilder.preserveSeparators(true).preservePositionIncrements(true);
-        completionMappingBuilder.searchAnalyzer("stoptest");
-        completionMappingBuilder.indexAnalyzer("simple");
-        createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
+        CompletionMappingBuilder builder = new CompletionMappingBuilder();
+        builder.preserveSeparators(true).preservePositionIncrements(true);
+        builder.searchAnalyzer("stoptest");
+        builder.indexAnalyzer("simple");
+        createIndexAndMappingAndSettings(settingsBuilder.build(), builder);
 
         client().prepareIndex(INDEX)
             .setId("1")
@@ -1103,8 +1103,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testThatIndexingInvalidFieldsInCompletionFieldResultsInException() throws Exception {
-        CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
-        createIndexAndMapping(completionMappingBuilder);
+        CompletionMappingBuilder builder = new CompletionMappingBuilder();
+        createIndexAndMapping(builder);
 
         try {
             client().prepareIndex(INDEX)
@@ -1262,7 +1262,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         return names;
     }
 
-    private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
+    private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder builder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
             .startObject("_doc")
             .startObject("properties")
@@ -1274,14 +1274,14 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .endObject()
             .startObject(FIELD)
             .field("type", "completion")
-            .field("analyzer", completionMappingBuilder.indexAnalyzer)
-            .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
-            .field("preserve_separators", completionMappingBuilder.preserveSeparators)
-            .field("preserve_position_increments", completionMappingBuilder.preservePositionIncrements);
+            .field("analyzer", builder.indexAnalyzer)
+            .field("search_analyzer", builder.searchAnalyzer)
+            .field("preserve_separators", builder.preserveSeparators)
+            .field("preserve_position_increments", builder.preservePositionIncrements);
 
-        if (completionMappingBuilder.contextMappings != null) {
+        if (builder.contextMappings != null) {
             mapping = mapping.startArray("contexts");
-            for (Map.Entry<String, ContextMapping<?>> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
+            for (Map.Entry<String, ContextMapping<?>> contextMapping : builder.contextMappings.entrySet()) {
                 mapping = mapping.startObject()
                     .field("name", contextMapping.getValue().name())
                     .field("type", contextMapping.getValue().type().name());
@@ -1312,8 +1312,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         );
     }
 
-    private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {
-        createIndexAndMappingAndSettings(Settings.EMPTY, completionMappingBuilder);
+    private void createIndexAndMapping(CompletionMappingBuilder builder) throws IOException {
+        createIndexAndMappingAndSettings(Settings.EMPTY, builder);
     }
 
     // see #3555
@@ -1638,8 +1638,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             return this;
         }
 
-        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping<?>> contextMappings) {
-            this.contextMappings = contextMappings;
+        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping<?>> mappings) {
+            this.contextMappings = mappings;
             return this;
         }
     }

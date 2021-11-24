@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.After;
@@ -542,7 +543,108 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
+    }
 
+    public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobFailsOnReassign() throws Exception {
+        internalCluster().ensureAtMostNumDataNodes(0);
+        logger.info("Starting dedicated master node...");
+        internalCluster().startMasterOnlyNode();
+        logger.info("Starting ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
+        logger.info("Starting another ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
+        ensureStableCluster();
+
+        // index some datafeed data
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+        long numDocs = 80000;
+        long now = System.currentTimeMillis();
+        long weekAgo = now - 604800000;
+        long twoWeeksAgo = weekAgo - 604800000;
+        indexDocs(logger, "data", numDocs, twoWeeksAgo, weekAgo);
+
+        String jobId = "test-node-goes-down-while-running-job";
+        String datafeedId = jobId + "-datafeed";
+
+        Job.Builder job = createScheduledJob(jobId);
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
+
+        DatafeedConfig config = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"), TimeValue.timeValueHours(1));
+        PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
+        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
+
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
+
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
+            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
+        }, 30, TimeUnit.SECONDS);
+
+        DiscoveryNode nodeRunningJob = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId()))
+            .actionGet()
+            .getResponse()
+            .results()
+            .get(0)
+            .getNode();
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
+        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
+        client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
+
+        waitForJobToHaveProcessedAtLeast(jobId, 1000);
+
+        // The datafeed should be started
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Response statsResponse = client().execute(
+                GetDatafeedsStatsAction.INSTANCE,
+                new GetDatafeedsStatsAction.Request(config.getId())
+            ).actionGet();
+            assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
+        }, 30, TimeUnit.SECONDS);
+
+        // Create a problem that will make the job fail when it restarts on a different node
+        String snapshotId = "123";
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId).setSnapshotId(snapshotId).setTimestamp(new Date()).build();
+        JobResultsPersister jobResultsPersister = internalCluster().getInstance(
+            JobResultsPersister.class,
+            internalCluster().getMasterName()
+        );
+        jobResultsPersister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
+        UpdateJobAction.Request updateJobRequest = UpdateJobAction.Request.internal(
+            jobId,
+            new JobUpdate.Builder(jobId).setModelSnapshotId(snapshotId).build()
+        );
+        client().execute(UpdateJobAction.INSTANCE, updateJobRequest).actionGet();
+        refresh(AnomalyDetectorsIndex.resultsWriteAlias(jobId));
+
+        // Make the job move to a different node
+        internalCluster().stopNode(nodeRunningJob.getName());
+
+        // Wait for the job to fail during reassignment
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
+            assertEquals(JobState.FAILED, statsResponse.getResponse().results().get(0).getState());
+        }, 30, TimeUnit.SECONDS);
+
+        // The datafeed should then be stopped
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Response statsResponse = client().execute(
+                GetDatafeedsStatsAction.INSTANCE,
+                new GetDatafeedsStatsAction.Request(config.getId())
+            ).actionGet();
+            assertEquals(DatafeedState.STOPPED, statsResponse.getResponse().results().get(0).getDatafeedState());
+        }, 30, TimeUnit.SECONDS);
+
+        // Force close the failed job to clean up
+        client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();
     }
 
     private void setupJobWithoutDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {

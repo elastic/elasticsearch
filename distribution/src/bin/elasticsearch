@@ -47,6 +47,11 @@ if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
 
+if [ -z "$LIBFFI_TMPDIR" ]; then
+  LIBFFI_TMPDIR="$ES_TMPDIR"
+  export LIBFFI_TMPDIR
+fi
+
 # get keystore password before setting java options to avoid
 # conflicting GC configurations for the keystore tools
 unset KEYSTORE_PASSWORD

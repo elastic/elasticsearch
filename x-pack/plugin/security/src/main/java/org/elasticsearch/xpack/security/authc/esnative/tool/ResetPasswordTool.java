@@ -94,8 +94,9 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
         }
         try {
             final CommandLineHttpClient client = clientFunction.apply(env);
+            final URL baseUrl = options.has(urlOption) ? new URL(options.valueOf(urlOption)) : new URL(client.getDefaultURL());
             final URL changePasswordUrl = createURL(
-                new URL(client.getDefaultURL()),
+                baseUrl,
                 "_security/user/" + providedUsername + "/_password",
                 "?pretty"
             );

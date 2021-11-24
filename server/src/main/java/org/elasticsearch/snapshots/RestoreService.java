@@ -15,6 +15,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -303,7 +305,7 @@ public class RestoreService implements ClusterStateApplier {
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
         // Make sure that we can restore from this snapshot
-        validateSnapshotRestorable(repositoryName, snapshotInfo);
+        validateSnapshotRestorable(repository.getMetadata(), snapshotInfo);
 
         // Get the global state if necessary
         Metadata globalMetadata = null;
@@ -424,6 +426,7 @@ public class RestoreService implements ClusterStateApplier {
                 metadataBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore).build(),
                 dataStreamsToRestore.values(),
                 updater,
+                repository.getMetadata(),
                 listener
             )
         );
@@ -907,20 +910,19 @@ public class RestoreService implements ClusterStateApplier {
 
     /**
      * Checks that snapshots can be restored and have compatible version
-     *
-     * @param repository      repository name
+     *  @param repository      repository name
      * @param snapshotInfo    snapshot metadata
      */
-    private static void validateSnapshotRestorable(final String repository, final SnapshotInfo snapshotInfo) {
+    private static void validateSnapshotRestorable(final RepositoryMetadata repository, final SnapshotInfo snapshotInfo) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
         if (Version.CURRENT.before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
                     + snapshotInfo.version()
                     + "] which is higher than the version of this node ["
@@ -928,17 +930,27 @@ public class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        // TODO: conditionally allow restoring older stuff
-//        if (snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-//            throw new SnapshotRestoreException(
-//                new Snapshot(repository, snapshotInfo.snapshotId()),
-//                "the snapshot was created with Elasticsearch version ["
-//                    + snapshotInfo.version()
-//                    + "] which is below the current versions minimum index compatibility version ["
-//                    + Version.CURRENT.minimumIndexCompatibilityVersion()
-//                    + "]"
-//            );
-//        }
+        if (skipVersionChecks(repository) == false &&
+            snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
+                "the snapshot was created with Elasticsearch version ["
+                    + snapshotInfo.version()
+                    + "] which is below the current versions minimum index compatibility version ["
+                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+                    + "]"
+            );
+        }
+    }
+
+    public static final Setting<Boolean> ALLOW_BWC_INDICES_SETTING = Setting.boolSetting(
+        "allow_bwc_indices",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    private static boolean skipVersionChecks(RepositoryMetadata repositoryMetadata) {
+        return Build.CURRENT.isSnapshot() && ALLOW_BWC_INDICES_SETTING.get(repositoryMetadata.settings());
     }
 
     public static boolean failed(SnapshotInfo snapshot, String index) {
@@ -1158,6 +1170,8 @@ public class RestoreService implements ClusterStateApplier {
 
         private final BiConsumer<ClusterState, Metadata.Builder> updater;
 
+        private final RepositoryMetadata repositoryMetadata;
+
         private final ActionListener<RestoreCompletionResponse> listener;
 
         @Nullable
@@ -1172,6 +1186,7 @@ public class RestoreService implements ClusterStateApplier {
             Metadata metadata,
             Collection<DataStream> dataStreamsToRestore,
             BiConsumer<ClusterState, Metadata.Builder> updater,
+            RepositoryMetadata repositoryMetadata,
             ActionListener<RestoreCompletionResponse> listener
         ) {
             super(request.masterNodeTimeout());
@@ -1183,6 +1198,7 @@ public class RestoreService implements ClusterStateApplier {
             this.metadata = metadata;
             this.dataStreamsToRestore = dataStreamsToRestore;
             this.updater = updater;
+            this.repositoryMetadata = repositoryMetadata;
             this.listener = listener;
         }
 
@@ -1207,10 +1223,10 @@ public class RestoreService implements ClusterStateApplier {
 
             final ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
 
-            // TODO: conditionally allow restoring older stuff
             final Version minIndexCompatibilityVersion =
-                Version.fromString("1.0.0");
-                //currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
+                skipVersionChecks(repositoryMetadata) ?
+                    Version.fromString("1.0.0") :
+                    currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();

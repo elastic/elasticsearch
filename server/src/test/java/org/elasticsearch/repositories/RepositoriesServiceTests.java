@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -277,7 +278,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             IndexId indexId,
             ShardId snapshotShardId,
             RecoveryState recoveryState,
-            ActionListener<Void> listener
+            ActionListener<SnapshotFiles> listener
         ) {
 
         }

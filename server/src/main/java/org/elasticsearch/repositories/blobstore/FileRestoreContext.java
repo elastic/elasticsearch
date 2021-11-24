@@ -11,13 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
-import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -66,7 +64,7 @@ public abstract class FileRestoreContext {
     /**
      * Performs restore operation
      */
-    public void restore(SnapshotFiles snapshotFiles, Store store, ActionListener<Void> listener) {
+    public void restore(SnapshotFiles snapshotFiles, Store store, ActionListener<SnapshotFiles> listener) {
         store.incRef();
         try {
             logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
@@ -75,7 +73,11 @@ public abstract class FileRestoreContext {
                 // this will throw an IOException if the store has no segments infos file. The
                 // store can still have existing files but they will be deleted just before being
                 // restored.
-                recoveryTargetMetadata = store.getMetadata(null, true);
+                if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
+                } else {
+                    recoveryTargetMetadata = store.getMetadata(null, true);
+                }
             } catch (org.apache.lucene.index.IndexNotFoundException e) {
                 // happens when restore to an empty shard, not a big deal
                 logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
@@ -106,27 +108,33 @@ public abstract class FileRestoreContext {
                 throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
             }
 
-            final Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(recoveryTargetMetadata);
-            for (StoreFileMetadata md : diff.identical) {
-                BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
-                recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same",
-                        shardId,
-                        snapshotId,
-                        fileInfo.physicalName(),
-                        fileInfo.name()
-                    );
+            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+                for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
+                    recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                 }
-            }
+            } else {
+                final Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(recoveryTargetMetadata);
+                for (StoreFileMetadata md : diff.identical) {
+                    BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
+                    recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same",
+                            shardId,
+                            snapshotId,
+                            fileInfo.physicalName(),
+                            fileInfo.name()
+                        );
+                    }
+                }
 
-            for (StoreFileMetadata md : concat(diff)) {
-                BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
-                filesToRecover.add(fileInfo);
-                recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), false);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                for (StoreFileMetadata md : concat(diff)) {
+                    BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
+                    filesToRecover.add(fileInfo);
+                    recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), false);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                    }
                 }
             }
 
@@ -154,15 +162,7 @@ public abstract class FileRestoreContext {
                     }
                 }
 
-                restoreFiles(filesToRecover, store, ActionListener.wrap(v -> {
-                    store.incRef();
-                    try {
-                        afterRestore(snapshotFiles, store, restoredSegmentsFile);
-                        listener.onResponse(null);
-                    } finally {
-                        store.decRef();
-                    }
-                }, listener::onFailure));
+                restoreFiles(filesToRecover, store, ActionListener.wrap(v -> listener.onResponse(snapshotFiles), listener::onFailure));
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
             }
@@ -170,40 +170,6 @@ public abstract class FileRestoreContext {
             listener.onFailure(e);
         } finally {
             store.decRef();
-        }
-    }
-
-    private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetadata restoredSegmentsFile) {
-        try {
-            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
-                Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
-            }
-        } catch (IOException e) {
-            throw new IndexShardRestoreFailedException(
-                shardId,
-                "Failed to remove files not referenced in segment file [" + restoredSegmentsFile.name() + "] after restore",
-                e
-            );
-        }
-
-        /// now, go over and clean files that are in the store, but were not in the snapshot
-        try {
-            for (String storeFile : store.directory().listAll()) {
-                if (Store.isAutogenerated(storeFile) || snapshotFiles.containPhysicalIndexFile(storeFile)) {
-                    continue; // skip write.lock and files that exist in the snapshot
-                }
-                try {
-                    store.directory().deleteFile(storeFile);
-                } catch (ImmutableDirectoryException e) {
-                    // snapshots of immutable directories only contain an empty `segments_N` file since the data lives elsewhere, and if we
-                    // restore such a snapshot then the real data is already present in the directory and cannot be removed.
-                    assert snapshotFiles.indexFiles().size() == 1 : snapshotFiles;
-                } catch (IOException e) {
-                    logger.warn("[{}] [{}] failed to delete file [{}] during snapshot cleanup", shardId, snapshotId, storeFile);
-                }
-            }
-        } catch (IOException e) {
-            logger.warn("[{}] [{}] failed to list directory - some of files might not be deleted", shardId, snapshotId);
         }
     }
 

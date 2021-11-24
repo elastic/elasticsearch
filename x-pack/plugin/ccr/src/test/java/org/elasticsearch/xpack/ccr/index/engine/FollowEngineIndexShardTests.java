@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
@@ -152,7 +153,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                 IndexId indexId,
                 ShardId snapshotShardId,
                 RecoveryState recoveryState,
-                ActionListener<Void> listener
+                ActionListener<SnapshotFiles> listener
             ) {
                 ActionListener.completeWith(listener, () -> {
                     cleanLuceneIndex(targetStore.directory());

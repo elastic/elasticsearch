@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
@@ -526,7 +527,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         IndexId indexId,
                         ShardId snapshotShardId,
                         RecoveryState recoveryState,
-                        ActionListener<Void> listener
+                        ActionListener<SnapshotFiles> listener
                     ) {
                         ActionListener.completeWith(listener, () -> {
                             IndexShard leader = leaderGroup.getPrimary();

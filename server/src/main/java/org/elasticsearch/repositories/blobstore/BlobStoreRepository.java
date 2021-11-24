@@ -2960,10 +2960,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         IndexId indexId,
         ShardId snapshotShardId,
         RecoveryState recoveryState,
-        ActionListener<Void> listener
+        ActionListener<SnapshotFiles> listener
     ) {
         final ShardId shardId = store.shardId();
-        final ActionListener<Void> restoreListener = listener.delegateResponse(
+        final ActionListener<SnapshotFiles> restoreListener = listener.delegateResponse(
             (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))
         );
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);

@@ -44,12 +44,12 @@ the replica shard is available for search.
 
 Recovery automatically occurs during the following processes:
 
-* Node startup or failure. This type of recovery is called a local store
-  recovery.
+* Node startup. This type of recovery is called a local store recovery.
 * Primary shard replication.
 * Relocation of a shard to a different node in the same cluster.
-* <<snapshots-restore-snapshot,Snapshot restoration>>.
-
+* <<snapshots-restore-snapshot,Snapshot restore>> operation.
+* <<indices-clone-index,Clone>>, <<indices-shrink-index,shrink>>, or
+<<indices-split-index,split>> operation.
 // end::shard-recovery-desc[]
 
 [[index-recovery-api-path-params]]
@@ -80,26 +80,28 @@ ID of the shard.
 `type`::
 +
 --
-(String)
-Recovery type.
-Returned values include:
+(String) Recovery source for the shard. Returned values include:
 
-`STORE`::
-The recovery is related to
-a node startup or failure.
-This type of recovery is called a local store recovery.
+`EMPTY_STORE`::
+An empty store. Indicates a new primary shard or the forced allocation of an
+empty primary shard using the <<cluster-reroute,cluster reroute API>>.
+
+`EXISTING_STORE`::
+The store of an existing primary shard. Indicates recovery is related
+to node startup or the allocation of an existing primary shard.
+
+`LOCAL_SHARDS`::
+Shards of another index on the same node. Indicates recovery is related to a
+<<indices-clone-index,clone>>, <<indices-shrink-index,shrink>>, or
+<<indices-split-index,split>> operation.
+
+`PEER`::
+A primary shard on another node. Indicates recovery is related to shard
+replication.
 
 `SNAPSHOT`::
-The recovery is related to
-a <<snapshots-restore-snapshot,snapshot restoration>>.
-
-`REPLICA`::
-The recovery is related to a primary shard replication.
-
-`RELOCATING`::
-The recovery is related to
-the relocation of a shard
-to a different node in the same cluster.
+A snapshot. Indicates recovery is related to a
+<<snapshots-restore-snapshot,snapshot restore>> operation.
 --
 
 `STAGE`::

@@ -40,8 +40,8 @@ To run the search, the local coordinating node and the remote gateway node must
 use compatible versions of {es}. Elastic only supports searches from a local
 cluster to a remote cluster running:
 
-* The same version
 * The previous minor version
+* The same version
 * A later release in the local cluster's major version
 * Any minor release in the next major version
 
@@ -50,8 +50,8 @@ clusters must use the same {es} version.
 
 For example, a local 8.0 cluster can search a remote cluster running:
 
-* 8.0
 * 7.16 (the previous minor version)
+* 8.0
 * Any later 8.x version
 * Any 9.x version
 

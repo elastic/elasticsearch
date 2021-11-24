@@ -278,31 +278,31 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String[] bulkShardActions = new String[] { BulkAction.NAME + "[s][p]", BulkAction.NAME + "[s][r]" };
         interceptTransportActions(bulkShardActions);
 
-        List<String> indices = new ArrayList<>();
+        List<String> indicesOrAliases = new ArrayList<>();
         BulkRequest bulkRequest = new BulkRequest();
         int numIndexRequests = iterations(1, 10);
         for (int i = 0; i < numIndexRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
             bulkRequest.add(new IndexRequest(indexOrAlias).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
-            indices.add(indexOrAlias);
+            indicesOrAliases.add(indexOrAlias);
         }
         int numDeleteRequests = iterations(1, 10);
         for (int i = 0; i < numDeleteRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
             bulkRequest.add(new DeleteRequest(indexOrAlias).id("id"));
-            indices.add(indexOrAlias);
+            indicesOrAliases.add(indexOrAlias);
         }
         int numUpdateRequests = iterations(1, 10);
         for (int i = 0; i < numUpdateRequests; i++) {
             String indexOrAlias = randomIndexOrAlias();
             bulkRequest.add(new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
-            indices.add(indexOrAlias);
+            indicesOrAliases.add(indexOrAlias);
         }
 
         internalCluster().coordOnlyNodeClient().bulk(bulkRequest).actionGet();
 
         clearInterceptedActions();
-        assertIndicesSubset(indices, bulkShardActions);
+        assertIndicesSubset(indicesOrAliases, bulkShardActions);
     }
 
     public void testGet() {
@@ -342,36 +342,36 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String multiTermVectorsShardAction = MultiTermVectorsAction.NAME + "[shard][s]";
         interceptTransportActions(multiTermVectorsShardAction);
 
-        List<String> indices = new ArrayList<>();
+        List<String> indicesOrAliases = new ArrayList<>();
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         int numDocs = iterations(1, 30);
         for (int i = 0; i < numDocs; i++) {
             String indexOrAlias = randomIndexOrAlias();
             multiTermVectorsRequest.add(indexOrAlias, Integer.toString(i));
-            indices.add(indexOrAlias);
+            indicesOrAliases.add(indexOrAlias);
         }
         internalCluster().coordOnlyNodeClient().multiTermVectors(multiTermVectorsRequest).actionGet();
 
         clearInterceptedActions();
-        assertIndicesSubset(indices, multiTermVectorsShardAction);
+        assertIndicesSubset(indicesOrAliases, multiTermVectorsShardAction);
     }
 
     public void testMultiGet() {
         String multiGetShardAction = MultiGetAction.NAME + "[shard][s]";
         interceptTransportActions(multiGetShardAction);
 
-        List<String> indices = new ArrayList<>();
+        List<String> indicesOrAliases = new ArrayList<>();
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         int numDocs = iterations(1, 30);
         for (int i = 0; i < numDocs; i++) {
             String indexOrAlias = randomIndexOrAlias();
             multiGetRequest.add(indexOrAlias, Integer.toString(i));
-            indices.add(indexOrAlias);
+            indicesOrAliases.add(indexOrAlias);
         }
         internalCluster().coordOnlyNodeClient().multiGet(multiGetRequest).actionGet();
 
         clearInterceptedActions();
-        assertIndicesSubset(indices, multiGetShardAction);
+        assertIndicesSubset(indicesOrAliases, multiGetShardAction);
     }
 
     public void testFlush() {
@@ -385,9 +385,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = TestIndexNameExpressionResolver.newInstance()
+        String[] concreteIndexNames = TestIndexNameExpressionResolver.newInstance()
             .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
-        assertIndicesSubset(Arrays.asList(indices), indexShardActions);
+        assertIndicesSubset(Arrays.asList(concreteIndexNames), indexShardActions);
     }
 
     public void testForceMerge() {
@@ -412,9 +412,9 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = TestIndexNameExpressionResolver.newInstance()
+        String[] concreteIndexNames = TestIndexNameExpressionResolver.newInstance()
             .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
-        assertIndicesSubset(Arrays.asList(indices), indexShardActions);
+        assertIndicesSubset(Arrays.asList(concreteIndexNames), indexShardActions);
     }
 
     public void testClearCache() {
@@ -670,21 +670,21 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     private String[] randomIndicesOrAliases() {
         int count = randomIntBetween(1, indices.size() * 2); // every index has an alias
-        String[] indices = new String[count];
+        String[] randomNames = new String[count];
         for (int i = 0; i < count; i++) {
-            indices[i] = randomIndexOrAlias();
+            randomNames[i] = randomIndexOrAlias();
         }
-        return indices;
+        return randomNames;
     }
 
     private String[] randomUniqueIndicesOrAliases() {
         String[] uniqueIndices = randomUniqueIndices();
-        String[] indices = new String[uniqueIndices.length];
+        String[] randomNames = new String[uniqueIndices.length];
         int i = 0;
         for (String index : uniqueIndices) {
-            indices[i++] = randomBoolean() ? index + "-alias" : index;
+            randomNames[i++] = randomBoolean() ? index + "-alias" : index;
         }
-        return indices;
+        return randomNames;
     }
 
     private String[] randomUniqueIndices() {
@@ -771,8 +771,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
             return requests.remove(action);
         }
 
-        synchronized void interceptTransportActions(String... actions) {
-            Collections.addAll(this.actions, actions);
+        synchronized void interceptTransportActions(String... transportActions) {
+            Collections.addAll(this.actions, transportActions);
         }
 
         synchronized void clearInterceptedActions() {

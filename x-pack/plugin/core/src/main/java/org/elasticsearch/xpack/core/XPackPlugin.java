@@ -159,8 +159,8 @@ public class XPackPlugin extends XPackClientPlugin
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
-    public XPackPlugin(final Settings settings, final Path configPath) {
-        super(settings);
+    public XPackPlugin(final Settings settings) {
+        super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;

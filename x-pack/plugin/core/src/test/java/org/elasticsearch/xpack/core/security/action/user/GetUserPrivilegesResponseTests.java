@@ -49,7 +49,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
 

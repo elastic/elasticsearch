@@ -50,7 +50,7 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
         final ManageApplicationPrivileges original = buildPrivileges();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
                 final ManageApplicationPrivileges copy = ManageApplicationPrivileges.createFrom(in);
                 assertThat(copy, equalTo(original));

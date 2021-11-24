@@ -85,7 +85,7 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
             Stream.concat(
-                new XPackClientPlugin(Settings.builder().put("path.home", createTempDir()).build()).getNamedXContent().stream(),
+                new XPackClientPlugin().getNamedXContent().stream(),
                 ClusterModule.getNamedXWriteables().stream()
             ).collect(Collectors.toList())
         );

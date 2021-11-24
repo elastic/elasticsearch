@@ -30,6 +30,7 @@ import com.puppycrawl.tools.checkstyle.utils.ScopeUtil;
 import com.puppycrawl.tools.checkstyle.utils.TokenUtil;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -342,7 +343,15 @@ public class HiddenFieldCheck extends AbstractCheck {
         boolean isSetterMethod = false;
 
         // ES also allows setters with the same name as a property, and builder-style settings that start with "with".
-        if (("set" + capitalize(aName)).equals(methodName) || ("with" + capitalize(aName)).equals(methodName) || aName.equals(methodName)) {
+        final List<String> possibleSetterNames = List.of(
+            "set" + capitalize(aName, true),
+            "set" + capitalize(aName, false),
+            "with" + capitalize(aName, true),
+            "with" + capitalize(aName, false),
+            aName
+        );
+
+        if (possibleSetterNames.contains(methodName)) {
             // method name did match set${Name}(${anyType} ${aName})
             // where ${Name} is capitalized version of ${aName}
             // therefore this method is potentially a setter
@@ -375,15 +384,15 @@ public class HiddenFieldCheck extends AbstractCheck {
      * @param name a property name
      * @return capitalized property name
      */
-    private static String capitalize(final String name) {
-        String setterName;
+    private static String capitalize(final String name, boolean javaBeanCompliant) {
+        String setterName = name;
         // we should not capitalize the first character if the second
         // one is a capital one, since according to JavaBeans spec
         // setXYzz() is a setter for XYzz property, not for xYzz one.
         // @pugnascotia: this is unhelpful in the Elasticsearch codebase. We have e.g. xContent -> setXContent, or nNeighbors -> nNeighbors.
-        // if (name.length() == 1 || Character.isUpperCase(name.charAt(1)) == false) {
-        setterName = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1);
-        // }
+        if (name.length() == 1 || (javaBeanCompliant == false || Character.isUpperCase(name.charAt(1)) == false)) {
+            setterName = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1);
+        }
         return setterName;
     }
 

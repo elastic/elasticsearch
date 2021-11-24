@@ -134,7 +134,7 @@ public class ExpressionParserTests extends ESTestCase {
         ExpressionParser.writeExpression(exprSource, out);
 
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(settings).getNamedWriteables());
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         final NamedWriteableAwareStreamInput input = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
         final RoleMapperExpression exprResult = ExpressionParser.readExpression(input);
         assertThat(json(exprResult), equalTo(json.replaceAll("\\s", "")));

@@ -46,10 +46,9 @@ However, a search from a local 8.0 cluster to a remote 7.15 or 6.8 cluster is
 not supported.
 
 Previously, we supported searches on remote clusters running any minor release
-from the previous major version. However, this could result in undefined
-behavior if the search 
-if the search uses a recent feature
-that's unsupported in the remote cluster, it could result in undefined behavior.
+from the previous major version. However, if the search uses a recent feature
+that's unsupported in the remote cluster, this could result in undefined
+behavior.
 
 *Impact* +
 If you only run cross-cluster searches on remote clusters using the same or a

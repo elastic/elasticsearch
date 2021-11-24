@@ -88,7 +88,7 @@ empty primary shard using the <<cluster-reroute,cluster reroute API>>.
 
 `EXISTING_STORE`::
 The store of an existing primary shard. Indicates recovery is related
-to node startup, node failure, or the allocation of an existing primary shard.
+to node startup or the allocation of an existing primary shard.
 
 `LOCAL_SHARDS`::
 Shards of another index on the same node. Indicates recovery is related to

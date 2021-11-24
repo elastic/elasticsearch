@@ -9,18 +9,18 @@ package org.elasticsearch.xpack.core.deprecation;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DeprecationIssueTests extends ESTestCase {
@@ -29,9 +29,14 @@ public class DeprecationIssueTests extends ESTestCase {
 
     static DeprecationIssue createTestInstance() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
-        return new DeprecationIssue(randomFrom(Level.values()), randomAlphaOfLength(10),
-            randomAlphaOfLength(10), details, randomBoolean(),
-            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
+        return new DeprecationIssue(
+            randomFrom(Level.values()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            details,
+            randomBoolean(),
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4)))
+        );
     }
 
     @Before
@@ -40,8 +45,14 @@ public class DeprecationIssueTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        DeprecationIssue other = new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails(),
-            issue.isResolveDuringRollingUpgrade(), issue.getMeta());
+        DeprecationIssue other = new DeprecationIssue(
+            issue.getLevel(),
+            issue.getMessage(),
+            issue.getUrl(),
+            issue.getDetails(),
+            issue.isResolveDuringRollingUpgrade(),
+            issue.getMeta()
+        );
         assertThat(issue, equalTo(other));
         assertThat(other, equalTo(issue));
         assertThat(issue.hashCode(), equalTo(other.hashCode()));

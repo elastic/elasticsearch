@@ -19,14 +19,14 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -133,7 +133,8 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             TransportService transportService,
             ActionFilters actionFilters,
             Map<String, String> legacyGrokPatterns,
-            Map<String, String> ecsV1GrokPatterns) {
+            Map<String, String> ecsV1GrokPatterns
+        ) {
             super(NAME, transportService, actionFilters, Request::new);
             this.legacyGrokPatterns = legacyGrokPatterns;
             this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
@@ -144,10 +145,12 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
-                listener.onResponse(new Response(
-                    request.getEcsCompatibility().equals(Grok.ECS_COMPATIBILITY_MODES[0])
-                        ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
-                        : request.sorted() ? sortedEcsV1GrokPatterns : ecsV1GrokPatterns
+                listener.onResponse(
+                    new Response(
+                        request.getEcsCompatibility().equals(Grok.ECS_COMPATIBILITY_MODES[0])
+                            ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
+                            : request.sorted() ? sortedEcsV1GrokPatterns
+                            : ecsV1GrokPatterns
                     )
                 );
             } catch (Exception e) {

@@ -11,13 +11,15 @@ package org.elasticsearch.common.util;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -85,7 +87,9 @@ public class Maps {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         assert checkIsImmutableMap(map, key, map.get(key));
-        return map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false)
+        return map.entrySet()
+            .stream()
+            .filter(k -> key.equals(k.getKey()) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -106,8 +110,7 @@ public class Maps {
         try {
             map.put(key, value);
             return false;
-        } catch (final UnsupportedOperationException ignored) {
-        }
+        } catch (final UnsupportedOperationException ignored) {}
         return true;
     }
 
@@ -121,7 +124,8 @@ public class Maps {
      * @return an immutable map containing the specified entries
      */
     public static <K, V> Map<K, V> ofEntries(final Collection<Map.Entry<K, V>> entries) {
-        @SuppressWarnings("unchecked") final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
+        @SuppressWarnings("unchecked")
+        final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
         return map;
     }
 
@@ -140,7 +144,8 @@ public class Maps {
         if (left == null || right == null || left.size() != right.size()) {
             return false;
         }
-        return left.entrySet().stream()
+        return left.entrySet()
+            .stream()
             .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
@@ -199,13 +204,43 @@ public class Maps {
      * unmodifiable sorted map. The resulting read-only view through the unmodifiable sorted map is a sorted map.
      *
      * @param <T> the type of the input elements
-     * @return an unmodifiable map where the underlying map is sorted
+     * @return an unmodifiable {@link NavigableMap} where the underlying map is sorted
      */
-    public static <T, K, V> Collector<T, ?, SortedMap<K, V>> toUnmodifiableSortedMap(Function<T, ? extends K> keyMapper,
-                                                                                     Function<T, ? extends V> valueMapper) {
-        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
-            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
-        }, () -> new TreeMap<K, V>()), Collections::unmodifiableSortedMap);
+    public static <T, K, V> Collector<T, ?, NavigableMap<K, V>> toUnmodifiableSortedMap(
+        Function<T, ? extends K> keyMapper,
+        Function<T, ? extends V> valueMapper
+    ) {
+        return Collectors.collectingAndThen(
+            Collectors.toMap(
+                keyMapper,
+                valueMapper,
+                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
+                () -> new TreeMap<K, V>()
+            ),
+            Collections::unmodifiableNavigableMap
+        );
+    }
+
+    /**
+     * Returns a {@link Collector} that accumulates the input elements into a linked hash map and finishes the resulting set into an
+     * unmodifiable map. The resulting read-only view through the unmodifiable map is a linked hash map.
+     *
+     * @param <T> the type of the input elements
+     * @return an unmodifiable {@link Map} where the underlying map has a consistent order
+     */
+    public static <T, K, V> Collector<T, ?, Map<K, V>> toUnmodifiableOrderedMap(
+        Function<T, ? extends K> keyMapper,
+        Function<T, ? extends V> valueMapper
+    ) {
+        return Collectors.collectingAndThen(
+            Collectors.toMap(
+                keyMapper,
+                valueMapper,
+                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
+                (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new
+            ),
+            Collections::unmodifiableMap
+        );
     }
 
 }

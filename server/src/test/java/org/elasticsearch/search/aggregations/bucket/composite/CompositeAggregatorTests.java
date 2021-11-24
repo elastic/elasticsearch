@@ -22,6 +22,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -299,11 +300,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         final String mappedFieldName = "price";
         dataset.addAll(
             Arrays.asList(
-                createDocument(mappedFieldName, 103L),
-                createDocument(mappedFieldName, 51L),
-                createDocument(mappedFieldName, 56L),
-                createDocument(mappedFieldName, 105L),
-                createDocument(mappedFieldName, 25L)
+                createDocument(mappedFieldName, 103),
+                createDocument(mappedFieldName, 51),
+                createDocument(mappedFieldName, 56),
+                createDocument(mappedFieldName, 105),
+                createDocument(mappedFieldName, 25)
             )
         );
 
@@ -1316,8 +1317,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testMissingHistogramBucket() throws Exception {
         List<Map<String, List<Object>>> dataset = Arrays.asList(
-            createDocument("const", 1, "long", 1),
-            createDocument("const", 1, "long", 2),
+            createDocument("const", 1, "long", 1L),
+            createDocument("const", 1, "long", 2L),
             createDocument("const", 1, "keyword", "a")
         );
 
@@ -1462,8 +1463,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testMissingHistogramBucketAfterKey() throws Exception {
         List<Map<String, List<Object>>> dataset = Arrays.asList(
-            createDocument("const", 1, "long", 1),
-            createDocument("const", 1, "long", 2),
+            createDocument("const", 1, "long", 1L),
+            createDocument("const", 1, "long", 2L),
             createDocument("const", 1, "keyword", "a"),
             createDocument("const", 1, "keyword", "b")
         );
@@ -2836,6 +2837,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 config.setIndexSort(indexSort);
                 config.setCodec(TestUtil.getDefaultCodec());
             }
+            if (forceMerge == false) {
+                config.setMergePolicy(NoMergePolicy.INSTANCE);
+            }
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();
                 int id = 0;
@@ -2845,8 +2849,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocument(document);
                     id++;
                 }
-                if (forceMerge || rarely()) {
-                    // forceMerge randomly or if the collector-per-leaf testing stuff would break the tests.
+                if (forceMerge) {
+                    // forceMerge if the collector-per-leaf testing stuff would break the tests.
                     indexWriter.forceMerge(1);
                 } else {
                     if (dataset.size() > 0) {

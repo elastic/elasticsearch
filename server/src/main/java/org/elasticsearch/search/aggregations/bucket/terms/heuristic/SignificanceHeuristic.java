@@ -9,10 +9,10 @@
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 /**
  * Heuristic for that {@link SignificantTerms} uses to pick out significant terms.

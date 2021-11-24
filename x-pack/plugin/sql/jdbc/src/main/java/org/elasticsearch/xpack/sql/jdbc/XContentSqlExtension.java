@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderExtension;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilderExtension;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.time.ZonedDateTime;
@@ -25,9 +25,7 @@ public class XContentSqlExtension implements XContentBuilderExtension {
 
     @Override
     public Map<Class<?>, XContentBuilder.Writer> getXContentWriters() {
-        return Map.of(
-                Date.class, (b, v) -> b.value(((Date) v).getTime()),
-                ZonedDateTime.class, (b, v) -> b.value(StringUtils.toString(v)));
+        return Map.of(Date.class, (b, v) -> b.value(((Date) v).getTime()), ZonedDateTime.class, (b, v) -> b.value(StringUtils.toString(v)));
     }
 
     @Override
@@ -37,8 +35,6 @@ public class XContentSqlExtension implements XContentBuilderExtension {
 
     @Override
     public Map<Class<?>, Function<Object, Object>> getDateTransformers() {
-        return Map.of(
-                Date.class, d -> ((Date) d).getTime(),
-                ZonedDateTime.class, StringUtils::toString);
+        return Map.of(Date.class, d -> ((Date) d).getTime(), ZonedDateTime.class, StringUtils::toString);
     }
 }

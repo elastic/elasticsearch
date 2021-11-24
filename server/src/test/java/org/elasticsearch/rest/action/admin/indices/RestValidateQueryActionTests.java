@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestChannel;
@@ -34,6 +33,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -54,8 +54,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private UsageService usageService = new UsageService();
-    private RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService);
+    private RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
     private RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
@@ -80,8 +79,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, taskManager, () -> "local",
-            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));
+        client.initialize(
+            actions,
+            taskManager,
+            () -> "local",
+            mock(Transport.Connection.class),
+            null,
+            new NamedWriteableRegistry(List.of())
+        );
         controller.registerHandler(action);
     }
 
@@ -146,8 +151,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     private RestRequest createRestRequest(String content) {
-        return new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("index1/type1/_validate/query")
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/type1/_validate/query")
             .withParams(emptyMap())
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
@@ -156,14 +160,13 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     public void testTypeInPath() {
         List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", compatibleMediaType))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
             .withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/_validate/query")
             .build();
 
         performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeParameter() {
@@ -171,15 +174,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", compatibleMediaType))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", compatibleMediaType))
             .withMethod(RestRequest.Method.GET)
             .withPath("_validate/query")
             .withParams(params)
             .build();
 
         performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     private void performRequest(RestRequest request) {

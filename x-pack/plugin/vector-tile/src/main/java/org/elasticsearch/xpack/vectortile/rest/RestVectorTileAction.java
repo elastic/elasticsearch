@@ -33,24 +33,25 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGridBucket;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.MetricsAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -70,9 +71,15 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String COUNT_TAG = "_count";
     private static final String ID_TAG = "_id";
+    private static final String INDEX_TAG = "_index";
+    private static final String KEY_TAG = "_key";
 
     // mime type as defined by the mapbox vector tile specification
     private static final String MIME_TYPE = "application/vnd.mapbox-vector-tile";
+    // prefox for internal aggregations. User aggregations cannot start with this prefix
+    private static final String INTERNAL_AGG_PREFIX = "_mvt_";
+    // internal centroid aggregation name
+    private static final String CENTROID_AGG_NAME = INTERNAL_AGG_PREFIX + "centroid";
 
     public RestVectorTileAction() {}
 
@@ -169,6 +176,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         final SearchRequestBuilder searchRequestBuilder = client.prepareSearch(request.getIndexes());
         searchRequestBuilder.setSize(request.getSize());
         searchRequestBuilder.setFetchSource(false);
+        searchRequestBuilder.setTrackTotalHitsUpTo(request.getTrackTotalHitsUpTo());
         searchRequestBuilder.addFetchField(
             new FieldAndFormat(
                 request.getField(),
@@ -200,14 +208,34 @@ public class RestVectorTileAction extends BaseRestHandler {
                 .size(extent * extent);
             searchRequestBuilder.addAggregation(tileAggBuilder);
             searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(COUNT_TAG, GRID_FIELD + "." + COUNT_TAG));
-            final AggregatorFactories.Builder otherAggBuilder = request.getAggBuilder();
-            if (otherAggBuilder != null) {
-                tileAggBuilder.subAggregations(request.getAggBuilder());
-                final Collection<AggregationBuilder> aggregations = otherAggBuilder.getAggregatorFactories();
-                for (AggregationBuilder aggregation : aggregations) {
-                    // we add the metric (.value) to the path in order to support aggregation names with '.'
-                    final String bucketPath = GRID_FIELD + ">" + aggregation.getName() + ".value";
-                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggregation.getName(), bucketPath));
+            if (request.getGridType() == VectorTileRequest.GRID_TYPE.CENTROID) {
+                tileAggBuilder.subAggregation(new GeoCentroidAggregationBuilder(CENTROID_AGG_NAME).field(request.getField()));
+            }
+            final List<MetricsAggregationBuilder<?, ?>> aggregations = request.getAggBuilder();
+            for (MetricsAggregationBuilder<?, ?> aggregation : aggregations) {
+                if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX)) {
+                    throw new IllegalArgumentException(
+                        "Invalid aggregation name ["
+                            + aggregation.getName()
+                            + "]. Aggregation names cannot start with prefix '"
+                            + INTERNAL_AGG_PREFIX
+                            + "'"
+                    );
+                }
+                tileAggBuilder.subAggregation(aggregation);
+                final Set<String> metricNames = aggregation.metricNames();
+                for (String metric : metricNames) {
+                    final String bucketPath;
+                    // handle the case where the metric contains a dot
+                    if (metric.contains(".")) {
+                        bucketPath = GRID_FIELD + ">" + aggregation.getName() + "[" + metric + "]";
+                    } else {
+                        bucketPath = GRID_FIELD + ">" + aggregation.getName() + "." + metric;
+                    }
+                    // we only add the metric name to multi-value metric aggregations
+                    final String aggName = metricNames.size() == 1 ? aggregation.getName() : aggregation.getName() + "." + metric;
+                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggName, bucketPath));
+
                 }
             }
         }
@@ -237,6 +265,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                 featureBuilder.clear();
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
+                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
                 if (fields != null) {
                     for (FieldAndFormat field : fields) {
                         final DocumentField documentField = searchHit.field(field.field);
@@ -262,19 +291,38 @@ public class RestVectorTileAction extends BaseRestHandler {
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
         for (InternalGeoGridBucket bucket : grid.getBuckets()) {
             featureBuilder.clear();
+            final String bucketKey = bucket.getKeyAsString();
             // Add geometry
-            if (request.getGridType() == VectorTileRequest.GRID_TYPE.GRID) {
-                final Rectangle r = GeoTileUtils.toBoundingBox(bucket.getKeyAsString());
-                featureBuilder.mergeFrom(geomBuilder.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat()));
-            } else {
-                // TODO: it should be the centroid of the data?
-                final GeoPoint point = (GeoPoint) bucket.getKey();
-                featureBuilder.mergeFrom(geomBuilder.point(point.lon(), point.lat()));
+            switch (request.getGridType()) {
+                case GRID: {
+                    final Rectangle r = GeoTileUtils.toBoundingBox(bucketKey);
+                    featureBuilder.mergeFrom(geomBuilder.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat()));
+                    break;
+                }
+                case POINT: {
+                    final GeoPoint point = (GeoPoint) bucket.getKey();
+                    featureBuilder.mergeFrom(geomBuilder.point(point.lon(), point.lat()));
+                    break;
+                }
+                case CENTROID: {
+                    final Rectangle r = GeoTileUtils.toBoundingBox(bucketKey);
+                    final InternalGeoCentroid centroid = bucket.getAggregations().get(CENTROID_AGG_NAME);
+                    final double featureLon = Math.min(Math.max(centroid.centroid().lon(), r.getMinLon()), r.getMaxLon());
+                    final double featureLat = Math.min(Math.max(centroid.centroid().lat(), r.getMinLat()), r.getMaxLat());
+                    featureBuilder.mergeFrom(geomBuilder.point(featureLon, featureLat));
+                    break;
+                }
+                default:
+                    throw new IllegalArgumentException("unsupported grid type + [" + request.getGridType() + "]");
             }
+            // Add bucket key as key value pair
+            VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, KEY_TAG, bucketKey);
             // Add count as key value pair
             VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
             for (Aggregation aggregation : bucket.getAggregations()) {
-                VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, aggregation);
+                if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX) == false) {
+                    VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, aggregation);
+                }
             }
             aggLayerBuilder.addFeatures(featureBuilder);
         }

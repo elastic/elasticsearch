@@ -71,6 +71,8 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             public ClusterState execute(ClusterState currentState) throws Exception {
                 NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
 
+                logger.info("removing shutdown record for node [{}]", request.getNodeId());
+
                 return ClusterState.builder(currentState)
                     .metadata(
                         Metadata.builder(currentState.metadata())

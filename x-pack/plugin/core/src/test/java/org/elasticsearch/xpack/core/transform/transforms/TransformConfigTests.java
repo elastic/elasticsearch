@@ -10,20 +10,25 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -84,6 +89,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
@@ -128,6 +134,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             version == null ? null : version.toString()
@@ -157,6 +164,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 latestConfig,
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
                 null,
+                randomBoolean() ? null : randomMetadata(),
                 randomBoolean() ? null : randomRetentionPolicyConfig(),
                 null,
                 null
@@ -173,6 +181,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
@@ -185,6 +194,30 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static RetentionPolicyConfig randomRetentionPolicyConfig() {
         return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
+    }
+
+    public static Map<String, Object> randomMetadata() {
+        return randomMap(0, 10, () -> {
+            String key = randomAlphaOfLengthBetween(1, 10);
+            Object value;
+            switch (randomIntBetween(0, 3)) {
+                case 0:
+                    value = null;
+                    break;
+                case 1:
+                    value = randomLong();
+                    break;
+                case 2:
+                    value = randomAlphaOfLengthBetween(1, 10);
+                    break;
+                case 3:
+                    value = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                    break;
+                default:
+                    throw new AssertionError();
+            }
+            return Tuple.tuple(key, value);
+        });
     }
 
     @Before
@@ -390,6 +423,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -405,6 +439,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             PivotConfigTests.randomPivotConfig(),
             null,
             description,
+            null,
             null,
             null,
             null,
@@ -476,7 +511,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
     }
 
@@ -549,7 +584,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
         assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }
 
     public void testRewriteForBWCOfDateNormalization() throws IOException {
@@ -705,7 +740,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.CURRENT);
 
         // check _and_ clear warnings
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(
@@ -715,8 +750,30 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     new DeprecationIssue(
                         Level.WARNING,
                         "Transform [" + id + "] uses deprecated max_page_search_size",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
+                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
+                        false,
+                        null
+                    )
+                )
+            )
+        );
+
+        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_10_0);
+
+        // check _and_ clear warnings
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                List.of(
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
+                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
                         null
                     )
@@ -727,7 +784,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_4_0);
 
         // check _and_ clear warnings
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(
@@ -737,23 +794,68 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     new DeprecationIssue(
                         Level.CRITICAL,
                         "Transform [" + id + "] is too old",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "The configuration uses an old format, you can use [_update] or [_upgrade] to update to configuration",
+                        TransformDeprecations.UPGRADE_TRANSFORM_URL,
+                        TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                         false,
                         null
                     ),
                     new DeprecationIssue(
                         Level.WARNING,
                         "Transform [" + id + "] uses deprecated max_page_search_size",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
+                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
                         null
                     )
                 )
             )
         );
+    }
 
+    public void testSerializingMetadataPreservesOrder() throws IOException {
+        String json = "{"
+            + " \"id\" : \""
+            + transformId
+            + "\","
+            + " \"_meta\": {"
+            + "   \"d\": 4,"
+            + "   \"a\": 1,"
+            + "   \"c\": 3,"
+            + "   \"e\": 5,"
+            + "   \"b\": 2"
+            + "},"
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"time\": {"
+            + "     \"date_histogram\": {"
+            + "       \"field\": \"timestamp\","
+            + "       \"fixed_interval\": \"1d\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        // Read TransformConfig from JSON and verify that metadata keys are in the same order as in JSON
+        TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
+        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+
+        // Write TransformConfig to JSON, read it again and verify that metadata keys are still in the same order
+        json = XContentHelper.toXContent(transformConfig, XContentType.JSON, TO_XCONTENT_PARAMS, false).utf8ToString();
+        transformConfig = createTransformConfigFromString(json, transformId, true);
+        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+
+        // Write TransformConfig to wire, read it again and verify that metadata keys are still in the same order
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            transformConfig.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                transformConfig = new TransformConfig(in);
+            }
+        }
+        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
@@ -765,5 +867,4 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         return TransformConfig.fromXContent(parser, id, lenient);
     }
-
 }

@@ -11,19 +11,20 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -45,11 +47,19 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         super(NAME, InferTrainedModelDeploymentAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
+    /**
+     * Request for inference against the deployment.
+     *
+     * The task gets routed to a node that indicates its local model allocation is started
+     *
+     * For indicating timeout, the caller should call `setInferenceTimeout` and not the base class `setTimeout` method
+     */
+    public static class Request extends BaseTasksRequest<Request> {
 
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
         public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
@@ -57,29 +67,40 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         static {
             PARSER.declareString(Request.Builder::setDeploymentId, DEPLOYMENT_ID);
             PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
-            PARSER.declareString(Request.Builder::setTimeout, TIMEOUT);
+            PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
+            PARSER.declareNamedObject(
+                Request.Builder::setUpdate,
+                ((p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, c)),
+                INFERENCE_CONFIG
+            );
         }
 
-        public static Request parseRequest(String deploymentId, XContentParser parser) {
+        public static Request.Builder parseRequest(String deploymentId, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
             if (deploymentId != null) {
                 builder.setDeploymentId(deploymentId);
             }
-            return builder.build();
+            return builder;
         }
 
         private final String deploymentId;
         private final List<Map<String, Object>> docs;
+        private final InferenceConfigUpdate update;
+        private final TimeValue inferenceTimeout;
 
-        public Request(String deploymentId, List<Map<String, Object>> docs) {
+        public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
             this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
+            this.update = update;
+            this.inferenceTimeout = inferenceTimeout;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
             docs = Collections.unmodifiableList(in.readList(StreamInput::readMap));
+            update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
+            inferenceTimeout = in.readOptionalTimeValue();
         }
 
         public String getDeploymentId() {
@@ -90,30 +111,36 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return docs;
         }
 
+        public InferenceConfigUpdate getUpdate() {
+            return Optional.ofNullable(update).orElse(new EmptyConfigUpdate());
+        }
+
+        public TimeValue getInferenceTimeout() {
+            return inferenceTimeout == null ? DEFAULT_TIMEOUT : inferenceTimeout;
+        }
+
+        /**
+         * This is always null as we want the inference call to handle the timeout, not the tasks framework
+         * @return null
+         */
         @Override
+        @Nullable
         public TimeValue getTimeout() {
-            TimeValue tv = super.getTimeout();
-            if (tv == null) {
-                return DEFAULT_TIMEOUT;
-            }
-            return tv;
+            return null;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
             if (docs == null) {
-                validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null",
-                    validationException);
+                validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null", validationException);
             } else {
                 if (docs.isEmpty()) {
-                    validationException = addValidationError("at least one document is required",
-                        validationException);
+                    validationException = addValidationError("at least one document is required", validationException);
                 }
                 if (docs.size() > 1) {
                     // TODO support multiple docs
-                    validationException = addValidationError("multiple documents are not supported",
-                        validationException);
+                    validationException = addValidationError("multiple documents are not supported", validationException);
                 }
             }
             return validationException;
@@ -124,16 +151,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             super.writeTo(out);
             out.writeString(deploymentId);
             out.writeCollection(docs, StreamOutput::writeMap);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
-            builder.field(DOCS.getPreferredName(), docs);
-            builder.field(TIMEOUT.getPreferredName(), getTimeout().getStringRep());
-            builder.endObject();
-            return builder;
+            out.writeOptionalNamedWriteable(update);
+            out.writeOptionalTimeValue(inferenceTimeout);
         }
 
         @Override
@@ -148,17 +167,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
             return Objects.equals(deploymentId, that.deploymentId)
                 && Objects.equals(docs, that.docs)
-                && Objects.equals(getTimeout(), that.getTimeout());
+                && Objects.equals(update, that.update)
+                && Objects.equals(inferenceTimeout, that.inferenceTimeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, docs, getTimeout());
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
+            return Objects.hash(deploymentId, update, docs, inferenceTimeout);
         }
 
         public static class Builder {
@@ -166,6 +181,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             private String deploymentId;
             private List<Map<String, Object>> docs;
             private TimeValue timeout;
+            private InferenceConfigUpdate update;
 
             private Builder() {}
 
@@ -179,21 +195,22 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return this;
             }
 
-            public Builder setTimeout(TimeValue timeout) {
+            public Builder setInferenceTimeout(TimeValue timeout) {
                 this.timeout = timeout;
                 return this;
             }
 
-            private Builder setTimeout(String timeout) {
-                return setTimeout(TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()));
+            public Builder setUpdate(InferenceConfigUpdate update) {
+                this.update = update;
+                return this;
+            }
+
+            private Builder setInferenceTimeout(String timeout) {
+                return setInferenceTimeout(TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()));
             }
 
             public Request build() {
-                Request request = new Request(deploymentId, docs);
-                if (timeout != null) {
-                    request.setTimeout(timeout);
-                }
-                return request;
+                return new Request(deploymentId, update, docs, timeout);
             }
         }
     }

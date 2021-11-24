@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import java.util.Arrays;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
@@ -51,14 +51,26 @@ public class BasicFormatterTests extends ESTestCase {
     public void testFormatWithHeader() {
         String[] result = formatter.formatWithHeader(firstResponse.columns(), firstResponse.rows()).split("\n");
         assertThat(result, arrayWithSize(4));
-        assertEquals("      foo      |         bar          |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
-                + "          date          |  null_field2  ", result[0]);
-        assertEquals("---------------+----------------------+---------------+---------------+---------------------+---------------+"
-                + "------------------------+---------------", result[1]);
-        assertEquals("15charwidedata!|1                     |6.888          |null           |12                   |rabbit         |"
-                + "1953-09-02T00:00:00.000Z|null           ", result[2]);
-        assertEquals("dog            |1.7976931348623157E308|123124.888     |null           |9912                 |goat           |"
-                + "2000-03-15T21:34:37.443Z|null           ", result[3]);
+        assertEquals(
+            "      foo      |         bar          |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
+                + "          date          |  null_field2  ",
+            result[0]
+        );
+        assertEquals(
+            "---------------+----------------------+---------------+---------------+---------------------+---------------+"
+                + "------------------------+---------------",
+            result[1]
+        );
+        assertEquals(
+            "15charwidedata!|1                     |6.888          |null           |12                   |rabbit         |"
+                + "1953-09-02T00:00:00.000Z|null           ",
+            result[2]
+        );
+        assertEquals(
+            "dog            |1.7976931348623157E308|123124.888     |null           |9912                 |goat           |"
+                + "2000-03-15T21:34:37.443Z|null           ",
+            result[3]
+        );
     }
 
     /**
@@ -67,23 +79,32 @@ public class BasicFormatterTests extends ESTestCase {
      */
     public void testFormatWithoutHeader() {
         String[] result = formatter.formatWithoutHeader(
-                Arrays.asList(
-                        Arrays.asList("ohnotruncateddata", 4, 1, null, 77, "wombat", "1955-01-21T01:02:03.342Z", null),
-                        Arrays.asList("dog", 2, 123124.888, null, 9912, "goat", "2231-12-31T23:59:59.999Z", null))).split("\n");
+            Arrays.asList(
+                Arrays.asList("ohnotruncateddata", 4, 1, null, 77, "wombat", "1955-01-21T01:02:03.342Z", null),
+                Arrays.asList("dog", 2, 123124.888, null, 9912, "goat", "2231-12-31T23:59:59.999Z", null)
+            )
+        ).split("\n");
         assertThat(result, arrayWithSize(2));
-        assertEquals("ohnotruncatedd~|4                     |1              |null           |77                   |wombat         |"
-                + "1955-01-21T01:02:03.342Z|null           ", result[0]);
-        assertEquals("dog            |2                     |123124.888     |null           |9912                 |goat           |"
-                + "2231-12-31T23:59:59.999Z|null           ", result[1]);
+        assertEquals(
+            "ohnotruncatedd~|4                     |1              |null           |77                   |wombat         |"
+                + "1955-01-21T01:02:03.342Z|null           ",
+            result[0]
+        );
+        assertEquals(
+            "dog            |2                     |123124.888     |null           |9912                 |goat           |"
+                + "2231-12-31T23:59:59.999Z|null           ",
+            result[1]
+        );
     }
 
     /**
      * Ensure that our estimates are perfect in at least some cases.
      */
     public void testEstimateSize() {
-        assertEquals(formatter.formatWithHeader(firstResponse.columns(), firstResponse.rows()).length(),
-                formatter.estimateSize(firstResponse.rows().size() + 2));
-        assertEquals(formatter.formatWithoutHeader(firstResponse.rows()).length(),
-                formatter.estimateSize(firstResponse.rows().size()));
+        assertEquals(
+            formatter.formatWithHeader(firstResponse.columns(), firstResponse.rows()).length(),
+            formatter.estimateSize(firstResponse.rows().size() + 2)
+        );
+        assertEquals(formatter.formatWithoutHeader(firstResponse.rows()).length(), formatter.estimateSize(firstResponse.rows().size()));
     }
 }

@@ -12,12 +12,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -29,23 +29,37 @@ import java.util.function.Supplier;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
+        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         IndexSettings indexSettings = createIndexSettings(Version.CURRENT, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-        Supplier<MappingParserContext> parserContextSupplier =
-            () -> new MappingParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                mapperRegistry.getRuntimeFieldParsers()::get, indexSettings.getIndexVersionCreated(),
-                () -> { throw new UnsupportedOperationException(); }, null,
-                scriptService, indexAnalyzers, indexSettings, () -> false);
-        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
-            mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
+        Supplier<MappingParserContext> parserContextSupplier = () -> new MappingParserContext(
+            similarityService::getSimilarity,
+            mapperRegistry.getMapperParsers()::get,
+            mapperRegistry.getRuntimeFieldParsers()::get,
+            indexSettings.getIndexVersionCreated(),
+            () -> { throw new UnsupportedOperationException(); },
+            null,
+            scriptService,
+            indexAnalyzers,
+            indexSettings,
+            IdFieldMapper.NO_FIELD_DATA
+        );
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
+            indexSettings.getIndexVersionCreated()
+        );
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(parserContextSupplier.get()))
+        metadataMapperParsers.values()
+            .stream()
+            .map(parser -> parser.getDefault(parserContextSupplier.get()))
             .forEach(m -> metadataMappers.put(m.getClass(), m));
-        return new MappingParser(parserContextSupplier, metadataMapperParsers,
-            () -> metadataMappers, type -> MapperService.SINGLE_MAPPING_NAME);
+        return new MappingParser(
+            parserContextSupplier,
+            metadataMapperParsers,
+            () -> metadataMappers,
+            type -> MapperService.SINGLE_MAPPING_NAME
+        );
     }
 
     public void testFieldNameWithDots() throws Exception {
@@ -87,8 +101,10 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.startObject("foo").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();
         });
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+        );
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
     }
 
@@ -111,8 +127,19 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
             b.startObject("other-field").field("type", "keyword").endObject();
         });
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+        );
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+    }
+
+    public void testBadMetadataMapper() throws IOException {
+        XContentBuilder builder = topMapping(b -> { b.field(RoutingFieldMapper.NAME, "required"); });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+        );
+        assertEquals("[_routing] config must be an object", e.getMessage());
     }
 }

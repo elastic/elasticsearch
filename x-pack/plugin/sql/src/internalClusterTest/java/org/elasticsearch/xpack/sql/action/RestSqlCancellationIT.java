@@ -20,8 +20,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.BeforeClass;
@@ -33,8 +33,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -58,7 +58,8 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
+            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .build();
     }
 
     private static String getHttpTypeKey(Class<? extends Plugin> clazz) {
@@ -81,9 +82,13 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
     @TestLogging(value = "org.elasticsearch.xpack.sql:TRACE", reason = "debug")
     public void testRestCancellation() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
+                .get()
+        );
         createIndex("idx_unmapped");
 
         int numDocs = randomIntBetween(6, 20);
@@ -92,18 +97,25 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
-            builders.add(client().prepareIndex("test").setSource(
-                jsonBuilder().startObject()
-                    .field("val", fieldValue).field("event_type", "my_event").field("@timestamp", "2020-04-09T12:35:48Z")
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("test")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("val", fieldValue)
+                            .field("event_type", "my_event")
+                            .field("@timestamp", "2020-04-09T12:35:48Z")
+                            .endObject()
+                    )
+            );
         }
 
         indexRandom(true, builders);
 
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
-        SqlQueryRequest sqlRequest = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query("SELECT event_type FROM test WHERE val=1").request();
+        SqlQueryRequest sqlRequest = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
+            "SELECT event_type FROM test WHERE val=1"
+        ).request();
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("POST", Protocol.SQL_QUERY_REST_ENDPOINT);
@@ -153,9 +165,7 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         logger.trace("Disabling field cap blocks");
         disableFieldCapBlocks(plugins);
         // The task should be cancelled before ever reaching search blocks
-        assertBusy(() -> {
-            assertThat(getTaskInfoWithXOpaqueId(id, SqlQueryAction.NAME), nullValue());
-        });
+        assertBusy(() -> { assertThat(getTaskInfoWithXOpaqueId(id, SqlQueryAction.NAME), nullValue()); });
         // Make sure it didn't reach search blocks
         assertThat(getNumberOfContexts(plugins), equalTo(0));
         disableSearchBlocks(plugins);

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -31,13 +31,13 @@ public class RestGetCalendarsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build(),
-            Route.builder(GET, BASE_PATH + "calendars/")
-                .replaces(GET, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build(),
+                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "calendars/").replaces(GET, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build(),
             Route.builder(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}")
-                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7).build(),
-            Route.builder(POST, BASE_PATH + "calendars/")
-                .replaces(POST, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build()
+                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, BASE_PATH + "calendars/").replaces(POST, PRE_V7_BASE_PATH + "calendars/", RestApiVersion.V_7).build()
         );
     }
 
@@ -56,14 +56,18 @@ public class RestGetCalendarsAction extends BaseRestHandler {
             try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
                 request = GetCalendarsAction.Request.parseRequest(calendarId, parser);
             }
-        } else  {
+        } else {
             request = new GetCalendarsAction.Request();
             if (Strings.isNullOrEmpty(calendarId) == false) {
                 request.setCalendarId(calendarId);
             }
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-                request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                request.setPageParams(
+                    new PageParams(
+                        restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                    )
+                );
             }
         }
 

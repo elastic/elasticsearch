@@ -11,18 +11,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -388,8 +388,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());
         } else {
             List<String> defaultFields = context.defaultFields();
-            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
-                QueryParserHelper.parseFieldsAndWeights(defaultFields));
+            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(
+                context,
+                QueryParserHelper.parseFieldsAndWeights(defaultFields)
+            );
             isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
         }
 
@@ -403,8 +405,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
-                throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
-                        + "] not found");
+                throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer + "] not found");
             }
             sqp = new SimpleQueryStringQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         }
@@ -482,8 +483,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     }
                     fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token.isValue()) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -524,12 +527,16 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
-                            "] unsupported field [" + parser.currentName() + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + SimpleQueryStringBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -567,10 +574,12 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected boolean doEquals(SimpleQueryStringBuilder other) {
-        return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) && Objects.equals(analyzer, other.analyzer)
-                && Objects.equals(defaultOperator, other.defaultOperator) && Objects.equals(queryText, other.queryText)
-                && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
-                && Objects.equals(settings, other.settings)
-                && (flags == other.flags);
+        return Objects.equals(fieldsAndWeights, other.fieldsAndWeights)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(defaultOperator, other.defaultOperator)
+            && Objects.equals(queryText, other.queryText)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(settings, other.settings)
+            && (flags == other.flags);
     }
 }

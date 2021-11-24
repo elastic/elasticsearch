@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -56,7 +56,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
         final List<QueryBuilder> mustQueries = apiKeyQb1.must();
-        assertThat(mustQueries.size(), equalTo(1));
+        assertThat(mustQueries, hasSize(1));
         assertThat(mustQueries.get(0), equalTo(q1));
         assertTrue(apiKeyQb1.should().isEmpty());
         assertTrue(apiKeyQb1.mustNot().isEmpty());
@@ -73,8 +73,9 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             bq1.should(QueryBuilders.wildcardQuery("name", "*-east-*"));
         }
         if (randomBoolean()) {
-            bq1.filter(QueryBuilders.termsQuery("name",
-                randomArray(3, 8, String[]::new, () -> "prod-" + randomInt() + "-east-" + randomInt())));
+            bq1.filter(
+                QueryBuilders.termsQuery("name", randomArray(3, 8, String[]::new, () -> "prod-" + randomInt() + "-east-" + randomInt()))
+            );
         }
         if (randomBoolean()) {
             bq1.mustNot(QueryBuilders.idsQuery().addIds(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(22))));
@@ -120,7 +121,6 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         assertCommonFilterQueries(apiKeyQb3, authentication);
         assertThat(apiKeyQb3.must().get(0), equalTo(QueryBuilders.wildcardQuery("creator.realm", q3.value())));
 
-
         // creation_time
         final TermQueryBuilder q4 = QueryBuilders.termQuery("creation", randomLongBetween(0, Long.MAX_VALUE));
         final ApiKeyBoolQueryBuilder apiKeyQb4 = ApiKeyBoolQueryBuilder.build(q4, authentication);
@@ -137,23 +137,30 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     public void testAllowListOfFieldNames() {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
 
-        final String randomFieldName = randomValueOtherThanMany(s -> FIELD_NAME_TRANSLATORS.stream().anyMatch(t -> t.supports(s)),
-            () -> randomAlphaOfLengthBetween(3, 20));
+        final String randomFieldName = randomValueOtherThanMany(
+            s -> FIELD_NAME_TRANSLATORS.stream().anyMatch(t -> t.supports(s)),
+            () -> randomAlphaOfLengthBetween(3, 20)
+        );
         final String fieldName = randomFrom(
-                        randomFieldName,
-                        "api_key_hash",
-                        "api_key_invalidated",
-                        "doc_type",
-                        "role_descriptors",
-                        "limited_by_role_descriptors",
-                        "version",
-            "creator", "creator.metadata");
+            randomFieldName,
+            "api_key_hash",
+            "api_key_invalidated",
+            "doc_type",
+            "role_descriptors",
+            "limited_by_role_descriptors",
+            "version",
+            "creator",
+            "creator.metadata"
+        );
 
         final QueryBuilder q1 = randomValueOtherThanMany(
             q -> q.getClass() == IdsQueryBuilder.class || q.getClass() == MatchAllQueryBuilder.class,
-            () -> randomSimpleQuery(fieldName));
-        final IllegalArgumentException e1 =
-            expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
+            () -> randomSimpleQuery(fieldName)
+        );
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+        );
 
         assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
     }
@@ -161,16 +168,20 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     public void testTermsLookupIsNotAllowed() {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
         final TermsQueryBuilder q1 = QueryBuilders.termsLookupQuery("name", new TermsLookup("lookup", "1", "names"));
-        final IllegalArgumentException e1 =
-            expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+        );
         assertThat(e1.getMessage(), containsString("terms query with terms lookup is not supported for API Key query"));
     }
 
     public void testRangeQueryWithRelationIsNotAllowed() {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
         final RangeQueryBuilder q1 = QueryBuilders.rangeQuery("creation").relation("contains");
-        final IllegalArgumentException e1 =
-            expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+        );
         assertThat(e1.getMessage(), containsString("range query with relation is not supported for API Key query"));
     }
 
@@ -186,9 +197,11 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             QueryBuilders.simpleQueryStringQuery(randomAlphaOfLength(5)),
             QueryBuilders.combinedFieldsQuery(randomAlphaOfLength(5)),
             QueryBuilders.disMaxQuery(),
-            QueryBuilders.distanceFeatureQuery(randomAlphaOfLength(5),
+            QueryBuilders.distanceFeatureQuery(
+                randomAlphaOfLength(5),
                 mock(DistanceFeatureQueryBuilder.Origin.class),
-                randomAlphaOfLength(5)),
+                randomAlphaOfLength(5)
+            ),
             QueryBuilders.fieldMaskingSpanQuery(mock(SpanQueryBuilder.class), randomAlphaOfLength(5)),
             QueryBuilders.functionScoreQuery(mock(QueryBuilder.class)),
             QueryBuilders.fuzzyQuery(randomAlphaOfLength(5), randomAlphaOfLength(5)),
@@ -214,14 +227,18 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             QueryBuilders.geoShapeQuery(randomAlphaOfLength(5), randomAlphaOfLength(5))
         );
 
-        final IllegalArgumentException e1 =
-            expectThrows(IllegalArgumentException.class, () -> ApiKeyBoolQueryBuilder.build(q1, authentication));
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+        );
         assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for API Key query"));
     }
 
     public void testWillSetAllowedFields() throws IOException {
-        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(randomSimpleQuery("name"),
-            randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null);
+        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(
+            randomSimpleQuery("name"),
+            randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null
+        );
 
         final SearchExecutionContext context1 = mock(SearchExecutionContext.class);
         doAnswer(invocationOnMock -> {
@@ -253,7 +270,8 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             "creation_time",
             "expiration_time",
             "metadata_flattened." + randomAlphaOfLengthBetween(1, 10),
-            "creator." + randomAlphaOfLengthBetween(1, 10));
+            "creator." + randomAlphaOfLengthBetween(1, 10)
+        );
         assertTrue(predicate.test(allowedField));
 
         final String disallowedField = randomBoolean() ? (randomAlphaOfLengthBetween(1, 3) + allowedField) : (allowedField.substring(1));
@@ -270,10 +288,13 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         if (authentication == null) {
             return;
         }
-        assertTrue(tqb.stream()
-            .anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()))));
-        assertTrue(tqb.stream()
-            .anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication)))));
+        assertTrue(
+            tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal())))
+        );
+        assertTrue(
+            tqb.stream()
+                .anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication))))
+        );
     }
 
     private QueryBuilder randomSimpleQuery(String name) {

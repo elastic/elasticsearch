@@ -20,6 +20,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -33,8 +34,8 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportInfo;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -47,15 +48,20 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -65,36 +71,35 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES =
-            SecuritySettingsSource.TEST_ROLE + ":\n" +
-                    "  cluster: [ all ]\n" +
-                    "  indices:\n" +
-                    "    - names: '*'\n" +
-                    "      privileges: [manage]\n" +
-                    "    - names: '/.*/'\n" +
-                    "      privileges: [write]\n" +
-                    "    - names: 'test'\n" +
-                    "      privileges: [read]\n" +
-                    "    - names: 'test1'\n" +
-                    "      privileges: [read]\n" +
-                    "\n" +
-                    "role_a:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [all]\n" +
-                    "    - names: 'test-dls'\n" +
-                    "      privileges: [read]\n" +
-                    "      query: '{\"term\":{\"field\":\"value\"} }'\n" +
-                    "\n" +
-                    "role_b:\n" +
-                    "  indices:\n" +
-                    "    - names: 'b'\n" +
-                    "      privileges: [all]\n";
+    private static final String ROLES = SecuritySettingsSource.TEST_ROLE
+        + ":\n"
+        + "  cluster: [ all ]\n"
+        + "  indices:\n"
+        + "    - names: '*'\n"
+        + "      privileges: [manage]\n"
+        + "    - names: '/.*/'\n"
+        + "      privileges: [write]\n"
+        + "    - names: 'test'\n"
+        + "      privileges: [read]\n"
+        + "    - names: 'test1'\n"
+        + "      privileges: [read]\n"
+        + "\n"
+        + "role_a:\n"
+        + "  indices:\n"
+        + "    - names: 'a'\n"
+        + "      privileges: [all]\n"
+        + "    - names: 'test-dls'\n"
+        + "      privileges: [read]\n"
+        + "      query: '{\"term\":{\"field\":\"value\"} }'\n"
+        + "\n"
+        + "role_b:\n"
+        + "  indices:\n"
+        + "    - names: 'b'\n"
+        + "      privileges: [all]\n";
 
-    private static final String USERS_ROLES =
-            SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
-                    "role_a:user_a,user_b\n" +
-                    "role_b:user_b\n";
+    private static final String USERS_ROLES = SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES
+        + "role_a:user_a,user_b\n"
+        + "role_b:user_b\n";
 
     @Override
     protected String configRoles() {
@@ -103,9 +108,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        return SecuritySettingsSource.CONFIG_STANDARD_USER +
-            "user_a:" + HASH_PASSWD + "\n" +
-            "user_b:" + HASH_PASSWD + "\n";
+        return SecuritySettingsSource.CONFIG_STANDARD_USER + "user_a:" + HASH_PASSWD + "\n" + "user_b:" + HASH_PASSWD + "\n";
     }
 
     @Override
@@ -139,17 +142,10 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testEnableDisableBehaviour() throws Exception {
-        IndexResponse indexResponse = index("test", jsonBuilder()
-                .startObject()
-                .field("name", "value")
-                .endObject());
+        IndexResponse indexResponse = index("test", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-
-        indexResponse = index("test1", jsonBuilder()
-                .startObject()
-                .field("name", "value1")
-                .endObject());
+        indexResponse = index("test1", jsonBuilder().startObject().field("name", "value1").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
@@ -181,12 +177,23 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
-            License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
+        License.OperationMode mode = randomFrom(
+            License.OperationMode.GOLD,
+            License.OperationMode.PLATINUM,
+            License.OperationMode.ENTERPRISE,
+            License.OperationMode.STANDARD
+        );
         enableLicensing(mode);
 
-        final List<String> seedHosts = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
-            .getNodes().stream().map(n -> n.getInfo(TransportInfo.class).getAddress().publishAddress().toString()).distinct()
+        final List<String> seedHosts = internalCluster().masterClient()
+            .admin()
+            .cluster()
+            .nodesInfo(new NodesInfoRequest())
+            .get()
+            .getNodes()
+            .stream()
+            .map(n -> n.getInfo(TransportInfo.class).getAddress().publishAddress().toString())
+            .distinct()
             .collect(Collectors.toList());
 
         Path home = createTempDir();
@@ -211,11 +218,20 @@ public class LicensingTests extends SecurityIntegTestCase {
     public void testNoWarningHeaderWhenAuthenticationFailed() throws Exception {
         Request request = new Request("GET", "/_security/user");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-            new SecureString(SecuritySettingsSourceField.TEST_INVALID_PASSWORD.toCharArray())));
+        options.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_INVALID_PASSWORD.toCharArray())
+            )
+        );
         request.setOptions(options);
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
-            License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
+        License.OperationMode mode = randomFrom(
+            License.OperationMode.GOLD,
+            License.OperationMode.PLATINUM,
+            License.OperationMode.ENTERPRISE,
+            License.OperationMode.STANDARD
+        );
         long now = System.currentTimeMillis();
         long newExpirationDate = now + LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1;
         setLicensingExpirationDate(mode, "warning: license will expire soon");
@@ -224,10 +240,19 @@ public class LicensingTests extends SecurityIntegTestCase {
             getRestClient().performRequest(request);
         } catch (ResponseException e) {
             headers = e.getResponse().getHeaders();
-            List<String> afterWarningHeaders= getWarningHeaders(e.getResponse().getHeaders());
+            List<String> afterWarningHeaders = getWarningHeaders(headers);
             assertThat(afterWarningHeaders, Matchers.hasSize(0));
         }
-        assertThat(headers != null && headers.length == 3, is(true));
+        assertThat(headers, notNullValue());
+        assertThat(Strings.arrayToCommaDelimitedString(headers), headers, arrayWithSize(4));
+
+        Arrays.sort(headers, Comparator.comparing((Header h) -> h.getName().toLowerCase(Locale.ROOT)).thenComparing(Header::getValue));
+        assertThat(headers[0].getName(), equalToIgnoringCase("content-length"));
+        assertThat(headers[1].getName(), equalToIgnoringCase("content-type"));
+        assertThat(headers[2].getName(), equalToIgnoringCase("WWW-Authenticate"));
+        assertThat(headers[2].getValue(), containsStringIgnoringCase("ApiKey"));
+        assertThat(headers[3].getName(), equalToIgnoringCase("WWW-Authenticate"));
+        assertThat(headers[3].getValue(), containsStringIgnoringCase("Basic"));
     }
 
     private static void assertElasticsearchSecurityException(ThrowingRunnable runnable) {

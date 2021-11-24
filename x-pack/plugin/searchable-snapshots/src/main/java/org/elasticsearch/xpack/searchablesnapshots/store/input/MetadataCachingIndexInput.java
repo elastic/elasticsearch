@@ -170,8 +170,11 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             final int bytesRead = populateCacheFuture.get();
             assert bytesRead == length : bytesRead + " vs " + length;
         } else {
-            logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
             final int sliceOffset = toIntBytes(position - cachedBlob.from());
+            assert sliceOffset + length <= cachedBlob.to()
+                : "reading " + length + " bytes from " + sliceOffset + " exceed cached blob max position " + cachedBlob.to();
+
+            logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
             final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
             BytesRef bytesRef;
             int copiedBytes = 0;

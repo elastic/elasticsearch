@@ -12,9 +12,9 @@ transformed documents to your data stream or index.
 
 image::images/ingest/ingest-process.svg[Ingest pipeline diagram,align="center"]
 
-You can create and manage ingest pipelines using {kib}'s **Ingest Node
-Pipelines** feature or the <<ingest-apis,ingest APIs>>. {es} stores pipelines in
-the <<cluster-state,cluster state>>.
+You can create and manage ingest pipelines using {kib}'s **Ingest Pipelines**
+feature or the <<ingest-apis,ingest APIs>>. {es} stores pipelines in the
+<<cluster-state,cluster state>>.
 
 [discrete]
 [[ingest-prerequisites]]
@@ -27,7 +27,7 @@ with the `ingest` role. For heavy ingest loads, we recommend creating
 
 * If the {es} security features are enabled, you must have the `manage_pipeline`
 <<privileges-list-cluster,cluster privilege>> to manage ingest pipelines. To use
-{kib}'s **Ingest Node Pipelines** feature, you also need the
+{kib}'s **Ingest Pipelines** feature, you also need the
 `cluster:monitor/nodes/info` cluster privileges.
 
 * Pipelines including the `enrich` processor require additional setup. See
@@ -37,7 +37,7 @@ with the `ingest` role. For heavy ingest loads, we recommend creating
 [[create-manage-ingest-pipelines]]
 === Create and manage pipelines
 
-In {kib}, open the main menu and click **Stack Management** > **Ingest Node
+In {kib}, open the main menu and click **Stack Management** > **Ingest
 Pipelines**. From the list view, you can:
 
 * View a list of your pipelines and drill down into details
@@ -48,7 +48,7 @@ To create a new pipeline, click **Create pipeline**. For an example tutorial,
 see <<common-log-format-example>>.
 
 [role="screenshot"]
-image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
+image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
 
 You can also use the <<ingest-apis,ingest APIs>> to create and manage pipelines.
 The following <<put-pipeline-api,create pipeline API>> request creates
@@ -91,8 +91,10 @@ PUT _ingest/pipeline/my-pipeline
 === Manage pipeline versions
 
 When you create or update a pipeline, you can specify an optional `version`
-integer. {es} doesn't use this `version` number internally, but you can use it
-to track changes to a pipeline.
+integer. You can use this version number with the
+<<put-pipeline-api-query-params,`if_version`>> parameter to conditionally
+update the pipeline. When the `if_version` parameter is specified, a successful
+update increments the pipeline's version.
 
 [source,console]
 ----
@@ -272,6 +274,21 @@ final pipeline. {es} applies this pipeline after the request or default
 pipeline, even if neither is specified.
 
 [discrete]
+[[pipelines-for-beats]]
+=== Pipelines for {beats}
+
+To add an ingest pipeline to an Elastic Beat, specify the `pipeline`
+parameter under `output.elasticsearch` in `<BEAT_NAME>.yml`. For example,
+for {filebeat}, you'd specify `pipeline` in `filebeat.yml`.
+
+[source,yaml]
+----
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  pipeline: my-pipeline
+----
+
+[discrete]
 [[pipelines-for-fleet-elastic-agent]]
 === Pipelines for {fleet} and {agent}
 
@@ -417,8 +434,7 @@ If you run {agent} standalone, you can apply pipelines using an
 <<index-default-pipeline,`index.default_pipeline`>> or
 <<index-final-pipeline,`index.final_pipeline`>> index setting. Alternatively,
 you can specify the `pipeline` policy setting in your `elastic-agent.yml`
-configuration. See {fleet-guide}/run-elastic-agent-standalone.html[Run {agent}
-standalone].
+configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install standalone {agent}s].
 
 [discrete]
 [[access-source-fields]]

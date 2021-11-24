@@ -15,9 +15,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -30,9 +30,9 @@ import java.nio.CharBuffer;
 /**
  * Request to change a user's password.
  */
-public class ChangePasswordRequestBuilder
-        extends ActionRequestBuilder<ChangePasswordRequest, ActionResponse.Empty>
-        implements WriteRequestBuilder<ChangePasswordRequestBuilder> {
+public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePasswordRequest, ActionResponse.Empty>
+    implements
+        WriteRequestBuilder<ChangePasswordRequestBuilder> {
 
     public ChangePasswordRequestBuilder(ElasticsearchClient client) {
         super(client, ChangePasswordAction.INSTANCE, new ChangePasswordRequest());
@@ -71,8 +71,9 @@ public class ChangePasswordRequestBuilder
     public ChangePasswordRequestBuilder passwordHash(char[] passwordHashChars, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHashChars);
         if (resolvedHasher.equals(configuredHasher) == false) {
-            throw new IllegalArgumentException("Provided password hash uses [" + resolvedHasher
-                + "] but the configured hashing algorithm is [" + configuredHasher + "]");
+            throw new IllegalArgumentException(
+                "Provided password hash uses [" + resolvedHasher + "] but the configured hashing algorithm is [" + configuredHasher + "]"
+            );
         }
         if (request.passwordHash() != null) {
             throw validationException("password_hash has already been set");
@@ -84,12 +85,13 @@ public class ChangePasswordRequestBuilder
     /**
      * Populate the change password request from the source in the provided content type
      */
-    public ChangePasswordRequestBuilder source(BytesReference source, XContentType xContentType, Hasher hasher) throws
-        IOException {
+    public ChangePasswordRequestBuilder source(BytesReference source, XContentType xContentType, Hasher hasher) throws IOException {
         // EMPTY is ok here because we never call namedObject
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
             String currentFieldName = null;
@@ -101,23 +103,31 @@ public class ChangePasswordRequestBuilder
                         String password = parser.text();
                         final char[] passwordChars = password.toCharArray();
                         password(passwordChars, hasher);
-                        assert CharBuffer.wrap(passwordChars).chars().noneMatch((i) -> (char) i != (char) 0) : "expected password to " +
-                                "clear the char[] but it did not!";
+                        assert CharBuffer.wrap(passwordChars).chars().noneMatch((i) -> (char) i != (char) 0)
+                            : "expected password to " + "clear the char[] but it did not!";
                     } else {
                         throw new ElasticsearchParseException(
-                                "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
+                            "expected field [{}] to be of type string, but found [{}] instead",
+                            currentFieldName,
+                            token
+                        );
                     }
                 } else if (User.Fields.PASSWORD_HASH.match(currentFieldName, parser.getDeprecationHandler())) {
-                   if (token == XContentParser.Token.VALUE_STRING) {
-                       char[] passwordHashChars = parser.text().toCharArray();
-                       passwordHash(passwordHashChars, hasher);
-                   } else {
-                       throw new ElasticsearchParseException(
-                           "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
-                   }
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        char[] passwordHashChars = parser.text().toCharArray();
+                        passwordHash(passwordHashChars, hasher);
+                    } else {
+                        throw new ElasticsearchParseException(
+                            "expected field [{}] to be of type string, but found [{}] instead",
+                            currentFieldName,
+                            token
+                        );
+                    }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse change password request. unexpected field [{}]",
-                            currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "failed to parse change password request. unexpected field [{}]",
+                        currentFieldName
+                    );
                 }
             }
         }

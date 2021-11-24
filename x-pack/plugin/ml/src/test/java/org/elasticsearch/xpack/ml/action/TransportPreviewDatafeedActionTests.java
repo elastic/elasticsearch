@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -83,8 +83,10 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("no_aggs_feed", "job_foo");
         datafeed.setIndices(Collections.singletonList("my_index"));
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        datafeed.setParsedAggregations(AggregatorFactories.builder().addAggregator(
-                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
+        datafeed.setParsedAggregations(
+            AggregatorFactories.builder()
+                .addAggregator(AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time"))
+        );
         datafeed.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
 
         DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build()).build();

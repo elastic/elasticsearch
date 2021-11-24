@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.sql.Date;

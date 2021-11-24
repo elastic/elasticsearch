@@ -7,7 +7,7 @@ dependencies {
   javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.monitoring.collection.interval', '1s'

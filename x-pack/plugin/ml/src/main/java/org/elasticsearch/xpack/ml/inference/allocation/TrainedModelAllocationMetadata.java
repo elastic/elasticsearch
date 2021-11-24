@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -127,7 +127,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
 
     public static class Builder {
 
-        public static Builder empty(){
+        public static Builder empty() {
             return new Builder();
         }
 
@@ -155,10 +155,8 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
 
         public Builder addNewAllocation(String modelId, TrainedModelAllocation.Builder allocation) {
             if (modelRoutingEntries.containsKey(modelId)) {
-                throw new ResourceAlreadyExistsException(
-                    "[{}] allocation already exists",
-                    modelId
-                );            }
+                throw new ResourceAlreadyExistsException("[{}] allocation already exists", modelId);
+            }
             modelRoutingEntries.put(modelId, allocation);
             isChanged = true;
             return this;

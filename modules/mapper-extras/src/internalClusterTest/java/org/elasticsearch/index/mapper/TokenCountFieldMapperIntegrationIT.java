@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -30,7 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -51,8 +53,10 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     private final boolean storeCountedFields;
     private final boolean loadCountedFields;
 
-    public TokenCountFieldMapperIntegrationIT(@Name("storeCountedFields") boolean storeCountedFields,
-            @Name("loadCountedFields") boolean loadCountedFields) {
+    public TokenCountFieldMapperIntegrationIT(
+        @Name("storeCountedFields") boolean storeCountedFields,
+        @Name("loadCountedFields") boolean loadCountedFields
+    ) {
         this.storeCountedFields = storeCountedFields;
         this.loadCountedFields = loadCountedFields;
     }
@@ -95,10 +99,8 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     public void testFacetByTokenCount() throws IOException {
         init();
 
-        String facetField = randomFrom(Arrays.asList(
-            "foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
-        SearchResponse result = searchByNumericRange(1, 10)
-                .addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
+        String facetField = randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
+        SearchResponse result = searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
         assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
         assertThat(result.getAggregations().asList().size(), equalTo(1));
         Terms terms = (Terms) result.getAggregations().asList().get(0);
@@ -110,52 +112,59 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         settings.put(indexSettings());
         settings.put("index.analysis.analyzer.mock_english.tokenizer", "standard");
         settings.put("index.analysis.analyzer.mock_english.filter", "stop");
-        prepareCreate("test")
-            .setSettings(settings)
-            .setMapping(jsonBuilder().startObject()
-                .startObject("_doc")
+        prepareCreate("test").setSettings(settings)
+            .setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
                     .startObject("properties")
-                        .startObject("foo")
-                            .field("type", "text")
-                            .field("store", storeCountedFields)
-                            .field("analyzer", "simple")
-                            .startObject("fields")
-                                .startObject("token_count")
-                                    .field("type", "token_count")
-                                    .field("analyzer", "standard")
-                                    .field("store", true)
-                                .endObject()
-                                .startObject("token_count_unstored")
-                                    .field("type", "token_count")
-                                    .field("analyzer", "standard")
-                                .endObject()
-                                .startObject("token_count_with_doc_values")
-                                    .field("type", "token_count")
-                                    .field("analyzer", "standard")
-                                    .field("doc_values", true)
-                                .endObject()
-                                .startObject("token_count_without_position_increments")
-                                    .field("type", "token_count")
-                                    .field("analyzer", "mock_english")
-                                    .field("enable_position_increments", false)
-                                    .field("store", true)
-                                .endObject()
-                            .endObject()
-                        .endObject()
+                    .startObject("foo")
+                    .field("type", "text")
+                    .field("store", storeCountedFields)
+                    .field("analyzer", "simple")
+                    .startObject("fields")
+                    .startObject("token_count")
+                    .field("type", "token_count")
+                    .field("analyzer", "standard")
+                    .field("store", true)
                     .endObject()
-                .endObject().endObject()).get();
+                    .startObject("token_count_unstored")
+                    .field("type", "token_count")
+                    .field("analyzer", "standard")
+                    .endObject()
+                    .startObject("token_count_with_doc_values")
+                    .field("type", "token_count")
+                    .field("analyzer", "standard")
+                    .field("doc_values", true)
+                    .endObject()
+                    .startObject("token_count_without_position_increments")
+                    .field("type", "token_count")
+                    .field("analyzer", "mock_english")
+                    .field("enable_position_increments", false)
+                    .field("store", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
         ensureGreen();
 
         assertEquals(DocWriteResponse.Result.CREATED, prepareIndex("single", "I have four terms").get().getResult());
         BulkResponse bulk = client().prepareBulk()
-                .add(prepareIndex("bulk1", "bulk three terms"))
-                .add(prepareIndex("bulk2", "this has five bulk terms")).get();
+            .add(prepareIndex("bulk1", "bulk three terms"))
+            .add(prepareIndex("bulk2", "this has five bulk terms"))
+            .get();
         assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
-        assertEquals(DocWriteResponse.Result.CREATED,
-                     prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult());
+        assertEquals(
+            DocWriteResponse.Result.CREATED,
+            prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult()
+        );
         bulk = client().prepareBulk()
-                .add(prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms"))
-                .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!")).get();
+            .add(prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms"))
+            .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!"))
+            .get();
         assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
 
         assertThat(refresh().getFailedShards(), equalTo(0));
@@ -170,9 +179,11 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private SearchRequestBuilder searchByNumericRange(int low, int high) {
-        return prepareSearch().setQuery(QueryBuilders.rangeQuery(randomFrom(
-                Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values")
-        )).gte(low).lte(high));
+        return prepareSearch().setQuery(
+            QueryBuilders.rangeQuery(
+                randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"))
+            ).gte(low).lte(high)
+        );
     }
 
     private SearchRequestBuilder prepareSearch() {
@@ -196,17 +207,17 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         for (SearchHit hit : result.getHits()) {
             String id = hit.getId();
             if (id.equals("single")) {
-                assertSearchHit(hit, new int[]{4}, new int[]{4});
+                assertSearchHit(hit, new int[] { 4 }, new int[] { 4 });
             } else if (id.equals("bulk1")) {
-                assertSearchHit(hit, new int[]{3}, new int[]{3});
+                assertSearchHit(hit, new int[] { 3 }, new int[] { 3 });
             } else if (id.equals("bulk2")) {
-                assertSearchHit(hit, new int[]{5}, new int[]{4});
+                assertSearchHit(hit, new int[] { 5 }, new int[] { 4 });
             } else if (id.equals("multi")) {
-                assertSearchHit(hit, new int[]{2, 7}, new int[]{2, 7});
+                assertSearchHit(hit, new int[] { 2, 7 }, new int[] { 2, 7 });
             } else if (id.equals("multibulk1")) {
-                assertSearchHit(hit, new int[]{1, 8}, new int[]{1, 8});
+                assertSearchHit(hit, new int[] { 1, 8 }, new int[] { 1, 8 });
             } else if (id.equals("multibulk2")) {
-                assertSearchHit(hit, new int[]{6, 10}, new int[]{3, 9});
+                assertSearchHit(hit, new int[] { 6, 10 }, new int[] { 3, 9 });
             } else {
                 throw new ElasticsearchException("Unexpected response!");
             }
@@ -223,8 +234,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertThat(hit.field("foo.token_count_without_position_increments"), not(nullValue()));
         assertThat(hit.field("foo.token_count_without_position_increments").getValues().size(), equalTo(englishTermCounts.length));
         for (int i = 0; i < englishTermCounts.length; i++) {
-            assertThat(hit.field("foo.token_count_without_position_increments").getValues().get(i),
-                    equalTo(englishTermCounts[i]));
+            assertThat(hit.field("foo.token_count_without_position_increments").getValues().get(i), equalTo(englishTermCounts[i]));
         }
 
         if (loadCountedFields && storeCountedFields) {

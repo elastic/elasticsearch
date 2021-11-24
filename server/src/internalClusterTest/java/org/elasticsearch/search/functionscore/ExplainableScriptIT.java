@@ -45,11 +45,11 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -66,12 +66,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public <T> T compile(
-                    String scriptName,
-                    String scriptSource,
-                    ScriptContext<T> context,
-                    Map<String, String> params
-                ) {
+                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScoreScript.CONTEXT;
                     ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
@@ -122,18 +117,27 @@ public class ExplainableScriptIT extends ESIntegTestCase {
     public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource(
-                    jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
+            indexRequests.add(
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
+            );
         }
         indexRandom(true, true, indexRequests);
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
-        SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
-                                functionScoreQuery(termQuery("text", "text"),
-                                        scriptFunction(
-                                            new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap())))
-                                        .boostMode(CombineFunction.REPLACE)))).actionGet();
+        SearchResponse response = client().search(
+            searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
+                .source(
+                    searchSource().explain(true)
+                        .query(
+                            functionScoreQuery(
+                                termQuery("text", "text"),
+                                scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
+                            ).boostMode(CombineFunction.REPLACE)
+                        )
+                )
+        ).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();

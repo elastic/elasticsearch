@@ -14,11 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
@@ -30,6 +26,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,7 +38,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -274,6 +274,39 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         assertQueryOnlyOnText("span prefix", () -> simpleMappedFieldType().spanPrefixQuery(null, null, null));
     }
 
+    public final void testCacheable() throws IOException {
+        XContentBuilder mapping = runtimeMapping(b -> {
+            b.startObject("field")
+                .field("type", typeName())
+                .startObject("script")
+                .field("source", "dummy_source")
+                .field("lang", "test")
+                .endObject()
+                .endObject()
+                .startObject("field_source")
+                .field("type", typeName())
+                .startObject("script")
+                .field("source", "deterministic_source")
+                .field("lang", "test")
+                .endObject()
+                .endObject();
+        });
+
+        MapperService mapperService = createMapperService(mapping);
+
+        {
+            SearchExecutionContext c = createSearchExecutionContext(mapperService);
+            c.getFieldType("field").existsQuery(c);
+            assertFalse(c.isCacheable());
+        }
+
+        {
+            SearchExecutionContext c = createSearchExecutionContext(mapperService);
+            c.getFieldType("field_source").existsQuery(c);
+            assertTrue(c.isCacheable());
+        }
+    }
+
     private void assertQueryOnlyOnText(String queryName, ThrowingRunnable buildQuery) {
         Exception e = expectThrows(IllegalArgumentException.class, buildQuery);
         assertThat(
@@ -313,26 +346,27 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     @Override
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        boolean deterministicSource = "deterministic_source".equals(script.getIdOrCode());
         if (context == BooleanFieldScript.CONTEXT) {
-            return (T) BooleanFieldScriptTests.DUMMY;
+            return deterministicSource ? (T) BooleanFieldScript.PARSE_FROM_SOURCE : (T) BooleanFieldScriptTests.DUMMY;
         }
         if (context == DateFieldScript.CONTEXT) {
-            return (T) DateFieldScriptTests.DUMMY;
+            return deterministicSource ? (T) DateFieldScript.PARSE_FROM_SOURCE : (T) DateFieldScriptTests.DUMMY;
         }
         if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleFieldScriptTests.DUMMY;
+            return deterministicSource ? (T) DoubleFieldScript.PARSE_FROM_SOURCE : (T) DoubleFieldScriptTests.DUMMY;
         }
         if (context == IpFieldScript.CONTEXT) {
-            return (T) IpFieldScriptTests.DUMMY;
+            return deterministicSource ? (T) IpFieldScript.PARSE_FROM_SOURCE : (T) IpFieldScriptTests.DUMMY;
         }
         if (context == LongFieldScript.CONTEXT) {
-            return (T) LongFieldScriptTests.DUMMY;
+            return deterministicSource ? (T) LongFieldScript.PARSE_FROM_SOURCE : (T) LongFieldScriptTests.DUMMY;
         }
         if (context == StringFieldScript.CONTEXT) {
-            return (T) StringFieldScriptTests.DUMMY;
+            return deterministicSource ? (T) StringFieldScript.PARSE_FROM_SOURCE : (T) StringFieldScriptTests.DUMMY;
         }
         if (context == GeoPointFieldScript.CONTEXT) {
-            return (T) GeoPointFieldScriptTests.DUMMY;
+            return deterministicSource ? (T) GeoPointFieldScript.PARSE_FROM_SOURCE : (T) GeoPointFieldScriptTests.DUMMY;
         }
         throw new IllegalArgumentException("Unsupported context: " + context);
     }

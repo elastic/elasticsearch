@@ -21,9 +21,8 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
@@ -34,6 +33,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.Map;
@@ -66,11 +66,10 @@ class S3Repository extends MeteredBlobStoreRepository {
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
-            Math.min(
-                ByteSizeUnit.MB.toBytes(100),
-                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
-        ByteSizeUnit.BYTES);
-
+            Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
+        ),
+        ByteSizeUnit.BYTES
+    );
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 
@@ -108,14 +107,22 @@ class S3Repository extends MeteredBlobStoreRepository {
      * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
      * use of the Multipart API and may result in upload errors. Defaults to the minimum between 100MB and 5% of the heap size.
      */
-    static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
-        Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_PART_SIZE_USING_MULTIPART);
+    static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
+        "buffer_size",
+        DEFAULT_BUFFER_SIZE,
+        MIN_PART_SIZE_USING_MULTIPART,
+        MAX_PART_SIZE_USING_MULTIPART
+    );
 
     /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 5tb.
      */
-    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", MAX_FILE_SIZE_USING_MULTIPART,
-            new ByteSizeValue(5, ByteSizeUnit.MB), MAX_FILE_SIZE_USING_MULTIPART);
+    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "chunk_size",
+        MAX_FILE_SIZE_USING_MULTIPART,
+        new ByteSizeValue(5, ByteSizeUnit.MB),
+        MAX_FILE_SIZE_USING_MULTIPART
+    );
 
     /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
@@ -146,7 +153,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         "cooldown_period",
         new TimeValue(3, TimeUnit.MINUTES),
         new TimeValue(0, TimeUnit.MILLISECONDS),
-        Setting.Property.Dynamic);
+        Setting.Property.Dynamic
+    );
 
     /**
      * Specifies the path within bucket to repository data. Defaults to root directory.
@@ -182,14 +190,17 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings) {
-        super(metadata,
+        final RecoverySettings recoverySettings
+    ) {
+        super(
+            metadata,
             namedXContentRegistry,
             clusterService,
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata));
+            buildLocation(metadata)
+        );
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -203,8 +214,17 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
-            throw new RepositoryException(metadata.name(), CHUNK_SIZE_SETTING.getKey() + " (" + this.chunkSize +
-                ") can't be lower than " + BUFFER_SIZE_SETTING.getKey() + " (" + bufferSize + ").");
+            throw new RepositoryException(
+                metadata.name(),
+                CHUNK_SIZE_SETTING.getKey()
+                    + " ("
+                    + this.chunkSize
+                    + ") can't be lower than "
+                    + BUFFER_SIZE_SETTING.getKey()
+                    + " ("
+                    + bufferSize
+                    + ")."
+            );
         }
 
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
@@ -215,18 +235,18 @@ class S3Repository extends MeteredBlobStoreRepository {
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
 
         logger.debug(
-                "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
-                bucket,
-                chunkSize,
-                serverSideEncryption,
-                bufferSize,
-                cannedACL,
-                storageClass);
+            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            bucket,
+            chunkSize,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass
+        );
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()),
-            "bucket", BUCKET_SETTING.get(metadata.settings()));
+        return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
     }
 
     /**
@@ -251,8 +271,12 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                                ActionListener<RepositoryData> listener) {
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        ActionListener<RepositoryData> listener
+    ) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
@@ -273,8 +297,12 @@ class S3Repository extends MeteredBlobStoreRepository {
             public void onResponse(T response) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)),
-                        coolDown, ThreadPool.Names.SNAPSHOT));
+                    threadPool.schedule(
+                        ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)),
+                        coolDown,
+                        ThreadPool.Names.SNAPSHOT
+                    )
+                );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
 
@@ -282,19 +310,24 @@ class S3Repository extends MeteredBlobStoreRepository {
             public void onFailure(Exception e) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, ThreadPool.Names.SNAPSHOT));
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, ThreadPool.Names.SNAPSHOT)
+                );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
         };
     }
 
     private void logCooldownInfo() {
-        logger.info("Sleeping for [{}] after modifying repository [{}] because it contains snapshots older than version [{}]" +
-                " and therefore is using a backwards compatible metadata format that requires this cooldown period to avoid " +
-                "repository corruption. To get rid of this message and move to the new repository metadata format, either remove " +
-                "all snapshots older than version [{}] from the repository or create a new repository at an empty location.",
-            coolDown, metadata.name(), SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION,
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
+        logger.info(
+            "Sleeping for [{}] after modifying repository [{}] because it contains snapshots older than version [{}]"
+                + " and therefore is using a backwards compatible metadata format that requires this cooldown period to avoid "
+                + "repository corruption. To get rid of this message and move to the new repository metadata format, either remove "
+                + "all snapshots older than version [{}] from the repository or create a new repository at an empty location.",
+            coolDown,
+            metadata.name(),
+            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION,
+            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION
+        );
     }
 
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {

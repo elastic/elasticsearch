@@ -14,14 +14,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.SpatialUsage;
 import org.junit.Before;
@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -69,13 +69,18 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
                 assertNull(parser.parse(null, null));
             }
             ObjectPath used = buildSpatialStatsResponse(usage);
-            assertThat(item.name(), used.evaluate("stats." + item.name().toLowerCase(Locale.ROOT) + "_usage"),equalTo(count));
+            assertThat(item.name(), used.evaluate("stats." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(count));
         }
     }
 
     private SpatialStatsTransportAction toAction(SpatialUsage nodeUsage) {
-        return new SpatialStatsTransportAction(transportService, clusterService, threadPool,
-            new ActionFilters(Collections.emptySet()), nodeUsage);
+        return new SpatialStatsTransportAction(
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(Collections.emptySet()),
+            nodeUsage
+        );
     }
 
     private ObjectPath buildSpatialStatsResponse(SpatialUsage... nodeUsages) throws IOException {
@@ -83,8 +88,7 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
         List<SpatialStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
             .map(usage -> toAction(usage).nodeOperation(new SpatialStatsAction.NodeRequest(request), null))
             .collect(Collectors.toList());
-        SpatialStatsAction.Response response = new SpatialStatsAction.Response(
-            new ClusterName("cluster_name"), nodeResponses, emptyList());
+        SpatialStatsAction.Response response = new SpatialStatsAction.Response(new ClusterName("cluster_name"), nodeResponses, emptyList());
         try (XContentBuilder builder = jsonBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));

@@ -10,18 +10,18 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -78,9 +78,11 @@ public class SuggestBuilderTests extends ESTestCase {
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             // explicit about type parameters, see: https://bugs.eclipse.org/bugs/show_bug.cgi?id=481649
-            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
-                return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new);
-            }, this::createMutation);
+            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(
+                randomSuggestBuilder(),
+                original -> { return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new); },
+                this::createMutation
+            );
         }
     }
 
@@ -141,10 +143,14 @@ public class SuggestBuilderTests extends ESTestCase {
 
     private static SuggestionBuilder<?> randomSuggestionBuilder() {
         switch (randomIntBetween(0, 2)) {
-            case 0: return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
-            case 1: return PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
-            case 2: return CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
-            default: return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+            case 0:
+                return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+            case 1:
+                return PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
+            case 2:
+                return CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
+            default:
+                return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
         }
     }
 

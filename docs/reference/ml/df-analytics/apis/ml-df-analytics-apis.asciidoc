@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-df-analytics-apis]]
 = {ml-cap} {dfanalytics} APIs
 

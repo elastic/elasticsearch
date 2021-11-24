@@ -11,18 +11,18 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
@@ -35,7 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.chainInput;
@@ -70,10 +70,24 @@ public class ChainInputTests extends ESTestCase {
         ChainInputFactory chainInputFactory = new ChainInputFactory(inputRegistry);
         factories.put("chain", chainInputFactory);
 
-        XContentBuilder builder = jsonBuilder().startObject().startArray("inputs")
-                .startObject().startObject("first").startObject("simple").field("foo", "bar").endObject().endObject().endObject()
-                .startObject().startObject("second").startObject("simple").field("spam", "eggs").endObject().endObject().endObject()
-                .endArray().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("inputs")
+            .startObject()
+            .startObject("first")
+            .startObject("simple")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("second")
+            .startObject("simple")
+            .field("spam", "eggs")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
 
         // first pass JSON and check for correct inputs
         XContentParser parser = createParser(builder);
@@ -106,16 +120,15 @@ public class ChainInputTests extends ESTestCase {
     }
 
     public void testToXContent() throws Exception {
-        ChainInput chainedInput = chainInput()
-                .add("first", simpleInput("foo", "bar"))
-                .add("second", simpleInput("spam", "eggs"))
-                .build();
+        ChainInput chainedInput = chainInput().add("first", simpleInput("foo", "bar")).add("second", simpleInput("spam", "eggs")).build();
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         chainedInput.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(BytesReference.bytes(builder).utf8ToString(),
-                is("{\"inputs\":[{\"first\":{\"simple\":{\"foo\":\"bar\"}}},{\"second\":{\"simple\":{\"spam\":\"eggs\"}}}]}"));
+        assertThat(
+            BytesReference.bytes(builder).utf8ToString(),
+            is("{\"inputs\":[{\"first\":{\"simple\":{\"foo\":\"bar\"}}},{\"second\":{\"simple\":{\"spam\":\"eggs\"}}}]}")
+        );
 
         // parsing it back as well!
         Map<String, InputFactory<?, ?, ?>> factories = new HashMap<>();
@@ -138,21 +151,20 @@ public class ChainInputTests extends ESTestCase {
     public void testThatWatchSourceBuilderWorksWithChainInput() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
 
-        HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder("theHost", 1234)
+        HttpInput.Builder httpInputBuilder = httpInput(
+            HttpRequestTemplate.builder("theHost", 1234)
                 .path("/index/_search")
                 .body(Strings.toString(jsonBuilder().startObject().field("size", 1).endObject()))
-                .auth(new BasicAuth("test", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+                .auth(new BasicAuth("test", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+        );
 
-        ChainInput.Builder chainedInputBuilder = chainInput()
-                .add("foo", httpInputBuilder)
-                .add("bar", simpleInput("spam", "eggs"));
+        ChainInput.Builder chainedInputBuilder = chainInput().add("foo", httpInputBuilder).add("bar", simpleInput("spam", "eggs"));
 
-        watchBuilder()
-                .trigger(schedule(interval("5s")))
-                .input(chainedInputBuilder)
-                .condition(new ScriptCondition(mockScript("ctx.payload.hits.total.value == 1")))
-                .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched"))
-                .toXContent(builder, ToXContent.EMPTY_PARAMS);
+        watchBuilder().trigger(schedule(interval("5s")))
+            .input(chainedInputBuilder)
+            .condition(new ScriptCondition(mockScript("ctx.payload.hits.total.value == 1")))
+            .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched"))
+            .toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // no exception means all good
     }
@@ -185,17 +197,30 @@ public class ChainInputTests extends ESTestCase {
         ChainInputFactory chainInputFactory = new ChainInputFactory(inputRegistry);
         factories.put("chain", chainInputFactory);
 
-        XContentBuilder builder = jsonBuilder().startObject().startArray("inputs").startObject()
-                .startObject("first").startObject("simple").field("foo", "bar").endObject().endObject()
-                .startObject("second").startObject("simple").field("spam", "eggs").endObject().endObject()
-                .endObject().endArray().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("inputs")
+            .startObject()
+            .startObject("first")
+            .startObject("simple")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .startObject("second")
+            .startObject("simple")
+            .field("spam", "eggs")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ElasticsearchParseException e =
-                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
-        assertThat(e.getMessage(),
-                containsString("Expected closing JSON object after parsing input [simple] named [first] in watch [test]"));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
+        assertThat(
+            e.getMessage(),
+            containsString("Expected closing JSON object after parsing input [simple] named [first] in watch [test]")
+        );
     }
 
     /* https://github.com/elastic/x-plugins/issues/3736
@@ -214,16 +239,23 @@ public class ChainInputTests extends ESTestCase {
         ChainInputFactory chainInputFactory = new ChainInputFactory(inputRegistry);
         factories.put("chain", chainInputFactory);
 
-        XContentBuilder builder = jsonBuilder().startObject().startArray("inputs")
-                .startObject().startArray("first").startObject()
-                .startObject("simple").field("foo", "bar").endObject()
-                .endObject().endArray().endObject()
-                .endArray().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("inputs")
+            .startObject()
+            .startArray("first")
+            .startObject()
+            .startObject("simple")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endArray()
+            .endObject();
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        ElasticsearchParseException e =
-                expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
         assertThat(e.getMessage(), containsString("Expected starting JSON object after [first] in watch [test]"));
     }
 

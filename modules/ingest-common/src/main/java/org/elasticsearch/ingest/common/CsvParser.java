@@ -18,7 +18,10 @@ final class CsvParser {
     private static final char TAB = '\t';
 
     private enum State {
-        START, UNQUOTED, QUOTED, QUOTED_END
+        START,
+        UNQUOTED,
+        QUOTED,
+        QUOTED_END
     }
 
     private final char quote;
@@ -44,9 +47,9 @@ final class CsvParser {
         this.emptyValue = emptyValue;
     }
 
-    void process(String line) {
-        this.line = line;
-        length = line.length();
+    void process(String lineValue) {
+        this.line = lineValue;
+        length = lineValue.length();
         for (currentIndex = 0; currentIndex < length; currentIndex++) {
             switch (state) {
                 case START:
@@ -70,7 +73,7 @@ final class CsvParser {
             }
         }
 
-        //we've reached end of string, we need to handle last field
+        // we've reached end of string, we need to handle last field
         switch (state) {
             case UNQUOTED:
                 setField(length);

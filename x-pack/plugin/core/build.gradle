@@ -38,9 +38,8 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:4.0.8'
+  api 'com.unboundid:unboundid-ldapsdk:6.0.2'
 
-  testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -129,7 +128,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

@@ -13,13 +13,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -34,8 +34,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PivotConfig implements Writeable, ToXContentObject {
 
@@ -88,10 +88,10 @@ public class PivotConfig implements Writeable, ToXContentObject {
         this.maxPageSearchSize = maxPageSearchSize;
 
         if (maxPageSearchSize != null) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
-                "[max_page_search_size] is deprecated inside pivot please use settings instead"
+                TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED
             );
         }
     }
@@ -186,8 +186,8 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 new DeprecationIssue(
                     Level.WARNING,
                     "Transform [" + id + "] uses deprecated max_page_search_size",
-                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                    TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
+                    TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                     false,
                     null
                 )

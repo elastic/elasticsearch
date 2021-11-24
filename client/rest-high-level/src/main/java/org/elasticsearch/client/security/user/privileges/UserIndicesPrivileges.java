@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security.user.privileges;
 
 import org.elasticsearch.client.security.GetUserPrivilegesResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -18,8 +18,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents an "index" privilege in the {@link GetUserPrivilegesResponse}. This differs from the
@@ -34,7 +34,10 @@ public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
     private final List<String> query;
 
     private static final ConstructingObjectParser<UserIndicesPrivileges, Void> PARSER = new ConstructingObjectParser<>(
-        "user_indices_privilege", true, UserIndicesPrivileges::buildObjectFromParserArgs);
+        "user_indices_privilege",
+        true,
+        UserIndicesPrivileges::buildObjectFromParserArgs
+    );
 
     static {
         PARSER.declareStringArray(constructorArg(), IndicesPrivileges.NAMES);
@@ -59,8 +62,13 @@ public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
         return PARSER.parse(parser, null);
     }
 
-    public UserIndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices,
-                                 List<IndicesPrivileges.FieldSecurity> fieldSecurity, List<String> query) {
+    public UserIndicesPrivileges(
+        Collection<String> indices,
+        Collection<String> privileges,
+        boolean allowRestrictedIndices,
+        List<IndicesPrivileges.FieldSecurity> fieldSecurity,
+        List<String> query
+    ) {
         super(indices, privileges, allowRestrictedIndices);
         this.fieldSecurity = fieldSecurity == null ? Collections.emptyList() : List.copyOf(fieldSecurity);
         this.query = query == null ? Collections.emptyList() : List.copyOf(query);
@@ -93,11 +101,11 @@ public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
             return false;
         }
         final UserIndicesPrivileges that = (UserIndicesPrivileges) o;
-        return Objects.equals(indices, that.indices) &&
-            Objects.equals(privileges, that.privileges) &&
-            allowRestrictedIndices == that.allowRestrictedIndices &&
-            Objects.equals(fieldSecurity, that.fieldSecurity) &&
-            Objects.equals(query, that.query);
+        return Objects.equals(indices, that.indices)
+            && Objects.equals(privileges, that.privileges)
+            && allowRestrictedIndices == that.allowRestrictedIndices
+            && Objects.equals(fieldSecurity, that.fieldSecurity)
+            && Objects.equals(query, that.query);
     }
 
     @Override
@@ -107,12 +115,17 @@ public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
 
     @Override
     public String toString() {
-        return "UserIndexPrivilege{" +
-            "indices=" + indices +
-            ", privileges=" + privileges +
-            ", allow_restricted_indices=" + allowRestrictedIndices +
-            ", fieldSecurity=" + fieldSecurity +
-            ", query=" + query +
-            '}';
+        return "UserIndexPrivilege{"
+            + "indices="
+            + indices
+            + ", privileges="
+            + privileges
+            + ", allow_restricted_indices="
+            + allowRestrictedIndices
+            + ", fieldSecurity="
+            + fieldSecurity
+            + ", query="
+            + query
+            + '}';
     }
 }

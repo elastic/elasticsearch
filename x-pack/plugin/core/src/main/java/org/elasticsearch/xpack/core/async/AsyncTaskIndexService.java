@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.async;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -39,20 +39,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
@@ -73,10 +73,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
@@ -108,31 +108,30 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     private static XContentBuilder mappings() {
         try {
-            XContentBuilder builder = jsonBuilder()
-                .startObject()
-                    .startObject(SINGLE_MAPPING_NAME)
-                        .startObject("_meta")
-                            .field("version", Version.CURRENT)
-                        .endObject()
-                        .field("dynamic", "strict")
-                        .startObject("properties")
-                            .startObject(HEADERS_FIELD)
-                                .field("type", "object")
-                                .field("enabled", "false")
-                            .endObject()
-                            .startObject(RESPONSE_HEADERS_FIELD)
-                                .field("type", "object")
-                                .field("enabled", "false")
-                            .endObject()
-                            .startObject(RESULT_FIELD)
-                                .field("type", "object")
-                                .field("enabled", "false")
-                            .endObject()
-                            .startObject(EXPIRATION_TIME_FIELD)
-                                .field("type", "long")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+            XContentBuilder builder = jsonBuilder().startObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field("version", Version.CURRENT)
+                .endObject()
+                .field("dynamic", "strict")
+                .startObject("properties")
+                .startObject(HEADERS_FIELD)
+                .field("type", "object")
+                .field("enabled", "false")
+                .endObject()
+                .startObject(RESPONSE_HEADERS_FIELD)
+                .field("type", "object")
+                .field("enabled", "false")
+                .endObject()
+                .startObject(RESULT_FIELD)
+                .field("type", "object")
+                .field("enabled", "false")
+                .endObject()
+                .startObject(EXPIRATION_TIME_FIELD)
+                .field("type", "long")
+                .endObject()
+                .endObject()
+                .endObject()
                 .endObject();
             return builder;
         } catch (IOException e) {
@@ -163,14 +162,16 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final ClusterService clusterService;
     private final CircuitBreaker circuitBreaker;
 
-    public AsyncTaskIndexService(String index,
-                                 ClusterService clusterService,
-                                 ThreadContext threadContext,
-                                 Client client,
-                                 String origin,
-                                 Writeable.Reader<R> reader,
-                                 NamedWriteableRegistry registry,
-                                 BigArrays bigArrays) {
+    public AsyncTaskIndexService(
+        String index,
+        ClusterService clusterService,
+        ThreadContext threadContext,
+        Client client,
+        String origin,
+        Writeable.Reader<R> reader,
+        NamedWriteableRegistry registry,
+        BigArrays bigArrays
+    ) {
         this.index = index;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = client;
@@ -179,8 +180,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.reader = reader;
         this.bigArrays = bigArrays;
         this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(
-            MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
         this.clusterService = clusterService;
         this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
@@ -212,16 +213,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Currently for EQL we don't set limit for a stored async response
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
-    public void createResponseForEQL(String docId,
-                               Map<String, String> headers,
-                               R response,
-                               ActionListener<IndexResponse> listener) throws IOException {
+    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
+        throws IOException {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
             listener = ActionListener.runBefore(listener, buffer::close);
-            source
-                .startObject()
+            source.startObject()
                 .field(HEADERS_FIELD, headers)
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
@@ -230,10 +228,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
             // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
             source.flush();
-            final IndexRequest indexRequest = new IndexRequest(index)
-                .create(true)
-                .id(docId)
-                .source(buffer.bytes(), source.contentType());
+            final IndexRequest indexRequest = new IndexRequest(index).create(true).id(docId).source(buffer.bytes(), source.contentType());
             clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -244,17 +239,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void createResponse(String docId,
-                               Map<String, String> headers,
-                               R response,
-                               ActionListener<IndexResponse> listener) throws IOException {
+    public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
+        throws IOException {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
-                0, bigArrays.withCircuitBreaking(), maxResponseSize);
+                0,
+                bigArrays.withCircuitBreaking(),
+                maxResponseSize
+            );
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
             listener = ActionListener.runBefore(listener, buffer::close);
-            source
-                .startObject()
+            source.startObject()
                 .field(HEADERS_FIELD, headers)
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
@@ -263,47 +258,46 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
             // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
             source.flush();
-            final IndexRequest indexRequest = new IndexRequest(index)
-                .create(true)
-                .id(docId)
-                .source(buffer.bytes(), source.contentType());
+            final IndexRequest indexRequest = new IndexRequest(index).create(true).id(docId).source(buffer.bytes(), source.contentType());
             clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    public void updateResponse(String docId,
-                               Map<String, List<String>> responseHeaders,
-                               R response,
-                               ActionListener<UpdateResponse> listener) {
+    public void updateResponse(
+        String docId,
+        Map<String, List<String>> responseHeaders,
+        R response,
+        ActionListener<UpdateResponse> listener
+    ) {
         updateResponse(docId, responseHeaders, response, listener, false);
     }
 
     /**
      * Stores the final response if the place-holder document is still present (update).
      */
-    private void updateResponse(String docId,
-                                Map<String, List<String>> responseHeaders,
-                                R response,
-                                ActionListener<UpdateResponse> listener,
-                                boolean isFailure) {
+    private void updateResponse(
+        String docId,
+        Map<String, List<String>> responseHeaders,
+        R response,
+        ActionListener<UpdateResponse> listener,
+        boolean isFailure
+    ) {
         try {
-            final ReleasableBytesStreamOutput buffer = isFailure ?
-                new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking()) :
-                new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize);
+            final ReleasableBytesStreamOutput buffer = isFailure
+                ? new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())
+                : new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize);
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
             listener = ActionListener.runBefore(listener, buffer::close);
-            source
-                .startObject()
+            source.startObject()
                 .field(RESPONSE_HEADERS_FIELD, responseHeaders)
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                 .endObject();
             // do not close the buffer or the XContentBuilder until the UpdateRequest is completed (i.e., listener is notified);
             // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
             source.flush();
-            final UpdateRequest request = new UpdateRequest()
-                .index(index)
+            final UpdateRequest request = new UpdateRequest().index(index)
                 .id(docId)
                 .doc(buffer.bytes(), source.contentType())
                 .retryOnConflict(5);
@@ -336,11 +330,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Update the initial stored response with a failure
      */
-    private void updateStoredResponseWithFailure(String docId,
-                                                 Map<String, List<String>> responseHeaders,
-                                                 R response,
-                                                 Exception updateException,
-                                                 ActionListener<UpdateResponse> listener) {
+    private void updateStoredResponseWithFailure(
+        String docId,
+        Map<String, List<String>> responseHeaders,
+        R response,
+        Exception updateException,
+        ActionListener<UpdateResponse> listener
+    ) {
         R failureResponse = response.convertToFailure(updateException);
         updateResponse(docId, responseHeaders, failureResponse, listener, true);
     }
@@ -349,26 +345,20 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Updates the expiration time of the provided <code>docId</code> if the place-holder
      * document is still present (update).
      */
-    public void updateExpirationTime(String docId,
-                              long expirationTimeMillis,
-                              ActionListener<UpdateResponse> listener) {
+    public void updateExpirationTime(String docId, long expirationTimeMillis, ActionListener<UpdateResponse> listener) {
         Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
-        UpdateRequest request = new UpdateRequest().index(index)
-            .id(docId)
-            .doc(source, XContentType.JSON)
-            .retryOnConflict(5);
+        UpdateRequest request = new UpdateRequest().index(index).id(docId).doc(source, XContentType.JSON).retryOnConflict(5);
         clientWithOrigin.update(request, listener);
     }
 
     /**
      * Deletes the provided <code>asyncTaskId</code> from the index if present.
      */
-    public void deleteResponse(AsyncExecutionId asyncExecutionId,
-                               ActionListener<DeleteResponse> listener) {
+    public void deleteResponse(AsyncExecutionId asyncExecutionId, ActionListener<DeleteResponse> listener) {
         try {
             DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
             clientWithOrigin.delete(request, listener);
-        } catch(Exception e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
@@ -377,20 +367,18 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
      * is registered in the task manager, <code>null</code> otherwise.
      */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager,
-                                           AsyncExecutionId asyncExecutionId,
-                                           Class<T> tClass) throws IOException {
+    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;
         }
-        @SuppressWarnings("unchecked") T asyncTask = (T) task;
+        @SuppressWarnings("unchecked")
+        T asyncTask = (T) task;
         if (asyncTask.getExecutionId().equals(asyncExecutionId) == false) {
             return null;
         }
         return asyncTask;
     }
-
 
     /**
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
@@ -399,9 +387,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * This method throws a {@link ResourceNotFoundException} if the authenticated user
      * is not the creator of the original task.
      */
-    public <T extends AsyncTask> T getTaskAndCheckAuthentication(TaskManager taskManager,
-                                                                 AsyncExecutionId asyncExecutionId,
-                                                                 Class<T> tClass) throws IOException {
+    public <T extends AsyncTask> T getTaskAndCheckAuthentication(
+        TaskManager taskManager,
+        AsyncExecutionId asyncExecutionId,
+        Class<T> tClass
+    ) throws IOException {
         T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
         if (asyncTask == null) {
             return null;
@@ -414,25 +404,23 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return asyncTask;
     }
 
-
     /**
      * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
      * failure to the provided listener if not.
      * When the provided <code>restoreResponseHeaders</code> is <code>true</code>, this method also restores the
      * response headers of the original request in the current thread context.
      */
-    public void getResponse(AsyncExecutionId asyncExecutionId,
-                            boolean restoreResponseHeaders,
-                            ActionListener<R> listener) {
+    public void getResponse(AsyncExecutionId asyncExecutionId, boolean restoreResponseHeaders, ActionListener<R> listener) {
         getResponseFromIndex(asyncExecutionId, restoreResponseHeaders, true, listener);
     }
 
-    private void getResponseFromIndex(AsyncExecutionId asyncExecutionId,
-                                      boolean restoreResponseHeaders,
-                                      boolean checkAuthentication,
-                                      ActionListener<R> outerListener) {
-        final GetRequest getRequest = new GetRequest(index)
-            .preference(asyncExecutionId.getEncoded())
+    private void getResponseFromIndex(
+        AsyncExecutionId asyncExecutionId,
+        boolean restoreResponseHeaders,
+        boolean checkAuthentication,
+        ActionListener<R> outerListener
+    ) {
+        final GetRequest getRequest = new GetRequest(index).preference(asyncExecutionId.getEncoded())
             .id(asyncExecutionId.getDocId())
             .realtime(true);
         clientWithOrigin.get(getRequest, outerListener.delegateFailure((listener, getResponse) -> {
@@ -456,10 +444,20 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }));
     }
 
-    private R parseResponseFromIndex(AsyncExecutionId asyncExecutionId, BytesReference source,
-                                     boolean restoreResponseHeaders, boolean checkAuthentication) {
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, XContentType.JSON)) {
+    private R parseResponseFromIndex(
+        AsyncExecutionId asyncExecutionId,
+        BytesReference source,
+        boolean restoreResponseHeaders,
+        boolean checkAuthentication
+    ) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source,
+                XContentType.JSON
+            )
+        ) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
             R resp = null;
             Long expirationTime = null;
@@ -474,17 +472,18 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         expirationTime = (long) parser.numberValue();
                         break;
                     case HEADERS_FIELD:
-                        @SuppressWarnings("unchecked") final Map<String, String> headers =
-                            (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
+                        @SuppressWarnings("unchecked")
+                        final Map<String, String> headers = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
-                        if (checkAuthentication &&
-                            ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
+                        if (checkAuthentication && ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
                             throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
                         }
                         break;
                     case RESPONSE_HEADERS_FIELD:
-                        @SuppressWarnings("unchecked") final Map<String, List<String>> responseHeaders =
-                            (Map<String, List<String>>) XContentParserUtils.parseFieldsValue(parser);
+                        @SuppressWarnings("unchecked")
+                        final Map<String, List<String>> responseHeaders = (Map<String, List<String>>) XContentParserUtils.parseFieldsValue(
+                            parser
+                        );
                         if (restoreResponseHeaders) {
                             restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                         }
@@ -512,7 +511,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         Class<T> tClass,
         Function<T, SR> statusProducerFromTask,
         TriFunction<R, Long, String, SR> statusProducerFromIndex,
-        ActionListener<SR> outerListener) {
+        ActionListener<SR> outerListener
+    ) {
         // check if the result has expired
         outerListener = outerListener.delegateFailure((listener, resp) -> {
             if (resp.getExpirationTime() < System.currentTimeMillis()) {
@@ -529,8 +529,16 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 outerListener.onResponse(response);
             } else {
                 // get status response from index
-                getResponseFromIndex(asyncExecutionId, false, false, outerListener.delegateFailure((listener, resp) ->
-                    listener.onResponse(statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))));
+                getResponseFromIndex(
+                    asyncExecutionId,
+                    false,
+                    false,
+                    outerListener.delegateFailure(
+                        (listener, resp) -> listener.onResponse(
+                            statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
+                        )
+                    )
+                );
             }
         } catch (Exception exc) {
             outerListener.onFailure(exc);
@@ -542,27 +550,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * in the async search index.
      **/
     void ensureAuthenticatedUserCanDeleteFromIndex(AsyncExecutionId executionId, ActionListener<Void> listener) {
-        GetRequest internalGet = new GetRequest(index)
-            .preference(executionId.getEncoded())
+        GetRequest internalGet = new GetRequest(index).preference(executionId.getEncoded())
             .id(executionId.getDocId())
             .fetchSourceContext(new FetchSourceContext(true, new String[] { HEADERS_FIELD }, new String[] {}));
 
-        clientWithOrigin.get(internalGet, ActionListener.wrap(
-            get -> {
-                if (get.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
-                    return;
-                }
-                // Check authentication for the user
-                @SuppressWarnings("unchecked")
-                Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
-                if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication())) {
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
-                }
-            },
-            exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
+        clientWithOrigin.get(internalGet, ActionListener.wrap(get -> {
+            if (get.isExists() == false) {
+                listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
+                return;
+            }
+            // Check authentication for the user
+            @SuppressWarnings("unchecked")
+            Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
+            if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication())) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
+            }
+        }, exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
     }
 
     /**
@@ -648,8 +653,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         @Override
         protected void ensureCapacity(long offset) {
             if (offset > limit) {
-                throw new IllegalArgumentException("Can't store an async search response larger than [" + limit + "] bytes. " +
-                    "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.");
+                throw new IllegalArgumentException(
+                    "Can't store an async search response larger than ["
+                        + limit
+                        + "] bytes. "
+                        + "This limit can be set by changing the ["
+                        + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey()
+                        + "] setting."
+                );
             }
             super.ensureCapacity(offset);
         }

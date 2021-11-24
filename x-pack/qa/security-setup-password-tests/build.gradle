@@ -8,7 +8,7 @@ dependencies {
 }
 
 tasks.named("integTest").configure {
-  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("integTest").map(c -> c.singleNode().getConfigDir())
   systemProperty 'tests.security.manager', 'false'
 }
 

@@ -8,11 +8,12 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -20,14 +21,23 @@ import java.util.Objects;
 public class ScriptContextStats implements Writeable, ToXContentFragment, Comparable<ScriptContextStats> {
     private final String context;
     private final long compilations;
+    private final TimeSeries compilationsHistory;
     private final long cacheEvictions;
+    private final TimeSeries cacheEvictionsHistory;
     private final long compilationLimitTriggered;
 
-    public ScriptContextStats(String context, long compilations, long cacheEvictions, long compilationLimitTriggered) {
+    public ScriptContextStats(
+        String context,
+        long compilationLimitTriggered,
+        TimeSeries compilationsHistory,
+        TimeSeries cacheEvictionsHistory
+    ) {
         this.context = Objects.requireNonNull(context);
-        this.compilations = compilations;
-        this.cacheEvictions = cacheEvictions;
+        this.compilations = compilationsHistory.total;
+        this.cacheEvictions = cacheEvictionsHistory.total;
         this.compilationLimitTriggered = compilationLimitTriggered;
+        this.compilationsHistory = compilationsHistory;
+        this.cacheEvictionsHistory = cacheEvictionsHistory;
     }
 
     public ScriptContextStats(StreamInput in) throws IOException {
@@ -35,6 +45,16 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            compilationsHistory = new TimeSeries(in);
+            cacheEvictionsHistory = new TimeSeries(in);
+        } else if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            compilationsHistory = new TimeSeries(in).withTotal(compilations);
+            cacheEvictionsHistory = new TimeSeries(in).withTotal(cacheEvictions);
+        } else {
+            compilationsHistory = new TimeSeries(compilations);
+            cacheEvictionsHistory = new TimeSeries(cacheEvictions);
+        }
     }
 
     @Override
@@ -43,6 +63,10 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            compilationsHistory.writeTo(out);
+            cacheEvictionsHistory.writeTo(out);
+        }
     }
 
     public String getContext() {
@@ -53,8 +77,16 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         return compilations;
     }
 
+    public TimeSeries getCompilationsHistory() {
+        return compilationsHistory;
+    }
+
     public long getCacheEvictions() {
         return cacheEvictions;
+    }
+
+    public TimeSeries getCacheEvictionsHistory() {
+        return cacheEvictionsHistory;
     }
 
     public long getCompilationLimitTriggered() {
@@ -66,7 +98,22 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         builder.startObject();
         builder.field(Fields.CONTEXT, getContext());
         builder.field(Fields.COMPILATIONS, getCompilations());
+
+        TimeSeries series = getCompilationsHistory();
+        if (series != null && series.areTimingsEmpty() == false) {
+            builder.startObject(Fields.COMPILATIONS_HISTORY);
+            series.toXContent(builder, params);
+            builder.endObject();
+        }
+
         builder.field(Fields.CACHE_EVICTIONS, getCacheEvictions());
+        series = getCacheEvictionsHistory();
+        if (series != null && series.areTimingsEmpty() == false) {
+            builder.startObject(Fields.CACHE_EVICTIONS_HISTORY);
+            series.toXContent(builder, params);
+            builder.endObject();
+        }
+
         builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, getCompilationLimitTriggered());
         builder.endObject();
         return builder;
@@ -80,7 +127,12 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
     static final class Fields {
         static final String CONTEXT = "context";
         static final String COMPILATIONS = "compilations";
+        static final String COMPILATIONS_HISTORY = "compilations_history";
         static final String CACHE_EVICTIONS = "cache_evictions";
+        static final String CACHE_EVICTIONS_HISTORY = "cache_evictions_history";
         static final String COMPILATION_LIMIT_TRIGGERED = "compilation_limit_triggered";
+        static final String FIVE_MINUTES = "5m";
+        static final String FIFTEEN_MINUTES = "15m";
+        static final String TWENTY_FOUR_HOURS = "24h";
     }
 }

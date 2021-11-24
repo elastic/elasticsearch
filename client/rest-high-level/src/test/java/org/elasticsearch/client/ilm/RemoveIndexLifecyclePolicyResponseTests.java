@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,23 +39,22 @@ public class RemoveIndexLifecyclePolicyResponseTests extends ESTestCase {
     }
 
     private RemoveIndexLifecyclePolicyResponse mutateInstance(RemoveIndexLifecyclePolicyResponse req) {
-        return new RemoveIndexLifecyclePolicyResponse(randomValueOtherThan(req.getFailedIndexes(),
-                () -> Arrays.asList(generateRandomStringArray(20, 20, false))));
+        return new RemoveIndexLifecyclePolicyResponse(
+            randomValueOtherThan(req.getFailedIndexes(), () -> Arrays.asList(generateRandomStringArray(20, 20, false)))
+        );
     }
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-                this::createParser,
-                this::createInstance,
-                this::toXContent,
-                RemoveIndexLifecyclePolicyResponse::fromXContent)
-                .supportsUnknownFields(true)
-                .test();
+        xContentTester(this::createParser, this::createInstance, this::toXContent, RemoveIndexLifecyclePolicyResponse::fromXContent)
+            .supportsUnknownFields(true)
+            .test();
     }
 
     public void testNullFailedIndices() {
-        IllegalArgumentException exception =
-                expectThrows(IllegalArgumentException.class, () -> new RemoveIndexLifecyclePolicyResponse(null));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoveIndexLifecyclePolicyResponse(null)
+        );
         assertEquals("failed_indexes cannot be null", exception.getMessage());
     }
 

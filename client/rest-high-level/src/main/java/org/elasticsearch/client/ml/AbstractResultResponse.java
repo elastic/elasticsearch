@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,8 +29,7 @@ public abstract class AbstractResultResponse<T extends ToXContent> implements To
     protected final long count;
 
     AbstractResultResponse(ParseField resultsField, List<T> results, long count) {
-        this.resultsField = Objects.requireNonNull(resultsField,
-            "[results_field] must not be null");
+        this.resultsField = Objects.requireNonNull(resultsField, "[results_field] must not be null");
         this.results = Collections.unmodifiableList(results);
         this.count = count;
     }

@@ -99,6 +99,19 @@ setup:
         zoom: 0
         body:
           grid_type: grid
+
+---
+"grid type centroid":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_type: centroid
+
 ---
 "field field":
   - do:
@@ -167,3 +180,27 @@ setup:
         zoom: 0
         body:
           sort: []
+
+---
+"track_total_hits as integer":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          track_total_hits: 10
+
+---
+"track_total_hits as boolean":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          track_total_hits: true

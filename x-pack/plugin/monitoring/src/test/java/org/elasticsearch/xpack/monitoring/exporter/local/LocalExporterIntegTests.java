@@ -9,26 +9,23 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 
@@ -37,7 +34,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,25 +47,30 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.LOGSTASH;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE,
-                              numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     private final String indexTimeFormat = randomFrom("yy", "yyyy", "yyyy.MM", "yyyy-MM", "MM.yyyy", "MM", null);
 
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().putNull(MonitoringService.ENABLED.getKey())
-                                  .putNull("xpack.monitoring.exporters._local.type")
-                                  .putNull("xpack.monitoring.exporters._local.enabled")
-                                  .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
-                                  .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .putNull(MonitoringService.ENABLED.getKey())
+                        .putNull("xpack.monitoring.exporters._local.type")
+                        .putNull("xpack.monitoring.exporters._local.enabled")
+                        .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
+                        .putNull("xpack.monitoring.exporters._local.index.name.time_format")
+                )
+        );
     }
 
     public void testExport() throws Exception {
@@ -78,25 +79,26 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 // indexing some random documents
                 IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
                 for (int i = 0; i < indexRequestBuilders.length; i++) {
-                    indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
-                            .setSource("title", "This is a random document");
+                    indexRequestBuilders[i] = client().prepareIndex("test")
+                        .setId(Integer.toString(i))
+                        .setSource("title", "This is a random document");
                 }
                 indexRandom(true, indexRequestBuilders);
             }
 
             // start the monitoring service so that /_monitoring/bulk is not ignored
             final Settings.Builder exporterSettings = Settings.builder()
-                    .put(MonitoringService.ENABLED.getKey(), true)
-                    .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
-                    .put("xpack.monitoring.exporters._local.enabled", true)
-                    .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
+                .put(MonitoringService.ENABLED.getKey(), true)
+                .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
+                .put("xpack.monitoring.exporters._local.enabled", true)
+                .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
 
             if (indexTimeFormat != null) {
                 exporterSettings.put("xpack.monitoring.exporters._local.index.name.time_format", indexTimeFormat);
             }
 
             // local exporter is now enabled
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             if (randomBoolean()) {
                 // export some documents now, before starting the monitoring service
@@ -116,11 +118,10 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     ensureYellowAndNoInitializingShards(".monitoring-*");
 
                     SearchResponse response = client().prepareSearch(".monitoring-*").get();
-                    assertThat((long)nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value));
+                    assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value));
                 });
 
                 checkMonitoringTemplates();
-                checkMonitoringPipelines();
                 checkMonitoringDocs();
             }
 
@@ -129,40 +130,68 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 assertThat(indexExists(".monitoring-*"), is(true));
                 ensureYellowAndNoInitializingShards(".monitoring-*");
 
-                assertThat(client().prepareSearch(".monitoring-es-*")
+                assertThat(
+                    client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
-                        .get().getHits().getTotalHits().value, greaterThan(0L));
+                        .get()
+                        .getHits()
+                        .getTotalHits().value,
+                    greaterThan(0L)
+                );
 
-                assertThat(client().prepareSearch(".monitoring-es-*")
+                assertThat(
+                    client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "index_recovery"))
-                        .get().getHits().getTotalHits().value, greaterThan(0L));
+                        .get()
+                        .getHits()
+                        .getTotalHits().value,
+                    greaterThan(0L)
+                );
 
-                assertThat(client().prepareSearch(".monitoring-es-*")
+                assertThat(
+                    client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "index_stats"))
-                        .get().getHits().getTotalHits().value, greaterThan(0L));
+                        .get()
+                        .getHits()
+                        .getTotalHits().value,
+                    greaterThan(0L)
+                );
 
-                assertThat(client().prepareSearch(".monitoring-es-*")
+                assertThat(
+                    client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "indices_stats"))
-                        .get().getHits().getTotalHits().value, greaterThan(0L));
+                        .get()
+                        .getHits()
+                        .getTotalHits().value,
+                    greaterThan(0L)
+                );
 
-                assertThat(client().prepareSearch(".monitoring-es-*")
+                assertThat(
+                    client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "shards"))
-                        .get().getHits().getTotalHits().value, greaterThan(0L));
+                        .get()
+                        .getHits()
+                        .getTotalHits().value,
+                    greaterThan(0L)
+                );
 
                 SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "node_stats"))
-                        .addAggregation(terms("agg_nodes_ids").field("node_stats.node_id"))
-                        .get();
+                    .setSize(0)
+                    .setQuery(QueryBuilders.termQuery("type", "node_stats"))
+                    .addAggregation(terms("agg_nodes_ids").field("node_stats.node_id"))
+                    .get();
 
                 Terms aggregation = response.getAggregations().get("agg_nodes_ids");
-                assertEquals("Aggregation on node_id must return a bucket per node involved in test",
-                        numNodes, aggregation.getBuckets().size());
+                assertEquals(
+                    "Aggregation on node_id must return a bucket per node involved in test",
+                    numNodes,
+                    aggregation.getBuckets().size()
+                );
 
                 for (String nodeName : internalCluster().getNodeNames()) {
                     String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
@@ -174,7 +203,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }, 30L, TimeUnit.SECONDS);
 
             checkMonitoringTemplates();
-            checkMonitoringPipelines();
             checkMonitoringDocs();
         } finally {
             stopMonitoring();
@@ -191,11 +219,12 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 refresh(".monitoring-es-*");
 
                 SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "node_stats"))
-                        .addAggregation(terms("agg_nodes_ids").field("node_stats.node_id")
-                                .subAggregation(max("agg_last_time_collected").field("timestamp")))
-                        .get();
+                    .setSize(0)
+                    .setQuery(QueryBuilders.termQuery("type", "node_stats"))
+                    .addAggregation(
+                        terms("agg_nodes_ids").field("node_stats.node_id").subAggregation(max("agg_last_time_collected").field("timestamp"))
+                    )
+                    .get();
 
                 Terms aggregation = response.getAggregations().get("agg_nodes_ids");
                 for (String nodeName : internalCluster().getNodeNames()) {
@@ -231,29 +260,15 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     }
 
     /**
-     * Checks that the monitoring ingest pipelines have been created by the local exporter
-     */
-    private void checkMonitoringPipelines() {
-        final Set<String> expectedPipelines =
-                Arrays.stream(PIPELINE_IDS).map(MonitoringTemplateUtils::pipelineName).collect(Collectors.toSet());
-
-        final GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("xpack_monitoring_*").get();
-
-        // actual pipelines
-        final Set<String> pipelines = response.pipelines().stream().map(PipelineConfiguration::getId).collect(Collectors.toSet());
-
-        assertEquals("Missing expected pipelines", expectedPipelines, pipelines);
-        assertTrue("monitoring ingest pipeline not found", response.isFound());
-    }
-
-    /**
      * Checks that the monitoring documents all have the cluster_uuid, timestamp and source_node
      * fields and belongs to the right data or timestamped index.
      */
     private void checkMonitoringDocs() {
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        String customTimeFormat = response.getState().getMetadata().transientSettings()
-                .get("xpack.monitoring.exporters._local.index.name.time_format");
+        String customTimeFormat = response.getState()
+            .getMetadata()
+            .persistentSettings()
+            .get("xpack.monitoring.exporters._local.index.name.time_format");
         assertEquals(indexTimeFormat, customTimeFormat);
         if (customTimeFormat == null) {
             customTimeFormat = "yyyy.MM.dd";

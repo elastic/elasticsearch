@@ -9,6 +9,7 @@
 package org.elasticsearch.common.lucene.search;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 
@@ -71,7 +73,7 @@ public class MultiPhrasePrefixQuery extends Query {
      * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term term) {
-        add(new Term[]{term});
+        add(new Term[] { term });
     }
 
     /**
@@ -82,8 +84,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public void add(Term[] terms) {
         int position = 0;
-        if (positions.size() > 0)
-            position = positions.get(positions.size() - 1) + 1;
+        if (positions.size() > 0) position = positions.get(positions.size() - 1) + 1;
 
         add(terms, position);
     }
@@ -97,10 +98,8 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public void add(Term[] terms, int position) {
         for (int i = 0; i < terms.length; i++) {
-            if (terms[i].field() != field) {
-                throw new IllegalArgumentException(
-                        "All phrase terms must be in the same field (" + field + "): "
-                                + terms[i]);
+            if (Objects.equals(terms[i].field(), field) == false) {
+                throw new IllegalArgumentException("All phrase terms must be in the same field (" + field + "): " + terms[i]);
             }
         }
 
@@ -162,10 +161,12 @@ public class MultiPhrasePrefixQuery extends Query {
 
             // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
             // which rewrites query with an empty reader.
-            return new BooleanQuery.Builder()
-                .add(query.build(), BooleanClause.Occur.MUST)
-                .add(Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
-                    BooleanClause.Occur.MUST).build();
+            return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
+                .add(
+                    Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    BooleanClause.Occur.MUST
+                )
+                .build();
         }
         query.add(terms.toArray(Term.class), position);
         return query.build();
@@ -257,9 +258,7 @@ public class MultiPhrasePrefixQuery extends Query {
             return false;
         }
         MultiPhrasePrefixQuery other = (MultiPhrasePrefixQuery) o;
-        return this.slop == other.slop
-                && termArraysEquals(this.termArrays, other.termArrays)
-                && this.positions.equals(other.positions);
+        return this.slop == other.slop && termArraysEquals(this.termArrays, other.termArrays) && this.positions.equals(other.positions);
     }
 
     /**
@@ -267,18 +266,14 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public int hashCode() {
-        return classHash()
-                ^ slop
-                ^ termArraysHashCode()
-                ^ positions.hashCode();
+        return classHash() ^ slop ^ termArraysHashCode() ^ positions.hashCode();
     }
 
     // Breakout calculation of the termArrays hashcode
     private int termArraysHashCode() {
         int hashCode = 1;
         for (final Term[] termArray : termArrays) {
-            hashCode = 31 * hashCode
-                    + (termArray == null ? 0 : Arrays.hashCode(termArray));
+            hashCode = 31 * hashCode + (termArray == null ? 0 : Arrays.hashCode(termArray));
         }
         return hashCode;
     }
@@ -302,5 +297,12 @@ public class MultiPhrasePrefixQuery extends Query {
 
     public String getField() {
         return field;
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            visitor.visitLeaf(this);    // TODO implement term visiting
+        }
     }
 }

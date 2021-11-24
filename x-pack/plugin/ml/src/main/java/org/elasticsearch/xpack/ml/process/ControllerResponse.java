@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.process;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,7 +24,9 @@ public class ControllerResponse implements ToXContentObject {
     public static final ParseField REASON = new ParseField("reason");
 
     public static final ConstructingObjectParser<ControllerResponse, Void> PARSER = new ConstructingObjectParser<>(
-        TYPE.getPreferredName(), a -> new ControllerResponse((int) a[0], (boolean) a[1], (String) a[2]));
+        TYPE.getPreferredName(),
+        a -> new ControllerResponse((int) a[0], (boolean) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), COMMAND_ID);
@@ -75,9 +77,7 @@ public class ControllerResponse implements ToXContentObject {
             return false;
         }
         ControllerResponse that = (ControllerResponse) o;
-        return this.commandId == that.commandId &&
-            this.success == that.success &&
-            Objects.equals(this.reason, that.reason);
+        return this.commandId == that.commandId && this.success == that.success && Objects.equals(this.reason, that.reason);
     }
 
     @Override

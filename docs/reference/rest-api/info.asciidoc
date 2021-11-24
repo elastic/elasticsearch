@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[info-api]]
 == Info API
 
@@ -152,11 +151,11 @@ Example response:
       },
       "data_streams" : {
          "available" : true,
-         "enabled" : true,
+         "enabled" : true
       },
       "data_tiers" : {
          "available" : true,
-         "enabled" : true,
+         "enabled" : true
       }
    },
    "tagline" : "You know, for X"

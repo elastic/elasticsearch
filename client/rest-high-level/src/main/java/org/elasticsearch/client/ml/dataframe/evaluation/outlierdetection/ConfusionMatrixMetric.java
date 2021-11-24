@@ -8,13 +8,13 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,15 +23,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ConfusionMatrixMetric extends AbstractConfusionMatrixMetric {
 
     public static final String NAME = "confusion_matrix";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ConfusionMatrixMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, args -> new ConfusionMatrixMetric((List<Double>) args[0]));
+    private static final ConstructingObjectParser<ConfusionMatrixMetric, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new ConfusionMatrixMetric((List<Double>) args[0])
+    );
 
     static {
         PARSER.declareDoubleArray(constructorArg(), AT);
@@ -124,9 +126,11 @@ public class ConfusionMatrixMetric extends AbstractConfusionMatrixMetric {
         private static final ParseField FN = new ParseField("fn");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ConfusionMatrix, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "confusion_matrix", true, args -> new ConfusionMatrix((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
+        private static final ConstructingObjectParser<ConfusionMatrix, Void> PARSER = new ConstructingObjectParser<>(
+            "confusion_matrix",
+            true,
+            args -> new ConfusionMatrix((long) args[0], (long) args[1], (long) args[2], (long) args[3])
+        );
 
         static {
             PARSER.declareLong(constructorArg(), TP);
@@ -165,8 +169,7 @@ public class ConfusionMatrixMetric extends AbstractConfusionMatrixMetric {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder
-                .startObject()
+            return builder.startObject()
                 .field(TP.getPreferredName(), tp)
                 .field(FP.getPreferredName(), fp)
                 .field(TN.getPreferredName(), tn)

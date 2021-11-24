@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +39,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LARGE_SNAPSHOT_POOL_SETTINGS)
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
             .build();
     }
@@ -176,7 +178,15 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             inProgressSnapshots.add(startFullSnapshot(repoName, snapshotName));
         }
         awaitNumberOfSnapshotsInProgress(inProgressCount);
-
+        awaitClusterState(
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .asStream()
+                .flatMap(s -> s.shards().stream())
+                .allMatch(
+                    e -> e.getKey().getIndexName().equals("test-index-1") == false
+                        || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
+                )
+        );
         final String[] repos = { repoName };
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);

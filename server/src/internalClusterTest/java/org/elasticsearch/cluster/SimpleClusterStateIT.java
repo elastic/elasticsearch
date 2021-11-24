@@ -29,9 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -44,6 +41,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -116,54 +116,69 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         createIndex("index-2");
         long baselineVersion = client().admin().cluster().prepareState().get().getState().metadata().version();
         assertThat(baselineVersion, greaterThan(0L));
-        assertThat(client().admin().cluster().prepareState().setIndices("index-1").get().getState().metadata().version(),
-            greaterThanOrEqualTo(baselineVersion));
-        assertThat(client().admin().cluster().prepareState().setIndices("index-2").get().getState().metadata().version(),
-            greaterThanOrEqualTo(baselineVersion));
-        assertThat(client().admin().cluster().prepareState().setIndices("*").get().getState().metadata().version(),
-            greaterThanOrEqualTo(baselineVersion));
-        assertThat(client().admin().cluster().prepareState().setIndices("not-found").get().getState().metadata().version(),
-            greaterThanOrEqualTo(baselineVersion));
-        assertThat(client().admin().cluster().prepareState().clear().setMetadata(false).get().getState().metadata().version(),
-            equalTo(0L));
+        assertThat(
+            client().admin().cluster().prepareState().setIndices("index-1").get().getState().metadata().version(),
+            greaterThanOrEqualTo(baselineVersion)
+        );
+        assertThat(
+            client().admin().cluster().prepareState().setIndices("index-2").get().getState().metadata().version(),
+            greaterThanOrEqualTo(baselineVersion)
+        );
+        assertThat(
+            client().admin().cluster().prepareState().setIndices("*").get().getState().metadata().version(),
+            greaterThanOrEqualTo(baselineVersion)
+        );
+        assertThat(
+            client().admin().cluster().prepareState().setIndices("not-found").get().getState().metadata().version(),
+            greaterThanOrEqualTo(baselineVersion)
+        );
+        assertThat(client().admin().cluster().prepareState().clear().setMetadata(false).get().getState().metadata().version(), equalTo(0L));
     }
 
     public void testIndexTemplates() throws Exception {
-        client().admin().indices().preparePutTemplate("foo_template")
-                .setPatterns(Collections.singletonList("te*"))
-                .setOrder(0)
-                .setMapping(XContentFactory.jsonBuilder()
+        client().admin()
+            .indices()
+            .preparePutTemplate("foo_template")
+            .setPatterns(Collections.singletonList("te*"))
+            .setOrder(0)
+            .setMapping(
+                XContentFactory.jsonBuilder()
                     .startObject()
-                        .startObject("_doc")
-                            .startObject("properties")
-                                .startObject("field1")
-                                    .field("type", "text")
-                                    .field("store", true)
-                                .endObject()
-                                .startObject("field2")
-                                    .field("type", "keyword")
-                                    .field("store", true)
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject())
-                .get();
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("type", "text")
+                    .field("store", true)
+                    .endObject()
+                    .startObject("field2")
+                    .field("type", "keyword")
+                    .field("store", true)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
 
-        client().admin().indices().preparePutTemplate("fuu_template")
-                .setPatterns(Collections.singletonList("test*"))
-                .setOrder(1)
-                .setMapping(XContentFactory.jsonBuilder()
-                        .startObject()
-                            .startObject("_doc")
-                                .startObject("properties")
-                                    .startObject("field2")
-                                        .field("type", "text")
-                                        .field("store", false)
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject())
-                .get();
+        client().admin()
+            .indices()
+            .preparePutTemplate("fuu_template")
+            .setPatterns(Collections.singletonList("test*"))
+            .setOrder(1)
+            .setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field2")
+                    .field("type", "text")
+                    .field("store", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
 
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().get();
         assertThat(clusterStateResponseUnfiltered.getState().metadata().templates().size(), is(greaterThanOrEqualTo(2)));
@@ -173,14 +188,19 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testThatFilteringByIndexWorksForMetadataAndRoutingTable() throws Exception {
-        testFilteringByIndexWorks(new String[]{"foo", "fuu", "non-existent"}, new String[]{"foo", "fuu"});
-        testFilteringByIndexWorks(new String[]{"baz"}, new String[]{"baz"});
-        testFilteringByIndexWorks(new String[]{"f*"}, new String[]{"foo", "fuu"});
-        testFilteringByIndexWorks(new String[]{"b*"}, new String[]{"baz"});
-        testFilteringByIndexWorks(new String[]{"*u"}, new String[]{"fuu"});
+        testFilteringByIndexWorks(new String[] { "foo", "fuu", "non-existent" }, new String[] { "foo", "fuu" });
+        testFilteringByIndexWorks(new String[] { "baz" }, new String[] { "baz" });
+        testFilteringByIndexWorks(new String[] { "f*" }, new String[] { "foo", "fuu" });
+        testFilteringByIndexWorks(new String[] { "b*" }, new String[] { "baz" });
+        testFilteringByIndexWorks(new String[] { "*u" }, new String[] { "fuu" });
 
-        String[] randomIndices = randomFrom(new String[]{"*"}, new String[]{Metadata.ALL}, Strings.EMPTY_ARRAY, new String[]{"f*", "b*"});
-        testFilteringByIndexWorks(randomIndices, new String[]{"foo", "fuu", "baz"});
+        String[] randomIndices = randomFrom(
+            new String[] { "*" },
+            new String[] { Metadata.ALL },
+            Strings.EMPTY_ARRAY,
+            new String[] { "f*", "b*" }
+        );
+        testFilteringByIndexWorks(randomIndices, new String[] { "foo", "fuu", "baz" });
     }
 
     /**
@@ -188,12 +208,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
      * that the cluster state returns coherent data for both routing table and metadata.
      */
     private void testFilteringByIndexWorks(String[] indices, String[] expected) {
-        ClusterStateResponse clusterState = client().admin().cluster().prepareState()
-                                                                            .clear()
-                                                                            .setMetadata(true)
-                                                                            .setRoutingTable(true)
-                                                                            .setIndices(indices)
-                                                                            .get();
+        ClusterStateResponse clusterState = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .setRoutingTable(true)
+            .setIndices(indices)
+            .get();
 
         ImmutableOpenMap<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
         assertThat(metadata.size(), is(expected.length));
@@ -210,7 +232,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     public void testLargeClusterStatePublishing() throws Exception {
         int estimatedBytesSize = scaledRandomIntBetween(
             ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
-            ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
+            ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt()
+        );
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         int counter = 0;
         int numberOfFields = 0;
@@ -227,27 +250,43 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         int numberOfShards = scaledRandomIntBetween(1, cluster().numDataNodes());
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder()
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(
+                    Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE))
+                        .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+                )
                 .setMapping(mapping)
-                .setTimeout("60s").get());
+                .setTimeout("60s")
+                .get()
+        );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetadata masterMappingMetadata = client().admin().indices()
-            .prepareGetMappings("test").get().getMappings().get("test");
+        MappingMetadata masterMappingMetadata = client().admin().indices().prepareGetMappings("test").get().getMappings().get("test");
         for (Client client : clients()) {
-            MappingMetadata mappingMetadata = client.admin().indices()
-                .prepareGetMappings("test").setLocal(true).get().getMappings().get("test");
+            MappingMetadata mappingMetadata = client.admin()
+                .indices()
+                .prepareGetMappings("test")
+                .setLocal(true)
+                .get()
+                .getMappings()
+                .get("test");
             assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetadata.source().string()));
             assertThat(mappingMetadata, equalTo(masterMappingMetadata));
         }
     }
 
     public void testIndicesOptions() throws Exception {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("f*")
-                .get();
+        ClusterStateResponse clusterStateResponse = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices("f*")
+            .get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(2));
         ensureGreen("fuu");
 
@@ -259,22 +298,40 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
-        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("f*")
-                .setIndicesOptions(expandCloseOptions).get();
+        clusterStateResponse = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices("f*")
+            .setIndicesOptions(expandCloseOptions)
+            .get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metadata().index("fuu").getState(), equalTo(IndexMetadata.State.CLOSE));
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
-        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("fzzbzz")
-                .setIndicesOptions(ignoreUnavailabe).get();
+        clusterStateResponse = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices("fzzbzz")
+            .setIndicesOptions(ignoreUnavailabe)
+            .get();
         assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
 
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
-        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("a*")
-                .setIndicesOptions(allowNoIndices).get();
+        clusterStateResponse = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices("a*")
+            .setIndicesOptions(allowNoIndices)
+            .get();
         assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
     }
 
@@ -293,8 +350,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         try {
-            client().admin().cluster().prepareState().clear().setMetadata(true)
-                .setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+            client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setIndices("fzzbzz")
+                .setIndicesOptions(allowNoIndices)
+                .get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [fzzbzz]"));
@@ -319,6 +382,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         TestCustom(StreamInput in) throws IOException {
             this.value = in.readInt();
         }
+
         @Override
         public String getWriteableName() {
             return "test";
@@ -375,7 +439,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier) {
+            final Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
                 if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
@@ -385,8 +450,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 if (state.nodes().isLocalNodeElectedMaster()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
-                            clusterService.submitStateUpdateTask("install-metadata-custom",
-                                new ClusterStateUpdateTask(Priority.URGENT) {
+                            clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {
 
                                 @Override
                                 public ClusterState execute(ClusterState currentState) {

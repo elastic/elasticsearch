@@ -12,8 +12,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.feature.ResetFeaturesResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,15 +27,16 @@ import static org.hamcrest.Matchers.is;
 public class ResetFeaturesResponseTests extends AbstractResponseTestCase<ResetFeatureStateResponse, ResetFeaturesResponse> {
 
     @Override
-    protected ResetFeatureStateResponse createServerTestInstance(
-        XContentType xContentType) {
+    protected ResetFeatureStateResponse createServerTestInstance(XContentType xContentType) {
         return new org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse(
             randomList(
                 10,
                 () -> randomBoolean()
                     ? ResetFeatureStateResponse.ResetFeatureStateStatus.success(randomAlphaOfLengthBetween(6, 10))
                     : ResetFeatureStateResponse.ResetFeatureStateStatus.failure(
-                        randomAlphaOfLengthBetween(6, 10), new ElasticsearchException("something went wrong"))
+                        randomAlphaOfLengthBetween(6, 10),
+                        new ElasticsearchException("something went wrong")
+                    )
             )
         );
     }

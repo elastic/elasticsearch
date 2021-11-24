@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.joda.time.DateTime;
+import org.elasticsearch.core.TimeValue;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -62,7 +61,8 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
             LOGOUT_URL,
             signingConfiguration,
             List.of(spCredential),
-            Collections.emptyList());
+            Collections.emptyList()
+        );
         samlLogoutResponseHandler = new SamlLogoutResponseHandler(clock, idp, sp, TimeValue.timeValueSeconds(1));
     }
 
@@ -71,7 +71,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), credential);
         final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         logoutResponse.setDestination(LOGOUT_URL);
-        logoutResponse.setIssueInstant(new DateTime(clock.millis()));
+        logoutResponse.setIssueInstant(clock.instant());
         logoutResponse.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
         logoutResponse.setInResponseTo(requestId);
         logoutResponse.setStatus(buildStatus(StatusCode.SUCCESS));
@@ -88,7 +88,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), credential);
         final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         logoutResponse.setDestination(LOGOUT_URL);
-        logoutResponse.setIssueInstant(new DateTime(clock.millis()));
+        logoutResponse.setIssueInstant(clock.instant());
         logoutResponse.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
         logoutResponse.setInResponseTo(requestId);
         logoutResponse.setStatus(buildStatus(randomFrom(StatusCode.REQUESTER, StatusCode.RESPONDER)));
@@ -98,8 +98,9 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         logoutResponse.setIssuer(issuer);
         final String url = new SamlRedirect(logoutResponse, signingConfiguration).getRedirectUrl();
 
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("is not a 'success' response"));
     }
 
@@ -108,7 +109,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), null);
         final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         logoutResponse.setDestination(LOGOUT_URL);
-        logoutResponse.setIssueInstant(new DateTime(clock.millis()));
+        logoutResponse.setIssueInstant(clock.instant());
         logoutResponse.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
         logoutResponse.setInResponseTo(requestId);
         logoutResponse.setStatus(buildStatus(randomFrom(StatusCode.REQUESTER, StatusCode.RESPONDER)));
@@ -117,8 +118,9 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         issuer.setValue(IDP_ENTITY_ID);
         logoutResponse.setIssuer(issuer);
         final String url = new SamlRedirect(logoutResponse, signingConfiguration).getRedirectUrl();
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("Query string is not signed, but is required for HTTP-Redirect binding"));
     }
 

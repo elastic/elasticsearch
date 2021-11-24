@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.elasticsearch.Version;
@@ -13,8 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -25,8 +22,10 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.vectors.Vectors;
+import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 
 import java.util.Collection;
 
@@ -36,7 +35,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(DenseVectorPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     // this allows to set indexVersion as it is a private setting
@@ -48,72 +47,82 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testValueFetcherIsNotSupported() {
         SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder("field");
         MappedFieldType fieldMapper = builder.build(MapperBuilderContext.ROOT).fieldType();
-        UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class,
-            () -> fieldMapper.valueFetcher(null, null));
+        UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class, () -> fieldMapper.valueFetcher(null, null));
         assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());
     }
 
     public void testSparseVectorWith8xIndex() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-            .build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         IndexService indexService = createIndex("index", settings);
         MapperService mapperService = indexService.mapperService();
 
-        BytesReference mapping = BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
+        BytesReference mapping = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("my-vector").field("type", "sparse_vector")
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject("my-vector")
+                .field("type", "sparse_vector")
                 .endObject()
-            .endObject());
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping)));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping))
+        );
         assertThat(e.getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE));
     }
 
     public void testSparseVectorWith7xIndex() throws Exception {
         Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-            .build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         IndexService indexService = createIndex("index", settings);
         MapperService mapperService = indexService.mapperService();
 
-        BytesReference mapping = BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
+        BytesReference mapping = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("_doc")
-                    .startObject("properties")
-                        .startObject("my-vector").field("type", "sparse_vector")
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject("my-vector")
+                .field("type", "sparse_vector")
                 .endObject()
-            .endObject());
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapper = mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
         assertWarnings(SparseVectorFieldMapper.ERROR_MESSAGE_7X);
 
         // Check that new vectors cannot be indexed.
-        int[] indexedDims = {65535, 50, 2};
-        float[] indexedValues = {0.5f, 1800f, -34567.11f};
-        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
+        int[] indexedDims = { 65535, 50, 2 };
+        float[] indexedValues = { 0.5f, 1800f, -34567.11f };
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("my-vector")
-                        .field(Integer.toString(indexedDims[0]), indexedValues[0])
-                        .field(Integer.toString(indexedDims[1]), indexedValues[1])
-                        .field(Integer.toString(indexedDims[2]), indexedValues[2])
-                    .endObject()
-                .endObject());
+                .startObject("my-vector")
+                .field(Integer.toString(indexedDims[0]), indexedValues[0])
+                .field(Integer.toString(indexedDims[1]), indexedValues[1])
+                .field(Integer.toString(indexedDims[2]), indexedValues[2])
+                .endObject()
+                .endObject()
+        );
 
-        MapperParsingException indexException = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("index", "id", source, XContentType.JSON)));
+        MapperParsingException indexException = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(new SourceToParse("id", source, XContentType.JSON))
+        );
         assertThat(indexException.getCause().getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE));
     }
 }

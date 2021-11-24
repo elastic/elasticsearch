@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -25,23 +26,71 @@ import java.util.stream.Collectors;
  */
 public class DeprecationChecks {
 
-    private DeprecationChecks() {
-    }
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.listSetting(
+        "deprecation.skip_deprecated_settings",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
-        Collections.emptyList();
+    private DeprecationChecks() {}
+
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.emptyList();
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of(
         NodeDeprecationChecks::checkSharedDataPathSetting,
         NodeDeprecationChecks::checkReservedPrefixedRealmNames,
-        NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting
+        NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
+        NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+        NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+        NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+        NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+        NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+        NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+        NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+        NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+        NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+        NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+        NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingExportersType,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+        NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+        NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+        NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+        NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+        NodeDeprecationChecks::checkScriptContextCache,
+        NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+        NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+        NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+        NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+        NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+        NodeDeprecationChecks::checkEqlEnabledSetting
     );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
         IndexDeprecationChecks::oldIndicesCheck,
         IndexDeprecationChecks::translogRetentionSettingCheck,
         IndexDeprecationChecks::checkIndexDataPath,
-        IndexDeprecationChecks::storeTypeSettingCheck
+        IndexDeprecationChecks::storeTypeSettingCheck,
+        IndexDeprecationChecks::frozenIndexSettingCheck
     );
 
     /**

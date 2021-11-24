@@ -54,7 +54,16 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long", true, false, false, null, Collections.emptyMap());
+        UnsignedLongFieldType ft = new UnsignedLongFieldType(
+            "my_unsigned_long",
+            true,
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            null
+        );
 
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),

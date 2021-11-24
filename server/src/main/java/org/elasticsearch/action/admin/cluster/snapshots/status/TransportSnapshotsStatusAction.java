@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.logging.log4j.LogManager;
@@ -127,9 +126,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
         Set<String> nodesIds = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> status : entry.shardsByRepoShardId().values()) {
-                if (status.value.nodeId() != null) {
-                    nodesIds.add(status.value.nodeId());
+            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shardsByRepoShardId().values()) {
+                if (status.nodeId() != null) {
+                    nodesIds.add(status.nodeId());
                 }
             }
         }

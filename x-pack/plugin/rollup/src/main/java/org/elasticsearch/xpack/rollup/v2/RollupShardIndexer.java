@@ -24,7 +24,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -380,7 +379,7 @@ class RollupShardIndexer {
         return (o1, o2) -> {
             int keySize1 = readInt(o1.bytes, o1.offset);
             int keySize2 = readInt(o2.bytes, o2.offset);
-            return FutureArrays.compareUnsigned(
+            return Arrays.compareUnsigned(
                 o1.bytes,
                 o1.offset + Integer.BYTES,
                 keySize1 + o1.offset + Integer.BYTES,

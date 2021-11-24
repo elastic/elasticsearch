@@ -142,7 +142,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             Collections.emptyMap()
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     @Override
@@ -163,7 +163,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         InternalScriptedMetric aggregation = createTestInstance();
         return (InternalScriptedMetric) aggregation.reduce(
             singletonList(aggregation),
-            ReduceContext.forFinalReduction(null, mockScriptService(), null, PipelineTree.EMPTY)
+            ReduceContext.forFinalReduction(null, mockScriptService(), null, PipelineTree.EMPTY, () -> false)
         );
     }
 

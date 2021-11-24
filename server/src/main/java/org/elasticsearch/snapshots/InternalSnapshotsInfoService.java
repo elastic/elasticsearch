@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -128,6 +127,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) {
+            if (event.previousState().nodes().isLocalNodeElectedMaster()
+                && event.routingTableChanged() == false
+                && event.nodesChanged() == false) {
+                // we neither just became master nor did the routing table change, nothing to update
+                return;
+            }
             final Set<SnapshotShard> onGoingSnapshotRecoveries = listOfSnapshotShards(event.state());
 
             int unknownShards = 0;
@@ -320,7 +325,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private static Set<SnapshotShard> listOfSnapshotShards(final ClusterState state) {
         final Set<SnapshotShard> snapshotShards = new HashSet<>();
-        for (ShardRouting shardRouting : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
+        for (ShardRouting shardRouting : state.getRoutingNodes().unassigned()) {
             if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                 final RecoverySource.SnapshotRecoverySource snapshotRecoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
                     .recoverySource();

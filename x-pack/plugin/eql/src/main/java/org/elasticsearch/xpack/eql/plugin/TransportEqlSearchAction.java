@@ -60,7 +60,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
-    implements AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
+    implements
+        AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
 
     private static final Logger log = LogManager.getLogger(TransportEqlSearchAction.class);
     private final SecurityContext securityContext;
@@ -71,27 +72,64 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
 
     @Inject
-    public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                    ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                    NamedWriteableRegistry registry, Client client, BigArrays bigArrays) {
+    public TransportEqlSearchAction(
+        Settings settings,
+        ClusterService clusterService,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor,
+        NamedWriteableRegistry registry,
+        Client client,
+        BigArrays bigArrays
+    ) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
 
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-            new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.threadPool = threadPool;
         this.transportService = transportService;
 
-        this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
-            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool, bigArrays);
+        this.asyncTaskManagementService = new AsyncTaskManagementService<>(
+            XPackPlugin.ASYNC_RESULTS_INDEX,
+            client,
+            ASYNC_SEARCH_ORIGIN,
+            registry,
+            taskManager,
+            EqlSearchAction.INSTANCE.name(),
+            this,
+            EqlSearchTask.class,
+            clusterService,
+            threadPool,
+            bigArrays
+        );
     }
 
     @Override
-    public EqlSearchTask createTask(EqlSearchRequest request, long id, String type, String action, TaskId parentTaskId,
-                                    Map<String, String> headers, Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId) {
-        return new EqlSearchTask(id, type, action, request.getDescription(), parentTaskId, headers, originHeaders, asyncExecutionId,
-            request.keepAlive());
+    public EqlSearchTask createTask(
+        EqlSearchRequest request,
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        Map<String, String> originHeaders,
+        AsyncExecutionId asyncExecutionId
+    ) {
+        return new EqlSearchTask(
+            id,
+            type,
+            action,
+            request.getDescription(),
+            parentTaskId,
+            headers,
+            originHeaders,
+            asyncExecutionId,
+            request.keepAlive()
+        );
     }
 
     @Override
@@ -101,8 +139,14 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     @Override
     public EqlSearchResponse initialResponse(EqlSearchTask task) {
-        return new EqlSearchResponse(EqlSearchResponse.Hits.EMPTY,
-            TimeValue.nsecToMSec(System.nanoTime() - task.getStartTimeNanos()), false, task.getExecutionId().getEncoded(), true, true);
+        return new EqlSearchResponse(
+            EqlSearchResponse.Hits.EMPTY,
+            TimeValue.nsecToMSec(System.nanoTime() - task.getStartTimeNanos()),
+            false,
+            task.getExecutionId().getEncoded(),
+            true,
+            true
+        );
     }
 
     @Override
@@ -113,16 +157,27 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
         if (requestIsAsync(request)) {
-            asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepAlive(),
-                request.keepOnCompletion(), listener);
+            asyncTaskManagementService.asyncExecute(
+                request,
+                request.waitForCompletionTimeout(),
+                request.keepAlive(),
+                request.keepOnCompletion(),
+                listener
+            );
         } else {
             operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
         }
     }
 
-    public static void operation(PlanExecutor planExecutor, EqlSearchTask task, EqlSearchRequest request, String username,
-                                 TransportService transportService, ClusterService clusterService,
-                                 ActionListener<EqlSearchResponse> listener) {
+    public static void operation(
+        PlanExecutor planExecutor,
+        EqlSearchTask task,
+        EqlSearchRequest request,
+        String username,
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionListener<EqlSearchResponse> listener
+    ) {
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
@@ -132,8 +187,10 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         TimeValue timeout = TimeValue.timeValueSeconds(30);
         String clientId = null;
 
-        RemoteClusterRegistry remoteClusterRegistry = new RemoteClusterRegistry(transportService.getRemoteClusterService(),
-            request.indicesOptions());
+        RemoteClusterRegistry remoteClusterRegistry = new RemoteClusterRegistry(
+            transportService.getRemoteClusterService(),
+            request.indicesOptions()
+        );
         Set<String> clusterAliases = remoteClusterRegistry.clusterAliases(request.indices(), false);
         if (canMinimizeRountrips(request, clusterAliases)) {
             String clusterAlias = clusterAliases.iterator().next();
@@ -141,29 +198,60 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             for (int i = 0; i < request.indices().length; i++) {
                 remoteIndices[i] = request.indices()[i].substring(clusterAlias.length() + 1); // strip cluster plus `:` delimiter
             }
-            transportService.sendRequest(transportService.getRemoteClusterService().getConnection(clusterAlias),
-                EqlSearchAction.INSTANCE.name(), request.indices(remoteIndices), TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(wrap(r -> listener.onResponse(qualifyHits(r, clusterAlias)),
-                    e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))),
-                    EqlSearchAction.INSTANCE.getResponseReader()));
+            transportService.sendRequest(
+                transportService.getRemoteClusterService().getConnection(clusterAlias),
+                EqlSearchAction.INSTANCE.name(),
+                request.indices(remoteIndices),
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(
+                    wrap(
+                        r -> listener.onResponse(qualifyHits(r, clusterAlias)),
+                        e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
+                    ),
+                    EqlSearchAction.INSTANCE.getResponseReader()
+                )
+            );
         } else {
-            ParserParams params = new ParserParams(zoneId)
-                .fieldEventCategory(request.eventCategoryField())
+            ParserParams params = new ParserParams(zoneId).fieldEventCategory(request.eventCategoryField())
                 .fieldTimestamp(request.timestampField())
                 .fieldTiebreaker(request.tiebreakerField())
                 .resultPosition("tail".equals(request.resultPosition()) ? Order.OrderDirection.DESC : Order.OrderDirection.ASC)
                 .size(request.size())
                 .fetchSize(request.fetchSize());
 
-            EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter,
-                request.runtimeMappings(), fetchFields, timeout, request.indicesOptions(), request.fetchSize(),
-                clientId, new TaskId(nodeId, task.getId()), task, remoteClusterRegistry::versionIncompatibleClusters);
-            executeRequestWithRetryAttempt(clusterService, listener::onFailure,
-                onFailure -> planExecutor.eql(cfg, request.query(), params,
-                    wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)),
-                node -> transportService.sendRequest(node, EqlSearchAction.NAME, request,
-                    new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, ThreadPool.Names.SAME)),
-                log);
+            EqlConfiguration cfg = new EqlConfiguration(
+                request.indices(),
+                zoneId,
+                username,
+                clusterName,
+                filter,
+                request.runtimeMappings(),
+                fetchFields,
+                timeout,
+                request.indicesOptions(),
+                request.fetchSize(),
+                clientId,
+                new TaskId(nodeId, task.getId()),
+                task,
+                remoteClusterRegistry::versionIncompatibleClusters
+            );
+            executeRequestWithRetryAttempt(
+                clusterService,
+                listener::onFailure,
+                onFailure -> planExecutor.eql(
+                    cfg,
+                    request.query(),
+                    params,
+                    wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)
+                ),
+                node -> transportService.sendRequest(
+                    node,
+                    EqlSearchAction.NAME,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, ThreadPool.Names.SAME)
+                ),
+                log
+            );
         }
     }
 
@@ -244,7 +332,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     }
 
     private static String[] notFoundIndices(String exceptionIndexName, String[] indices) {
-        final String[] EXCEPTION_PREFIXES = new String[] {"Unknown index [", "["};
+        final String[] EXCEPTION_PREFIXES = new String[] { "Unknown index [", "[" };
         for (String prefix : EXCEPTION_PREFIXES) {
             if (exceptionIndexName.startsWith(prefix) && exceptionIndexName.endsWith("]")) {
                 String indexList = exceptionIndexName.substring(prefix.length(), exceptionIndexName.length() - 1);

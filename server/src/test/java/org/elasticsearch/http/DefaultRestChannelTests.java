@@ -14,14 +14,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -32,6 +30,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -83,9 +83,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     public void testCorsEnabledWithoutAllowOrigins() {
         // Set up an HTTP transport with only the CORS enabled setting
-        Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
-            .build();
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true).build();
         TestHttpResponse response = executeRequest(settings, "request-host");
         assertThat(response.headers().get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), nullValue());
     }
@@ -137,12 +135,20 @@ public class DefaultRestChannelTests extends ESTestCase {
         Settings settings = Settings.builder().build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext(), CorsHandler.fromSettings(settings), null);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            handlingSettings,
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            null
+        );
         TestRestResponse resp = new TestRestResponse();
         final String customHeader = "custom-header";
         final String customHeaderValue = "xyz";
@@ -165,12 +171,20 @@ public class DefaultRestChannelTests extends ESTestCase {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // send a response
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext(), CorsHandler.fromSettings(settings), null);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            handlingSettings,
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            null
+        );
         channel.sendResponse(new TestRestResponse());
 
         // inspect what was written
@@ -186,13 +200,23 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testReleaseInListener() throws IOException {
         final Settings settings = Settings.builder().build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext(), CorsHandler.fromSettings(settings), null);
-        final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
-            JsonXContent.contentBuilder().startObject().endObject());
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            handlingSettings,
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            null
+        );
+        final BytesRestResponse response = new BytesRestResponse(
+            RestStatus.INTERNAL_SERVER_ERROR,
+            JsonXContent.contentBuilder().startObject().endObject()
+        );
         assertThat(response.content(), not(instanceOf(Releasable.class)));
 
         // ensure we have reserved bytes
@@ -226,9 +250,11 @@ public class DefaultRestChannelTests extends ESTestCase {
         final boolean brokenRequest = randomBoolean();
         final boolean close = brokenRequest || randomBoolean();
         if (brokenRequest) {
-            httpRequest = new TestHttpRequest(() -> {
-                throw new IllegalArgumentException("Can't parse HTTP version");
-            }, RestRequest.Method.GET, "/");
+            httpRequest = new TestHttpRequest(
+                () -> { throw new IllegalArgumentException("Can't parse HTTP version"); },
+                RestRequest.Method.GET,
+                "/"
+            );
         } else if (randomBoolean()) {
             httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
             if (close) {
@@ -240,12 +266,20 @@ public class DefaultRestChannelTests extends ESTestCase {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.KEEP_ALIVE));
             }
         }
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
 
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            threadPool.getThreadContext(), CorsHandler.fromSettings(settings), null);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            handlingSettings,
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            null
+        );
         channel.sendResponse(new TestRestResponse());
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
         ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
@@ -267,7 +301,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final boolean close = randomBoolean();
         final HttpRequest.HttpVersion httpVersion = close ? HttpRequest.HttpVersion.HTTP_1_0 : HttpRequest.HttpVersion.HTTP_1_1;
         final String httpConnectionHeaderValue = close ? DefaultRestChannel.CLOSE : DefaultRestChannel.KEEP_ALIVE;
-        final RestRequest request = RestRequest.request(xContentRegistry(), new TestHttpRequest(httpVersion, null, "/") {
+        final RestRequest request = RestRequest.request(parserConfig(), new TestHttpRequest(httpVersion, null, "/") {
             @Override
             public RestRequest.Method method() {
                 throw new IllegalArgumentException("test");
@@ -275,14 +309,21 @@ public class DefaultRestChannelTests extends ESTestCase {
         }, httpChannel);
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
-            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY),
-            null);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            request.getHttpRequest(),
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            null
+        );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
-        final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0) , byteArray);
+        final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0), byteArray);
         channel.sendResponse(new TestRestResponse(RestStatus.METHOD_NOT_ALLOWED, content));
 
         @SuppressWarnings("unchecked")
@@ -306,7 +347,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         final boolean close = randomBoolean();
         final HttpRequest.HttpVersion httpVersion = close ? HttpRequest.HttpVersion.HTTP_1_0 : HttpRequest.HttpVersion.HTTP_1_1;
         final String httpConnectionHeaderValue = close ? DefaultRestChannel.CLOSE : DefaultRestChannel.KEEP_ALIVE;
-        final RestRequest request = RestRequest.request(xContentRegistry(), new TestHttpRequest(httpVersion, null, "/") {
+        final RestRequest request = RestRequest.request(parserConfig(), new TestHttpRequest(httpVersion, null, "/") {
             @Override
             public HttpResponse createResponse(RestStatus status, BytesReference content) {
                 throw new IllegalArgumentException("test");
@@ -314,14 +355,21 @@ public class DefaultRestChannelTests extends ESTestCase {
         }, httpChannel);
         request.getHttpRequest().getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(httpConnectionHeaderValue));
 
-        DefaultRestChannel channel = new DefaultRestChannel(httpChannel, request.getHttpRequest(), request, bigArrays,
-            HttpHandlingSettings.fromSettings(Settings.EMPTY), threadPool.getThreadContext(), CorsHandler.fromSettings(Settings.EMPTY),
-            null);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            request.getHttpRequest(),
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            null
+        );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         final ByteArray byteArray = bigArrays.newByteArray(0, false);
-        final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0) , byteArray);
+        final BytesReference content = new ReleasableBytesReference(BytesReference.fromByteArray(byteArray, 0), byteArray);
 
         expectThrows(IllegalArgumentException.class, () -> channel.sendResponse(new TestRestResponse(RestStatus.OK, content)));
 
@@ -342,11 +390,19 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpRequest.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList(originValue));
         }
         httpRequest.getHeaders().put(CorsHandler.HOST, Collections.singletonList(host));
-        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
 
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
-        RestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, httpHandlingSettings,
-            threadPool.getThreadContext(), new CorsHandler(CorsHandler.buildConfig(settings)), null);
+        RestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            httpHandlingSettings,
+            threadPool.getThreadContext(),
+            new CorsHandler(CorsHandler.buildConfig(settings)),
+            null
+        );
         channel.sendResponse(new TestRestResponse());
 
         // get the response

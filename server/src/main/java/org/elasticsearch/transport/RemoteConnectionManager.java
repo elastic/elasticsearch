@@ -59,11 +59,8 @@ public class RemoteConnectionManager implements ConnectionManager {
         listener.onFailure(new UnsupportedOperationException("use connectToRemoteClusterNode instead"));
     }
 
-    public void connectToRemoteClusterNode(
-        DiscoveryNode node,
-        ConnectionValidator connectionValidator,
-        ActionListener<Void> listener
-    ) throws ConnectTransportException {
+    public void connectToRemoteClusterNode(DiscoveryNode node, ConnectionValidator connectionValidator, ActionListener<Void> listener)
+        throws ConnectTransportException {
         delegate.connectToNode(node, null, connectionValidator, listener.map(connectionReleasable -> {
             // We drop the connectionReleasable here but it's not really a leak: we never close individual connections to a remote cluster
             // ourselves - instead we close the whole connection manager if the remote cluster is removed, which bypasses any refcounting
@@ -114,7 +111,8 @@ public class RemoteConnectionManager implements ConnectionManager {
     public Transport.Connection getAnyRemoteConnection() {
         List<DiscoveryNode> localConnectedNodes = this.connectedNodes;
         long curr;
-        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE);
+        while ((curr = counter.incrementAndGet()) == Long.MIN_VALUE)
+            ;
         if (localConnectedNodes.isEmpty() == false) {
             DiscoveryNode nextNode = localConnectedNodes.get(Math.floorMod(curr, localConnectedNodes.size()));
             try {
@@ -187,8 +185,12 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            connection.sendRequest(requestId, TransportActionProxy.getProxyAction(action),
-                TransportActionProxy.wrapRequest(targetNode, request), options);
+            connection.sendRequest(
+                requestId,
+                TransportActionProxy.getProxyAction(action),
+                TransportActionProxy.wrapRequest(targetNode, request),
+                options
+            );
         }
 
         @Override
@@ -226,8 +228,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
-        public void incRef() {
-        }
+        public void incRef() {}
 
         @Override
         public boolean tryIncRef() {
@@ -246,7 +247,6 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
-        public void onRemoved() {
-        }
+        public void onRemoved() {}
     }
 }

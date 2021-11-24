@@ -7,10 +7,6 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.blocktree.FieldReader;
-import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -23,9 +19,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -45,7 +41,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
-    private static final Logger logger = LogManager.getLogger(PagedBytesIndexFieldData.class);
 
     private final double minFrequency, maxFrequency;
     private final int minSegmentSize;
@@ -66,8 +61,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public IndexOrdinalsFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService,
-                    minFrequency, maxFrequency, minSegmentSize);
+            return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
         }
     }
 
@@ -87,15 +81,27 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
@@ -104,8 +110,11 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         LeafReader reader = context.reader();
         LeafOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator =
-            new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(
+            context,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            getFieldName()
+        );
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
             data = AbstractLeafOrdinalsFieldData.empty();
@@ -189,32 +198,6 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
 
         /**
-         * @return the estimate for loading the entire term set into field data, or 0 if unavailable
-         */
-        public long estimateStringFieldData() {
-            try {
-                LeafReader reader = context.reader();
-                Terms terms = reader.terms(getFieldName());
-
-                final Terms fieldTerms = reader.terms(getFieldName());
-
-                if (fieldTerms instanceof FieldReader) {
-                    final Stats stats = ((FieldReader) fieldTerms).getStats();
-                    long totalTermBytes = stats.totalTermBytes;
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("totalTermBytes: {}, terms.size(): {}, terms.getSumDocFreq(): {}",
-                                totalTermBytes, terms.size(), terms.getSumDocFreq());
-                    }
-                    long totalBytes = totalTermBytes + (2 * terms.size()) + (4 * terms.getSumDocFreq());
-                    return totalBytes;
-                }
-            } catch (Exception e) {
-                logger.warn("Unable to estimate memory overhead", e);
-            }
-            return 0;
-        }
-
-        /**
          * Determine whether the BlockTreeTermsReader.FieldReader can be used
          * for estimating the field data, adding the estimate to the circuit
          * breaker if it can, otherwise wrapping the terms in a
@@ -229,25 +212,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
             TermsEnum iterator = terms.iterator();
             TermsEnum filteredIterator = filter(terms, iterator, reader);
-            final boolean filtered = iterator != filteredIterator;
-            iterator = filteredIterator;
-
-            if (filtered) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Filter exists, can't circuit break normally, using RamAccountingTermsEnum");
-                }
-                return new RamAccountingTermsEnum(iterator, breaker, this, this.fieldName);
-            } else {
-                estimatedBytes = this.estimateStringFieldData();
-                // If we weren't able to estimate, wrap in the RamAccountingTermsEnum
-                if (estimatedBytes == 0) {
-                    iterator = new RamAccountingTermsEnum(iterator, breaker, this, this.fieldName);
-                } else {
-                    breaker.addEstimateBytesAndMaybeBreak(estimatedBytes, fieldName);
-                }
-
-                return iterator;
-            }
+            return new RamAccountingTermsEnum(filteredIterator, breaker, this, this.fieldName);
         }
 
         private TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {
@@ -259,12 +224,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 docCount = reader.maxDoc();
             }
             if (docCount >= minSegmentSize) {
-                final int minFreq = minFrequency > 1.0
-                    ? (int) minFrequency
-                    : (int)(docCount * minFrequency);
-                final int maxFreq = maxFrequency > 1.0
-                    ? (int) maxFrequency
-                    : (int)(docCount * maxFrequency);
+                final int minFreq = minFrequency > 1.0 ? (int) minFrequency : (int) (docCount * minFrequency);
+                final int maxFreq = maxFrequency > 1.0 ? (int) maxFrequency : (int) (docCount * maxFrequency);
                 if (minFreq > 1 || maxFreq < docCount) {
                     iterator = new FrequencyFilter(iterator, minFreq, maxFreq);
                 }

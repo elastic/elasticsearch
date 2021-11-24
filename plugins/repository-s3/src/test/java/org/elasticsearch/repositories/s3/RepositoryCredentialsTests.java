@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -18,12 +19,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
@@ -55,10 +56,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         secureSettings.setString(ACCESS_KEY_SETTING.getConcreteSettingForNamespace("other").getKey(), "secure_other_key");
         secureSettings.setString(SECRET_KEY_SETTING.getConcreteSettingForNamespace("other").getKey(), "secure_other_secret");
 
-        return Settings.builder()
-            .setSecureSettings(secureSettings)
-            .put(super.nodeSettings())
-            .build();
+        return Settings.builder().setSecureSettings(secureSettings).put(super.nodeSettings()).build();
     }
 
     public void testReinitSecureCredentials() {
@@ -120,10 +118,14 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType(S3Repository.TYPE)
-            .setVerify(false)
-            .setSettings(repositorySettings));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(name)
+                .setType(S3Repository.TYPE)
+                .setVerify(false)
+                .setSettings(repositorySettings)
+        );
     }
 
     /**
@@ -136,9 +138,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetadata metadata,
-                                                NamedXContentRegistry registry, ClusterService clusterService, BigArrays bigArrays,
-                                                RecoverySettings recoverySettings) {
+        protected S3Repository createRepository(
+            RepositoryMetadata metadata,
+            NamedXContentRegistry registry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
             return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-transform]]
 = Create {transform} API
 
@@ -125,6 +124,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-unique-key]
 
 ====
 //End latest
+
+//Begin _meta
+`_meta`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-metadata]
+//End _meta
 
 //Begin pivot
 `pivot`::

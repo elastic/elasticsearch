@@ -93,6 +93,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test10InstallArchive() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
+        setFileSuperuser("test_superuser", "test_superuser_password");
         serviceScript = installation.bin("elasticsearch-service.bat").toString();
     }
 
@@ -172,7 +173,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
     public void assertStartedAndStop() throws Exception {
         ServerUtils.waitForElasticsearch(installation);
-        ServerUtils.runElasticsearchTests();
+        runElasticsearchTests();
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);

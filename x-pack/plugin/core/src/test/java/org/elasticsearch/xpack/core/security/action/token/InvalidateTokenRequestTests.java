@@ -36,48 +36,67 @@ public class InvalidateTokenRequestTests extends ESTestCase {
         ve = request.validate();
         assertNull(ve);
 
-        request =
-            new InvalidateTokenRequest(randomAlphaOfLength(4), randomFrom("", null), randomAlphaOfLength(4), randomAlphaOfLength(8));
+        request = new InvalidateTokenRequest(randomAlphaOfLength(4), randomFrom("", null), randomAlphaOfLength(4), randomAlphaOfLength(8));
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0),
-            containsString("token string must not be provided when realm name or username is specified"));
+        assertThat(
+            ve.validationErrors().get(0),
+            containsString("token string must not be provided when realm name or username is specified")
+        );
 
-        request = new InvalidateTokenRequest(randomAlphaOfLength(4), randomFrom("token", "refresh_token"),
-            randomAlphaOfLength(4), randomAlphaOfLength(8));
+        request = new InvalidateTokenRequest(
+            randomAlphaOfLength(4),
+            randomFrom("token", "refresh_token"),
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(8)
+        );
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(2, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0),
-            containsString("token string must not be provided when realm name or username is specified"));
-        assertThat(ve.validationErrors().get(1),
-            containsString("token type must not be provided when realm name or username is specified"));
+        assertThat(
+            ve.validationErrors().get(0),
+            containsString("token string must not be provided when realm name or username is specified")
+        );
+        assertThat(
+            ve.validationErrors().get(1),
+            containsString("token type must not be provided when realm name or username is specified")
+        );
 
-        request =
-            new InvalidateTokenRequest(randomAlphaOfLength(4), randomFrom("", null), randomAlphaOfLength(4), randomAlphaOfLength(8));
+        request = new InvalidateTokenRequest(randomAlphaOfLength(4), randomFrom("", null), randomAlphaOfLength(4), randomAlphaOfLength(8));
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0),
-            containsString("token string must not be provided when realm name or username is specified"));
+        assertThat(
+            ve.validationErrors().get(0),
+            containsString("token string must not be provided when realm name or username is specified")
+        );
 
-        request =
-            new InvalidateTokenRequest(randomAlphaOfLength(4), randomFrom("token", "refresh_token"), randomFrom("", null),
-                randomAlphaOfLength(8));
+        request = new InvalidateTokenRequest(
+            randomAlphaOfLength(4),
+            randomFrom("token", "refresh_token"),
+            randomFrom("", null),
+            randomAlphaOfLength(8)
+        );
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(2, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0),
-            containsString("token string must not be provided when realm name or username is specified"));
-        assertThat(ve.validationErrors().get(1),
-            containsString("token type must not be provided when realm name or username is specified"));
+        assertThat(
+            ve.validationErrors().get(0),
+            containsString("token string must not be provided when realm name or username is specified")
+        );
+        assertThat(
+            ve.validationErrors().get(1),
+            containsString("token type must not be provided when realm name or username is specified")
+        );
 
         request = new InvalidateTokenRequest(randomAlphaOfLength(4), randomFrom("", null), randomFrom("", null), randomAlphaOfLength(8));
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0),
-            containsString("token string must not be provided when realm name or username is specified"));
+        assertThat(
+            ve.validationErrors().get(0),
+            containsString("token string must not be provided when realm name or username is specified")
+        );
     }
 }

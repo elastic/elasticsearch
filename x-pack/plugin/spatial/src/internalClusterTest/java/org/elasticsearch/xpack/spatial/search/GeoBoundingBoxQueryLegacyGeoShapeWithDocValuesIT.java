@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoBoundingBoxQueryIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
@@ -33,9 +33,17 @@ public class GeoBoundingBoxQueryLegacyGeoShapeWithDocValuesIT extends GeoBoundin
 
     @Override
     public XContentBuilder getMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("location").field("type", "geo_shape").field("strategy", "recursive")
-            .endObject().endObject().endObject().endObject();
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape")
+            .field("strategy", "recursive")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
     }
 
     @Override
@@ -43,4 +51,3 @@ public class GeoBoundingBoxQueryLegacyGeoShapeWithDocValuesIT extends GeoBoundin
         return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
     }
 }
-

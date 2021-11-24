@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
-import org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
@@ -23,6 +21,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
+import org.elasticsearch.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -140,25 +140,37 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
         // TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(DocValueFormat.RAW);
+        final IncludeExclude.StringFilter incExcFilter = includeExclude == null
+            ? null
+            : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
-        return new MapStringTermsAggregator(
-            name,
-            factories,
-            createCollectorSource(),
-            a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
-            null,
-            DocValueFormat.RAW,
-            bucketCountThresholds,
-            incExcFilter,
-            context,
-            parent,
-            SubAggCollectionMode.BREADTH_FIRST,
-            false,
-            cardinality,
-            metadata
-        );
+        final SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
+        final CollectorSource collectorSource = createCollectorSource();
+        boolean success = false;
+        try {
+            final MapStringTermsAggregator mapStringTermsAggregator = new MapStringTermsAggregator(
+                name,
+                factories,
+                collectorSource,
+                a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
+                null,
+                DocValueFormat.RAW,
+                bucketCountThresholds,
+                incExcFilter,
+                context,
+                parent,
+                SubAggCollectionMode.BREADTH_FIRST,
+                false,
+                cardinality,
+                metadata
+            );
+            success = true;
+            return mapStringTermsAggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(collectorSource);
+            }
+        }
     }
 
     /**
@@ -363,7 +375,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
          * Extract values from {@code _source}.
          */
         protected List<Object> extractRawValues(String field) {
-            return sourceLookup.extractRawValues(field);
+            return sourceLookup.extractRawValuesWithoutCaching(field);
         }
 
         @Override

@@ -8,15 +8,14 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,8 +37,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long free = -1;
         long available = -1;
 
-        public Path() {
-        }
+        public Path() {}
 
         public Path(String path, @Nullable String mount, long total, long free, long available) {
             this.path = path;
@@ -171,45 +169,48 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long previousIOTime;
 
         public DeviceStats(
-                final int majorDeviceNumber,
-                final int minorDeviceNumber,
-                final String deviceName,
-                final long currentReadsCompleted,
-                final long currentSectorsRead,
-                final long currentWritesCompleted,
-                final long currentSectorsWritten,
-                final long currentIOTime,
-                final DeviceStats previousDeviceStats) {
+            final int majorDeviceNumber,
+            final int minorDeviceNumber,
+            final String deviceName,
+            final long currentReadsCompleted,
+            final long currentSectorsRead,
+            final long currentWritesCompleted,
+            final long currentSectorsWritten,
+            final long currentIOTime,
+            final DeviceStats previousDeviceStats
+        ) {
             this(
-                    majorDeviceNumber,
-                    minorDeviceNumber,
-                    deviceName,
-                    currentReadsCompleted,
-                    previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
-                    currentSectorsWritten,
-                    previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
-                    currentSectorsRead,
-                    previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
-                    currentWritesCompleted,
-                    previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1,
-                    currentIOTime,
-                    previousDeviceStats != null ? previousDeviceStats.currentIOTime : -1);
+                majorDeviceNumber,
+                minorDeviceNumber,
+                deviceName,
+                currentReadsCompleted,
+                previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
+                currentSectorsWritten,
+                previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
+                currentSectorsRead,
+                previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
+                currentWritesCompleted,
+                previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1,
+                currentIOTime,
+                previousDeviceStats != null ? previousDeviceStats.currentIOTime : -1
+            );
         }
 
         private DeviceStats(
-                final int majorDeviceNumber,
-                final int minorDeviceNumber,
-                final String deviceName,
-                final long currentReadsCompleted,
-                final long previousReadsCompleted,
-                final long currentSectorsWritten,
-                final long previousSectorsWritten,
-                final long currentSectorsRead,
-                final long previousSectorsRead,
-                final long currentWritesCompleted,
-                final long previousWritesCompleted,
-                final long currentIOTime,
-                final long previousIOTime) {
+            final int majorDeviceNumber,
+            final int minorDeviceNumber,
+            final String deviceName,
+            final long currentReadsCompleted,
+            final long previousReadsCompleted,
+            final long currentSectorsWritten,
+            final long previousSectorsWritten,
+            final long currentSectorsRead,
+            final long previousSectorsRead,
+            final long currentWritesCompleted,
+            final long previousWritesCompleted,
+            final long currentIOTime,
+            final long previousIOTime
+        ) {
             this.majorDeviceNumber = majorDeviceNumber;
             this.minorDeviceNumber = minorDeviceNumber;
             this.deviceName = deviceName;
@@ -237,13 +238,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             previousSectorsRead = in.readLong();
             currentSectorsWritten = in.readLong();
             previousSectorsWritten = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-                currentIOTime = in.readLong();
-                previousIOTime = in.readLong();
-            } else {
-                currentIOTime = -1;
-                previousIOTime = -1;
-            }
+            currentIOTime = in.readLong();
+            previousIOTime = in.readLong();
         }
 
         @Override
@@ -259,17 +255,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(previousSectorsRead);
             out.writeLong(currentSectorsWritten);
             out.writeLong(previousSectorsWritten);
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-                out.writeLong(currentIOTime);
-                out.writeLong(previousIOTime);
-            }
+            out.writeLong(currentIOTime);
+            out.writeLong(previousIOTime);
         }
 
         public long operations() {
             if (previousReadsCompleted == -1 || previousWritesCompleted == -1) return -1;
 
-            return (currentReadsCompleted - previousReadsCompleted) +
-                (currentWritesCompleted - previousWritesCompleted);
+            return (currentReadsCompleted - previousReadsCompleted) + (currentWritesCompleted - previousWritesCompleted);
         }
 
         public long readOperations() {
@@ -325,7 +318,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         private static final String WRITE_KILOBYTES = "write_kilobytes";
         private static final String IO_TIMEMS = "io_time_in_millis";
 
-
         final DeviceStats[] devicesStats;
         final long totalOperations;
         final long totalReadOperations;
@@ -370,11 +362,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.totalWriteOperations = in.readLong();
             this.totalReadKilobytes = in.readLong();
             this.totalWriteKilobytes = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-                this.totalIOTimeInMillis = in.readLong();
-            } else {
-                this.totalIOTimeInMillis = -1;
-            }
+            this.totalIOTimeInMillis = in.readLong();
         }
 
         @Override
@@ -388,9 +376,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(totalWriteOperations);
             out.writeLong(totalReadKilobytes);
             out.writeLong(totalWriteKilobytes);
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-                out.writeLong(totalIOTimeInMillis);
-            }
+            out.writeLong(totalIOTimeInMillis);
         }
 
         public DeviceStats[] getDevicesStats() {

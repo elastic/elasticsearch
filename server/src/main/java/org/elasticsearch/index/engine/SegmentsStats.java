@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -17,9 +17,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -32,19 +32,18 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long bitsetMemoryInBytes;
     private ImmutableOpenMap<String, FileStats> files = ImmutableOpenMap.of();
 
-    public SegmentsStats() {
-    }
+    public SegmentsStats() {}
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
         if (in.getVersion().before(Version.V_8_0_0)) {
-          in.readLong(); // memoryInBytes
-          in.readLong(); // termsMemoryInBytes
-          in.readLong(); // storedFieldsMemoryInBytes
-          in.readLong(); // termVectorsMemoryInBytes
-          in.readLong(); // normsMemoryInBytes
-          in.readLong(); // pointsMemoryInBytes
-          in.readLong(); // docValuesMemoryInBytes
+            in.readLong(); // memoryInBytes
+            in.readLong(); // termsMemoryInBytes
+            in.readLong(); // storedFieldsMemoryInBytes
+            in.readLong(); // termVectorsMemoryInBytes
+            in.readLong(); // normsMemoryInBytes
+            in.readLong(); // pointsMemoryInBytes
+            in.readLong(); // docValuesMemoryInBytes
         }
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
@@ -228,8 +227,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(maxUnsafeAutoIdTimestamp);
 
         out.writeVInt(files.size());
-        for (ObjectCursor<FileStats> file : files.values()) {
-            file.value.writeTo(out);
+        for (FileStats file : files.values()) {
+            file.writeTo(out);
         }
     }
 

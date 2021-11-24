@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.watcher.actions.email;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
@@ -33,14 +33,25 @@ public class EmailAction implements Action {
     public static final String TYPE = "email";
 
     private final EmailTemplate email;
-    @Nullable private final String account;
-    @Nullable private final Authentication auth;
-    @Nullable private final Profile profile;
-    @Nullable private final DataAttachment dataAttachment;
-    @Nullable private final EmailAttachments emailAttachments;
+    @Nullable
+    private final String account;
+    @Nullable
+    private final Authentication auth;
+    @Nullable
+    private final Profile profile;
+    @Nullable
+    private final DataAttachment dataAttachment;
+    @Nullable
+    private final EmailAttachments emailAttachments;
 
-    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile,
-                       @Nullable DataAttachment dataAttachment, @Nullable EmailAttachments emailAttachments) {
+    public EmailAction(
+        EmailTemplate email,
+        @Nullable String account,
+        @Nullable Authentication auth,
+        @Nullable Profile profile,
+        @Nullable DataAttachment dataAttachment,
+        @Nullable EmailAttachments emailAttachments
+    ) {
         this.email = email;
         this.account = account;
         this.auth = auth;
@@ -85,12 +96,12 @@ public class EmailAction implements Action {
 
         EmailAction action = (EmailAction) o;
 
-        return Objects.equals(email, action.email) &&
-                Objects.equals(account, action.account) &&
-                Objects.equals(auth, action.auth) &&
-                Objects.equals(profile, action.profile) &&
-                Objects.equals(emailAttachments, action.emailAttachments) &&
-                Objects.equals(dataAttachment, action.dataAttachment);
+        return Objects.equals(email, action.email)
+            && Objects.equals(account, action.account)
+            && Objects.equals(auth, action.auth)
+            && Objects.equals(profile, action.profile)
+            && Objects.equals(emailAttachments, action.emailAttachments)
+            && Objects.equals(dataAttachment, action.dataAttachment);
     }
 
     @Override
@@ -125,8 +136,8 @@ public class EmailAction implements Action {
         return builder.endObject();
     }
 
-    public static EmailAction parse(String watchId, String actionId, XContentParser parser,
-                                    EmailAttachmentsParser emailAttachmentsParser) throws IOException {
+    public static EmailAction parse(String watchId, String actionId, XContentParser parser, EmailAttachmentsParser emailAttachmentsParser)
+        throws IOException {
         EmailTemplate.Parser emailParser = new EmailTemplate.Parser();
         String account = null;
         String user = null;
@@ -144,8 +155,14 @@ public class EmailAction implements Action {
                 try {
                     dataAttachment = DataAttachment.parse(parser);
                 } catch (IOException ioe) {
-                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse data attachment field " +
-                            "[{}]", ioe, TYPE, watchId, actionId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] action [{}/{}]. failed to parse data attachment field " + "[{}]",
+                        ioe,
+                        TYPE,
+                        watchId,
+                        actionId,
+                        currentFieldName
+                    );
                 }
             } else if (Field.ATTACHMENTS.match(currentFieldName, parser.getDeprecationHandler())) {
                 attachments = emailAttachmentsParser.parse(parser);
@@ -164,12 +181,22 @@ public class EmailAction implements Action {
                             throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]", TYPE, watchId, actionId, iae);
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE,
-                                watchId, actionId, currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse [{}] action [{}/{}]. unexpected string field [{}]",
+                            TYPE,
+                            watchId,
+                            actionId,
+                            currentFieldName
+                        );
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId,
-                            actionId, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] action [{}/{}]. unexpected token [{}]",
+                        TYPE,
+                        watchId,
+                        actionId,
+                        token
+                    );
                 }
             }
         }
@@ -214,9 +241,9 @@ public class EmailAction implements Action {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder.startObject(type)
-                        .field(Field.ACCOUNT.getPreferredName(), account)
-                        .field(Field.MESSAGE.getPreferredName(), email, params)
-                        .endObject();
+                    .field(Field.ACCOUNT.getPreferredName(), account)
+                    .field(Field.MESSAGE.getPreferredName(), email, params)
+                    .endObject();
             }
         }
 
@@ -235,9 +262,7 @@ public class EmailAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.MESSAGE.getPreferredName(), email, params)
-                        .endObject();
+                return builder.startObject(type).field(Field.MESSAGE.getPreferredName(), email, params).endObject();
             }
         }
     }
@@ -245,11 +270,16 @@ public class EmailAction implements Action {
     public static class Builder implements Action.Builder<EmailAction> {
 
         final EmailTemplate email;
-        @Nullable String account;
-        @Nullable Authentication auth;
-        @Nullable Profile profile;
-        @Nullable DataAttachment dataAttachment;
-        @Nullable EmailAttachments attachments;
+        @Nullable
+        String account;
+        @Nullable
+        Authentication auth;
+        @Nullable
+        Profile profile;
+        @Nullable
+        DataAttachment dataAttachment;
+        @Nullable
+        EmailAttachments attachments;
 
         private Builder(EmailTemplate email) {
             this.email = email;

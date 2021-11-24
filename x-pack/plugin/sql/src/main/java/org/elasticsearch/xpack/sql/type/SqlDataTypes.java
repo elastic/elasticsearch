@@ -139,7 +139,9 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
     }
 
-    private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Stream.of(
+    private static final Collection<DataType> TYPES = Stream.concat(
+        DataTypes.types().stream(),
+        Stream.of(
             DATE,
             TIME,
             INTERVAL_YEAR,
@@ -157,12 +159,11 @@ public class SqlDataTypes {
             INTERVAL_MINUTE_TO_SECOND,
             GEO_SHAPE,
             GEO_POINT,
-            SHAPE))
-            .sorted(Comparator.comparing(DataType::typeName))
-            .collect(toUnmodifiableList());
+            SHAPE
+        )
+    ).sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
 
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
-            .collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static final Map<String, DataType> ES_TO_TYPE;
 
@@ -244,10 +245,16 @@ public class SqlDataTypes {
     }
 
     public static boolean isDayTimeInterval(DataType dataType) {
-        return dataType == INTERVAL_DAY || dataType == INTERVAL_HOUR  || dataType == INTERVAL_MINUTE || dataType == INTERVAL_SECOND
-                || dataType == INTERVAL_DAY_TO_HOUR || dataType == INTERVAL_DAY_TO_MINUTE  || dataType == INTERVAL_DAY_TO_SECOND
-                || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_SECOND
-                || dataType == INTERVAL_MINUTE_TO_SECOND;
+        return dataType == INTERVAL_DAY
+            || dataType == INTERVAL_HOUR
+            || dataType == INTERVAL_MINUTE
+            || dataType == INTERVAL_SECOND
+            || dataType == INTERVAL_DAY_TO_HOUR
+            || dataType == INTERVAL_DAY_TO_MINUTE
+            || dataType == INTERVAL_DAY_TO_SECOND
+            || dataType == INTERVAL_HOUR_TO_MINUTE
+            || dataType == INTERVAL_HOUR_TO_SECOND
+            || dataType == INTERVAL_MINUTE_TO_SECOND;
     }
 
     public static boolean isDateBased(DataType type) {
@@ -276,11 +283,11 @@ public class SqlDataTypes {
 
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
-                || dataType == DATE         // because of date formats
-                || dataType == DATETIME
-                || dataType == SCALED_FLOAT // because of scaling_factor
-                || dataType == GEO_POINT
-                || dataType == SHAPE;
+            || dataType == DATE         // because of date formats
+            || dataType == DATETIME
+            || dataType == SCALED_FLOAT // because of scaling_factor
+            || dataType == GEO_POINT
+            || dataType == SHAPE;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -288,11 +295,12 @@ public class SqlDataTypes {
             return true;
         } else {
             return (left == NULL || right == NULL)
-                    || (DataTypes.isString(left) && DataTypes.isString(right))
-                    || (left.isNumeric() && right.isNumeric())
-                    || (isDateBased(left) && isDateBased(right))
-                    || (isInterval(left) && isDateBased(right)) || (isDateBased(left) && isInterval(right))
-                    || (isInterval(left) && isInterval(right) && Intervals.compatibleInterval(left, right) != null);
+                || (DataTypes.isString(left) && DataTypes.isString(right))
+                || (left.isNumeric() && right.isNumeric())
+                || (isDateBased(left) && isDateBased(right))
+                || (isInterval(left) && isDateBased(right))
+                || (isDateBased(left) && isInterval(right))
+                || (isInterval(left) && isInterval(right) && Intervals.compatibleInterval(left, right) != null);
         }
     }
 
@@ -615,7 +623,7 @@ public class SqlDataTypes {
             return dataType.size();
         }
         if (dataType == GEO_POINT) {
-            //2 doubles + len("POINT( )")
+            // 2 doubles + len("POINT( )")
             return 25 * 2 + 8;
         }
         if (dataType == SHAPE) {
@@ -687,15 +695,15 @@ public class SqlDataTypes {
 
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlRadix(DataType t) {
-        // RADIX  - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
+        // RADIX - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
         // 10 means they represent the number of decimal digits allowed for the column.
         // 2 means they represent the number of bits allowed for the column.
         // null means radix is not applicable for the given type.
         return t.isInteger() ? Integer.valueOf(10) : (t.isRational() ? Integer.valueOf(2) : null);
     }
 
-    //https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function#comments
-    //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function#comments
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size
     public static Integer precision(DataType t) {
         if (t.isNumeric()) {
             return defaultPrecision(t);

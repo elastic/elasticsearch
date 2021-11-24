@@ -10,9 +10,9 @@ package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 
-public class BroadcastResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.broadcast.BroadcastResponse,
+public class BroadcastResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.support.broadcast.BroadcastResponse,
     BroadcastResponse> {
 
     private String index;
@@ -45,7 +46,8 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
             final DefaultShardOperationFailedException failure = new DefaultShardOperationFailedException(
                 index,
                 randomValueOtherThanMany(shardIds::contains, () -> randomIntBetween(0, total - 1)),
-                new RetentionLeaseNotFoundException(id));
+                new RetentionLeaseNotFoundException(id)
+            );
             failures.add(failure);
             shardIds.add(failure.shardId());
         }
@@ -59,8 +61,10 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.support.broadcast.BroadcastResponse serverTestInstance,
-                                   BroadcastResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.support.broadcast.BroadcastResponse serverTestInstance,
+        BroadcastResponse clientInstance
+    ) {
         assertThat(clientInstance.shards().total(), equalTo(serverTestInstance.getTotalShards()));
         assertThat(clientInstance.shards().successful(), equalTo(serverTestInstance.getSuccessfulShards()));
         assertThat(clientInstance.shards().skipped(), equalTo(0));

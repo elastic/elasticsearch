@@ -9,14 +9,15 @@
 package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
+
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
-import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
+import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -96,6 +97,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "--illegal-access=deny",
+                "-Djava.security.manager=allow",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",

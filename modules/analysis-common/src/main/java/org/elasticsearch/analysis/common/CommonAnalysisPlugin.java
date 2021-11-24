@@ -27,6 +27,8 @@ import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
+import org.apache.lucene.analysis.classic.ClassicFilter;
+import org.apache.lucene.analysis.classic.ClassicTokenizer;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
@@ -40,6 +42,7 @@ import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.de.GermanNormalizationFilter;
 import org.apache.lucene.analysis.de.GermanStemFilter;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
+import org.apache.lucene.analysis.email.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
@@ -62,7 +65,6 @@ import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
 import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilter;
@@ -89,10 +91,7 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.apache.lucene.analysis.standard.ClassicFilter;
-import org.apache.lucene.analysis.standard.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
@@ -109,7 +108,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
@@ -123,6 +121,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -131,6 +130,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.tartarus.snowball.ext.DutchStemmer;
 import org.tartarus.snowball.ext.FrenchStemmer;
 
@@ -148,16 +148,23 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonAnalysisPlugin.class);
 
-    private final SetOnce<ScriptService> scriptService = new SetOnce<>();
+    private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        this.scriptService.set(scriptService);
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        this.scriptServiceHolder.set(scriptService);
         return Collections.emptyList();
     }
 
@@ -227,8 +234,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("classic", ClassicFilterFactory::new);
         filters.put("czech_stem", CzechStemTokenFilterFactory::new);
         filters.put("common_grams", requiresAnalysisSettings(CommonGramsTokenFilterFactory::new));
-        filters.put("condition",
-            requiresAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptService.get())));
+        filters.put(
+            "condition",
+            requiresAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptServiceHolder.get()))
+        );
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
@@ -240,12 +249,16 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
                         throw new IllegalArgumentException(
-                                "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                                        + "Please change the filter name to [edge_ngram] instead.");
+                            "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                                + "Please change the filter name to [edge_ngram] instead."
+                        );
                     } else {
-                        deprecationLogger.critical(DeprecationCategory.ANALYSIS, "edgeNGram_deprecation",
+                        deprecationLogger.warn(
+                            DeprecationCategory.ANALYSIS,
+                            "edgeNGram_deprecation",
                             "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                             + "Please change the filter name to [edge_ngram] instead.");
+                                + "Please change the filter name to [edge_ngram] instead."
+                        );
                     }
                     return super.create(tokenStream);
                 }
@@ -277,12 +290,16 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
                         throw new IllegalArgumentException(
-                                "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
-                                        + "Please change the filter name to [ngram] instead.");
+                            "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
+                                + "Please change the filter name to [ngram] instead."
+                        );
                     } else {
-                        deprecationLogger.critical(DeprecationCategory.ANALYSIS, "nGram_deprecation",
+                        deprecationLogger.warn(
+                            DeprecationCategory.ANALYSIS,
+                            "nGram_deprecation",
                             "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                            + "Please change the filter name to [ngram] instead.");
+                                + "Please change the filter name to [ngram] instead."
+                        );
                     }
                     return super.create(tokenStream);
                 }
@@ -293,8 +310,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
         filters.put("porter_stem", PorterStemTokenFilterFactory::new);
-        filters.put("predicate_token_filter",
-            requiresAnalysisSettings((i, e, n, s) -> new PredicateTokenFilterScriptFactory(i, n, s, scriptService.get())));
+        filters.put(
+            "predicate_token_filter",
+            requiresAnalysisSettings((i, e, n, s) -> new PredicateTokenFilterScriptFactory(i, n, s, scriptServiceHolder.get()))
+        );
         filters.put("remove_duplicates", RemoveDuplicatesTokenFilterFactory::new);
         filters.put("reverse", ReverseTokenFilterFactory::new);
         filters.put("russian_stem", RussianStemTokenFilterFactory::new);
@@ -333,24 +352,34 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
             if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
-                throw new IllegalArgumentException("The [nGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead.");
+                throw new IllegalArgumentException(
+                    "The [nGram] tokenizer name was deprecated in 7.6. "
+                        + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
+                );
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(DeprecationCategory.ANALYSIS, "nGram_tokenizer_deprecation",
+                deprecationLogger.warn(
+                    DeprecationCategory.ANALYSIS,
+                    "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [ngram] instead.");
+                        + "Please change the tokenizer name to [ngram] instead."
+                );
             }
             return new NGramTokenizerFactory(indexSettings, environment, name, settings);
         });
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
             if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
-                throw new IllegalArgumentException("The [edgeNGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead.");
+                throw new IllegalArgumentException(
+                    "The [edgeNGram] tokenizer name was deprecated in 7.6. "
+                        + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead."
+                );
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(DeprecationCategory.ANALYSIS, "edgeNGram_tokenizer_deprecation",
+                deprecationLogger.warn(
+                    DeprecationCategory.ANALYSIS,
+                    "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [edge_ngram] instead.");
+                        + "Please change the tokenizer name to [edge_ngram] instead."
+                );
             }
             return new EdgeNGramTokenizerFactory(indexSettings, environment, name, settings);
         });
@@ -372,11 +401,20 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH,
-            () -> new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true,
-            CharArraySet.EMPTY_SET)));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("snowball", CachingStrategy.LUCENE,
-            () -> new SnowballAnalyzer("English", EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)));
+        analyzers.add(
+            new PreBuiltAnalyzerProviderFactory(
+                "pattern",
+                CachingStrategy.ELASTICSEARCH,
+                () -> new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET)
+            )
+        );
+        analyzers.add(
+            new PreBuiltAnalyzerProviderFactory(
+                "snowball",
+                CachingStrategy.LUCENE,
+                () -> new SnowballAnalyzer("English", EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)
+            )
+        );
 
         // Language analyzers:
         analyzers.add(new PreBuiltAnalyzerProviderFactory("arabic", CachingStrategy.LUCENE, ArabicAnalyzer::new));
@@ -387,8 +425,13 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.add(new PreBuiltAnalyzerProviderFactory("bulgarian", CachingStrategy.LUCENE, BulgarianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("catalan", CachingStrategy.LUCENE, CatalanAnalyzer::new));
         // chinese analyzer: only for old indices, best effort
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.ONE,
-            () -> new StandardAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)));
+        analyzers.add(
+            new PreBuiltAnalyzerProviderFactory(
+                "chinese",
+                CachingStrategy.ONE,
+                () -> new StandardAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)
+            )
+        );
         analyzers.add(new PreBuiltAnalyzerProviderFactory("cjk", CachingStrategy.LUCENE, CJKAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("czech", CachingStrategy.LUCENE, CzechAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("danish", CachingStrategy.LUCENE, DanishAnalyzer::new));
@@ -439,19 +482,27 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("cjk_bigram", false, CJKBigramFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("cjk_width", true, CJKWidthFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("classic", false, ClassicFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("common_grams", false, false,
-                input -> new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
+        filters.add(
+            PreConfiguredTokenFilter.singleton("common_grams", false, false, input -> new CommonGramsFilter(input, CharArraySet.EMPTY_SET))
+        );
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("delimited_payload", false, input ->
-                new DelimitedPayloadTokenFilter(input,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
+        filters.add(
+            PreConfiguredTokenFilter.singleton(
+                "delimited_payload",
+                false,
+                input -> new DelimitedPayloadTokenFilter(
+                    input,
+                    DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
+                    DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER
+                )
+            )
+        );
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
-        filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input ->
-                new EdgeNGramTokenFilter(input, 1)));
-        filters.add(PreConfiguredTokenFilter.singleton("elision", true,
-                input -> new ElisionFilter(input, FrenchAnalyzer.DEFAULT_ARTICLES)));
+        filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input -> new EdgeNGramTokenFilter(input, 1)));
+        filters.add(
+            PreConfiguredTokenFilter.singleton("elision", true, input -> new ElisionFilter(input, FrenchAnalyzer.DEFAULT_ARTICLES))
+        );
         filters.add(PreConfiguredTokenFilter.singleton("french_stem", false, input -> new SnowballFilter(input, new FrenchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("german_normalization", true, GermanNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("german_stem", false, GermanStemFilter::new));
@@ -461,10 +512,17 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("kstem", false, KStemFilter::new));
         // TODO this one seems useless
         filters.add(PreConfiguredTokenFilter.singleton("length", false, input -> new LengthFilter(input, 0, Integer.MAX_VALUE)));
-        filters.add(PreConfiguredTokenFilter.singleton("limit", false, input ->
-                new LimitTokenCountFilter(input,
-                        LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT,
-                        LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS)));
+        filters.add(
+            PreConfiguredTokenFilter.singleton(
+                "limit",
+                false,
+                input -> new LimitTokenCountFilter(
+                    input,
+                    LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT,
+                    LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS
+                )
+            )
+        );
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
@@ -487,28 +545,39 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("sorani_normalization", true, SoraniNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("stemmer", false, PorterStemFilter::new));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
-        filters.add(PreConfiguredTokenFilter.singleton("stop", false,
-            input -> new StopFilter(input, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)));
+        filters.add(
+            PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))
+        );
         filters.add(PreConfiguredTokenFilter.singleton("trim", true, TrimFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> new TruncateTokenFilter(input, 10)));
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("word_delimiter", false, false, input ->
-                new WordDelimiterFilter(input,
-                        WordDelimiterFilter.GENERATE_WORD_PARTS
-                      | WordDelimiterFilter.GENERATE_NUMBER_PARTS
-                      | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
-                      | WordDelimiterFilter.SPLIT_ON_NUMERICS
-                      | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
+        filters.add(
+            PreConfiguredTokenFilter.singleton(
+                "word_delimiter",
+                false,
+                false,
+                input -> new WordDelimiterFilter(
+                    input,
+                    WordDelimiterFilter.GENERATE_WORD_PARTS | WordDelimiterFilter.GENERATE_NUMBER_PARTS
+                        | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE | WordDelimiterFilter.SPLIT_ON_NUMERICS
+                        | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE,
+                    null
+                )
+            )
+        );
         filters.add(PreConfiguredTokenFilter.elasticsearchVersion("word_delimiter_graph", false, false, (input, version) -> {
             boolean adjustOffsets = version.onOrAfter(Version.V_7_3_0);
-            return new WordDelimiterGraphFilter(input, adjustOffsets, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
-                        WordDelimiterGraphFilter.GENERATE_WORD_PARTS
-                      | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
-                      | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE
-                      | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
-                      | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null);
+            return new WordDelimiterGraphFilter(
+                input,
+                adjustOffsets,
+                WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
+                WordDelimiterGraphFilter.GENERATE_WORD_PARTS | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
+                    | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
+                    | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE,
+                null
+            );
         }));
         return filters;
     }
@@ -538,23 +607,33 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("nGram", (version) -> {
             if (version.onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
-                throw new IllegalArgumentException("The [nGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead.");
+                throw new IllegalArgumentException(
+                    "The [nGram] tokenizer name was deprecated in 7.6. "
+                        + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
+                );
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(DeprecationCategory.ANALYSIS, "nGram_tokenizer_deprecation",
+                deprecationLogger.warn(
+                    DeprecationCategory.ANALYSIS,
+                    "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [ngram] instead.");
+                        + "Please change the tokenizer name to [ngram] instead."
+                );
             }
             return new NGramTokenizer();
         }));
         tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edgeNGram", (version) -> {
             if (version.onOrAfter(org.elasticsearch.Version.V_8_0_0)) {
-                throw new IllegalArgumentException("The [edgeNGram] tokenizer name was deprecated in 7.6. "
-                        + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead.");
+                throw new IllegalArgumentException(
+                    "The [edgeNGram] tokenizer name was deprecated in 7.6. "
+                        + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead."
+                );
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(DeprecationCategory.ANALYSIS, "edgeNGram_tokenizer_deprecation",
+                deprecationLogger.warn(
+                    DeprecationCategory.ANALYSIS,
+                    "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                        + "Please change the tokenizer name to [edge_ngram] instead.");
+                        + "Please change the tokenizer name to [edge_ngram] instead."
+                );
             }
             if (version.onOrAfter(Version.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

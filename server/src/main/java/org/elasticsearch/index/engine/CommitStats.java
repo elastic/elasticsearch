@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +55,6 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
         return in.readOptionalWriteable(CommitStats::new);
     }
-
 
     public Map<String, String> getUserData() {
         return userData;

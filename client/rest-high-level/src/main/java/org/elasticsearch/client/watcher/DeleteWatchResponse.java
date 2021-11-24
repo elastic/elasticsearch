@@ -7,17 +7,20 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class DeleteWatchResponse {
 
-    private static final ObjectParser<DeleteWatchResponse, Void> PARSER
-        = new ObjectParser<>("x_pack_delete_watch_response", true, DeleteWatchResponse::new);
+    private static final ObjectParser<DeleteWatchResponse, Void> PARSER = new ObjectParser<>(
+        "x_pack_delete_watch_response",
+        true,
+        DeleteWatchResponse::new
+    );
     static {
         PARSER.declareString(DeleteWatchResponse::setId, new ParseField("_id"));
         PARSER.declareLong(DeleteWatchResponse::setVersion, new ParseField("_version"));
@@ -28,8 +31,7 @@ public class DeleteWatchResponse {
     private long version;
     private boolean found;
 
-    public DeleteWatchResponse() {
-    }
+    public DeleteWatchResponse() {}
 
     public DeleteWatchResponse(String id, long version, boolean found) {
         this.id = id;

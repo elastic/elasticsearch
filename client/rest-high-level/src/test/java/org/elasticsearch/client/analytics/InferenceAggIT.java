@@ -23,11 +23,11 @@ import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeNode;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -64,7 +64,7 @@ public class InferenceAggIT extends ESRestHighLevelClientTestCase {
 
         Map<String, String> bucketPaths = new HashMap<>();
         bucketPaths.put("cost", "avg_cost");
-        InferencePipelineAggregationBuilder inferenceAgg = new InferencePipelineAggregationBuilder("infer", modelId,  bucketPaths);
+        InferencePipelineAggregationBuilder inferenceAgg = new InferencePipelineAggregationBuilder("infer", modelId, bucketPaths);
         termsAgg.subAggregation(inferenceAgg);
 
         SearchRequest search = new SearchRequest(index);
@@ -104,8 +104,7 @@ public class InferenceAggIT extends ESRestHighLevelClientTestCase {
 
     private void indexData(String index) throws IOException {
         CreateIndexRequest create = new CreateIndexRequest(index);
-        create.mapping("{\"properties\": {\"fruit\": {\"type\": \"keyword\"}," +
-            "\"cost\": {\"type\": \"double\"}}}", XContentType.JSON);
+        create.mapping("{\"properties\": {\"fruit\": {\"type\": \"keyword\"}," + "\"cost\": {\"type\": \"double\"}}}", XContentType.JSON);
         highLevelClient().indices().create(create, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulk.add(new IndexRequest().source(XContentType.JSON, "fruit", "apple", "cost", "1.2"));

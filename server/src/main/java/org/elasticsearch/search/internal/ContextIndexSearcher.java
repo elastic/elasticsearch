@@ -16,7 +16,7 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -32,9 +32,9 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -63,16 +63,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
 
-    public ContextIndexSearcher(IndexReader reader, Similarity similarity,
-                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                boolean wrapWithExitableDirectoryReader) throws IOException {
+    public ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        boolean wrapWithExitableDirectoryReader
+    ) throws IOException {
         this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader);
     }
 
-    private ContextIndexSearcher(IndexReader reader, Similarity similarity,
-                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                 MutableQueryTimeout cancellable,
-                                 boolean wrapWithExitableDirectoryReader) throws IOException {
+    private ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        MutableQueryTimeout cancellable,
+        boolean wrapWithExitableDirectoryReader
+    ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
         setSimilarity(similarity);
         setQueryCache(queryCache);
@@ -194,8 +202,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             Scorer scorer = weight.scorer(ctx);
             if (scorer != null) {
                 try {
-                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                            this.cancellable.isEnabled() ? cancellable::checkCancelled: () -> {});
+                    intersectScorerAndBitSet(
+                        scorer,
+                        liveDocsBitSet,
+                        leafCollector,
+                        this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
+                    );
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
@@ -207,11 +219,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private Weight wrapWeight(Weight weight) {
         if (cancellable.isEnabled()) {
             return new Weight(weight.getQuery()) {
-                @Override
-                public void extractTerms(Set<Term> terms) {
-                    throw new UnsupportedOperationException();
-                }
-
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                     throw new UnsupportedOperationException();
@@ -242,27 +249,27 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
-
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
         if (liveDocs instanceof SparseFixedBitSet) {
             return (BitSet) liveDocs;
         } else if (liveDocs instanceof CombinedBitSet
-                        // if the underlying role bitset is sparse
-                        && ((CombinedBitSet) liveDocs).getFirst() instanceof SparseFixedBitSet) {
-            return (BitSet) liveDocs;
-        } else {
-            return null;
-        }
+            // if the underlying role bitset is sparse
+            && ((CombinedBitSet) liveDocs).getFirst() instanceof SparseFixedBitSet) {
+                return (BitSet) liveDocs;
+            } else {
+                return null;
+            }
 
     }
 
-    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs,
-                                         LeafCollector collector, Runnable checkCancelled) throws IOException {
+    static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)
+        throws IOException {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
-        DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(new BitSetIterator(acceptDocs,
-            acceptDocs.approximateCardinality()), scorer.iterator()));
+        DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
+            Arrays.asList(new BitSetIterator(acceptDocs, acceptDocs.approximateCardinality()), scorer.iterator())
+        );
         int seen = 0;
         checkCancelled.run();
         for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {

@@ -7,21 +7,21 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -103,8 +103,10 @@ public class Accuracy implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                        EvaluationFields fields) {
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+        EvaluationParameters parameters,
+        EvaluationFields fields
+    ) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
         this.actualField.trySet(fields.getActualField());
         List<AggregationBuilder> aggs = new ArrayList<>();
@@ -133,7 +135,9 @@ public class Accuracy implements EvaluationMetric {
                 // This means there were more than {@code maxClassesCardinality} buckets.
                 // We cannot calculate per-class accuracy accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate per-class accuracy. Cardinality of field [{}] is too high", actualField.get());
+                    "Cannot calculate per-class accuracy. Cardinality of field [{}] is too high",
+                    actualField.get()
+                );
             }
             result.set(new Result(computePerClassAccuracy(matrix.getResult().get()), overallAccuracy.get()));
         }
@@ -154,8 +158,10 @@ public class Accuracy implements EvaluationMetric {
         // Number of actual classes taken into account
         int n = matrixResult.getConfusionMatrix().size();
         // Total number of documents taken into account
-        long totalDocCount =
-            matrixResult.getConfusionMatrix().stream().mapToLong(MulticlassConfusionMatrix.ActualClass::getActualClassDocCount).sum();
+        long totalDocCount = matrixResult.getConfusionMatrix()
+            .stream()
+            .mapToLong(MulticlassConfusionMatrix.ActualClass::getActualClassDocCount)
+            .sum();
         List<PerClassSingleValue> classes = new ArrayList<>(n);
         for (int i = 0; i < n; ++i) {
             String className = matrixResult.getConfusionMatrix().get(i).getActualClass();
@@ -171,7 +177,7 @@ public class Accuracy implements EvaluationMetric {
             }
             // Subtract errors (false negatives) for classes other than explicitly listed in confusion matrix
             correctDocCount -= matrixResult.getConfusionMatrix().get(i).getOtherPredictedClassDocCount();
-            classes.add(new PerClassSingleValue(className, ((double)correctDocCount) / totalDocCount));
+            classes.add(new PerClassSingleValue(className, ((double) correctDocCount) / totalDocCount));
         }
         return classes;
     }
@@ -207,8 +213,11 @@ public class Accuracy implements EvaluationMetric {
         private static final ParseField OVERALL_ACCURACY = new ParseField("overall_accuracy");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "accuracy_result",
+            true,
+            a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1])
+        );
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
@@ -272,8 +281,7 @@ public class Accuracy implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.classes, that.classes)
-                && this.overallAccuracy == that.overallAccuracy;
+            return Objects.equals(this.classes, that.classes) && this.overallAccuracy == that.overallAccuracy;
         }
 
         @Override

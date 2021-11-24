@@ -19,14 +19,15 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -79,9 +80,8 @@ public class GoogleCloudStorageService {
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(final String clientName,
-                          final String repositoryName,
-                          final GoogleCloudStorageOperationsStats stats) throws IOException {
+    public Storage client(final String clientName, final String repositoryName, final GoogleCloudStorageOperationsStats stats)
+        throws IOException {
         {
             final Storage storage = clientCache.get(repositoryName);
             if (storage != null) {
@@ -98,12 +98,17 @@ public class GoogleCloudStorageService {
             final GoogleCloudStorageClientSettings settings = clientSettings.get(clientName);
 
             if (settings == null) {
-                throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
-                    + Strings.collectionToDelimitedString(clientSettings.keySet(), ","));
+                throw new IllegalArgumentException(
+                    "Unknown client name ["
+                        + clientName
+                        + "]. Existing client configs: "
+                        + Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
+                );
             }
 
-            logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
-                settings.getHost()));
+            logger.debug(
+                () -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName, settings.getHost())
+            );
             final Storage storage = createClient(settings, stats);
             clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
             return storage;
@@ -117,13 +122,13 @@ public class GoogleCloudStorageService {
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects. The client is thread-safe.
      *
-     * @param clientSettings client settings to use, including secure settings
+     * @param gcsClientSettings client settings to use, including secure settings
      * @param stats the stats collector to use by the underlying SDK
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(GoogleCloudStorageClientSettings clientSettings,
-                                 GoogleCloudStorageOperationsStats stats) throws IOException {
+    private Storage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GoogleCloudStorageOperationsStats stats)
+        throws IOException {
         final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
             // requires java.lang.RuntimePermission "setFactory"
@@ -140,44 +145,47 @@ public class GoogleCloudStorageService {
 
         final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
 
-        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(HttpTransportOptions.newBuilder()
-            .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
-            .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
-            .setHttpTransportFactory(() -> httpTransport)) {
+        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
+            HttpTransportOptions.newBuilder()
+                .setConnectTimeout(toTimeout(gcsClientSettings.getConnectTimeout()))
+                .setReadTimeout(toTimeout(gcsClientSettings.getReadTimeout()))
+                .setHttpTransportFactory(() -> httpTransport)
+        ) {
 
             @Override
             public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
                 HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
 
                 return (httpRequest) -> {
-                    if (requestInitializer != null)
-                        requestInitializer.initialize(httpRequest);
+                    if (requestInitializer != null) requestInitializer.initialize(httpRequest);
 
                     httpRequest.setResponseInterceptor(httpStatsCollector);
                 };
             }
         };
 
-        final StorageOptions storageOptions = createStorageOptions(clientSettings, httpTransportOptions);
+        final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
         return storageOptions.getService();
     }
 
-    StorageOptions createStorageOptions(final GoogleCloudStorageClientSettings clientSettings,
-                                        final HttpTransportOptions httpTransportOptions) {
+    StorageOptions createStorageOptions(
+        final GoogleCloudStorageClientSettings gcsClientSettings,
+        final HttpTransportOptions httpTransportOptions
+    ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-                .setTransportOptions(httpTransportOptions)
-                .setHeaderProvider(() -> {
-                    final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
-                    if (Strings.hasLength(clientSettings.getApplicationName())) {
-                        mapBuilder.put("user-agent", clientSettings.getApplicationName());
-                    }
-                    return mapBuilder.immutableMap();
-                });
-        if (Strings.hasLength(clientSettings.getHost())) {
-            storageOptionsBuilder.setHost(clientSettings.getHost());
+            .setTransportOptions(httpTransportOptions)
+            .setHeaderProvider(() -> {
+                final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+                if (Strings.hasLength(gcsClientSettings.getApplicationName())) {
+                    mapBuilder.put("user-agent", gcsClientSettings.getApplicationName());
+                }
+                return mapBuilder.immutableMap();
+            });
+        if (Strings.hasLength(gcsClientSettings.getHost())) {
+            storageOptionsBuilder.setHost(gcsClientSettings.getHost());
         }
-        if (Strings.hasLength(clientSettings.getProjectId())) {
-            storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
+        if (Strings.hasLength(gcsClientSettings.getProjectId())) {
+            storageOptionsBuilder.setProjectId(gcsClientSettings.getProjectId());
         } else {
             String defaultProjectId = null;
             try {
@@ -203,16 +211,16 @@ public class GoogleCloudStorageService {
                 }
             }
         }
-        if (clientSettings.getCredential() == null) {
+        if (gcsClientSettings.getCredential() == null) {
             try {
                 storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
             } catch (Exception e) {
                 logger.warn("failed to load Application Default Credentials", e);
             }
         } else {
-            ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
+            ServiceAccountCredentials serviceAccountCredentials = gcsClientSettings.getCredential();
             // override token server URI
-            final URI tokenServerUri = clientSettings.getTokenUri();
+            final URI tokenServerUri = gcsClientSettings.getTokenUri();
             if (Strings.hasLength(tokenServerUri.toString())) {
                 // Rebuild the service account credentials in order to use a custom Token url.
                 // This is mostly used for testing purpose.

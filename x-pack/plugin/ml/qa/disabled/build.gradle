@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 //  testImplementation project(path: xpackModule('ml'))
 //}
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

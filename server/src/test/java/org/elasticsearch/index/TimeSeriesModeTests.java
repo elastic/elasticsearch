@@ -11,13 +11,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -50,17 +43,13 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testSortMode() {
-        Settings s = Settings.builder().put(getSettings())
-            .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
     public void testSortOrder() {
-        Settings s = Settings.builder().put(getSettings())
-            .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
     }
@@ -72,10 +61,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRequiredRouting() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> createMapperService(s, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
@@ -84,36 +70,24 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testValidateAlias() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception
     }
 
     public void testValidateAliasWithIndexRouting() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias("r", null));
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
     public void testValidateAliasWithSearchRouting() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias(null, "r"));
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
     public void testRoutingPathMatchesObject() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.o" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.o" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             {
@@ -134,10 +108,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesNonDimensionKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.non_dim" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.non_dim" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_dim").field("type", "keyword").endObject();
@@ -154,10 +125,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesNonKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.non_kwd" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.non_kwd" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_kwd").field("type", "integer").field("time_series_dimension", true).endObject();
@@ -174,10 +142,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesScriptedKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.kwd" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.kwd" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim.kwd");
             b.field("type", "keyword");
@@ -195,10 +160,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesRuntimeKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.kwd" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.kwd" : "dim.*");
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> createMapperService(s, runtimeMapping(b -> b.startObject("dim.kwd").field("type", "keyword").endObject()))
@@ -213,10 +175,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesOnlyKeywordDimensions() throws IOException {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.metric_type,dim.server,dim.species,dim.uuid" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.metric_type,dim.server,dim.species,dim.uuid" : "dim.*");
         createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("metric_type").field("type", "keyword").field("time_series_dimension", true).endObject();

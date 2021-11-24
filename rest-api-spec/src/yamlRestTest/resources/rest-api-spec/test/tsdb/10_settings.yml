@@ -11,6 +11,9 @@ enable:
               index:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -52,6 +55,10 @@ no sort field:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
                 sort.field: ['a']
 
 ---
@@ -68,6 +75,10 @@ no sort order:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
                 sort.order: ['DESC']
 
 ---
@@ -84,6 +95,10 @@ no sort mode:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
                 sort.mode: ['MIN']
 
 ---
@@ -100,6 +115,10 @@ no sort missing:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
                 sort.missing: ['_last']
 
 ---
@@ -116,6 +135,10 @@ no partitioning:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
                 shards: 5
                 routing_partition_size: 2
 
@@ -133,7 +156,10 @@ routing_path required:
             settings:
               index:
                 mode: time_series
-                shards: 5
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
+                number_of_shards: 5
 
 ---
 routing_path is not allowed in standard mode:
@@ -165,6 +191,9 @@ routing required:
               index:
                 mode: time_series
                 routing_path: foo
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
             mappings:
               _routing:
                 required: true

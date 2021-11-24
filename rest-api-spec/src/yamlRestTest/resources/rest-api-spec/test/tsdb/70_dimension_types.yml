@@ -12,6 +12,9 @@ keyword dimension:
               index:
                 mode: time_series
                 routing_path: [uid]
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
             mappings:
               properties:
                 "@timestamp":
@@ -60,6 +63,9 @@ long dimension:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
             mappings:
               properties:
                 "@timestamp":
@@ -110,6 +116,9 @@ ip dimension:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
             mappings:
               properties:
                 "@timestamp":

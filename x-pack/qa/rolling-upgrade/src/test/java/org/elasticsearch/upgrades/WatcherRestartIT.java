@@ -135,9 +135,6 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
     }
 
     public void testEnsureWatcherDeletesLegacyTemplates() throws Exception {
-        client().performRequest(new Request("POST", "/_watcher/_start"));
-        ensureWatcherStarted();
-
         if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             // legacy index template created in previous releases should not be present anymore
             assertBusy(() -> {

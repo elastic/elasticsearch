@@ -94,7 +94,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                 } else {
                     // re register the repository under a different name: the snapshot
                     // pending deletion logic should try to delete the snapshot based
-                    // on the repository uuid
+                    // on the repository uuid, that is why we force a verification here
                     repoName = "new_" + repository;
                     createRepository(repoName, "mock", repositorySettings, true);
                 }

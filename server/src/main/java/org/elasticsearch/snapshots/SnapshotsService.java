@@ -992,17 +992,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
                 );
-                triggerSnapshotsPendingDeletions(event.state());
-            } else if (snapshotCompletionListeners.isEmpty() == false) {
-                // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
-                // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
-                // state).
-                for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
-                    if (endingSnapshots.add(snapshot)) {
-                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+            } else {
+                if (snapshotCompletionListeners.isEmpty() == false) {
+                    // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
+                    // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
+                    // state).
+                    for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
+                        if (endingSnapshots.add(snapshot)) {
+                            failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                        }
                     }
                 }
             }
+            triggerSnapshotsPendingDeletions(event);
         } catch (Exception e) {
             assert false : new AssertionError(e);
             logger.warn("Failed to update snapshot state ", e);
@@ -1296,6 +1298,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private final Set<SnapshotId> ongoingSnapshotsDeletions = ConcurrentCollections.newConcurrentSet();
 
     /**
+     * Set of pending snapshots deletions whose deletion is conflicting with on-going restores, clones or repository statuses
+     */
+    private final Set<SnapshotId> pendingDeletionsWithConflictingRestores = ConcurrentCollections.newConcurrentSet();
+    private final Set<SnapshotId> pendingDeletionsWithConflictingClones = ConcurrentCollections.newConcurrentSet();
+    private final Set<SnapshotId> pendingDeletionsWithConflictingRepos = ConcurrentCollections.newConcurrentSet();
+
+    /**
      * Find snapshots to delete in the the cluster state and triggers explicit snapshot delete requests. This method attempts to detect
      * conflicting situations where triggering the snapshot deletion would likely fail due to a concurrent snapshot operation. In such
      * cases the snapshot deletion is not triggered as it should be triggered by subsequent cluster state updates on the conflicting
@@ -1307,77 +1316,165 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * name. If the repo uuid was not known at the time the snapshot was added to {@link SnapshotDeletionsPending}, we try to find a
      * repository with the same name.
      *
-     * @param state the current {@link ClusterState}
+     * @param event the current {@link ClusterChangedEvent}
      */
-    private void triggerSnapshotsPendingDeletions(final ClusterState state) {
-        final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        final SnapshotDeletionsPending snapshotDeletionsPending = state.custom(SnapshotDeletionsPending.TYPE);
-        if (snapshotDeletionsPending == null
-            || snapshotDeletionsPending.isEmpty()
-            || repositories.repositories().isEmpty()
-            || state.nodes().isLocalNodeElectedMaster() == false
-            || state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()) {
+    private void triggerSnapshotsPendingDeletions(final ClusterChangedEvent event) {
+        if (event.localNodeMaster() == false) {
+            if (event.previousState().nodes().isLocalNodeElectedMaster()) {
+                clearPendingDeletionsWithConflicts();
+            }
             return;
         }
-        final Set<SnapshotId> currentDeletions = deletionsSources(state);
-        final Set<SnapshotId> currentRestores = restoreSources(state);
-        final Set<SnapshotId> currentClones = cloneSources(state);
 
-        // the list of snapshot ids to trigger deletion for, per repository
-        final Map<RepositoryMetadata, Set<SnapshotId>> snapshotsToDelete = new HashMap<>();
-
-        for (SnapshotDeletionsPending.Entry snapshot : snapshotDeletionsPending.entries()) {
-            final SnapshotId snapshotId = snapshot.getSnapshotId();
-
-            if (currentRestores.contains(snapshotId)) {
-                logger.trace("snapshot to delete [{}] is being restored, waiting for restore to complete", snapshotId);
-                continue;
-            } else if (currentClones.contains(snapshotId)) {
-                logger.trace("snapshot to delete [{}] is being cloned, waiting for cloning to complete", snapshotId);
-                continue;
-            } else if (currentDeletions.contains(snapshotId)) {
-                logger.trace("snapshot to delete [{}] is already queued", snapshotId);
-                continue;
+        if (pendingDeletionsChanged(event) || pendingDeletionsWithConflictsChanged(event)) {
+            final ClusterState state = event.state();
+            final SnapshotDeletionsPending snapshotDeletionsPending = state.custom(SnapshotDeletionsPending.TYPE);
+            if (snapshotDeletionsPending == null || snapshotDeletionsPending.isEmpty()) {
+                clearPendingDeletionsWithConflicts();
+                return;
             }
 
-            final Optional<RepositoryMetadata> optionalRepository = findRepositoryForPendingDeletion(
-                repositories,
-                snapshot.getRepositoryName(),
-                snapshot.getRepositoryUuid()
-            );
-            if (optionalRepository.isEmpty()) {
-                logger.debug(
-                    "repository [{}/{}] not found, cannot delete pending snapshot [{}] created at {}",
+            final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+
+            final Set<SnapshotId> currentDeletions = deletionsSources(state);
+            final Set<SnapshotId> currentRestores = restoreSources(state);
+            final Set<SnapshotId> currentClones = cloneSources(state);
+
+            // the list of snapshot ids to trigger deletion for, per repository
+            final Map<RepositoryMetadata, Set<SnapshotId>> snapshotsToDelete = new HashMap<>();
+
+            for (SnapshotDeletionsPending.Entry snapshot : snapshotDeletionsPending.entries()) {
+                final SnapshotId snapshotId = snapshot.getSnapshotId();
+
+                if (currentRestores.contains(snapshotId)) {
+                    logger.trace("snapshot to delete [{}] is being restored, waiting for restore to complete", snapshotId);
+                    pendingDeletionsWithConflictingRestores.add(snapshotId);
+                    continue;
+                }
+                pendingDeletionsWithConflictingRestores.remove(snapshotId);
+
+                if (currentClones.contains(snapshotId)) {
+                    logger.trace("snapshot to delete [{}] is being cloned, waiting for cloning to complete", snapshotId);
+                    pendingDeletionsWithConflictingClones.add(snapshotId);
+                    continue;
+                }
+                pendingDeletionsWithConflictingClones.remove(snapshotId);
+
+                if (currentDeletions.contains(snapshotId)) {
+                    logger.trace("snapshot to delete [{}] is already queued", snapshotId);
+                    pendingDeletionsWithConflictingRepos.remove(snapshotId);
+                    continue;
+                }
+
+                if (state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()) {
+                    if (pendingDeletionsWithConflictingRepos.add(snapshotId)) {
+                        logger.debug(
+                            "a repository clean-up is in progress, cannot delete pending snapshot [{}] created at {}",
+                            snapshotId,
+                            Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
+                        );
+                    }
+                    continue;
+                }
+
+                final Optional<RepositoryMetadata> optionalRepository = findRepositoryForPendingDeletion(
+                    repositories,
                     snapshot.getRepositoryName(),
-                    snapshot.getRepositoryUuid(),
-                    snapshotId,
-                    Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
+                    snapshot.getRepositoryUuid()
                 );
-                continue;
-            }
+                if (optionalRepository.isEmpty()) {
+                    if (pendingDeletionsWithConflictingRepos.add(snapshotId)) {
+                        logger.debug(
+                            "repository [{}/{}] not found, cannot delete pending snapshot [{}] created at {}",
+                            snapshot.getRepositoryName(),
+                            snapshot.getRepositoryUuid(),
+                            snapshotId,
+                            Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
+                        );
+                    }
+                    continue;
+                }
+                final RepositoryMetadata repository = optionalRepository.get();
+                if (repository.settings().getAsBoolean(READONLY_SETTING_KEY, false)) {
+                    if (pendingDeletionsWithConflictingRepos.add(snapshotId)) {
+                        logger.debug(
+                            "repository [{}/{}] is read-only, cannot delete pending snapshot [{}] created at {}",
+                            repository.name(),
+                            repository.uuid(),
+                            snapshotId,
+                            Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
+                        );
+                    }
+                    continue;
+                }
+                pendingDeletionsWithConflictingRepos.remove(snapshotId);
 
-            final RepositoryMetadata repository = optionalRepository.get();
-            if (repository.settings().getAsBoolean(READONLY_SETTING_KEY, false)) {
-                logger.debug(
-                    "repository [{}/{}] is read-only, cannot delete pending snapshot [{}] created at {}",
-                    repository.name(),
-                    repository.uuid(),
-                    snapshotId,
-                    Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
-                );
-                continue;
+                // should we add some throttling to not always retry?
+                if (ongoingSnapshotsDeletions.add(snapshotId)) {
+                    logger.info("triggering snapshot deletion for [{}]", snapshotId);
+                    final boolean added = snapshotsToDelete.computeIfAbsent(repository, r -> new HashSet<>()).add(snapshotId);
+                    assert added : snapshotId;
+                }
             }
+            snapshotsToDelete.forEach(
+                (repo, snapshots) -> threadPool.generic().execute(new SnapshotsToDeleteRunnable(repo.name(), repo.uuid(), snapshots))
+            );
+        }
+    }
 
-            // should we add some throttling to not always retry?
-            if (ongoingSnapshotsDeletions.add(snapshotId)) {
-                logger.trace("triggering snapshot deletion for [{}]", snapshotId);
-                final boolean added = snapshotsToDelete.computeIfAbsent(repository, r -> new HashSet<>()).add(snapshotId);
-                assert added : snapshotId;
+    private void clearPendingDeletionsWithConflicts() {
+        pendingDeletionsWithConflictingRestores.clear();
+        pendingDeletionsWithConflictingClones.clear();
+        pendingDeletionsWithConflictingRepos.clear();
+    }
+
+    private static boolean pendingDeletionsChanged(ClusterChangedEvent event) {
+        SnapshotDeletionsPending previous = event.previousState().custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
+        SnapshotDeletionsPending currents = event.state().custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
+        return Objects.equals(previous, currents) == false;
+    }
+
+    private boolean pendingDeletionsWithConflictsChanged(ClusterChangedEvent event) {
+        if (pendingDeletionsWithConflictingRestores.isEmpty() == false) {
+            RestoreInProgress previous = event.previousState().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            RestoreInProgress currents = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            if (Objects.equals(previous, currents) == false) {
+                return true;
             }
         }
-        snapshotsToDelete.forEach(
-            (repo, snapshots) -> threadPool.generic().execute(new SnapshotsToDeleteRunnable(repo.name(), repo.uuid(), snapshots))
-        );
+        if (pendingDeletionsWithConflictingClones.isEmpty() == false) {
+            Set<SnapshotsInProgress.Entry> previous = event.previousState()
+                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .asStream()
+                .filter(SnapshotsInProgress.Entry::isClone)
+                .collect(Collectors.toSet());
+            Set<SnapshotsInProgress.Entry> currents = event.state()
+                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .asStream()
+                .filter(SnapshotsInProgress.Entry::isClone)
+                .collect(Collectors.toSet());
+            if (Objects.equals(previous, currents) == false) {
+                return true;
+            }
+        }
+        if (pendingDeletionsWithConflictingRepos.isEmpty() == false) {
+            boolean previousCleanUp = event.previousState()
+                .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY)
+                .hasCleanupInProgress();
+            boolean currentCleanUp = event.state()
+                .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY)
+                .hasCleanupInProgress();
+            if (previousCleanUp != currentCleanUp) {
+                return true;
+            }
+
+            RepositoriesMetadata previous = event.previousState().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            RepositoriesMetadata current = event.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            if (previous.equals(current) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1426,6 +1523,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             shouldRetry = RepositoryData.MISSING_UUID.equals(repositoryUuid) == false;
 
                         } else if (e instanceof ConcurrentSnapshotExecutionException) {
+                            assert false : e;
                             logger.debug(
                                 "[{}] failed to delete snapshot [{}]: a concurrent operation is running",
                                 repositoryName,

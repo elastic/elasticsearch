@@ -223,8 +223,8 @@ public class MetadataDeleteIndexService {
             .collect(Collectors.toUnmodifiableSet());
 
         final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE);
-        // used to deduplicate snapshots that were used by multiple deleted indices
-        final Map<SnapshotId, RepositoryMetadata> snapshotsWithRepository = new HashMap<>();
+        // also used to deduplicate snapshots that were used by multiple deleted indices
+        final Map<SnapshotId, Tuple<String, String>> snapshotsWithRepository = new HashMap<>();
         // also used to log a warning for snapshots with unknown repository
         final Map<SnapshotId, Tuple<String, String>> snapshotsWithoutRepository = new HashMap<>();
 
@@ -235,7 +235,7 @@ public class MetadataDeleteIndexService {
                 String repositoryName = deletedIndexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
                 Optional<RepositoryMetadata> repository = findRepositoryForPendingDeletion(repositories, repositoryName, repositoryUuid);
                 if (repository.isPresent()) {
-                    snapshotsWithRepository.putIfAbsent(snapshotId, repository.get());
+                    snapshotsWithRepository.putIfAbsent(snapshotId, Tuple.tuple(repositoryName, repositoryUuid));
                 } else {
                     snapshotsWithoutRepository.putIfAbsent(snapshotId, Tuple.tuple(repositoryName, repositoryUuid));
                 }
@@ -259,9 +259,9 @@ public class MetadataDeleteIndexService {
         );
 
         final long timestamp = Instant.now().toEpochMilli();
-        for (Map.Entry<SnapshotId, RepositoryMetadata> entry : snapshotsWithRepository.entrySet()) {
-            logger.info("snapshot [{}:{}] added to the list of snapshots pending deletion", entry.getValue().name(), entry.getKey());
-            builder.add(entry.getValue().name(), entry.getValue().uuid(), entry.getKey(), timestamp);
+        for (Map.Entry<SnapshotId, Tuple<String, String>> entry : snapshotsWithRepository.entrySet()) {
+            logger.debug("snapshot [{}:{}] added to the list of snapshots pending deletion", entry.getValue().v1(), entry.getKey());
+            builder.add(entry.getValue().v1(), entry.getValue().v2(), entry.getKey(), timestamp);
         }
         for (Map.Entry<SnapshotId, Tuple<String, String>> entry : snapshotsWithoutRepository.entrySet()) {
             // TODO also log that it will stay as pending for a given time/attempts and then be removed?

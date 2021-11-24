@@ -449,10 +449,6 @@ public class HiddenFieldCheck extends AbstractCheck {
     private boolean isIgnoredVariableInConstructorBody(DetailAST ast, String name) {
         boolean result = false;
 
-        if (name.equals("actions")) {
-            System.err.println("Hello");
-        }
-
         if (ignoreConstructorBody && ast.getType() == TokenTypes.VARIABLE_DEF) {
             DetailAST method = ast.getParent();
             while (method != null && method.getType() != TokenTypes.CTOR_DEF) {

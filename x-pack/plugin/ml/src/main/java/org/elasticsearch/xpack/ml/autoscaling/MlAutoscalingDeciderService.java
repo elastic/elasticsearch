@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
@@ -65,6 +65,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.getDataFrameAnalyticsState;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getJobStateModifiedForReassignments;
+import static org.elasticsearch.xpack.core.ml.MlTasks.getSnapshotUpgradeState;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
@@ -88,7 +89,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     private final LongSupplier timeSupplier;
 
     private volatile boolean isMaster;
-    private volatile boolean running;
     private volatile int maxMachineMemoryPercent;
     private volatile int maxOpenJobs;
     private volatile boolean useAuto;
@@ -117,17 +117,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
         clusterService.addLocalNodeMasterListener(this);
-        clusterService.addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void afterStart() {
-                running = true;
-            }
-
-            @Override
-            public void beforeStop() {
-                running = false;
-            }
-        });
     }
 
     static OptionalLong getNodeJvmSize(DiscoveryNode node) {
@@ -185,14 +174,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     static Optional<Tuple<NativeMemoryCapacity, List<NodeLoad>>> determineUnassignableJobs(
         List<String> unassignedJobs,
+        List<String> unassignedSnapshotUpgrades,
         Function<String, Long> sizeFunction,
         int maxNumInQueue,
         List<NodeLoad> nodeLoads
     ) {
-        if (unassignedJobs.isEmpty()) {
+        if (unassignedJobs.isEmpty() && unassignedSnapshotUpgrades.isEmpty()) {
             return Optional.empty();
         }
-        if (unassignedJobs.size() < maxNumInQueue) {
+        if (unassignedJobs.size() + unassignedSnapshotUpgrades.size() < maxNumInQueue) {
             return Optional.empty();
         }
         PriorityQueue<NodeLoad.Builder> mostFreeMemoryFirst = new PriorityQueue<>(
@@ -203,7 +193,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         for (NodeLoad load : nodeLoads) {
             mostFreeMemoryFirst.add(NodeLoad.builder(load));
         }
-        List<Long> jobSizes = unassignedJobs.stream()
+        List<Long> jobSizes = Stream.concat(unassignedJobs.stream(), unassignedSnapshotUpgrades.stream())
             .map(sizeFunction)
             .map(l -> l == null ? 0L : l)
             .sorted(Comparator.comparingLong(Long::longValue).reversed())
@@ -256,6 +246,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
 
         return tasksCustomMetadata.findTasks(MlTasks.JOB_TASK_NAME, t -> taskStateFilter(getJobStateModifiedForReassignments(t)));
+    }
+
+    private static Collection<PersistentTask<?>> snapshotUpgradeTasks(PersistentTasksCustomMetadata tasksCustomMetadata) {
+        if (tasksCustomMetadata == null) {
+            return Collections.emptyList();
+        }
+
+        return tasksCustomMetadata.findTasks(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME, t -> taskStateFilter(getSnapshotUpgradeState(t)));
     }
 
     private static Collection<PersistentTask<?>> dataframeAnalyticsTasks(PersistentTasksCustomMetadata tasksCustomMetadata) {
@@ -352,11 +350,16 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Collection<PersistentTask<?>> anomalyDetectionTasks = anomalyDetectionTasks(tasks);
+        Collection<PersistentTask<?>> snapshotUpgradeTasks = snapshotUpgradeTasks(tasks);
         Collection<PersistentTask<?>> dataframeAnalyticsTasks = dataframeAnalyticsTasks(tasks);
         Map<String, TrainedModelAllocation> modelAllocations = TrainedModelAllocationMetadata.fromState(clusterState).modelAllocations();
         final List<String> waitingAnomalyJobs = anomalyDetectionTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
             .map(t -> MlTasks.jobId(t.getId()))
+            .collect(Collectors.toList());
+        final List<String> waitingSnapshotUpgrades = snapshotUpgradeTasks.stream()
+            .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
+            .map(t -> MlTasks.jobAndSnapshotId(t.getId()).v1())
             .collect(Collectors.toList());
         final List<String> waitingAnalyticsJobs = dataframeAnalyticsTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
@@ -377,6 +380,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder()
             .setWaitingAnomalyJobs(waitingAnomalyJobs)
+            .setWaitingSnapshotUpgrades(waitingSnapshotUpgrades)
             .setWaitingAnalyticsJobs(waitingAnalyticsJobs)
             .setWaitingModels(waitingAllocatedModels)
             .setCurrentMlCapacity(currentScale.autoscalingCapacity(maxMachineMemoryPercent, useAuto))
@@ -385,9 +389,16 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // There are no ML nodes, scale up as quick as possible, no matter if memory is stale or not
         if (nodes.isEmpty()
             && (waitingAnomalyJobs.isEmpty() == false
+                || waitingSnapshotUpgrades.isEmpty() == false
                 || waitingAnalyticsJobs.isEmpty() == false
                 || waitingAllocatedModels.isEmpty() == false)) {
-            return scaleUpFromZero(waitingAnomalyJobs, waitingAnalyticsJobs, waitingAllocatedModels, reasonBuilder);
+            return scaleUpFromZero(
+                waitingAnomalyJobs,
+                waitingSnapshotUpgrades,
+                waitingAnalyticsJobs,
+                waitingAllocatedModels,
+                reasonBuilder
+            );
         }
 
         // We don't need to check anything as there are no tasks
@@ -477,6 +488,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             numAnalyticsJobsInQueue,
             nodeLoads,
             waitingAnomalyJobs,
+            waitingSnapshotUpgrades,
             waitingAnalyticsJobs,
             waitingAllocatedModels,
             futureFreedCapacity.orElse(null),
@@ -488,7 +500,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             resetScaleDownCoolDown();
             return scaleUpDecision.get();
         }
-        if (waitingAnalyticsJobs.isEmpty() == false || waitingAnomalyJobs.isEmpty() == false) {
+        if (waitingAnalyticsJobs.isEmpty() == false
+            || waitingSnapshotUpgrades.isEmpty() == false
+            || waitingAnomalyJobs.isEmpty() == false) {
             // We don't want to continue to consider a scale down if there are now waiting jobs
             resetScaleDownCoolDown();
             return noScaleResultOrRefresh(
@@ -499,9 +513,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     reasonBuilder.setSimpleReason(
                         String.format(
                             Locale.ROOT,
-                            "Passing currently perceived capacity as there are [%d] analytics and [%d] anomaly jobs in the queue, "
+                            "Passing currently perceived capacity as there are [%d] model snapshot upgrades, "
+                                + "[%d] analytics and [%d] anomaly detection jobs in the queue, "
                                 + "but the number in the queue is less than the configured maximum allowed "
                                 + " or the queued jobs will eventually be assignable at the current size. ",
+                            waitingSnapshotUpgrades.size(),
                             waitingAnalyticsJobs.size(),
                             waitingAnomalyJobs.size()
                         )
@@ -690,6 +706,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     // can eventually start, and given the current cluster, no job can eventually start.
     AutoscalingDeciderResult scaleUpFromZero(
         List<String> waitingAnomalyJobs,
+        List<String> waitingSnapshotUpgrades,
         List<String> waitingAnalyticsJobs,
         List<String> waitingAllocatedModels,
         MlScalingReason.Builder reasonBuilder
@@ -704,12 +721,18 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             this::getAnomalyMemoryRequirement,
             0
         );
+        final Optional<NativeMemoryCapacity> snapshotUpgradeCapacity = requiredCapacityForUnassignedJobs(
+            waitingSnapshotUpgrades,
+            this::getAnomalyMemoryRequirement,
+            0
+        );
         final Optional<NativeMemoryCapacity> allocatedModelCapacity = requiredCapacityForUnassignedJobs(
             waitingAllocatedModels,
             this::getAllocatedModelRequirement,
             0
         );
         NativeMemoryCapacity updatedCapacity = NativeMemoryCapacity.ZERO.merge(anomalyCapacity.orElse(NativeMemoryCapacity.ZERO))
+            .merge(snapshotUpgradeCapacity.orElse(NativeMemoryCapacity.ZERO))
             .merge(analyticsCapacity.orElse(NativeMemoryCapacity.ZERO))
             .merge(allocatedModelCapacity.orElse(NativeMemoryCapacity.ZERO));
         // If we still have calculated zero, this means the ml memory tracker does not have the required info.
@@ -744,6 +767,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         int numAnalyticsJobsInQueue,
         List<NodeLoad> nodeLoads,
         List<String> waitingAnomalyJobs,
+        List<String> waitingSnapshotUpgrades,
         List<String> waitingAnalyticsJobs,
         List<String> waitingAllocatedModels,
         @Nullable NativeMemoryCapacity futureFreedCapacity,
@@ -753,11 +777,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         // Are we in breach of maximum waiting jobs?
         if (waitingAnalyticsJobs.size() > numAnalyticsJobsInQueue
-            || waitingAnomalyJobs.size() > numAnomalyJobsInQueue
+            || waitingAnomalyJobs.size() + waitingSnapshotUpgrades.size() > numAnomalyJobsInQueue
             || waitingAllocatedModels.size() > 0) {
 
             Tuple<NativeMemoryCapacity, List<NodeLoad>> anomalyCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAnomalyJobs,
+                waitingSnapshotUpgrades,
                 this::getAnomalyMemoryRequirement,
                 numAnomalyJobsInQueue,
                 nodeLoads
@@ -765,6 +790,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
             Tuple<NativeMemoryCapacity, List<NodeLoad>> analyticsCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAnalyticsJobs,
+                waitingSnapshotUpgrades,
                 this::getAnalyticsMemoryRequirement,
                 numAnalyticsJobsInQueue,
                 anomalyCapacityAndNewLoad.v2()
@@ -772,6 +798,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
             Tuple<NativeMemoryCapacity, List<NodeLoad>> modelCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAllocatedModels,
+                waitingSnapshotUpgrades,
                 this::getAllocatedModelRequirement,
                 0,
                 analyticsCapacityAndNewLoad.v2()
@@ -808,12 +835,17 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         // Could the currently waiting jobs ever be assigned?
         // NOTE: the previous predicate catches if an allocated model isn't assigned
-        if (waitingAnalyticsJobs.isEmpty() == false || waitingAnomalyJobs.isEmpty() == false) {
+        if (waitingAnalyticsJobs.isEmpty() == false
+            || waitingSnapshotUpgrades.isEmpty() == false
+            || waitingAnomalyJobs.isEmpty() == false) {
             // we are unable to determine new tier size, but maybe we can see if our nodes are big enough.
             if (futureFreedCapacity == null) {
                 Optional<Long> maxSize = Stream.concat(
                     waitingAnalyticsJobs.stream().map(mlMemoryTracker::getDataFrameAnalyticsJobMemoryRequirement),
-                    waitingAnomalyJobs.stream().map(mlMemoryTracker::getAnomalyDetectorJobMemoryRequirement)
+                    Stream.concat(
+                        waitingAnomalyJobs.stream().map(mlMemoryTracker::getAnomalyDetectorJobMemoryRequirement),
+                        waitingSnapshotUpgrades.stream().map(mlMemoryTracker::getAnomalyDetectorJobMemoryRequirement)
+                    )
                 ).filter(Objects::nonNull).max(Long::compareTo);
                 if (maxSize.isPresent() && maxSize.get() > currentScale.getNode()) {
                     AutoscalingCapacity requiredCapacity = new NativeMemoryCapacity(
@@ -849,6 +881,18 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             }
             for (String anomalyJob : waitingAnomalyJobs) {
                 Long requiredMemory = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(anomalyJob);
+                // it is OK to continue here as we have not breached our queuing limit
+                if (requiredMemory == null) {
+                    continue;
+                }
+                // Is there "future capacity" on a node that could run this job? If not, we need that much more in the tier.
+                if (futureFreedCapacity.getNode() < requiredMemory) {
+                    newTierNeeded = Math.max(requiredMemory, newTierNeeded);
+                }
+                newNodeMax = Math.max(newNodeMax, requiredMemory);
+            }
+            for (String snapshotUpgrade : waitingSnapshotUpgrades) {
+                Long requiredMemory = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(snapshotUpgrade);
                 // it is OK to continue here as we have not breached our queuing limit
                 if (requiredMemory == null) {
                     continue;
@@ -1020,6 +1064,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     private static boolean taskStateFilter(JobState jobState) {
         return jobState == null || jobState.isNoneOf(JobState.CLOSED, JobState.FAILED);
+    }
+
+    private static boolean taskStateFilter(SnapshotUpgradeState snapshotUpgradeState) {
+        return snapshotUpgradeState == null || snapshotUpgradeState.isNoneOf(SnapshotUpgradeState.STOPPED, SnapshotUpgradeState.FAILED);
     }
 
     private static boolean taskStateFilter(DataFrameAnalyticsState dataFrameAnalyticsState) {

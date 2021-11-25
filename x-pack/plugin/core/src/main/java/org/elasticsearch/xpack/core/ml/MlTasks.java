@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -86,6 +87,20 @@ public final class MlTasks {
 
     public static String snapshotUpgradeTaskId(String jobId, String snapshotId) {
         return JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX + jobId + "-" + snapshotId;
+    }
+
+    public static Tuple<String, String> jobAndSnapshotId(String snapshotUpgradeTaskId) {
+        // This is not great. The function that creates the snapshot upgrade task ID is not generically reversible.
+        // Given the way model snapshot IDs are created by the C++ code we know in production they shouldn't contain
+        // dashes. So we assume that the last dash separates the job ID from the snapshot ID. But it would be nice
+        // not to have to rely on distant implementation details like this.
+        int lastDash = snapshotUpgradeTaskId.lastIndexOf('-');
+        if (lastDash < JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX.length()) {
+            throw new IllegalStateException("snapshot upgrade task ID [" + snapshotUpgradeTaskId + "] is not structured as expected");
+        }
+        String jobId = snapshotUpgradeTaskId.substring(JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX.length(), lastDash);
+        String snapshotId = snapshotUpgradeTaskId.substring(lastDash + 1);
+        return new Tuple<>(jobId, snapshotId);
     }
 
     /**
@@ -183,6 +198,19 @@ public final class MlTasks {
             }
         }
         return jobState;
+    }
+
+    public static SnapshotUpgradeState getSnapshotUpgradeState(@Nullable PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        if (task == null) {
+            return SnapshotUpgradeState.STOPPED;
+        }
+        SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
+        if (taskState == null) {
+            // If we haven't set a state yet then the task has never been assigned, so
+            // report that it's doing the first thing it does
+            return SnapshotUpgradeState.LOADING_OLD_STATE;
+        }
+        return taskState.getState();
     }
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetadata tasks) {
@@ -418,8 +446,7 @@ public final class MlTasks {
             case JOB_TASK_NAME:
                 return getJobStateModifiedForReassignments(task);
             case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
-                return taskState == null ? SnapshotUpgradeState.LOADING_OLD_STATE : taskState.getState();
+                return getSnapshotUpgradeState(task);
             case DATA_FRAME_ANALYTICS_TASK_NAME:
                 return getDataFrameAnalyticsState(task);
             default:

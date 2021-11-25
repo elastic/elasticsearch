@@ -107,16 +107,10 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             // Use the job_task_name for the appropriate job size
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
-            0,
+            maxLazyMLNodes,
             node -> null
         );
-        return jobNodeSelector.selectNode(
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            maxMachineMemoryPercent,
-            Long.MAX_VALUE,
-            useAutoMemoryPercentage
-        );
+        return jobNodeSelector.selectNode(maxOpenJobs, Integer.MAX_VALUE, maxMachineMemoryPercent, maxNodeMemory, useAutoMemoryPercentage);
     }
 
     @Override

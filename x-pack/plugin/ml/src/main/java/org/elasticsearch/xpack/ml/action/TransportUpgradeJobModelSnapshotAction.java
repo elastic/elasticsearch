@@ -54,10 +54,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeAction<Request, Response> {
 
-    // If the snapshot is from any version other than the current major, we consider it for upgrade.
-    // This is to support upgrading to the NEXT major without worry
-    private static final byte UPGRADE_FROM_MAJOR = Version.CURRENT.major;
-
     private static final Logger logger = LogManager.getLogger(TransportUpgradeJobModelSnapshotAction.class);
 
     private final XPackLicenseState licenseState;

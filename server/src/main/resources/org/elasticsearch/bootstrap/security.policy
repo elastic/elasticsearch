@@ -22,6 +22,11 @@ grant codeBase "${codebase.elasticsearch-secure-sm}" {
 grant codeBase "${codebase.elasticsearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
+
+  // Allowed for reflective access into lucene.
+  // Remove once split package reflective hacks in LazySoftDeletesDirectoryReaderWrapper are removed.
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 //// Very special jar permissions:

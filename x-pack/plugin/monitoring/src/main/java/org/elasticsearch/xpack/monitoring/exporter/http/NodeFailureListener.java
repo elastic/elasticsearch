@@ -30,12 +30,12 @@ class NodeFailureListener extends RestClient.FailureListener {
      * The optional {@link Sniffer} associated with the {@link RestClient}.
      */
     @Nullable
-    private SetOnce<Sniffer> sniffer = new SetOnce<>();
+    private final SetOnce<Sniffer> snifferHolder = new SetOnce<>();
     /**
      * The optional {@link HttpResource} associated with the {@link RestClient}.
      */
     @Nullable
-    private SetOnce<HttpResource> resource = new SetOnce<>();
+    private final SetOnce<HttpResource> resourceHolder = new SetOnce<>();
 
     /**
      * Get the {@link Sniffer} that is notified upon node failure.
@@ -44,7 +44,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      */
     @Nullable
     public Sniffer getSniffer() {
-        return sniffer.get();
+        return snifferHolder.get();
     }
 
     /**
@@ -54,7 +54,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      * @throws SetOnce.AlreadySetException if called more than once
      */
     public void setSniffer(@Nullable final Sniffer sniffer) {
-        this.sniffer.set(sniffer);
+        this.snifferHolder.set(sniffer);
     }
 
     /**
@@ -64,7 +64,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      */
     @Nullable
     public HttpResource getResource() {
-        return resource.get();
+        return resourceHolder.get();
     }
 
     /**
@@ -74,7 +74,7 @@ class NodeFailureListener extends RestClient.FailureListener {
      * @throws SetOnce.AlreadySetException if called more than once
      */
     public void setResource(@Nullable final HttpResource resource) {
-        this.resource.set(resource);
+        this.resourceHolder.set(resource);
     }
 
     @Override
@@ -82,8 +82,8 @@ class NodeFailureListener extends RestClient.FailureListener {
         HttpHost host = node.getHost();
         logger.warn("connection failed to node at [{}://{}:{}]", host.getSchemeName(), host.getHostName(), host.getPort());
 
-        final HttpResource resource = this.resource.get();
-        final Sniffer sniffer = this.sniffer.get();
+        final HttpResource resource = this.resourceHolder.get();
+        final Sniffer sniffer = this.snifferHolder.get();
 
         if (resource != null) {
             resource.markDirty();

@@ -190,7 +190,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -203,25 +203,25 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>();
-        settings.add(MonitoringField.HISTORY_DURATION);
-        settings.add(MonitoringService.ENABLED);
-        settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
-        settings.add(MonitoringService.INTERVAL);
-        settings.add(MonitoringTemplateRegistry.MONITORING_TEMPLATES_ENABLED);
-        settings.add(Collector.INDICES);
-        settings.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
-        settings.add(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT);
-        settings.add(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY);
-        settings.add(IndexStatsCollector.INDEX_STATS_TIMEOUT);
-        settings.add(JobStatsCollector.JOB_STATS_TIMEOUT);
-        settings.add(StatsCollector.CCR_STATS_TIMEOUT);
-        settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
-        settings.add(EnrichStatsCollector.STATS_TIMEOUT);
-        settings.addAll(Exporters.getSettings());
-        settings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
-        settings.addAll(MonitoringDeprecatedSettings.getSettings());
-        return Collections.unmodifiableList(settings);
+        List<Setting<?>> settingsList = new ArrayList<>();
+        settingsList.add(MonitoringField.HISTORY_DURATION);
+        settingsList.add(MonitoringService.ENABLED);
+        settingsList.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
+        settingsList.add(MonitoringService.INTERVAL);
+        settingsList.add(MonitoringTemplateRegistry.MONITORING_TEMPLATES_ENABLED);
+        settingsList.add(Collector.INDICES);
+        settingsList.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
+        settingsList.add(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT);
+        settingsList.add(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY);
+        settingsList.add(IndexStatsCollector.INDEX_STATS_TIMEOUT);
+        settingsList.add(JobStatsCollector.JOB_STATS_TIMEOUT);
+        settingsList.add(StatsCollector.CCR_STATS_TIMEOUT);
+        settingsList.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
+        settingsList.add(EnrichStatsCollector.STATS_TIMEOUT);
+        settingsList.addAll(Exporters.getSettings());
+        settingsList.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
+        settingsList.addAll(MonitoringDeprecatedSettings.getSettings());
+        return Collections.unmodifiableList(settingsList);
     }
 
     @Override
@@ -231,10 +231,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     }
 
     @Override
-    public void reload(Settings settings) throws Exception {
-        final List<String> changedExporters = HttpExporter.loadSettings(settings);
+    public void reload(Settings settingsToLoad) throws Exception {
+        final List<String> changedExporters = HttpExporter.loadSettings(settingsToLoad);
         for (String changedExporter : changedExporters) {
-            final Settings settingsForChangedExporter = settings.filter(x -> x.startsWith("xpack.monitoring.exporters." + changedExporter));
+            final Settings settingsForChangedExporter = settingsToLoad.filter(
+                x -> x.startsWith("xpack.monitoring.exporters." + changedExporter)
+            );
             exporters.setExportersSetting(settingsForChangedExporter);
         }
     }

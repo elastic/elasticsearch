@@ -296,6 +296,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
+    @SuppressWarnings("HiddenField")
     private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {
         // DEK and DEK Ids MUST be generated randomly (with independent random instances)
         // the rand algo is not pinned so that it goes well with various providers (eg FIPS)

@@ -187,6 +187,9 @@ histogram with time series mappings:
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 1
+                end_time: 253402300799998
               number_of_replicas: 0
               number_of_shards: 2
           mappings:

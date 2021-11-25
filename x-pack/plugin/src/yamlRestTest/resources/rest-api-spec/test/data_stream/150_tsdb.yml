@@ -19,6 +19,9 @@ setup:
                 number_of_shards: 2
                 mode: time_series
                 routing_path: [metricset, time_series_dimension]
+                time_series:
+                  start_time: 1
+                  end_time: 253402300799998
             mappings:
               properties:
                 "@timestamp":

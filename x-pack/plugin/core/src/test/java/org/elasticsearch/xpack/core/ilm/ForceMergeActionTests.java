@@ -257,23 +257,6 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertNonBestCompressionNonReadOnly(instance);
     }
 
-    public void testReadOnlyInvalid() throws IOException {
-        XContentBuilder content = JsonXContent.contentBuilder().startObject()
-            .field("max_num_segments", 1)
-            .field("read_only", "invalid_read_only")
-            .endObject();
-        BytesReference emptyObject = BytesReference.bytes(content);
-        XContentParser parser = XContentHelper.createParser(
-            null,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            emptyObject,
-            XContentType.JSON
-        );
-        ForceMergeAction instance = ForceMergeAction.parse(parser);
-        assertThat(instance.getReadOnly(), equalTo(false));
-        assertNonBestCompressionReadOnly(instance);
-    }
-
     public void testToSteps() {
         ForceMergeAction instance = createTestInstance();
         if (instance.getCodec() != null && CodecService.BEST_COMPRESSION_CODEC.equals(instance.getCodec())) {

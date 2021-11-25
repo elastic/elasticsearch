@@ -500,8 +500,11 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            // Extract the tsid part of the dimension field
-            BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(NetworkAddress.format(address));
+            // Encode the tsid part of the dimension field if the _tsid field is enabled.
+            // If the _tsid field is not enabled, we can skip the encoding part.
+            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
+                ? TimeSeriesIdFieldMapper.encodeTsidValue(NetworkAddress.format(address))
+                : null;
             context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
         if (indexed) {

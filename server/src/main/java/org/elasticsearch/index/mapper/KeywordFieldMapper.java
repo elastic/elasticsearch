@@ -598,8 +598,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
         if (dimension) {
-            // Extract the tsid part of the dimension field
-            BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(value);
+            // Encode the tsid part of the dimension field. Although, it would seem reasonable
+            // to skip the encode part if we don't generate a _tsid field (as we do with number
+            // and ip fields), we keep this test because we must ensure that the value of this
+            // dimension field is not larger than TimeSeriesIdFieldMapper.DIMENSION_VALUE_LIMIT
+            BytesReference bytes = TimeSeriesIdFieldMapper.encodeTsidValue(value);
             context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
 

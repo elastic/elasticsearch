@@ -1393,9 +1393,13 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            // Extract the tsid part of the dimension field by using the long value.
-            // Dimension can only be one of byte, short, int, long
-            BytesReference bytes = TimeSeriesIdFieldMapper.extractTsidValue(numericValue.longValue());
+            // Dimension can only be one of byte, short, int, long. So, we encode the tsid
+            // part of the dimension field by using the long value.
+            // Also, there is no point in encoding the tsid value if we do not generate
+            // the _tsid field.
+            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
+                ? TimeSeriesIdFieldMapper.encodeTsidValue(numericValue.longValue())
+                : null;
             context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);

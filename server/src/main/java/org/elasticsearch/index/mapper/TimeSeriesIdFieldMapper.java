@@ -165,9 +165,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Parse the {@code _tsid} into a human readable map.
+     * Decode the {@code _tsid} into a human readable map.
      */
-    public static Map<String, Object> parse(StreamInput in) {
+    public static Map<String, Object> decodeTsid(StreamInput in) {
         try {
             int size = in.readVInt();
             Map<String, Object> result = new LinkedHashMap<String, Object>(size);
@@ -193,7 +193,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static BytesReference extractTsidValue(String value) {
+    static BytesReference encodeTsidValue(String value) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.write((byte) 's');
             /*
@@ -214,7 +214,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static BytesReference extractTsidValue(long value) {
+    static BytesReference encodeTsidValue(long value) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.write((byte) 'l');
             out.writeLong(value);

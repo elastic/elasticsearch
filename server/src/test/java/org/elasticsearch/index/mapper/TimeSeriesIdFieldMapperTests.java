@@ -68,7 +68,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
         assertThat(doc.rootDoc().getField("b").numericValue(), equalTo(100L));
         assertMap(
-            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", "value").entry("b", 100L)
         );
     }
@@ -116,7 +116,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b -> b.field("a", "foo").field("b", "bar").field("c", "baz").startObject("o").field("e", "bort").endObject()
         );
         assertMap(
-            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", "foo").entry("o.e", "bort")
         );
     }
@@ -180,7 +180,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", 1234).endObject()
         );
         assertMap(
-            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", 1L).entry("o.e", 1234L)
         );
     }
@@ -228,7 +228,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", Integer.MIN_VALUE).endObject()
         );
         assertMap(
-            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", 1L).entry("o.e", (long) Integer.MIN_VALUE)
         );
     }
@@ -281,7 +281,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", Short.MIN_VALUE).endObject()
         );
         assertMap(
-            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", 1L).entry("o.e", (long) Short.MIN_VALUE)
         );
     }
@@ -332,7 +332,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", (int) Byte.MIN_VALUE).endObject()
         );
         assertMap(
-            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", 1L).entry("o.e", (long) Byte.MIN_VALUE)
         );
     }
@@ -383,7 +383,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b -> b.field("a", "192.168.0.1").field("b", -1).field("c", "baz").startObject("o").field("e", "255.255.255.1").endObject()
         );
         assertMap(
-            TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", "192.168.0.1").entry("o.e", "255.255.255.1")
         );
     }

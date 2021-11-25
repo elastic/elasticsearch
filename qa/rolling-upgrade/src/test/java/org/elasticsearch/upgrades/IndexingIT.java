@@ -343,20 +343,9 @@ public class IndexingIT extends AbstractRollingTestCase {
         Request request = new Request("POST", "/tsdb/_search");
         request.addParameter("size", "0");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
-        // TODO replace tsid runtime field with real tsid
-        body.startObject("runtime_mappings");
-        {
-            body.startObject("tsid");
-            {
-                body.field("type", "keyword");
-                body.field("script", "emit('dim:' + doc['dim'].value)");
-            }
-            body.endObject();
-        }
-        body.endObject();
         body.startObject("aggs").startObject("tsids");
         {
-            body.startObject("terms").field("field", "tsid").endObject();
+            body.startObject("terms").field("field", "_tsid").endObject();
             body.startObject("aggs").startObject("avg");
             {
                 body.startObject("avg").field("field", "value").endObject();
@@ -367,8 +356,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         request.setJsonEntity(Strings.toString(body.endObject()));
         ListMatcher tsidsExpected = matchesList();
         for (int d = 0; d < expected.length; d++) {
-            // Object key = Map.of("dim", TSDB_DIMS.get(d)); TODO use this once tsid is real
-            Object key = "dim:" + TSDB_DIMS.get(d);
+            Object key = Map.of("dim", TSDB_DIMS.get(d));
             tsidsExpected = tsidsExpected.item(matchesMap().extraOk().entry("key", key).entry("avg", Map.of("value", expected[d])));
         }
         assertMap(

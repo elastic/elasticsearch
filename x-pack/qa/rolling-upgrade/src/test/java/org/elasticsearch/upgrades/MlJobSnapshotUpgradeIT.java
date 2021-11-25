@@ -237,8 +237,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
         assertThat(modelSnapshots.snapshots(), hasSize(2));
-        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 7));
-        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 7));
+        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 8));
+        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 8));
     }
 
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {

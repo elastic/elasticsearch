@@ -217,13 +217,13 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                 .setActions(UpdateByQueryAction.NAME).get().getTasks();
             // Cancel a specific update-by-query request
             client.admin().cluster().prepareCancelTasks()
-                .setTaskId(taskId).get().getTasks();
+                .setTargetTaskId(taskId).get().getTasks();
             // end::update-by-query-cancel-task
         }
         {
             // tag::update-by-query-rethrottle
             new RethrottleRequestBuilder(client, RethrottleAction.INSTANCE)
-                .setTaskId(taskId)
+                .setTargetTaskId(taskId)
                 .setRequestsPerSecond(2.0f)
                 .get();
             // end::update-by-query-rethrottle

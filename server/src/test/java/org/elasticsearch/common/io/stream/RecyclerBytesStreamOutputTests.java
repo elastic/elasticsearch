@@ -714,10 +714,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         assertNotEquals(mapKeys, reverseMapKeys);
 
-        try (
-            RecyclerBytesStreamOutput output = newStream();
-            RecyclerBytesStreamOutput reverseMapOutput = newStream()
-        ) {
+        try (RecyclerBytesStreamOutput output = newStream(); RecyclerBytesStreamOutput reverseMapOutput = newStream()) {
             output.writeMapWithConsistentOrder(map);
             reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
 

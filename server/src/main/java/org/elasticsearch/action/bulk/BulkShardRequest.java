@@ -88,8 +88,11 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
             }
             i++;
         }
-        sourceBytes = new MaybeCompressedSourceBytes(false, uncompressedLengths,
-            ReleasableBytesReference.wrap(CompositeBytesReference.of(references)));
+        sourceBytes = new MaybeCompressedSourceBytes(
+            false,
+            uncompressedLengths,
+            ReleasableBytesReference.wrap(CompositeBytesReference.of(references))
+        );
     }
 
     public long totalSizeInBytes() {

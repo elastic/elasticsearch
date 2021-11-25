@@ -217,8 +217,11 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             if (pageCount == 1) {
                 Page page = pages.get(0);
                 BytesRef bytePage = page.bytes();
-                BytesArray bytesArray = new BytesArray(bytePage.bytes, bytePage.offset + firstPageOffset,
-                    internalBytesInLastPage - firstPageOffset);
+                BytesArray bytesArray = new BytesArray(
+                    bytePage.bytes,
+                    bytePage.offset + firstPageOffset,
+                    internalBytesInLastPage - firstPageOffset
+                );
                 result = new ReleasableBytesReference(bytesArray, page);
             } else {
                 ReleasableBytesReference[] references = new ReleasableBytesReference[pageCount];
@@ -232,13 +235,19 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                         offsetAdjustment = firstPageOffset;
                     }
                     BytesRef bytePage = page.bytes();
-                    BytesArray bytesArray = new BytesArray(bytePage.bytes, bytePage.offset + offsetAdjustment,
-                        bytePage.length - offsetAdjustment);
+                    BytesArray bytesArray = new BytesArray(
+                        bytePage.bytes,
+                        bytePage.offset + offsetAdjustment,
+                        bytePage.length - offsetAdjustment
+                    );
                     references[i] = new ReleasableBytesReference(bytesArray, page);
                 }
                 Page page = this.pages.get(pageCount - 1);
                 BytesRef last = page.bytes();
-                references[pageCount - 1] = new ReleasableBytesReference(new BytesArray(last.bytes, last.offset, internalBytesInLastPage), page);
+                references[pageCount - 1] = new ReleasableBytesReference(
+                    new BytesArray(last.bytes, last.offset, internalBytesInLastPage),
+                    page
+                );
                 result = new ReleasableBytesReference(CompositeBytesReference.of(references), () -> Releasables.close(references));
             }
         }
@@ -265,7 +274,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     public ReleasableBytesReference retainBytesAndTruncateStream() {
         ReleasableBytesReference bytes = bytes(true);
-
 
         return bytes;
     }

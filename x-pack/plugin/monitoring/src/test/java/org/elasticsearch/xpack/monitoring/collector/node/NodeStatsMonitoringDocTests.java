@@ -113,7 +113,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
     @Override
     public void testToXContent() throws IOException {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final NodeStats nodeStats = mockNodeStats();
+        final NodeStats mockNodeStats = mockNodeStats();
 
         final NodeStatsMonitoringDoc doc = new NodeStatsMonitoringDoc(
             "_cluster",
@@ -122,7 +122,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             node,
             "_node_id",
             true,
-            nodeStats,
+            mockNodeStats,
             false
         );
 

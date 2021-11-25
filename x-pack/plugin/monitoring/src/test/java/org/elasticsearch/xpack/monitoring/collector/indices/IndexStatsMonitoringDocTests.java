@@ -116,20 +116,20 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     }
 
     public void testConstructorMetadataMustNotBeNull() {
-        final IndexStats indexStats = randomFrom(this.indexStats, null);
+        final IndexStats randomIndexStats = randomFrom(this.indexStats, null);
 
         expectThrows(
             NullPointerException.class,
-            () -> new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, indexStats, null, routingTable)
+            () -> new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, randomIndexStats, null, routingTable)
         );
     }
 
     public void testConstructorRoutingTableMustNotBeNull() {
-        final IndexStats indexStats = randomFrom(this.indexStats, null);
+        final IndexStats randomIndexStats = randomFrom(this.indexStats, null);
 
         expectThrows(
             NullPointerException.class,
-            () -> new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, indexStats, metadata, null)
+            () -> new IndexStatsMonitoringDoc(cluster, timestamp, interval, node, randomIndexStats, metadata, null)
         );
     }
 
@@ -304,15 +304,15 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
 
     public void testToXContentWithNullStats() throws IOException {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final IndexStats indexStats;
+        final IndexStats maybeNullIndexStats;
 
         if (randomBoolean()) {
-            indexStats = this.indexStats;
+            maybeNullIndexStats = this.indexStats;
 
-            when(indexStats.getTotal()).thenReturn(null);
-            when(indexStats.getPrimaries()).thenReturn(null);
+            when(maybeNullIndexStats.getTotal()).thenReturn(null);
+            when(maybeNullIndexStats.getPrimaries()).thenReturn(null);
         } else {
-            indexStats = null;
+            maybeNullIndexStats = null;
         }
 
         final IndexStatsMonitoringDoc document = new IndexStatsMonitoringDoc(
@@ -320,7 +320,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             1502266739402L,
             1506593717631L,
             node,
-            indexStats,
+            maybeNullIndexStats,
             metadata,
             routingTable
         );

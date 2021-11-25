@@ -13,7 +13,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StringSimilarityTesterTests extends CategorizationTestCase {
+public class TokenListSimilarityTesterTests extends CategorizationTestCase {
 
     public void testWeightedEditDistance() {
 
@@ -71,23 +71,23 @@ public class StringSimilarityTesterTests extends CategorizationTestCase {
         );
         List<TokenAndWeight> empty = List.of();
 
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown1, sourceShutDown2), equalTo(2));
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown2, sourceShutDown1), equalTo(2));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown1, sourceShutDown2), equalTo(2));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown2, sourceShutDown1), equalTo(2));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown1, serviceStart), equalTo(17));
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown1), equalTo(17));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown1, serviceStart), equalTo(17));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown1), equalTo(17));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown2, serviceStart), equalTo(16));
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown2), equalTo(16));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown2, serviceStart), equalTo(16));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown2), equalTo(16));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(noImageData, serviceStart), equalTo(36));
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, noImageData), equalTo(36));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(noImageData, serviceStart), equalTo(36));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, noImageData), equalTo(36));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(noImageData, sourceShutDown1), equalTo(36));
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown1, noImageData), equalTo(36));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(noImageData, sourceShutDown1), equalTo(36));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown1, noImageData), equalTo(36));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, empty), equalTo(21));
-        assertThat(StringSimilarityTester.weightedEditDistance(empty, serviceStart), equalTo(21));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, empty), equalTo(21));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(empty, serviceStart), equalTo(21));
     }
 
     public void testPositionalWeightedEditDistance() {
@@ -150,25 +150,25 @@ public class StringSimilarityTesterTests extends CategorizationTestCase {
         );
         List<TokenAndWeight> empty = List.of();
 
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown1, sourceShutDown2), equalTo(3));
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown2, sourceShutDown1), equalTo(3));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown1, sourceShutDown2), equalTo(3));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown2, sourceShutDown1), equalTo(3));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown1, sourceShutDown2), equalTo(3));
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown2, sourceShutDown1), equalTo(3));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown1, sourceShutDown2), equalTo(3));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown2, sourceShutDown1), equalTo(3));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown1, serviceStart), equalTo(15));
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown1), equalTo(15));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown1, serviceStart), equalTo(15));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown1), equalTo(15));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown2, serviceStart), equalTo(13));
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown2), equalTo(13));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown2, serviceStart), equalTo(13));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, sourceShutDown2), equalTo(13));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(noImageData, serviceStart), equalTo(21));
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, noImageData), equalTo(21));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(noImageData, serviceStart), equalTo(21));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, noImageData), equalTo(21));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(noImageData, sourceShutDown1), equalTo(21));
-        assertThat(StringSimilarityTester.weightedEditDistance(sourceShutDown1, noImageData), equalTo(21));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(noImageData, sourceShutDown1), equalTo(21));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(sourceShutDown1, noImageData), equalTo(21));
 
-        assertThat(StringSimilarityTester.weightedEditDistance(serviceStart, empty), equalTo(23));
-        assertThat(StringSimilarityTester.weightedEditDistance(empty, serviceStart), equalTo(23));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(serviceStart, empty), equalTo(23));
+        assertThat(TokenListSimilarityTester.weightedEditDistance(empty, serviceStart), equalTo(23));
     }
 }

@@ -15,7 +15,7 @@ import java.util.List;
  * Partial port of the C++ class
  * <a href="https://github.com/elastic/ml-cpp/blob/main/include/core/CStringSimilarityTester.h"><code>CStringSimilarityTester</code></a>.
  */
-public class StringSimilarityTester {
+public class TokenListSimilarityTester {
 
     /**
      * Calculate the weighted edit distance between two sequences. Each

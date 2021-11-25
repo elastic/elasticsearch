@@ -307,7 +307,7 @@ public class TokenListCategorizer implements Accountable {
 
         int maxWeight = Math.max(leftWeight, rightWeight);
         if (maxWeight > 0) {
-            similarity = 1.0f - (float) StringSimilarityTester.weightedEditDistance(left, right) / (float) maxWeight;
+            similarity = 1.0f - (float) TokenListSimilarityTester.weightedEditDistance(left, right) / (float) maxWeight;
         }
 
         return similarity;

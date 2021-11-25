@@ -39,14 +39,6 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-          // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-          'com.fasterxml.jackson.databind.ObjectMapper',
-          'com.fasterxml.jackson.databind.cfg.MapperBuilder'
-  )
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }

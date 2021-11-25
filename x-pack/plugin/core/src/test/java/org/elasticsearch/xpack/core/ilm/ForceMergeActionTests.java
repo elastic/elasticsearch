@@ -67,7 +67,8 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(5, steps.size());
+        int expectedSteps = instance.getReadOnly() ? 5 : 4;
+        assertEquals(expectedSteps, steps.size());
         BranchingStep firstStep = (BranchingStep) steps.get(0);
         CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
         UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
@@ -94,7 +95,8 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(9, steps.size());
+        int expectedSteps = instance.getReadOnly() ? 9 : 8;
+        assertEquals(expectedSteps, steps.size());
         List<Tuple<StepKey, StepKey>> stepKeys = steps.stream()
             // skip the first branching step as `performAction` needs to be executed to evaluate the condition before the next step is
             // available
@@ -116,7 +118,6 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(
             stepKeys,
             contains(
-                new Tuple<>(checkNotWriteIndex, readOnly),
                 new Tuple<>(readOnly, closeIndex),
                 new Tuple<>(closeIndex, updateCodec),
                 new Tuple<>(updateCodec, openIndex),
@@ -126,6 +127,9 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
                 new Tuple<>(segmentCount, nextStepKey)
             )
         );
+        if (instance.getReadOnly()) {
+            assertThat(stepKeys, contains(new Tuple<>(checkNotWriteIndex, readOnly)));
+        }
 
         UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
         UpdateSettingsStep fifthStep = (UpdateSettingsStep) steps.get(4);

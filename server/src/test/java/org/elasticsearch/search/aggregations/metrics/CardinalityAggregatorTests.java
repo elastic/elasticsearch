@@ -50,6 +50,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTe
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -669,6 +670,47 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         indexReader.close();
         directory.close();
+    }
+
+    public void testCacheAggregation() throws IOException {
+        final Directory directory = newDirectory();
+        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+        }
+        indexWriter.close();
+
+        final Directory unmappedDirectory = newDirectory();
+        final RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
+        final IndexReader indexReader = DirectoryReader.open(directory);
+        final IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        final MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        final IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+
+        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
+
+        final AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
+        final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, context);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);
+
+        assertEquals(10.0, cardinality.getValue(), 0);
+        assertEquals("cardinality", cardinality.getName());
+        assertTrue(AggregationInspectionHelper.hasValue(cardinality));
+
+        // Test that an aggregation not using a script does get cached
+        assertTrue(context.isCacheable());
+
+        multiReader.close();
+        directory.close();
+        unmappedDirectory.close();
     }
 
     private static byte[] hash(final byte[] value) {

@@ -43,28 +43,32 @@ public class ForceMergeAction implements LifecycleAction {
 
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
+    public static final ParseField READ_ONLY = new ParseField("read_only");
     public static final ParseField CODEC = new ParseField("index_codec");
     public static final String CONDITIONAL_SKIP_FORCE_MERGE_STEP = BranchingStep.NAME + "-forcemerge-check-prerequisites";
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME, false, a -> {
         int maxNumSegments = (int) a[0];
-        String codec = a[1] != null ? (String) a[1] : null;
-        return new ForceMergeAction(maxNumSegments, codec);
+        boolean readOnly = a[1] != null ? (Boolean) a[1] : true;
+        String codec = a[2] != null ? (String) a[2] : null;
+        return new ForceMergeAction(maxNumSegments, readOnly, codec);
     });
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_NUM_SEGMENTS_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), READ_ONLY);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CODEC);
     }
 
     private final int maxNumSegments;
+    private final boolean readOnly;
     private final String codec;
 
     public static ForceMergeAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public ForceMergeAction(int maxNumSegments, @Nullable String codec) {
+    public ForceMergeAction(int maxNumSegments, boolean readOnly, @Nullable String codec) {
         if (maxNumSegments <= 0) {
             throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName() + "] must be a positive integer");
         }
@@ -72,16 +76,23 @@ public class ForceMergeAction implements LifecycleAction {
         if (codec != null && CodecService.BEST_COMPRESSION_CODEC.equals(codec) == false) {
             throw new IllegalArgumentException("unknown index codec: [" + codec + "]");
         }
+        this.readOnly = readOnly;
         this.codec = codec;
     }
 
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
+        Boolean readOnly = in.readOptionalBoolean();
+        this.readOnly = readOnly == null || readOnly;
         this.codec = in.readOptionalString();
     }
 
     public int getMaxNumSegments() {
         return maxNumSegments;
+    }
+
+    public boolean getReadOnly() {
+        return readOnly;
     }
 
     public String getCodec() {
@@ -91,6 +102,7 @@ public class ForceMergeAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
+        out.writeBoolean(readOnly);
         out.writeOptionalString(codec);
     }
 
@@ -108,6 +120,7 @@ public class ForceMergeAction implements LifecycleAction {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MAX_NUM_SEGMENTS_FIELD.getPreferredName(), maxNumSegments);
+        builder.field(READ_ONLY.getPreferredName(), readOnly);
         if (codec != null) {
             builder.field(CODEC.getPreferredName(), codec);
         }
@@ -180,7 +193,10 @@ public class ForceMergeAction implements LifecycleAction {
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(conditionalSkipShrinkStep);
         mergeSteps.add(checkNotWriteIndexStep);
-        mergeSteps.add(readOnlyStep);
+
+        if (readOnly) {
+            mergeSteps.add(readOnlyStep);
+        }
 
         if (codecChange) {
             mergeSteps.add(closeIndexStep);
@@ -208,7 +224,8 @@ public class ForceMergeAction implements LifecycleAction {
             return false;
         }
         ForceMergeAction other = (ForceMergeAction) obj;
-        return Objects.equals(this.maxNumSegments, other.maxNumSegments) && Objects.equals(this.codec, other.codec);
+        return Objects.equals(this.maxNumSegments, other.maxNumSegments) &&
+            Objects.equals(this.codec, other.codec) && Objects.equals(this.readOnly, other.readOnly);
     }
 
     @Override

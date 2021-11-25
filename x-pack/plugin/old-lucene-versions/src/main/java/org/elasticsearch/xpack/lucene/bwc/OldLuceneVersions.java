@@ -122,8 +122,6 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
 
                     // clean older segments file
                     Lucene.pruneUnreferencedFiles(segmentInfos1.getSegmentsFileName(), indexShard.store().directory());
-                } else {
-                    throw new AssertionError(version);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

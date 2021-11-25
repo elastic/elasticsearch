@@ -265,6 +265,9 @@ tasks.named('splitPackagesAudit').configure {
     // but this should be fixed in Lucene 9
     'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
 
+    // only temporarily used, will be removed in a follow-up
+    'org.apache.lucene.index.SegmentInfosHelper',
+
     // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
     'org.elasticsearch.cli.CommandLoggingConfigurator',
     'org.elasticsearch.cli.EnvironmentAwareCommand',

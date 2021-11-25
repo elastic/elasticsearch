@@ -1837,12 +1837,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
 
-            if (inSyncAllocations == false) {
-                for (int i = 0; i < builder.numberOfShards(); i++) {
-                    builder.putInSyncAllocationIds(i, Collections.singleton("_NONE_"));
-                }
-            }
-
             IndexMetadata indexMetadata = builder.build();
             assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());
             return indexMetadata;

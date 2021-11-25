@@ -930,8 +930,7 @@ public class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        if (skipVersionChecks(repository) == false &&
-            snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+        if (skipVersionChecks(repository) == false && snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
@@ -1223,10 +1222,9 @@ public class RestoreService implements ClusterStateApplier {
 
             final ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
 
-            final Version minIndexCompatibilityVersion =
-                skipVersionChecks(repositoryMetadata) ?
-                    Version.fromString("1.0.0") :
-                    currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
+            final Version minIndexCompatibilityVersion = skipVersionChecks(repositoryMetadata)
+                ? Version.fromString("1.0.0")
+                : currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();

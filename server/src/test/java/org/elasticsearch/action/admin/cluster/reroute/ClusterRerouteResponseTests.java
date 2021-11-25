@@ -206,60 +206,58 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             params.put("metric", "metadata");
             params.put("settings_filter", "index.number*,index.version.created");
             clusterRerouteResponse.toXContent(builder, new ToXContent.MapParams(params));
-            assertEquals(
-                "{\n"
-                    + "  \"acknowledged\" : true,\n"
-                    + "  \"state\" : {\n"
-                    + "    \"cluster_uuid\" : \"_na_\",\n"
-                    + "    \"metadata\" : {\n"
-                    + "      \"cluster_uuid\" : \"_na_\",\n"
-                    + "      \"cluster_uuid_committed\" : false,\n"
-                    + "      \"cluster_coordination\" : {\n"
-                    + "        \"term\" : 0,\n"
-                    + "        \"last_committed_config\" : [ ],\n"
-                    + "        \"last_accepted_config\" : [ ],\n"
-                    + "        \"voting_config_exclusions\" : [ ]\n"
-                    + "      },\n"
-                    + "      \"templates\" : { },\n"
-                    + "      \"indices\" : {\n"
-                    + "        \"index\" : {\n"
-                    + "          \"version\" : 1,\n"
-                    + "          \"mapping_version\" : 1,\n"
-                    + "          \"settings_version\" : 1,\n"
-                    + "          \"aliases_version\" : 1,\n"
-                    + "          \"routing_num_shards\" : 1,\n"
-                    + "          \"state\" : \"open\",\n"
-                    + "          \"settings\" : {\n"
-                    + "            \"index\" : {\n"
-                    + "              \"max_script_fields\" : \"10\",\n"
-                    + "              \"shard\" : {\n"
-                    + "                \"check_on_startup\" : \"true\"\n"
-                    + "              }\n"
-                    + "            }\n"
-                    + "          },\n"
-                    + "          \"mappings\" : { },\n"
-                    + "          \"aliases\" : [ ],\n"
-                    + "          \"primary_terms\" : {\n"
-                    + "            \"0\" : 0\n"
-                    + "          },\n"
-                    + "          \"in_sync_allocations\" : {\n"
-                    + "            \"0\" : [ ]\n"
-                    + "          },\n"
-                    + "          \"rollover_info\" : { },\n"
-                    + "          \"system\" : false,\n"
-                    + "          \"timestamp_range\" : {\n"
-                    + "            \"shards\" : [ ]\n"
-                    + "          }\n"
-                    + "        }\n"
-                    + "      },\n"
-                    + "      \"index-graveyard\" : {\n"
-                    + "        \"tombstones\" : [ ]\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}",
-                Strings.toString(builder)
-            );
+            assertEquals("""
+                {
+                  "acknowledged" : true,
+                  "state" : {
+                    "cluster_uuid" : "_na_",
+                    "metadata" : {
+                      "cluster_uuid" : "_na_",
+                      "cluster_uuid_committed" : false,
+                      "cluster_coordination" : {
+                        "term" : 0,
+                        "last_committed_config" : [ ],
+                        "last_accepted_config" : [ ],
+                        "voting_config_exclusions" : [ ]
+                      },
+                      "templates" : { },
+                      "indices" : {
+                        "index" : {
+                          "version" : 1,
+                          "mapping_version" : 1,
+                          "settings_version" : 1,
+                          "aliases_version" : 1,
+                          "routing_num_shards" : 1,
+                          "state" : "open",
+                          "settings" : {
+                            "index" : {
+                              "max_script_fields" : "10",
+                              "shard" : {
+                                "check_on_startup" : "true"
+                              }
+                            }
+                          },
+                          "mappings" : { },
+                          "aliases" : [ ],
+                          "primary_terms" : {
+                            "0" : 0
+                          },
+                          "in_sync_allocations" : {
+                            "0" : [ ]
+                          },
+                          "rollover_info" : { },
+                          "system" : false,
+                          "timestamp_range" : {
+                            "shards" : [ ]
+                          }
+                        }
+                      },
+                      "index-graveyard" : {
+                        "tombstones" : [ ]
+                      }
+                    }
+                  }
+                }""", Strings.toString(builder));
         }
     }
 }

@@ -241,13 +241,14 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
 
     public void testQueryMatchNoDocsQueryWithUnmappedField() throws IOException {
         Query expectedQuery = Queries.newMatchNoDocsQuery("Can't run [" + DistanceFeatureQueryBuilder.NAME + "] query on unmapped fields!");
-        String queryString = "{\n"
-            + "    \"distance_feature\" : {\n"
-            + "            \"field\": \"random_unmapped_field\",\n"
-            + "            \"origin\": \"random_string\",\n"
-            + "            \"pivot\" : \"random_string\"\n"
-            + "    }\n"
-            + "}";
+        String queryString = """
+            {
+                "distance_feature" : {
+                        "field": "random_unmapped_field",
+                        "origin": "random_string",
+                        "pivot" : "random_string"
+                }
+            }""";
         Query query = parseQuery(queryString).toQuery(createSearchExecutionContext());
         assertEquals(expectedQuery, query);
     }

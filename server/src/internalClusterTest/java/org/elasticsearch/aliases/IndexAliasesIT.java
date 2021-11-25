@@ -1050,35 +1050,27 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexWithAliasesInSource() throws Exception {
-        assertAcked(
-            prepareCreate("test").setSource(
-                "{\n"
-                    + "    \"aliases\" : {\n"
-                    + "        \"alias1\" : {},\n"
-                    + "        \"alias2\" : {\"filter\" : {\"match_all\": {}}},\n"
-                    + "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n"
-                    + "        \"alias4\" : {\"is_hidden\":  true}\n"
-                    + "    }\n"
-                    + "}",
-                XContentType.JSON
-            )
-        );
+        assertAcked(prepareCreate("test").setSource("""
+            {
+                "aliases" : {
+                    "alias1" : {},
+                    "alias2" : {"filter" : {"match_all": {}}},
+                    "alias3" : { "index_routing" : "index", "search_routing" : "search"},
+                    "alias4" : {"is_hidden":  true}
+                }
+            }""", XContentType.JSON));
 
         checkAliases();
     }
 
     public void testCreateIndexWithAliasesSource() {
-        assertAcked(
-            prepareCreate("test").setMapping("field", "type=text")
-                .setAliases(
-                    "{\n"
-                        + "        \"alias1\" : {},\n"
-                        + "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n"
-                        + "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n"
-                        + "        \"alias4\" : {\"is_hidden\":  true}\n"
-                        + "}"
-                )
-        );
+        assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("""
+            {
+                    "alias1" : {},
+                    "alias2" : {"filter" : {"term": {"field":"value"}}},
+                    "alias3" : { "index_routing" : "index", "search_routing" : "search"},
+                    "alias4" : {"is_hidden":  true}
+            }"""));
 
         checkAliases();
     }

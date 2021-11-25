@@ -41,16 +41,15 @@ public class ManyDocumentsIT extends ESRestTestCase {
 
     public void testReindex() throws IOException {
         Request request = new Request("POST", "/_reindex");
-        request.setJsonEntity(
-            "{\n"
-                + "  \"source\":{\n"
-                + "    \"index\":\"test\"\n"
-                + "  },\n"
-                + "  \"dest\":{\n"
-                + "    \"index\":\"des\"\n"
-                + "  }\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "source":{
+                "index":"test"
+              },
+              "dest":{
+                "index":"des"
+              }
+            }""");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));
@@ -111,7 +110,12 @@ public class ManyDocumentsIT extends ESRestTestCase {
 
     public void testDeleteByQuery() throws IOException {
         Request request = new Request("POST", "/test/_delete_by_query");
-        request.setJsonEntity("{\n" + "  \"query\":{\n" + "    \"match_all\": {}\n" + "  }\n" + "}");
+        request.setJsonEntity("""
+            {
+              "query":{
+                "match_all": {}
+              }
+            }""");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("deleted", count));

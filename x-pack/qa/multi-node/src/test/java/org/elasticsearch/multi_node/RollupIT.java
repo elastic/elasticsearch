@@ -154,28 +154,29 @@ public class RollupIT extends ESRestTestCase {
         final Request refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
         toMap(client().performRequest(refreshRollupIndex));
 
-        String jsonRequestBody = "{\n"
-            + "  \"size\": 0,\n"
-            + "  \"query\": {\n"
-            + "    \"match_all\": {}\n"
-            + "  },\n"
-            + "  \"aggs\": {\n"
-            + "    \"date_histo\": {\n"
-            + "      \"date_histogram\": {\n"
-            + "        \"field\": \"timestamp\",\n"
-            + "        \"fixed_interval\": \"60m\",\n"
-            + "        \"format\": \"date_time\"\n"
-            + "      },\n"
-            + "      \"aggs\": {\n"
-            + "        \"the_max\": {\n"
-            + "          \"max\": {\n"
-            + "            \"field\": \"value\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String jsonRequestBody = """
+            {
+              "size": 0,
+              "query": {
+                "match_all": {}
+              },
+              "aggs": {
+                "date_histo": {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "60m",
+                    "format": "date_time"
+                  },
+                  "aggs": {
+                    "the_max": {
+                      "max": {
+                        "field": "value"
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
 
         Request request = new Request("GET", "rollup-docs/_search");
         request.setJsonEntity(jsonRequestBody);

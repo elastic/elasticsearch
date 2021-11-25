@@ -879,18 +879,16 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testConsumeUnknownFields() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\n"
-                + "  \"test\" : \"foo\",\n"
-                + "  \"test_number\" : 2,\n"
-                + "  \"name\" : \"geoff\",\n"
-                + "  \"test_boolean\" : true,\n"
-                + "  \"test_null\" : null,\n"
-                + "  \"test_array\":  [1,2,3,4],\n"
-                + "  \"test_nested\": { \"field\" : \"value\", \"field2\" : [ \"list1\", \"list2\" ] }\n"
-                + "}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "test" : "foo",
+              "test_number" : 2,
+              "name" : "geoff",
+              "test_boolean" : true,
+              "test_null" : null,
+              "test_array":  [1,2,3,4],
+              "test_nested": { "field" : "value", "field2" : [ "list1", "list2" ] }
+            }""");
         ObjectParser<ObjectWithArbitraryFields, Void> op = new ObjectParser<>(
             "unknown",
             ObjectWithArbitraryFields::setField,

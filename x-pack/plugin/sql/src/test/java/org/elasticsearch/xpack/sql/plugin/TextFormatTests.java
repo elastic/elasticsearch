@@ -71,12 +71,19 @@ public class TextFormatTests extends ESTestCase {
 
     public void testCsvFormatWithRegularData() {
         String text = CSV.format(req(), regularData());
-        assertEquals("string,number\r\n" + "Along The River Bank,708\r\n" + "Mind Train,280\r\n", text);
+        assertEquals("""
+            string,number\r
+            Along The River Bank,708\r
+            Mind Train,280\r
+            """, text);
     }
 
     public void testCsvFormatNoHeaderWithRegularData() {
         String text = CSV.format(reqWithParam("header", "absent"), regularData());
-        assertEquals("Along The River Bank,708\r\n" + "Mind Train,280\r\n", text);
+        assertEquals("""
+            Along The River Bank,708\r
+            Mind Train,280\r
+            """, text);
     }
 
     public void testCsvFormatWithCustomDelimiterRegularData() {
@@ -99,25 +106,44 @@ public class TextFormatTests extends ESTestCase {
 
     public void testTsvFormatWithRegularData() {
         String text = TSV.format(req(), regularData());
-        assertEquals("string\tnumber\n" + "Along The River Bank\t708\n" + "Mind Train\t280\n", text);
+        assertEquals("""
+            string\tnumber
+            Along The River Bank\t708
+            Mind Train\t280
+            """, text);
     }
 
     public void testCsvFormatWithEscapedData() {
         String text = CSV.format(req(), escapedData());
-        assertEquals("first,\"\"\"special\"\"\"\r\n" + "normal,\"\"\"quo\"\"ted\"\",\n\"\r\n" + "commas,\"a,b,c,\n,d,e,\t\n\"\r\n", text);
+        assertEquals("""
+            first,""\"special""\"\r
+            normal,""\"quo""ted"",
+            "\r
+            commas,"a,b,c,
+            ,d,e,\t
+            "\r
+            """, text);
     }
 
     public void testCsvFormatWithCustomDelimiterEscapedData() {
         String text = CSV.format(reqWithParam("delimiter", "\\"), escapedData());
-        assertEquals(
-            "first\\\"\"\"special\"\"\"\r\n" + "normal\\\"\"\"quo\"\"ted\"\",\n\"\r\n" + "commas\\\"a,b,c,\n,d,e,\t\n\"\r\n",
-            text
-        );
+        assertEquals("""
+            first\\""\"special""\"\r
+            normal\\""\"quo""ted"",
+            "\r
+            commas\\"a,b,c,
+            ,d,e,\t
+            "\r
+            """, text);
     }
 
     public void testTsvFormatWithEscapedData() {
         String text = TSV.format(req(), escapedData());
-        assertEquals("first\t\"special\"\n" + "normal\t\"quo\"ted\",\\n\n" + "commas\ta,b,c,\\n,d,e,\\t\\n\n", text);
+        assertEquals("""
+            first\t"special"
+            normal\t"quo"ted",\\n
+            commas\ta,b,c,\\n,d,e,\\t\\n
+            """, text);
     }
 
     public void testInvalidCsvDelims() {

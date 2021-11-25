@@ -963,22 +963,21 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + transformIndex
             + "\"},";
 
-        config += "    \"pivot\": { \n"
-            + "        \"group_by\": {\n"
-            + "            \"by_day\": {\"date_histogram\": {\n"
-            + "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\"\n"
-            + "            }}\n"
-            + "        },\n"
-            + "    \n"
-            + "    \"aggs\" :{\n"
-            + "        \"avg_rating\": {\n"
-            + "            \"avg\": {\"field\": \"stars\"}\n"
-            + "        },\n"
-            + "        \"timestamp\": {\n"
-            + "            \"max\": {\"field\": \"timestamp\"}\n"
-            + "        }\n"
-            + "    }}"
-            + "}";
+        config += """
+            "pivot": {
+                "group_by": {
+                    "by_day": {"date_histogram": {
+                        "fixed_interval": "1d","field":"timestamp"
+                    }}
+                },
+            "aggs" :{
+                "avg_rating": {
+                    "avg": {"field": "stars"}
+                },
+                "timestamp": {
+                    "max": {"field": "timestamp"}
+                }
+            }}}""";
 
         createTransformRequest.setJsonEntity(config);
 

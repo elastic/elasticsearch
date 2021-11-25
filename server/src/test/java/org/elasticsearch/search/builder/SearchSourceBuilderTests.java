@@ -139,17 +139,18 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testMultipleQueryObjectsAreRejected() throws Exception {
-        String restContent = " { \"query\": {\n"
-            + "    \"multi_match\": {\n"
-            + "      \"query\": \"workd\",\n"
-            + "      \"fields\": [\"title^5\", \"plain_body\"]\n"
-            + "    },\n"
-            + "    \"filters\": {\n"
-            + "      \"terms\": {\n"
-            + "        \"status\": [ 3 ]\n"
-            + "      }\n"
-            + "    }\n"
-            + "  } }";
+        String restContent = """
+            { "query": {
+               "multi_match": {
+                 "query": "workd",
+                 "fields": ["title^5", "plain_body"]
+               },
+               "filters": {
+                 "terms": {
+                   "status": [ 3 ]
+                 }
+               }
+             } }""".indent(1);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
@@ -157,44 +158,45 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testParseAndRewrite() throws IOException {
-        String restContent = "{\n"
-            + "  \"query\": {\n"
-            + "    \"bool\": {\n"
-            + "      \"must\": {\n"
-            + "        \"match_none\": {}\n"
-            + "      }\n"
-            + "    }\n"
-            + "  },\n"
-            + "  \"rescore\": {\n"
-            + "    \"window_size\": 50,\n"
-            + "    \"query\": {\n"
-            + "      \"rescore_query\": {\n"
-            + "        \"bool\": {\n"
-            + "          \"must\": {\n"
-            + "            \"match_none\": {}\n"
-            + "          }\n"
-            + "        }\n"
-            + "      },\n"
-            + "      \"rescore_query_weight\": 10\n"
-            + "    }\n"
-            + "  },\n"
-            + "  \"highlight\": {\n"
-            + "    \"order\": \"score\",\n"
-            + "    \"fields\": {\n"
-            + "      \"content\": {\n"
-            + "        \"fragment_size\": 150,\n"
-            + "        \"number_of_fragments\": 3,\n"
-            + "        \"highlight_query\": {\n"
-            + "          \"bool\": {\n"
-            + "            \"must\": {\n"
-            + "              \"match_none\": {}\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String restContent = """
+            {
+              "query": {
+                "bool": {
+                  "must": {
+                    "match_none": {}
+                  }
+                }
+              },
+              "rescore": {
+                "window_size": 50,
+                "query": {
+                  "rescore_query": {
+                    "bool": {
+                      "must": {
+                        "match_none": {}
+                      }
+                    }
+                  },
+                  "rescore_query_weight": 10
+                }
+              },
+              "highlight": {
+                "order": "score",
+                "fields": {
+                  "content": {
+                    "fragment_size": 150,
+                    "number_of_fragments": 3,
+                    "highlight_query": {
+                      "bool": {
+                        "must": {
+                          "match_none": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
             assertThat(searchSourceBuilder.query(), instanceOf(BoolQueryBuilder.class));
@@ -232,13 +234,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
 
         {
-            String restContent = "{\"sort\" : [\n"
-                + "        { \"post_date\" : {\"order\" : \"asc\"}},\n"
-                + "        \"user\",\n"
-                + "        { \"name\" : \"desc\" },\n"
-                + "        { \"age\" : \"desc\" },\n"
-                + "        \"_score\"\n"
-                + "    ]}";
+            String restContent = """
+                {"sort" : [
+                        { "post_date" : {"order" : "asc"}},
+                        "user",
+                        { "name" : "desc" },
+                        { "age" : "desc" },
+                        "_score"
+                    ]}""";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
@@ -254,17 +257,16 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testAggsParsing() throws IOException {
         {
-            String restContent = "{\n"
-                + "    "
-                + "\"aggs\": {"
-                + "        \"test_agg\": {\n"
-                + "            "
-                + "\"terms\" : {\n"
-                + "                \"field\": \"foo\"\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n";
+            String restContent = """
+                {
+                    "aggs": {        "test_agg": {
+                            "terms" : {
+                                "field": "foo"
+                            }
+                        }
+                    }
+                }
+                """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
@@ -272,15 +274,16 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             }
         }
         {
-            String restContent = "{\n"
-                + "    \"aggregations\": {"
-                + "        \"test_agg\": {\n"
-                + "            \"terms\" : {\n"
-                + "                \"field\": \"foo\"\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n";
+            String restContent = """
+                {
+                    "aggregations": {        "test_agg": {
+                            "terms" : {
+                                "field": "foo"
+                            }
+                        }
+                    }
+                }
+                """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
@@ -294,19 +297,20 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
      */
     public void testParseRescore() throws IOException {
         {
-            String restContent = "{\n"
-                + "    \"query\" : {\n"
-                + "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n"
-                + "     },\n"
-                + "    \"rescore\": {"
-                + "        \"window_size\": 50,\n"
-                + "        \"query\": {\n"
-                + "            \"rescore_query\" : {\n"
-                + "                \"match\": { \"content\": { \"query\": \"baz\" } }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n";
+            String restContent = """
+                {
+                    "query" : {
+                        "match": { "content": { "query": "foo bar" }}
+                     },
+                    "rescore": {        "window_size": 50,
+                        "query": {
+                            "rescore_query" : {
+                                "match": { "content": { "query": "baz" } }
+                            }
+                        }
+                    }
+                }
+                """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
@@ -319,19 +323,20 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
 
         {
-            String restContent = "{\n"
-                + "    \"query\" : {\n"
-                + "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n"
-                + "     },\n"
-                + "    \"rescore\": [ {"
-                + "        \"window_size\": 50,\n"
-                + "        \"query\": {\n"
-                + "            \"rescore_query\" : {\n"
-                + "                \"match\": { \"content\": { \"query\": \"baz\" } }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    } ]\n"
-                + "}\n";
+            String restContent = """
+                {
+                    "query" : {
+                        "match": { "content": { "query": "foo bar" }}
+                     },
+                    "rescore": [ {        "window_size": 50,
+                        "query": {
+                            "rescore_query" : {
+                                "match": { "content": { "query": "baz" } }
+                            }
+                        }
+                    } ]
+                }
+                """;
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 searchSourceBuilder = rewrite(searchSourceBuilder);
@@ -420,12 +425,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
 
         {
-            String restContent = "{"
-                + "    \"indices_boost\" : [\n"
-                + "        { \"foo\" : 1.0 },\n"
-                + "        { \"bar\" : 2.0 },\n"
-                + "        { \"baz\" : 3.0 }\n"
-                + "    ]}";
+            String restContent = """
+                {    "indices_boost" : [
+                        { "foo" : 1.0 },
+                        { "bar" : 2.0 },
+                        { "baz" : 3.0 }
+                    ]}""";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
                 assertEquals(3, searchSourceBuilder.indexBoosts().size());
@@ -436,29 +441,41 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
 
         {
-            String restContent = "{" + "    \"indices_boost\" : [\n" + "        { \"foo\" : 1.0, \"bar\": 2.0}\n" + // invalid format
-                "    ]}";
+            // invalid format
+            String restContent = """
+                {    "indices_boost" : [
+                        { "foo" : 1.0, "bar": 2.0}
+                    ]}""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [END_OBJECT] in [indices_boost] but found [FIELD_NAME]");
         }
 
         {
-            String restContent = "{" + "    \"indices_boost\" : [\n" + "        {}\n" + // invalid format
-                "    ]}";
+            // invalid format
+            String restContent = """
+                {    "indices_boost" : [
+                        {}
+                    ]}""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [FIELD_NAME] in [indices_boost] but found [END_OBJECT]");
         }
 
         {
-            String restContent = "{" + "    \"indices_boost\" : [\n" + "        { \"foo\" : \"bar\"}\n" + // invalid format
-                "    ]}";
+            // invalid format
+            String restContent = """
+                {    "indices_boost" : [
+                        { "foo" : "bar"}
+                    ]}""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [VALUE_STRING]");
         }
 
         {
-            String restContent = "{" + "    \"indices_boost\" : [\n" + "        { \"foo\" : {\"bar\": 1}}\n" + // invalid format
-                "    ]}";
+            // invalid format
+            String restContent = """
+                {    "indices_boost" : [
+                        { "foo" : {"bar": 1}}
+                    ]}""";
 
             assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [START_OBJECT]");
         }

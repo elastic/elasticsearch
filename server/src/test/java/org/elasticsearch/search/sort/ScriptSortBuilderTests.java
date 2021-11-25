@@ -184,13 +184,15 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson_simple() throws IOException {
-        String scriptSort = "{\n"
-            + "\"_script\" : {\n"
-            + "\"type\" : \"number\",\n"
-            + "\"script\" : \"doc['field_name'].value\",\n"
-            + "\"mode\" : \"max\",\n"
-            + "\"order\" : \"asc\"\n"
-            + "} }\n";
+        String scriptSort = """
+            {
+            "_script" : {
+            "type" : "number",
+            "script" : "doc['field_name'].value",
+            "mode" : "max",
+            "order" : "asc"
+            } }
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();

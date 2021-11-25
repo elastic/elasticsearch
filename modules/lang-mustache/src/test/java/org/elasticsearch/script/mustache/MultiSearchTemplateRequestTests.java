@@ -66,8 +66,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testParseWithCarriageReturn() throws Exception {
-        final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n"
-            + "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
+        final String content = """
+            {"index":["test0", "test1"], "request_cache": true}\r
+            {"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" } }\r
+            """;
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .build();
 

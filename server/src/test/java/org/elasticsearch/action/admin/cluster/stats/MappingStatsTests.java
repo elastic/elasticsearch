@@ -95,93 +95,91 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(settings).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals(
-            "{\n"
-                + "  \"mappings\" : {\n"
-                + "    \"field_types\" : [\n"
-                + "      {\n"
-                + "        \"name\" : \"keyword\",\n"
-                + "        \"count\" : 4,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"script_count\" : 2,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 1,\n"
-                + "        \"lines_total\" : 2,\n"
-                + "        \"chars_max\" : 47,\n"
-                + "        \"chars_total\" : 94,\n"
-                + "        \"source_max\" : 1,\n"
-                + "        \"source_total\" : 2,\n"
-                + "        \"doc_max\" : 2,\n"
-                + "        \"doc_total\" : 4\n"
-                + "      },\n"
-                + "      {\n"
-                + "        \"name\" : \"long\",\n"
-                + "        \"count\" : 4,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"script_count\" : 4,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 2,\n"
-                + "        \"lines_total\" : 6,\n"
-                + "        \"chars_max\" : 68,\n"
-                + "        \"chars_total\" : 176,\n"
-                + "        \"source_max\" : 3,\n"
-                + "        \"source_total\" : 8,\n"
-                + "        \"doc_max\" : 0,\n"
-                + "        \"doc_total\" : 0\n"
-                + "      },\n"
-                + "      {\n"
-                + "        \"name\" : \"object\",\n"
-                + "        \"count\" : 2,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"script_count\" : 0\n"
-                + "      }\n"
-                + "    ],\n"
-                + "    \"runtime_field_types\" : [\n"
-                + "      {\n"
-                + "        \"name\" : \"keyword\",\n"
-                + "        \"count\" : 6,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"scriptless_count\" : 2,\n"
-                + "        \"shadowed_count\" : 2,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 1,\n"
-                + "        \"lines_total\" : 4,\n"
-                + "        \"chars_max\" : 47,\n"
-                + "        \"chars_total\" : 118,\n"
-                + "        \"source_max\" : 1,\n"
-                + "        \"source_total\" : 2,\n"
-                + "        \"doc_max\" : 2,\n"
-                + "        \"doc_total\" : 6\n"
-                + "      },\n"
-                + "      {\n"
-                + "        \"name\" : \"long\",\n"
-                + "        \"count\" : 4,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"scriptless_count\" : 0,\n"
-                + "        \"shadowed_count\" : 0,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 2,\n"
-                + "        \"lines_total\" : 6,\n"
-                + "        \"chars_max\" : 68,\n"
-                + "        \"chars_total\" : 176,\n"
-                + "        \"source_max\" : 3,\n"
-                + "        \"source_total\" : 8,\n"
-                + "        \"doc_max\" : 0,\n"
-                + "        \"doc_total\" : 0\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(mappingStats, true, true)
-        );
+        assertEquals("""
+            {
+              "mappings" : {
+                "field_types" : [
+                  {
+                    "name" : "keyword",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "script_count" : 2,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 2,
+                    "chars_max" : 47,
+                    "chars_total" : 94,
+                    "source_max" : 1,
+                    "source_total" : 2,
+                    "doc_max" : 2,
+                    "doc_total" : 4
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "script_count" : 4,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 6,
+                    "chars_max" : 68,
+                    "chars_total" : 176,
+                    "source_max" : 3,
+                    "source_total" : 8,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  },
+                  {
+                    "name" : "object",
+                    "count" : 2,
+                    "index_count" : 2,
+                    "script_count" : 0
+                  }
+                ],
+                "runtime_field_types" : [
+                  {
+                    "name" : "keyword",
+                    "count" : 6,
+                    "index_count" : 2,
+                    "scriptless_count" : 2,
+                    "shadowed_count" : 2,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 4,
+                    "chars_max" : 47,
+                    "chars_total" : 118,
+                    "source_max" : 1,
+                    "source_total" : 2,
+                    "doc_max" : 2,
+                    "doc_total" : 6
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "scriptless_count" : 0,
+                    "shadowed_count" : 0,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 6,
+                    "chars_max" : 68,
+                    "chars_total" : 176,
+                    "source_max" : 3,
+                    "source_total" : 8,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  }
+                ]
+              }
+            }""", Strings.toString(mappingStats, true, true));
     }
 
     @Override

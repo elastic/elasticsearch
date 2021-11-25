@@ -696,22 +696,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void createRole(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
         Request request = new Request("PUT", "/_security/role/" + id);
-        request.setJsonEntity(
-            "{\n"
-                + "  \"run_as\": [ \"abc\" ],\n"
-                + "  \"cluster\": [ \"monitor\" ],\n"
-                + "  \"indices\": [\n"
-                + "    {\n"
-                + "      \"names\": [ \"events-*\" ],\n"
-                + "      \"privileges\": [ \"read\" ],\n"
-                + "      \"field_security\" : {\n"
-                + "        \"grant\" : [ \"category\", \"@timestamp\", \"message\" ]\n"
-                + "      },\n"
-                + "      \"query\": \"{\\\"match\\\": {\\\"category\\\": \\\"click\\\"}}\"\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "run_as": [ "abc" ],
+              "cluster": [ "monitor" ],
+              "indices": [
+                {
+                  "names": [ "events-*" ],
+                  "privileges": [ "read" ],
+                  "field_security" : {
+                    "grant" : [ "category", "@timestamp", "message" ]
+                  },
+                  "query": "{\\"match\\": {\\"category\\": \\"click\\"}}"
+                }
+              ]
+            }""");
         client().performRequest(request);
     }
 
@@ -858,10 +857,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
-        StringEntity templateJSON = new StringEntity(
-            String.format(Locale.ROOT, "{\n" + "  \"index_patterns\": \"%s\",\n" + "  \"data_stream\": {}\n" + "}", indexPattern),
-            ContentType.APPLICATION_JSON
-        );
+        StringEntity templateJSON = new StringEntity(String.format(Locale.ROOT, """
+            {
+              "index_patterns": "%s",
+              "data_stream": {}
+            }""", indexPattern), ContentType.APPLICATION_JSON);
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);

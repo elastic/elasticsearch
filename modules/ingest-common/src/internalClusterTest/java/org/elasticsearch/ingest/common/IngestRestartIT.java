@@ -120,9 +120,12 @@ public class IngestRestartIT extends ESIntegTestCase {
                 + "  ]\n"
                 + "}"
         );
-        BytesReference pipelineWithoutScript = new BytesArray(
-            "{\n" + "  \"processors\" : [\n" + "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" + "  ]\n" + "}"
-        );
+        BytesReference pipelineWithoutScript = new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}}
+              ]
+            }""");
 
         Consumer<String> checkPipelineExists = (id) -> assertThat(
             client().admin().cluster().prepareGetPipeline(id).get().pipelines().get(0).getId(),
@@ -194,14 +197,13 @@ public class IngestRestartIT extends ESIntegTestCase {
                 XContentType.JSON
             )
             .get();
-        BytesReference pipeline = new BytesArray(
-            "{\n"
-                + "  \"processors\" : [\n"
-                + "      {\"set\" : {\"field\": \"y\", \"value\": 0}},\n"
-                + "      {\"script\" : {\"id\": \"1\"}}\n"
-                + "  ]\n"
-                + "}"
-        );
+        BytesReference pipeline = new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}},
+                  {"script" : {"id": "1"}}
+              ]
+            }""");
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         client().prepareIndex("index")
@@ -240,9 +242,12 @@ public class IngestRestartIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         String ingestNode = internalCluster().startNode(onlyRole(DiscoveryNodeRole.INGEST_ROLE));
 
-        BytesReference pipeline = new BytesArray(
-            "{\n" + "  \"processors\" : [\n" + "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" + "  ]\n" + "}"
-        );
+        BytesReference pipeline = new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}}
+              ]
+            }""");
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         client().prepareIndex("index")

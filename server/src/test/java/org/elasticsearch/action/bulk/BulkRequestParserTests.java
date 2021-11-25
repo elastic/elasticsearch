@@ -223,10 +223,12 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testParseDeduplicatesParameterStrings() throws IOException {
-        BytesArray request = new BytesArray(
-            "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\"} }\n{}\n"
-                + "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\" } }\n{}\n"
-        );
+        BytesArray request = new BytesArray("""
+            { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub"} }
+            {}
+            { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub" } }
+            {}
+            """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final List<IndexRequest> indexRequests = new ArrayList<>();
         parser.parse(

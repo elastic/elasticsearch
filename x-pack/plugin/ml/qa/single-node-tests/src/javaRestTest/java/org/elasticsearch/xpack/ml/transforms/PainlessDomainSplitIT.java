@@ -271,18 +271,17 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
     public void testHRDSplit() throws Exception {
         // Create job
         Request createJobRequest = new Request("PUT", BASE_PATH + "anomaly_detectors/hrd-split-job");
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "    \"description\":\"Domain splitting\",\n"
-                + "    \"analysis_config\" : {\n"
-                + "        \"bucket_span\":\"3600s\",\n"
-                + "        \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n"
-                + "    },\n"
-                + "    \"data_description\" : {\n"
-                + "        \"time_field\":\"time\"\n"
-                + "    }\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+                "description":"Domain splitting",
+                "analysis_config" : {
+                    "bucket_span":"3600s",
+                    "detectors" :[{"function":"count", "by_field_name" : "domain_split"}]
+                },
+                "data_description" : {
+                    "time_field":"time"
+                }
+            }""");
         client().performRequest(createJobRequest);
         client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/hrd-split-job/_open"));
 
@@ -328,17 +327,16 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         // Create and start datafeed
         Request createFeedRequest = new Request("PUT", BASE_PATH + "datafeeds/hrd-split-datafeed");
-        createFeedRequest.setJsonEntity(
-            "{\n"
-                + "   \"job_id\":\"hrd-split-job\",\n"
-                + "   \"indexes\":[\"painless\"],\n"
-                + "   \"script_fields\": {\n"
-                + "      \"domain_split\": {\n"
-                + "         \"script\": \"return domainSplit(doc['domain'].value, params);\"\n"
-                + "      }\n"
-                + "   }\n"
-                + "}"
-        );
+        createFeedRequest.setJsonEntity("""
+            {
+               "job_id":"hrd-split-job",
+               "indexes":["painless"],
+               "script_fields": {
+                  "domain_split": {
+                     "script": "return domainSplit(doc['domain'].value, params);"
+                  }
+               }
+            }""");
 
         client().performRequest(createFeedRequest);
         Request startDatafeedRequest = new Request("POST", BASE_PATH + "datafeeds/hrd-split-datafeed/_start");

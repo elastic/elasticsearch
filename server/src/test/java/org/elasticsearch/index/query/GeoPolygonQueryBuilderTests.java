@@ -248,16 +248,17 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"geo_polygon\" : {\n"
-            + "    \"person.location\" : {\n"
-            + "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "geo_polygon" : {
+                "person.location" : {
+                  "points" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 4, parsed.points().size());

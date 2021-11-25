@@ -35,14 +35,15 @@ import static org.mockito.Mockito.mock;
 public class PutUserRequestBuilderTests extends ESTestCase {
 
     public void testNullValuesForEmailAndFullName() throws IOException {
-        final String json = "{\n"
-            + "    \"roles\": [\n"
-            + "      \"kibana4\"\n"
-            + "    ],\n"
-            + "    \"full_name\": null,\n"
-            + "    \"email\": null,\n"
-            + "    \"metadata\": {}\n"
-            + "}";
+        final String json = """
+            {
+                "roles": [
+                  "kibana4"
+                ],
+                "full_name": null,
+                "email": null,
+                "metadata": {}
+            }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT);
@@ -57,7 +58,13 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testMissingEmailFullName() throws Exception {
-        final String json = "{\n" + "    \"roles\": [\n" + "      \"kibana4\"\n" + "    ],\n" + "    \"metadata\": {}\n" + "}";
+        final String json = """
+            {
+                "roles": [
+                  "kibana4"
+                ],
+                "metadata": {}
+            }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT);
@@ -71,14 +78,15 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithFullNameAndEmail() throws IOException {
-        final String json = "{\n"
-            + "    \"roles\": [\n"
-            + "      \"kibana4\"\n"
-            + "    ],\n"
-            + "    \"full_name\": \"Kibana User\",\n"
-            + "    \"email\": \"kibana@elastic.co\",\n"
-            + "    \"metadata\": {}\n"
-            + "}";
+        final String json = """
+            {
+                "roles": [
+                  "kibana4"
+                ],
+                "full_name": "Kibana User",
+                "email": "kibana@elastic.co",
+                "metadata": {}
+            }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, Hasher.BCRYPT);
@@ -92,14 +100,15 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testInvalidFullname() throws IOException {
-        final String json = "{\n"
-            + "    \"roles\": [\n"
-            + "      \"kibana4\"\n"
-            + "    ],\n"
-            + "    \"full_name\": [ \"Kibana User\" ],\n"
-            + "    \"email\": \"kibana@elastic.co\",\n"
-            + "    \"metadata\": {}\n"
-            + "}";
+        final String json = """
+            {
+                "roles": [
+                  "kibana4"
+                ],
+                "full_name": [ "Kibana User" ],
+                "email": "kibana@elastic.co",
+                "metadata": {}
+            }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         ElasticsearchParseException e = expectThrows(
@@ -110,14 +119,15 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testInvalidEmail() throws IOException {
-        final String json = "{\n"
-            + "    \"roles\": [\n"
-            + "      \"kibana4\"\n"
-            + "    ],\n"
-            + "    \"full_name\": \"Kibana User\",\n"
-            + "    \"email\": [ \"kibana@elastic.co\" ],\n"
-            + "    \"metadata\": {}\n"
-            + "}";
+        final String json = """
+            {
+                "roles": [
+                  "kibana4"
+                ],
+                "full_name": "Kibana User",
+                "email": [ "kibana@elastic.co" ],
+                "metadata": {}
+            }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         ElasticsearchParseException e = expectThrows(
@@ -128,15 +138,16 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithEnabled() throws IOException {
-        final String json = "{\n"
-            + "    \"roles\": [\n"
-            + "      \"kibana4\"\n"
-            + "    ],\n"
-            + "    \"full_name\": \"Kibana User\",\n"
-            + "    \"email\": \"kibana@elastic.co\",\n"
-            + "    \"metadata\": {}\n,"
-            + "    \"enabled\": false\n"
-            + "}";
+        final String json = """
+            {
+                "roles": [
+                  "kibana4"
+                ],
+                "full_name": "Kibana User",
+                "email": "kibana@elastic.co",
+                "metadata": {}
+            ,    "enabled": false
+            }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         PutUserRequest request = builder.source(
@@ -187,7 +198,10 @@ public class PutUserRequestBuilderTests extends ESTestCase {
 
     public void testWithPasswordHashThatsNotReallyAHash() throws IOException {
         final Hasher systemHasher = Hasher.PBKDF2;
-        final String json = "{\n" + "    \"password_hash\": \"not-a-hash\"," + "    \"roles\": []\n" + "}";
+        final String json = """
+            {
+                "password_hash": "not-a-hash",    "roles": []
+            }""";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
         final IllegalArgumentException ex = expectThrows(

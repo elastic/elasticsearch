@@ -119,10 +119,10 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testParseSkipSectionBothFeatureAndVersion() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "version:     \" - 0.90.2\"\n" + "features:     regex\n" + "reason:      Delete ignores the parent param"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            version:     " - 0.90.2"
+            features:     regex
+            reason:      Delete ignores the parent param""");
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertEquals(VersionUtils.getFirstVersion(), skipSection.getLowerVersion());
@@ -146,12 +146,11 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testParseSkipSectionOsNoVersion() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "features:    [\"skip_os\", \"some_feature\"]\n"
-                + "os:          debian-9\n"
-                + "reason:      memory accounting broken, see gh#xyz\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            features:    ["skip_os", "some_feature"]
+            os:          debian-9
+            reason:      memory accounting broken, see gh#xyz
+            """);
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
@@ -163,10 +162,11 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testParseSkipSectionOsListNoVersion() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "features:    skip_os\n" + "os:          [debian-9,windows-95,ms-dos]\n" + "reason:      see gh#xyz\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            features:    skip_os
+            os:          [debian-9,windows-95,ms-dos]
+            reason:      see gh#xyz
+            """);
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
@@ -179,7 +179,10 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testParseSkipSectionOsNoFeatureNoVersion() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent, "os:          debian-9\n" + "reason:      memory accounting broken, see gh#xyz\n");
+        parser = createParser(YamlXContent.yamlXContent, """
+            os:          debian-9
+            reason:      memory accounting broken, see gh#xyz
+            """);
 
         Exception e = expectThrows(ParsingException.class, () -> SkipSection.parse(parser));
         assertThat(e.getMessage(), is("if os is specified, feature skip_os must be set"));

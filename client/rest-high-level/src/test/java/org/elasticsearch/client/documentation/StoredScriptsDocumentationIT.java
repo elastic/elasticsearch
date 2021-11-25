@@ -192,12 +192,13 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             PutStoredScriptRequest request = new PutStoredScriptRequest();
             request.id("id"); // <1>
             request.content(new BytesArray(
-                "{\n" +
-                    "\"script\": {\n" +
-                    "\"lang\": \"painless\",\n" +
-                    "\"source\": \"Math.log(_score * 2) + params.multiplier\"" +
-                    "}\n" +
-                    "}\n"
+                    """
+                            {
+                            "script": {
+                            "lang": "painless",
+                            "source": "Math.log(_score * 2) + params.multiplier"}
+                            }
+                            """
             ), XContentType.JSON); // <2>
             // end::put-stored-script-request
 

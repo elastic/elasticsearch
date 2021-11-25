@@ -125,19 +125,18 @@ public class SearchTemplateRequestXContentTests extends AbstractXContentTestCase
     }
 
     public void testFromXContentWithEmbeddedTemplate() throws Exception {
-        String source = "{"
-            + "    'source' : {\n"
-            + "    'query': {\n"
-            + "      'terms': {\n"
-            + "        'status': [\n"
-            + "          '{{#status}}',\n"
-            + "          '{{.}}',\n"
-            + "          '{{/status}}'\n"
-            + "        ]\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }"
-            + "}";
+        String source = """
+            {    'source' : {
+                'query': {
+                  'terms': {
+                    'status': [
+                      '{{#status}}',
+                      '{{.}}',
+                      '{{/status}}'
+                    ]
+                  }
+                }
+              }}""";
 
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"terms\":{\"status\":[\"{{#status}}\",\"{{.}}\",\"{{/status}}\"]}}}"));

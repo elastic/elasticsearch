@@ -202,31 +202,34 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        String doc1 = "{\"geo\": {\r\n"
-            + "\"coordinates\": [\r\n"
-            + "-33.918711,\r\n"
-            + "18.847685\r\n"
-            + "],\r\n"
-            + "\"type\": \"Point\"\r\n"
-            + "}}";
+        String doc1 = """
+            {"geo": {\r
+            "coordinates": [\r
+            -33.918711,\r
+            18.847685\r
+            ],\r
+            "type": "Point"\r
+            }}""";
         client().index(new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
-        String doc2 = "{\"geo\": {\r\n"
-            + "\"coordinates\": [\r\n"
-            + "-49.0,\r\n"
-            + "18.847685\r\n"
-            + "],\r\n"
-            + "\"type\": \"Point\"\r\n"
-            + "}}";
+        String doc2 = """
+            {"geo": {\r
+            "coordinates": [\r
+            -49.0,\r
+            18.847685\r
+            ],\r
+            "type": "Point"\r
+            }}""";
         client().index(new IndexRequest(defaultIndexName).id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
-        String doc3 = "{\"geo\": {\r\n"
-            + "\"coordinates\": [\r\n"
-            + "49.0,\r\n"
-            + "18.847685\r\n"
-            + "],\r\n"
-            + "\"type\": \"Point\"\r\n"
-            + "}}";
+        String doc3 = """
+            {"geo": {\r
+            "coordinates": [\r
+            49.0,\r
+            18.847685\r
+            ],\r
+            "type": "Point"\r
+            }}""";
         client().index(new IndexRequest(defaultIndexName).id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
         @SuppressWarnings("unchecked")

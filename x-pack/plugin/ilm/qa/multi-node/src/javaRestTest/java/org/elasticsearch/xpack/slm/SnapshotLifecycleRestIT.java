@@ -498,13 +498,14 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         String repoId = "ds-repo";
         String policyName = "ds-policy";
 
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    }
+                  }
+                }""";
         Template template = new Template(null, new CompressedXContent(mapping), null);
         createComposableTemplate(client(), "ds-template", dataStreamName, template);
 

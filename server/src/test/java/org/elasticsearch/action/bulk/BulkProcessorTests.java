@@ -234,7 +234,10 @@ public class BulkProcessorTests extends ESTestCase {
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
 
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            String bulkRequest = """
+                { "index" : { "_index" : "test", "_id" : "1" } }
+                { "field1" : "value1" }
+                """;
             BytesReference bytesReference = BytesReference.fromByteBuffers(
                 new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
             );
@@ -362,7 +365,10 @@ public class BulkProcessorTests extends ESTestCase {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            String bulkRequest = """
+                { "index" : { "_index" : "test", "_id" : "1" } }
+                { "field1" : "value1" }
+                """;
             BytesReference bytesReference = BytesReference.fromByteBuffers(
                 new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
             );

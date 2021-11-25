@@ -562,20 +562,18 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         initialize("regression_alias_fields");
         String predictionField = "field_2_prediction";
 
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"field_1\": {\n"
-            + "          \"type\": \"integer\"\n"
-            + "        },"
-            + "        \"field_2\": {\n"
-            + "          \"type\": \"integer\"\n"
-            + "        },"
-            + "        \"field_1_alias\": {\n"
-            + "          \"type\": \"alias\",\n"
-            + "          \"path\": \"field_1\"\n"
-            + "        }"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "field_1": {
+                      "type": "integer"
+                    },        "field_2": {
+                      "type": "integer"
+                    },        "field_1_alias": {
+                      "type": "alias",
+                      "path": "field_1"
+                    }      }
+                }""";
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
 
         int totalDocCount = 300;

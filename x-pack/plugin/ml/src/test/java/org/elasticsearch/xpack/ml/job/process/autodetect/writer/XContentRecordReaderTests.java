@@ -125,7 +125,10 @@ public class XContentRecordReaderTests extends ESTestCase {
 
     public void testRead_RecoverFromBadJson() throws JsonParseException, IOException {
         // no opening '{'
-        String data = "\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n" + "{\"c\":32, \"b\":22, \"a\":12}";
+        String data = """
+            "a":10, "b":20, "c":30}
+            {"b":21, "a":11, "c":31}
+            {"c":32, "b":22, "a":12}""";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 

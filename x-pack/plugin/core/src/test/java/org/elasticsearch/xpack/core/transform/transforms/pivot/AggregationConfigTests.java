@@ -111,12 +111,13 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testFailOnStrictPassOnLenient() throws IOException {
-        String source = "{\n"
-            + "          \"avg_rating\": { \"some_removed_agg\": { \"field\": \"rating\" } }\n"
-            + "        },\n"
-            + "        {\n"
-            + "          \"max_rating\": { \"max_rating\" : { \"field\" : \"rating\" } }\n"
-            + "        }";
+        String source = """
+            {
+                      "avg_rating": { "some_removed_agg": { "field": "rating" } }
+                    },
+                    {
+                      "max_rating": { "max_rating" : { "field" : "rating" } }
+                    }""";
 
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {

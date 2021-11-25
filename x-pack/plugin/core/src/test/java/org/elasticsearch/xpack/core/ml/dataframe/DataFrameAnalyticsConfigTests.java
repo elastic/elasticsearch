@@ -183,19 +183,23 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
-    private static final String ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS = "{\n" + "    \"id\": \"old-data-frame\",\n" +
     // query:match:type stopped being supported in 6.x
-        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n"
-        + "    \"dest\": {\"index\":\"dest-index\"},\n"
-        + "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n"
-        + "}";
+    private static final String ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS = """
+        {
+            "id": "old-data-frame",
+            "source": {"index":"my-index", "query": {"match" : {"query":"fieldName", "type": "phrase"}}},
+            "dest": {"index":"dest-index"},
+            "analysis": {"outlier_detection": {"n_neighbors": 10}}
+        }""";
 
-    private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" + "    \"id\": \"data-frame\",\n" +
     // match_all if parsed, adds default values in the options
-        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n"
-        + "    \"dest\": {\"index\":\"dest-index\"},\n"
-        + "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n"
-        + "}";
+    private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = """
+        {
+            "id": "data-frame",
+            "source": {"index":"my-index", "query": {"match_all" : {}}},
+            "dest": {"index":"dest-index"},
+            "analysis": {"outlier_detection": {"n_neighbors": 10}}
+        }""";
 
     private boolean lenient;
 

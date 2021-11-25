@@ -43,15 +43,17 @@ public class RestTableTests extends ESTestCase {
     private static final String JSON_TABLE_BODY = "[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\","
         + "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\","
         + "\"invalidAliasesBulk\":\"foo\",\"timestamp\":\"foo\",\"epoch\":\"foo\"}]";
-    private static final String YAML_TABLE_BODY = "---\n"
-        + "- bulk.foo: \"foo\"\n"
-        + "  bulk.bar: \"foo\"\n"
-        + "  aliasedBulk: \"foo\"\n"
-        + "  aliasedSecondBulk: \"foo\"\n"
-        + "  unmatched: \"foo\"\n"
-        + "  invalidAliasesBulk: \"foo\"\n"
-        + "  timestamp: \"foo\"\n"
-        + "  epoch: \"foo\"\n";
+    private static final String YAML_TABLE_BODY = """
+        ---
+        - bulk.foo: "foo"
+          bulk.bar: "foo"
+          aliasedBulk: "foo"
+          aliasedSecondBulk: "foo"
+          unmatched: "foo"
+          invalidAliasesBulk: "foo"
+          timestamp: "foo"
+          epoch: "foo"
+        """;
     private Table table;
     private FakeRestRequest restRequest;
 

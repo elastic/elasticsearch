@@ -687,37 +687,41 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         String expected = "";
         if (columnar) {
-            expected = "{\n"
-                + "  \"columns\" : [\n"
-                + "    {\n"
-                + "      \"name\" : \"test1\",\n"
-                + "      \"type\" : \"text\"\n"
-                + "    }\n"
-                + "  ],\n"
-                + "  \"values\" : [\n"
-                + "    [\n"
-                + "      \"test1\",\n"
-                + "      \"test2\"\n"
-                + "    ]\n"
-                + "  ]\n"
-                + "}\n";
+            expected = """
+                {
+                  "columns" : [
+                    {
+                      "name" : "test1",
+                      "type" : "text"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      "test1",
+                      "test2"
+                    ]
+                  ]
+                }
+                """;
         } else {
-            expected = "{\n"
-                + "  \"columns\" : [\n"
-                + "    {\n"
-                + "      \"name\" : \"test1\",\n"
-                + "      \"type\" : \"text\"\n"
-                + "    }\n"
-                + "  ],\n"
-                + "  \"rows\" : [\n"
-                + "    [\n"
-                + "      \"test1\"\n"
-                + "    ],\n"
-                + "    [\n"
-                + "      \"test2\"\n"
-                + "    ]\n"
-                + "  ]\n"
-                + "}\n";
+            expected = """
+                {
+                  "columns" : [
+                    {
+                      "name" : "test1",
+                      "type" : "text"
+                    }
+                  ],
+                  "rows" : [
+                    [
+                      "test1"
+                    ],
+                    [
+                      "test2"
+                    ]
+                  ]
+                }
+                """;
         }
         executeAndAssertPrettyPrinting(expected, "true", columnar);
     }
@@ -975,7 +979,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     public void testBasicQueryText() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
 
-        String expected = "     test      \n" + "---------------\n" + "test           \n" + "test           \n";
+        String expected = """
+                 test     \s
+            ---------------
+            test          \s
+            test          \s
+            """;
         Tuple<String, String> response = runSqlAsText("SELECT * FROM " + indexPattern("test"), "text/plain");
         assertEquals(expected, response.v1());
     }
@@ -997,7 +1006,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
         );
 
-        String expected = "name,number\r\n" + "first,1\r\n" + "second\t,2\r\n" + "\"\"\"third,\"\"\",3\r\n";
+        String expected = """
+            name,number\r
+            first,1\r
+            second\t,2\r
+            ""\"third,""\",3\r
+            """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/csv");
@@ -1014,7 +1028,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
         );
 
-        String expected = "first,1\r\n" + "second\t,2\r\n" + "\"\"\"third,\"\"\",3\r\n";
+        String expected = """
+            first,1\r
+            second\t,2\r
+            ""\"third,""\",3\r
+            """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
@@ -1061,7 +1079,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }"
         );
 
-        String expected = "name\tnumber\n" + "first\t1\n" + "second\\t\t2\n" + "\"third,\"\t3\n";
+        String expected = """
+            name\tnumber
+            first\t1
+            second\\t\t2
+            "third,"\t3
+            """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/tab-separated-values");

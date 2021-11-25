@@ -77,17 +77,18 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"constant_score\" : {\n"
-            + "    \"filter\" : {\n"
-            + "      \"terms\" : {\n"
-            + "        \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n"
-            + "        \"boost\" : 42.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"boost\" : 23.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "constant_score" : {
+                "filter" : {
+                  "terms" : {
+                    "user" : [ "kimchy", "elasticsearch" ],
+                    "boost" : 42.0
+                  }
+                },
+                "boost" : 23.0
+              }
+            }""";
 
         ConstantScoreQueryBuilder parsed = (ConstantScoreQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

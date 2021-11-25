@@ -27,88 +27,92 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
     private final String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
 
-    private static final String ROLES = "all_cluster_role:\n"
-        + "  cluster: [ all ]\n"
-        + "all_indices_role:\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      privileges: [ all ]\n"
-        + "all_a_role:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [ all ]\n"
-        + "read_a_role:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [ read ]\n"
-        + "read_b_role:\n"
-        + "  indices:\n"
-        + "    - names: 'b'\n"
-        + "      privileges: [ read ]\n"
-        + "write_a_role:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [ write ]\n"
-        + "read_ab_role:\n"
-        + "  indices:\n"
-        + "    - names: [ 'a', 'b' ]\n"
-        + "      privileges: [ read ]\n"
-        + "all_regex_ab_role:\n"
-        + "  indices:\n"
-        + "    - names: '/a|b/'\n"
-        + "      privileges: [ all ]\n"
-        + "manage_starts_with_a_role:\n"
-        + "  indices:\n"
-        + "    - names: 'a*'\n"
-        + "      privileges: [ manage ]\n"
-        + "read_write_all_role:\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      privileges: [ read, write ]\n"
-        + "create_c_role:\n"
-        + "  indices:\n"
-        + "    - names: 'c'\n"
-        + "      privileges: [ create_index ]\n"
-        + "monitor_b_role:\n"
-        + "  indices:\n"
-        + "    - names: 'b'\n"
-        + "      privileges: [ monitor ]\n"
-        + "maintenance_a_view_meta_b_role:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [ maintenance ]\n"
-        + "    - names: '*b'\n"
-        + "      privileges: [ view_index_metadata ]\n"
-        + "read_write_a_role:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [ read, write ]\n"
-        + "delete_b_role:\n"
-        + "  indices:\n"
-        + "    - names: 'b'\n"
-        + "      privileges: [ delete ]\n"
-        + "index_a_role:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [ index ]\n"
-        + "\n";
+    private static final String ROLES = """
+        all_cluster_role:
+          cluster: [ all ]
+        all_indices_role:
+          indices:
+            - names: '*'
+              privileges: [ all ]
+        all_a_role:
+          indices:
+            - names: 'a'
+              privileges: [ all ]
+        read_a_role:
+          indices:
+            - names: 'a'
+              privileges: [ read ]
+        read_b_role:
+          indices:
+            - names: 'b'
+              privileges: [ read ]
+        write_a_role:
+          indices:
+            - names: 'a'
+              privileges: [ write ]
+        read_ab_role:
+          indices:
+            - names: [ 'a', 'b' ]
+              privileges: [ read ]
+        all_regex_ab_role:
+          indices:
+            - names: '/a|b/'
+              privileges: [ all ]
+        manage_starts_with_a_role:
+          indices:
+            - names: 'a*'
+              privileges: [ manage ]
+        read_write_all_role:
+          indices:
+            - names: '*'
+              privileges: [ read, write ]
+        create_c_role:
+          indices:
+            - names: 'c'
+              privileges: [ create_index ]
+        monitor_b_role:
+          indices:
+            - names: 'b'
+              privileges: [ monitor ]
+        maintenance_a_view_meta_b_role:
+          indices:
+            - names: 'a'
+              privileges: [ maintenance ]
+            - names: '*b'
+              privileges: [ view_index_metadata ]
+        read_write_a_role:
+          indices:
+            - names: 'a'
+              privileges: [ read, write ]
+        delete_b_role:
+          indices:
+            - names: 'b'
+              privileges: [ delete ]
+        index_a_role:
+          indices:
+            - names: 'a'
+              privileges: [ index ]
 
-    private static final String USERS_ROLES = "all_indices_role:admin,u8\n"
-        + "all_cluster_role:admin\n"
-        + "all_a_role:u1,u2,u6\n"
-        + "read_a_role:u1,u5,u14\n"
-        + "read_b_role:u3,u5,u6,u8,u13\n"
-        + "write_a_role:u9\n"
-        + "read_ab_role:u2,u4,u9\n"
-        + "all_regex_ab_role:u3\n"
-        + "manage_starts_with_a_role:u4\n"
-        + "read_write_all_role:u12\n"
-        + "create_c_role:u11\n"
-        + "monitor_b_role:u14\n"
-        + "maintenance_a_view_meta_b_role:u15\n"
-        + "read_write_a_role:u12\n"
-        + "delete_b_role:u11\n"
-        + "index_a_role:u13\n";
+        """;
+
+    private static final String USERS_ROLES = """
+        all_indices_role:admin,u8
+        all_cluster_role:admin
+        all_a_role:u1,u2,u6
+        read_a_role:u1,u5,u14
+        read_b_role:u3,u5,u6,u8,u13
+        write_a_role:u9
+        read_ab_role:u2,u4,u9
+        all_regex_ab_role:u3
+        manage_starts_with_a_role:u4
+        read_write_all_role:u12
+        create_c_role:u11
+        monitor_b_role:u14
+        maintenance_a_view_meta_b_role:u15
+        read_write_a_role:u12
+        delete_b_role:u11
+        index_a_role:u13
+        """;
 
     @Override
     protected boolean addMockHttpTransport() {

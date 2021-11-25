@@ -257,16 +257,14 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"count\" : 0,\n"
-                + "  \"min\" : null,\n"
-                + "  \"max\" : null,\n"
-                + "  \"avg\" : null,\n"
-                + "  \"sum\" : 0.0\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "count" : 0,
+              "min" : null,
+              "max" : null,
+              "avg" : null,
+              "sum" : 0.0
+            }""", Strings.toString(builder));
     }
 
     public void testIterator() {

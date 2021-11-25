@@ -48,7 +48,12 @@ public class XPackIT extends AbstractRollingTestCase {
      */
     public void testBasicFeature() throws IOException {
         Request bulk = new Request("POST", "/sql_test/_bulk");
-        bulk.setJsonEntity("{\"index\":{}}\n" + "{\"f\": \"1\"}\n" + "{\"index\":{}}\n" + "{\"f\": \"2\"}\n");
+        bulk.setJsonEntity("""
+            {"index":{}}
+            {"f": "1"}
+            {"index":{}}
+            {"f": "2"}
+            """);
         bulk.addParameter("refresh", "true");
         client().performRequest(bulk);
 
@@ -77,23 +82,23 @@ public class XPackIT extends AbstractRollingTestCase {
         assertEquals("{\"count\":0,\"jobs\":[]}", noJobs);
 
         Request createJob = new Request("PUT", "/_ml/anomaly_detectors/test_job");
-        createJob.setJsonEntity(
-            "{\n"
-                + "  \"analysis_config\" : {\n"
-                + "    \"bucket_span\": \"10m\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"sum\",\n"
-                + "        \"field_name\": \"total\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\n"
-                + "    \"time_field\": \"timestamp\",\n"
-                + "    \"time_format\": \"epoch_ms\"\n"
-                + "  }\n"
-                + "}\n"
-        );
+        createJob.setJsonEntity("""
+            {
+              "analysis_config" : {
+                "bucket_span": "10m",
+                "detectors": [
+                  {
+                    "function": "sum",
+                    "field_name": "total"
+                  }
+                ]
+              },
+              "data_description": {
+                "time_field": "timestamp",
+                "time_format": "epoch_ms"
+              }
+            }
+            """);
         client().performRequest(createJob);
     }
 }

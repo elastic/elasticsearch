@@ -125,17 +125,18 @@ public class RestCreateIndexActionTests extends ESTestCase {
 
         List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
-        String content = "{\n"
-            + "  \"mappings\": {\n"
-            + "    \"some_type\": {\n"
-            + "      \"properties\": {\n"
-            + "        \"field1\": {\n"
-            + "          \"type\": \"text\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String content = """
+            {
+              "mappings": {
+                "some_type": {
+                  "properties": {
+                    "field1": {
+                      "type": "text"
+                    }
+                  }
+                }
+              }
+            }""";
 
         Map<String, String> params = new HashMap<>();
         params.put(RestCreateIndexAction.INCLUDE_TYPE_NAME_PARAMETER, "true");

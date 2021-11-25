@@ -74,16 +74,17 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
     }
 
     public void testValuesFromXContent() throws IOException {
-        String json = "{\n"
-            + "  \"combined_fields\" : {\n"
-            + "    \"query\" : \"quick brown fox\",\n"
-            + "    \"fields\" : [ \"abstract^1.0\", \"body^1.0\", \"title^1.0\" ],\n"
-            + "    \"operator\" : \"OR\",\n"
-            + "    \"zero_terms_query\" : \"NONE\",\n"
-            + "    \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "    \"boost\" : 2.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "combined_fields" : {
+                "query" : "quick brown fox",
+                "fields" : [ "abstract^1.0", "body^1.0", "title^1.0" ],
+                "operator" : "OR",
+                "zero_terms_query" : "NONE",
+                "auto_generate_synonyms_phrase_query" : true,
+                "boost" : 2.0
+              }
+            }""";
 
         CombinedFieldsQueryBuilder parsed = (CombinedFieldsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

@@ -669,31 +669,33 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testUngeneratedFieldsThatAreNeverStored() throws IOException {
-        String createIndexSource = "{\n"
-            + "  \"settings\": {\n"
-            + "    \"index.translog.flush_threshold_size\": \"1pb\",\n"
-            + "    \"refresh_interval\": \"-1\"\n"
-            + "  },\n"
-            + "  \"mappings\": {\n"
-            + "    \"_doc\": {\n"
-            + "      \"properties\": {\n"
-            + "        \"suggest\": {\n"
-            + "          \"type\": \"completion\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String createIndexSource = """
+            {
+              "settings": {
+                "index.translog.flush_threshold_size": "1pb",
+                "refresh_interval": "-1"
+              },
+              "mappings": {
+                "_doc": {
+                  "properties": {
+                    "suggest": {
+                      "type": "completion"
+                    }
+                  }
+                }
+              }
+            }""";
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
-        String doc = "{\n"
-            + "  \"suggest\": {\n"
-            + "    \"input\": [\n"
-            + "      \"Nevermind\",\n"
-            + "      \"Nirvana\"\n"
-            + "    ]\n"
-            + "  }\n"
-            + "}";
+        String doc = """
+            {
+              "suggest": {
+                "input": [
+                  "Nevermind",
+                  "Nirvana"
+                ]
+              }
+            }""";
 
         index("test", "1", doc);
         String[] fieldsList = { "suggest" };
@@ -708,12 +710,13 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testUngeneratedFieldsThatAreAlwaysStored() throws IOException {
-        String createIndexSource = "{\n"
-            + "  \"settings\": {\n"
-            + "    \"index.translog.flush_threshold_size\": \"1pb\",\n"
-            + "    \"refresh_interval\": \"-1\"\n"
-            + "  }\n"
-            + "}";
+        String createIndexSource = """
+            {
+              "settings": {
+                "index.translog.flush_threshold_size": "1pb",
+                "refresh_interval": "-1"
+              }
+            }""";
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
@@ -731,16 +734,21 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {
-        String createIndexSource = "{\n"
-            + "  \"settings\": {\n"
-            + "    \"index.translog.flush_threshold_size\": \"1pb\",\n"
-            + "    \"refresh_interval\": \"-1\"\n"
-            + "  }\n"
-            + "}";
+        String createIndexSource = """
+            {
+              "settings": {
+                "index.translog.flush_threshold_size": "1pb",
+                "refresh_interval": "-1"
+              }
+            }""";
 
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
-        String doc = "{\n" + "  \"text\": \"some text.\"\n" + "}\n";
+        String doc = """
+            {
+              "text": "some text."
+            }
+            """;
         client().prepareIndex("test").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
@@ -811,7 +819,12 @@ public class GetActionIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
-        String doc = "{\n" + "  \"text1\": \"some text.\"\n," + "  \"text2\": \"more text.\"\n" + "}\n";
+        String doc = """
+            {
+              "text1": "some text."
+            ,  "text2": "more text."
+            }
+            """;
         index("test", "1", doc);
     }
 

@@ -188,9 +188,11 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // remove the read only block
         Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");
-        allowWritesOnIndexSettingUpdate.setJsonEntity(
-            "{" + "  \"index\": {\n" + "     \"blocks.read_only\" : \"false\" \n" + "  }\n" + "}"
-        );
+        allowWritesOnIndexSettingUpdate.setJsonEntity("""
+            {  "index": {
+                 "blocks.read_only" : "false"\s
+              }
+            }""");
         client().performRequest(allowWritesOnIndexSettingUpdate);
 
         // index is not readonly so the ILM should complete successfully
@@ -301,20 +303,19 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"check-rollover-ready\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"attempt-rollover\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "check-rollover-ready"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "attempt-rollover"
+              }
+            }""");
 
         // Using {@link #waitUntil} here as ILM moves back and forth between the {@link WaitForRolloverReadyStep} step and
         // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
@@ -370,20 +371,19 @@ public class RolloverActionIT extends ESRestTestCase {
         // moving ILM to the "update-rollover-lifecycle-date" without having gone through the actual rollover step
         // the "update-rollover-lifecycle-date" step will fail as the index has no rollover information
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"check-rollover-ready\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"update-rollover-lifecycle-date\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "check-rollover-ready"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "update-rollover-lifecycle-date"
+              }
+            }""");
         client().performRequest(moveToStepRequest);
 
         assertBusy(

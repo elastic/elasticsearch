@@ -388,17 +388,18 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"geo_bounding_box\" : {\n"
-            + "    \"pin.location\" : {\n"
-            + "      \"top_left\" : [ -74.1, 40.73 ],\n"
-            + "      \"bottom_right\" : [ -71.12, 40.01 ]\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "geo_bounding_box" : {
+                "pin.location" : {
+                  "top_left" : [ -74.1, 40.73 ],
+                  "bottom_right" : [ -71.12, 40.01 ]
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, "pin.location", parsed.fieldName());
@@ -410,30 +411,32 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testFromWKT() throws IOException {
-        String wkt = "{\n"
-            + "  \"geo_bounding_box\" : {\n"
-            + "    \"pin.location\" : {\n"
-            + "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String wkt = """
+            {
+              "geo_bounding_box" : {
+                "pin.location" : {
+                  "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
 
         // toXContent generates the query in geojson only; for now we need to test against the expected
         // geojson generated content
-        String expectedJson = "{\n"
-            + "  \"geo_bounding_box\" : {\n"
-            + "    \"pin.location\" : {\n"
-            + "      \"top_left\" : [ -74.1, 40.73 ],\n"
-            + "      \"bottom_right\" : [ -71.12, 40.01 ]\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String expectedJson = """
+            {
+              "geo_bounding_box" : {
+                "pin.location" : {
+                  "top_left" : [ -74.1, 40.73 ],
+                  "bottom_right" : [ -71.12, 40.01 ]
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
 
         // parse with wkt
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(wkt);
@@ -449,29 +452,31 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testFromGeohash() throws IOException {
-        String json = "{\n"
-            + "  \"geo_bounding_box\" : {\n"
-            + "    \"pin.location\" : {\n"
-            + "      \"top_left\" : \"dr\",\n"
-            + "      \"bottom_right\" : \"dq\"\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "geo_bounding_box" : {
+                "pin.location" : {
+                  "top_left" : "dr",
+                  "bottom_right" : "dq"
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
 
-        String expectedJson = "{\n"
-            + "  \"geo_bounding_box\" : {\n"
-            + "    \"pin.location\" : {\n"
-            + "      \"top_left\" : [ -78.75, 45.0 ],\n"
-            + "      \"bottom_right\" : [ -67.5, 33.75 ]\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String expectedJson = """
+            {
+              "geo_bounding_box" : {
+                "pin.location" : {
+                  "top_left" : [ -78.75, 45.0 ],
+                  "bottom_right" : [ -67.5, 33.75 ]
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
         checkGeneratedJson(expectedJson, parsed);
         assertEquals(json, "pin.location", parsed.fieldName());
@@ -483,17 +488,18 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testMalformedGeohashes() {
-        String jsonGeohashAndWkt = "{\n"
-            + "  \"geo_bounding_box\" : {\n"
-            + "    \"pin.location\" : {\n"
-            + "      \"top_left\" : [ -78.75, 45.0 ],\n"
-            + "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String jsonGeohashAndWkt = """
+            {
+              "geo_bounding_box" : {
+                "pin.location" : {
+                  "top_left" : [ -78.75, 45.0 ],
+                  "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
 
         ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonGeohashAndWkt));
         assertThat(e1.getMessage(), containsString("Conflicting definition found using well-known text and explicit corners."));

@@ -275,17 +275,15 @@ public class PivotTests extends ESTestCase {
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
         if (agg.equals(AggregationType.SCRIPTED_METRIC.getName())) {
-            return parseAggregations(
-                "{\"pivot_scripted_metric\": {\n"
-                    + "\"scripted_metric\": {\n"
-                    + "    \"init_script\" : \"state.transactions = []\",\n"
-                    + "    \"map_script\" : "
-                    + "        \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n"
-                    + "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n"
-                    + "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n"
-                    + "  }\n"
-                    + "}}"
-            );
+            return parseAggregations("""
+                {"pivot_scripted_metric": {
+                "scripted_metric": {
+                    "init_script" : "state.transactions = []",
+                    "map_script" :         "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",\s
+                    "combine_script" : "double profit = 0; for (t in state.transactions) { profit += t } return profit",
+                    "reduce_script" : "double profit = 0; for (a in states) { profit += a } return profit"
+                  }
+                }}""");
         }
         if (agg.equals(AggregationType.BUCKET_SCRIPT.getName())) {
             return parseAggregations(
@@ -304,16 +302,15 @@ public class PivotTests extends ESTestCase {
             );
         }
         if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
-            return parseAggregations(
-                "{\n"
-                    + "\"pivot_weighted_avg\": {\n"
-                    + "  \"weighted_avg\": {\n"
-                    + "   \"value\": {\"field\": \"values\"},\n"
-                    + "   \"weight\": {\"field\": \"weights\"}\n"
-                    + "  }\n"
-                    + "}\n"
-                    + "}"
-            );
+            return parseAggregations("""
+                {
+                "pivot_weighted_avg": {
+                  "weighted_avg": {
+                   "value": {"field": "values"},
+                   "weight": {"field": "weights"}
+                  }
+                }
+                }""");
         }
         if (agg.equals(AggregationType.FILTER.getName())) {
             return parseAggregations(

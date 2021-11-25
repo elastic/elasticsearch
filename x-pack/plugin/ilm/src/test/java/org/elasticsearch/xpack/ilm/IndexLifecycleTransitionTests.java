@@ -585,24 +585,23 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
@@ -833,24 +832,23 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", exState);
         String index = meta.getIndex().getName();
@@ -976,24 +974,23 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                        "policy" : "my-policy",
+                        "phase_definition" : {
+                          "min_age" : "20m",
+                          "actions" : {
+                            "rollover" : {
+                              "max_age" : "5s"
+                            },
+                            "set_priority" : {
+                              "priority" : 150
+                            }
+                          }
+                        },
+                        "version" : 1,
+                        "modified_date_in_millis" : 1578521007076
+                      }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
 

@@ -324,22 +324,20 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackonlyWithNestedFields() throws Exception {
         String jobId = "test-lookback-only-with-nested-fields";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Nested job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime.millis\",\n"
-                + "        \"by_field_name\": \"airline.name\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },"
-                + "  \"data_description\": {\"time_field\": \"time\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Nested job",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime.millis",
+                    "by_field_name": "airline.name"
+                  }
+                ]
+              },  "data_description": {"time_field": "time"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = jobId + "-datafeed";
@@ -360,21 +358,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackWithGeo() throws Exception {
         String jobId = "test-lookback-only-with-geo";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"lat_long with geo_point\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"15m\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"lat_long\",\n"
-                + "        \"field_name\": \"location\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },"
-                + "  \"data_description\": {\"time_field\": \"time\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "lat_long with geo_point",
+              "analysis_config": {
+                "bucket_span": "15m",
+                "detectors": [
+                  {
+                    "function": "lat_long",
+                    "field_name": "location"
+                  }
+                ]
+              },  "data_description": {"time_field": "time"}
+            }""");
         client().performRequest(createJobRequest);
         String datafeedId = jobId + "-datafeed";
         new DatafeedBuilder(datafeedId, jobId, "geo-data").build();
@@ -430,20 +426,18 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackWithIndicesOptions() throws Exception {
         String jobId = "test-lookback-only-with-indices-options";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"custom indices options\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"15m\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"count\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },"
-                + "  \"data_description\": {\"time_field\": \"time\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "custom indices options",
+              "analysis_config": {
+                "bucket_span": "15m",
+                "detectors": [
+                  {
+                    "function": "count"
+                  }
+                ]
+              },  "data_description": {"time_field": "time"}
+            }""");
         client().performRequest(createJobRequest);
         String datafeedId = jobId + "-datafeed";
         new DatafeedBuilder(datafeedId, jobId, "*hidden-*").setIndicesOptions(
@@ -507,23 +501,22 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testInsufficientSearchPrivilegesOnPut() throws Exception {
         String jobId = "privs-put-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n "
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\":\"airline\"\n"
-                + "       }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\" : {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "analysis_config": {
+                "bucket_span": "1h",
+                 "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name":"airline"
+                   }
+                ]
+              },
+              "data_description" : {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -542,24 +535,23 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testInsufficientSearchPrivilegesOnPutWithJob() {
         String jobId = "privs-failed-put-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"datafeed_config\": {\"indexes\": [\"airline-data-aggs\"]},\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n "
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\":\"airline\"\n"
-                + "       }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\" : {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "datafeed_config": {"indexes": ["airline-data-aggs"]},
+              "analysis_config": {
+                "bucket_span": "1h",
+                 "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name":"airline"
+                   }
+                ]
+              },
+              "data_description" : {"time_field": "time stamp"}
+            }""");
         RequestOptions.Builder options = createJobRequest.getOptions().toBuilder();
         options.addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN);
         createJobRequest.setOptions(options);
@@ -590,23 +582,22 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testInsufficientSearchPrivilegesOnPreview() throws Exception {
         String jobId = "privs-preview-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\": \"airline\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\" : {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name": "airline"
+                  }
+                ]
+              },
+              "data_description" : {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -667,23 +658,22 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
         String jobId = "aggs-histogram-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\": \"airline\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name": "airline"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -709,23 +699,22 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackOnlyGivenAggregationsWithDateHistogram() throws Exception {
         String jobId = "aggs-date-histogram-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"3600s\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\": \"airline\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "analysis_config": {
+                "bucket_span": "3600s",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name": "airline"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -751,22 +740,21 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackUsingDerivativeAggWithLargerHistogramBucketThanDataRate() throws Exception {
         String jobId = "derivative-agg-network-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"300s\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"bytes-delta\",\n"
-                + "        \"by_field_name\": \"hostname\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"timestamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "analysis_config": {
+                "bucket_span": "300s",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "bytes-delta",
+                    "by_field_name": "hostname"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "timestamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -796,22 +784,21 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackUsingDerivativeAggWithSmallerHistogramBucketThanDataRate() throws Exception {
         String jobId = "derivative-agg-network-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"300s\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"bytes-delta\",\n"
-                + "        \"by_field_name\": \"hostname\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"timestamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "analysis_config": {
+                "bucket_span": "300s",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "bytes-delta",
+                    "by_field_name": "hostname"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "timestamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -837,22 +824,21 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackWithoutPermissions() throws Exception {
         String jobId = "permission-test-network-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"300s\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"bytes-delta\",\n"
-                + "        \"by_field_name\": \"hostname\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"timestamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "analysis_config": {
+                "bucket_span": "300s",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "bytes-delta",
+                    "by_field_name": "hostname"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "timestamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -904,21 +890,20 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackWithPipelineBucketAgg() throws Exception {
         String jobId = "pipeline-bucket-agg-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"percentile95_airlines_count\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "analysis_config": {
+                "bucket_span": "1h",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "percentile95_airlines_count"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -949,55 +934,52 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackOnlyGivenAggregationsWithHistogramAndRollupIndex() throws Exception {
         String jobId = "aggs-histogram-rollup-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\": \"airline\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name": "airline"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String rollupJobId = "rollup-" + jobId;
         Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
-        createRollupRequest.setJsonEntity(
-            "{\n"
-                + "\"index_pattern\": \"airline-data-aggs\",\n"
-                + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
-                + "    \"cron\": \"*/30 * * * * ?\",\n"
-                + "    \"page_size\" :1000,\n"
-                + "    \"groups\" : {\n"
-                + "      \"date_histogram\": {\n"
-                + "        \"field\": \"time stamp\",\n"
-                + "        \"fixed_interval\": \"2m\",\n"
-                + "        \"delay\": \"7d\"\n"
-                + "      },\n"
-                + "      \"terms\": {\n"
-                + "        \"fields\": [\"airline\"]\n"
-                + "      }"
-                + "    },\n"
-                + "    \"metrics\": [\n"
-                + "        {\n"
-                + "            \"field\": \"responsetime\",\n"
-                + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
-                + "        },\n"
-                + "        {\n"
-                + "            \"field\": \"time stamp\",\n"
-                + "            \"metrics\": [\"min\",\"max\"]\n"
-                + "        }\n"
-                + "    ]\n"
-                + "}"
-        );
+        createRollupRequest.setJsonEntity("""
+            {
+            "index_pattern": "airline-data-aggs",
+                "rollup_index": "airline-data-aggs-rollup",
+                "cron": "*/30 * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "time stamp",
+                    "fixed_interval": "2m",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["airline"]
+                  }    },
+                "metrics": [
+                    {
+                        "field": "responsetime",
+                        "metrics": ["avg","min","max","sum"]
+                    },
+                    {
+                        "field": "time stamp",
+                        "metrics": ["min","max"]
+                    }
+                ]
+            }""");
         client().performRequest(createRollupRequest);
         client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_start"));
 
@@ -1069,22 +1051,20 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void testLookbackWithSingleBucketAgg() throws Exception {
         String jobId = "aggs-date-histogram-with-single-bucket-agg-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"3600s\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\""
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "analysis_config": {
+                "bucket_span": "3600s",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime"      }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
@@ -1465,55 +1445,52 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private Response createJobAndDataFeed(String jobId, String datafeedId) throws IOException {
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity(
-            "{\n"
-                + "  \"description\": \"Aggs job\",\n"
-                + "  \"analysis_config\": {\n"
-                + "    \"bucket_span\": \"1h\",\n"
-                + "    \"summary_count_field_name\": \"doc_count\",\n"
-                + "    \"detectors\": [\n"
-                + "      {\n"
-                + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime\",\n"
-                + "        \"by_field_name\": \"airline\"\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  },\n"
-                + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
-                + "}"
-        );
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name": "airline"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
         client().performRequest(createJobRequest);
 
         String rollupJobId = "rollup-" + jobId;
         Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
-        createRollupRequest.setJsonEntity(
-            "{\n"
-                + "\"index_pattern\": \"airline-data-aggs\",\n"
-                + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
-                + "    \"cron\": \"*/30 * * * * ?\",\n"
-                + "    \"page_size\" :1000,\n"
-                + "    \"groups\" : {\n"
-                + "      \"date_histogram\": {\n"
-                + "        \"field\": \"time stamp\",\n"
-                + "        \"fixed_interval\": \"2m\",\n"
-                + "        \"delay\": \"7d\"\n"
-                + "      },\n"
-                + "      \"terms\": {\n"
-                + "        \"fields\": [\"airline\"]\n"
-                + "      }"
-                + "    },\n"
-                + "    \"metrics\": [\n"
-                + "        {\n"
-                + "            \"field\": \"responsetime\",\n"
-                + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
-                + "        },\n"
-                + "        {\n"
-                + "            \"field\": \"time stamp\",\n"
-                + "            \"metrics\": [\"min\",\"max\"]\n"
-                + "        }\n"
-                + "    ]\n"
-                + "}"
-        );
+        createRollupRequest.setJsonEntity("""
+            {
+            "index_pattern": "airline-data-aggs",
+                "rollup_index": "airline-data-aggs-rollup",
+                "cron": "*/30 * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "time stamp",
+                    "fixed_interval": "2m",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["airline"]
+                  }    },
+                "metrics": [
+                    {
+                        "field": "responsetime",
+                        "metrics": ["avg","min","max","sum"]
+                    },
+                    {
+                        "field": "time stamp",
+                        "metrics": ["min","max"]
+                    }
+                ]
+            }""");
         client().performRequest(createRollupRequest);
 
         String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"

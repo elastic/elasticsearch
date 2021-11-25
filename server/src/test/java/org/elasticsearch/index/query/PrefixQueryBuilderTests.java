@@ -96,10 +96,10 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\",\n"
-            + "     \"case_insensitive\" : true,\n"
-            + " \"boost\" : 2.0"
-            + "} }}";
+        String json = """
+            {    "prefix" : { "user" :  { "value" : "ki",
+                 "case_insensitive" : true,
+             "boost" : 2.0} }}""";
 
         PrefixQueryBuilder parsed = (PrefixQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -120,20 +120,27 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "    \"prefix\": {\n"
-            + "      \"user1\": {\n"
-            + "        \"value\": \"ki\"\n"
-            + "      },\n"
-            + "      \"user2\": {\n"
-            + "        \"value\": \"ki\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String json = """
+            {
+                "prefix": {
+                  "user1": {
+                    "value": "ki"
+                  },
+                  "user2": {
+                    "value": "ki"
+                  }
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
 
-        String shortJson = "{\n" + "    \"prefix\": {\n" + "      \"user1\": \"ki\",\n" + "      \"user2\": \"ki\"\n" + "    }\n" + "}";
+        String shortJson = """
+            {
+                "prefix": {
+                  "user1": "ki",
+                  "user2": "ki"
+                }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }

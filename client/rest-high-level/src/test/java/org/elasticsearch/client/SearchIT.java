@@ -493,68 +493,63 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchWithParentJoin() throws IOException {
         final String indexName = "child_example";
         Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
-        createIndex.setJsonEntity(
-            "{\n"
-                + "    \"mappings\": {\n"
-                + "        \"properties\" : {\n"
-                + "            \"qa_join_field\" : {\n"
-                + "                \"type\" : \"join\",\n"
-                + "                \"relations\" : { \"question\" : \"answer\" }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }"
-                + "}"
-        );
+        createIndex.setJsonEntity("""
+            {
+                "mappings": {
+                    "properties" : {
+                        "qa_join_field" : {
+                            "type" : "join",
+                            "relations" : { "question" : "answer" }
+                        }
+                    }
+                }}""");
         client().performRequest(createIndex);
         Request questionDoc = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
-        questionDoc.setJsonEntity(
-            "{\n"
-                + "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n"
-                + "    \"title\": \"Whats the best way to file transfer my site from server to a newer one?\",\n"
-                + "    \"tags\": [\n"
-                + "        \"windows-server-2003\",\n"
-                + "        \"windows-server-2008\",\n"
-                + "        \"file-transfer\"\n"
-                + "    ],\n"
-                + "    \"qa_join_field\" : \"question\"\n"
-                + "}"
-        );
+        questionDoc.setJsonEntity("""
+            {
+                "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
+                "title": "Whats the best way to file transfer my site from server to a newer one?",
+                "tags": [
+                    "windows-server-2003",
+                    "windows-server-2008",
+                    "file-transfer"
+                ],
+                "qa_join_field" : "question"
+            }""");
         client().performRequest(questionDoc);
         Request answerDoc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
         answerDoc1.addParameter("routing", "1");
-        answerDoc1.setJsonEntity(
-            "{\n"
-                + "    \"owner\": {\n"
-                + "        \"location\": \"Norfolk, United Kingdom\",\n"
-                + "        \"display_name\": \"Sam\",\n"
-                + "        \"id\": 48\n"
-                + "    },\n"
-                + "    \"body\": \"<p>Unfortunately you're pretty much limited to FTP...\",\n"
-                + "    \"qa_join_field\" : {\n"
-                + "        \"name\" : \"answer\",\n"
-                + "        \"parent\" : \"1\"\n"
-                + "    },\n"
-                + "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n"
-                + "}"
-        );
+        answerDoc1.setJsonEntity("""
+            {
+                "owner": {
+                    "location": "Norfolk, United Kingdom",
+                    "display_name": "Sam",
+                    "id": 48
+                },
+                "body": "<p>Unfortunately you're pretty much limited to FTP...",
+                "qa_join_field" : {
+                    "name" : "answer",
+                    "parent" : "1"
+                },
+                "creation_date": "2009-05-04T13:45:37.030"
+            }""");
         client().performRequest(answerDoc1);
         Request answerDoc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
         answerDoc2.addParameter("routing", "1");
-        answerDoc2.setJsonEntity(
-            "{\n"
-                + "    \"owner\": {\n"
-                + "        \"location\": \"Norfolk, United Kingdom\",\n"
-                + "        \"display_name\": \"Troll\",\n"
-                + "        \"id\": 49\n"
-                + "    },\n"
-                + "    \"body\": \"<p>Use Linux...\",\n"
-                + "    \"qa_join_field\" : {\n"
-                + "        \"name\" : \"answer\",\n"
-                + "        \"parent\" : \"1\"\n"
-                + "    },\n"
-                + "    \"creation_date\": \"2009-05-05T13:45:37.030\"\n"
-                + "}"
-        );
+        answerDoc2.setJsonEntity("""
+            {
+                "owner": {
+                    "location": "Norfolk, United Kingdom",
+                    "display_name": "Troll",
+                    "id": 49
+                },
+                "body": "<p>Use Linux...",
+                "qa_join_field" : {
+                    "name" : "answer",
+                    "parent" : "1"
+                },
+                "creation_date": "2009-05-05T13:45:37.030"
+            }""");
         client().performRequest(answerDoc2);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 

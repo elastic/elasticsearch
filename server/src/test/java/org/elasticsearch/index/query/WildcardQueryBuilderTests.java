@@ -110,25 +110,27 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "    \"wildcard\": {\n"
-            + "      \"user1\": {\n"
-            + "        \"wildcard\": \"ki*y\"\n"
-            + "      },\n"
-            + "      \"user2\": {\n"
-            + "        \"wildcard\": \"ki*y\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String json = """
+            {
+                "wildcard": {
+                  "user1": {
+                    "wildcard": "ki*y"
+                  },
+                  "user2": {
+                    "wildcard": "ki*y"
+                  }
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
 
-        String shortJson = "{\n"
-            + "    \"wildcard\": {\n"
-            + "      \"user1\": \"ki*y\",\n"
-            + "      \"user2\": \"ki*y\"\n"
-            + "    }\n"
-            + "}";
+        String shortJson = """
+            {
+                "wildcard": {
+                  "user1": "ki*y",
+                  "user2": "ki*y"
+                }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }

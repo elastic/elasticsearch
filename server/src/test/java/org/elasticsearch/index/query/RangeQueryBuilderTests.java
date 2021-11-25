@@ -422,16 +422,17 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testNamedQueryParsing() throws IOException {
-        String json = "{\n"
-            + "  \"range\" : {\n"
-            + "    \"timestamp\" : {\n"
-            + "      \"from\" : \"2015-01-01 00:00:00\",\n"
-            + "      \"to\" : \"now\",\n"
-            + "      \"boost\" : 1.0,\n"
-            + "      \"_name\" : \"my_range\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "range" : {
+                "timestamp" : {
+                  "from" : "2015-01-01 00:00:00",
+                  "to" : "now",
+                  "boost" : 1.0,
+                  "_name" : "my_range"
+                }
+              }
+            }""";
         assertNotNull(parseQuery(json));
     }
 
@@ -543,18 +544,19 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testParseFailsWithMultipleFields() {
-        String json = "{\n"
-            + "    \"range\": {\n"
-            + "      \"age\": {\n"
-            + "        \"gte\": 30,\n"
-            + "        \"lte\": 40\n"
-            + "      },\n"
-            + "      \"price\": {\n"
-            + "        \"gte\": 10,\n"
-            + "        \"lte\": 30\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String json = """
+            {
+                "range": {
+                  "age": {
+                    "gte": 30,
+                    "lte": 40
+                  },
+                  "price": {
+                    "gte": 10,
+                    "lte": 30
+                  }
+                }
+              }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[range] query doesn't support multiple fields, found [age] and [price]", e.getMessage());
     }
@@ -578,15 +580,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testParseRelation() {
-        String json = "{\n"
-            + "    \"range\": {\n"
-            + "      \"age\": {\n"
-            + "        \"gte\": 30,\n"
-            + "        \"lte\": 40,\n"
-            + "        \"relation\": \"disjoint\"\n"
-            + "      }"
-            + "    }\n"
-            + "  }";
+        String json = """
+            {
+                "range": {
+                  "age": {
+                    "gte": 30,
+                    "lte": 40,
+                    "relation": "disjoint"
+                  }    }
+              }""";
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
         assertEquals("[range] query does not support relation [disjoint]", e1.getMessage());

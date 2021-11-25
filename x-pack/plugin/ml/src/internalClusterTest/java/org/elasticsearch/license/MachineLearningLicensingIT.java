@@ -505,16 +505,17 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertMLAllowed(true);
         putInferenceModel(modelId);
 
-        String pipeline = "{"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"target_field\": \"regression_value\",\n"
-            + "          \"model_id\": \"modelprocessorlicensetest\",\n"
-            + "          \"inference_config\": {\"regression\": {}},\n"
-            + "          \"field_map\": {}\n"
-            + "        }\n"
-            + "      }]}\n";
+        String pipeline = """
+            {    "processors": [
+                  {
+                    "inference": {
+                      "target_field": "regression_value",
+                      "model_id": "modelprocessorlicensetest",
+                      "inference_config": {"regression": {}},
+                      "field_map": {}
+                    }
+                  }]}
+            """;
         // Creating a pipeline should work
         PlainActionFuture<AcknowledgedResponse> putPipelineListener = PlainActionFuture.newFuture();
         client().execute(

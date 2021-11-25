@@ -44,13 +44,13 @@ public abstract class Graphviz {
 
         StringBuilder sb = new StringBuilder();
         // name
-        sb.append(
-            "digraph G { "
-                + "rankdir=BT;\n "
-                + "node[shape=plaintext, color=azure1];\n "
-                + "edge[color=black];\n "
-                + "graph[compound=true];\n\n"
-        );
+        sb.append("""
+            digraph G { rankdir=BT;
+             node[shape=plaintext, color=azure1];
+             edge[color=black];
+             graph[compound=true];
+
+            """);
 
         int clusterNodeStart = 1;
         int clusterId = 0;

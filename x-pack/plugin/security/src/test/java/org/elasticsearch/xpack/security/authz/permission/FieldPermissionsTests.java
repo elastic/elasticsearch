@@ -131,15 +131,11 @@ public class FieldPermissionsTests extends ESTestCase {
         );
 
         // try with two indices and mix order a little
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], "
-            + "\"field_security\": {"
-            + "\"grant\": []"
-            + "}},"
-            + "{\"names\": \"idx3\",\n"
-            + " \"field_security\": {\n"
-            + " \"grant\": [\"*\"], \n"
-            + " \"except\": [\"f2\"]},"
-            + "\"privileges\": [\"p3\"]}]}";
+        q = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {"grant": []}},{"names": "idx3",
+             "field_security": {
+             "grant": ["*"],\s
+             "except": ["f2"]},"privileges": ["p3"]}]}""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());

@@ -26,20 +26,21 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     public void testDataStreams() throws IOException {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            String requestBody = "{\n"
-                + "      \"index_patterns\":[\"logs-*\"],\n"
-                + "      \"template\": {\n"
-                + "        \"mappings\": {\n"
-                + "          \"properties\": {\n"
-                + "            \"@timestamp\": {\n"
-                + "              \"type\": \"date\"\n"
-                + "             }\n"
-                + "          }\n"
-                + "        }\n"
-                + "      },\n"
-                + "      \"data_stream\":{\n"
-                + "      }\n"
-                + "    }";
+            String requestBody = """
+                {
+                      "index_patterns":["logs-*"],
+                      "template": {
+                        "mappings": {
+                          "properties": {
+                            "@timestamp": {
+                              "type": "date"
+                             }
+                          }
+                        }
+                      },
+                      "data_stream":{
+                      }
+                    }""";
             Request request = new Request("PUT", "/_index_template/1");
             request.setJsonEntity(requestBody);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(request);
@@ -109,20 +110,21 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     public void testDataStreamValidationDoesNotBreakUpgrade() throws Exception {
         assumeTrue("Bug started to occur from version: " + Version.V_7_10_2, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_10_2));
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            String requestBody = "{\n"
-                + "      \"index_patterns\":[\"logs-*\"],\n"
-                + "      \"template\": {\n"
-                + "        \"mappings\": {\n"
-                + "          \"properties\": {\n"
-                + "            \"@timestamp\": {\n"
-                + "              \"type\": \"date\"\n"
-                + "             }\n"
-                + "          }\n"
-                + "        }\n"
-                + "      },\n"
-                + "      \"data_stream\":{\n"
-                + "      }\n"
-                + "    }";
+            String requestBody = """
+                {
+                      "index_patterns":["logs-*"],
+                      "template": {
+                        "mappings": {
+                          "properties": {
+                            "@timestamp": {
+                              "type": "date"
+                             }
+                          }
+                        }
+                      },
+                      "data_stream":{
+                      }
+                    }""";
             Request request = new Request("PUT", "/_index_template/1");
             request.setJsonEntity(requestBody);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(request);

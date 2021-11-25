@@ -336,16 +336,17 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"geo_distance\" : {\n"
-            + "    \"pin.location\" : [ -70.0, 40.0 ],\n"
-            + "    \"distance\" : 12000.0,\n"
-            + "    \"distance_type\" : \"arc\",\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "geo_distance" : {
+                "pin.location" : [ -70.0, 40.0 ],
+                "distance" : 12000.0,
+                "distance_type" : "arc",
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
         GeoDistanceQueryBuilder parsed = (GeoDistanceQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
@@ -369,16 +370,17 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "  \"geo_distance\" : {\n"
-            + "    \"point1\" : {\n"
-            + "      \"lat\" : 30, \"lon\" : 12\n"
-            + "    },\n"
-            + "    \"point2\" : {\n"
-            + "      \"lat\" : 30, \"lon\" : 12\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "geo_distance" : {
+                "point1" : {
+                  "lat" : 30, "lon" : 12
+                },
+                "point2" : {
+                  "lat" : 30, "lon" : 12
+                }
+              }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[geo_distance] query doesn't support multiple fields, found [point1] and [point2]", e.getMessage());
     }

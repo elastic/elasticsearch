@@ -84,8 +84,10 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testFailWithUnknownKey() {
-        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"unknown_key\" : \"open,closed\"}}\r\n"
-            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        final String requestContent = """
+            {"index":"test", "ignore_unavailable" : true, "unknown_key" : "open,closed"}}\r
+            {"query" : {"match_all" :{}}}\r
+            """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
             XContentType.JSON
@@ -98,8 +100,10 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAddWithCarriageReturn() throws Exception {
-        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"expand_wildcards\" : \"open,closed\"}}\r\n"
-            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        final String requestContent = """
+            {"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}}\r
+            {"query" : {"match_all" :{}}}\r
+            """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
             XContentType.JSON
@@ -114,8 +118,10 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testDefaultIndicesOptions() throws IOException {
-        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n"
-            + "{\"query\" : {\"match_all\" :{}}}\r\n";
+        final String requestContent = """
+            {"index":"test", "expand_wildcards" : "open,closed"}}\r
+            {"query" : {"match_all" :{}}}\r
+            """;
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestContent),
             XContentType.JSON
@@ -428,18 +434,17 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testEmptyFirstLine1() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString(
-            "\n"
-                + "\n"
-                + "{ \"query\": {\"match_all\": {}}}\n"
-                + "{}\n"
-                + "{ \"query\": {\"match_all\": {}}}\n"
-                + "\n"
-                + "{ \"query\": {\"match_all\": {}}}\n"
-                + "{}\n"
-                + "{ \"query\": {\"match_all\": {}}}\n",
-            RestApiVersion.V_7
-        );
+        MultiSearchRequest request = parseMultiSearchRequestFromString("""
+
+
+            { "query": {"match_all": {}}}
+            {}
+            { "query": {"match_all": {}}}
+
+            { "query": {"match_all": {}}}
+            {}
+            { "query": {"match_all": {}}}
+            """, RestApiVersion.V_7);
         assertThat(request.requests().size(), equalTo(4));
         for (SearchRequest searchRequest : request.requests()) {
             assertThat(searchRequest.indices().length, equalTo(0));
@@ -452,18 +457,17 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testEmptyFirstLine2() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString(
-            "\n"
-                + "{}\n"
-                + "{ \"query\": {\"match_all\": {}}}\n"
-                + "\n"
-                + "{ \"query\": {\"match_all\": {}}}\n"
-                + "{}\n"
-                + "{ \"query\": {\"match_all\": {}}}\n"
-                + "\n"
-                + "{ \"query\": {\"match_all\": {}}}\n",
-            RestApiVersion.V_7
-        );
+        MultiSearchRequest request = parseMultiSearchRequestFromString("""
+
+            {}
+            { "query": {"match_all": {}}}
+
+            { "query": {"match_all": {}}}
+            {}
+            { "query": {"match_all": {}}}
+
+            { "query": {"match_all": {}}}
+            """, RestApiVersion.V_7);
         assertThat(request.requests().size(), equalTo(4));
         for (SearchRequest searchRequest : request.requests()) {
             assertThat(searchRequest.indices().length, equalTo(0));

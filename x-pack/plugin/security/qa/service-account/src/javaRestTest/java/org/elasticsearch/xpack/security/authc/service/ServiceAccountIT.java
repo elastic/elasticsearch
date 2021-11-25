@@ -52,86 +52,85 @@ public class ServiceAccountIT extends ESRestTestCase {
     private static final String INVALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTozYUpDTGFRV1JOMnNYbE9kdHhBMFNR";
     private static Path caPath;
 
-    private static final String AUTHENTICATE_RESPONSE = ""
-        + "{\n"
-        + "  \"username\": \"elastic/fleet-server\",\n"
-        + "  \"roles\": [],\n"
-        + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
-        + "  \"email\": null,\n"
-        + "  \"token\": {\n"
-        + "    \"name\": \"%s\",\n"
-        + "    \"type\": \"_service_account_%s\"\n"
-        + "  },\n"
-        + "  \"metadata\": {\n"
-        + "    \"_elastic_service_account\": true\n"
-        + "  },\n"
-        + "  \"enabled\": true,\n"
-        + "  \"authentication_realm\": {\n"
-        + "    \"name\": \"_service_account\",\n"
-        + "    \"type\": \"_service_account\"\n"
-        + "  },\n"
-        + "  \"lookup_realm\": {\n"
-        + "    \"name\": \"_service_account\",\n"
-        + "    \"type\": \"_service_account\"\n"
-        + "  },\n"
-        + "  \"authentication_type\": \"token\"\n"
-        + "}\n";
+    private static final String AUTHENTICATE_RESPONSE = """
+        {
+          "username": "elastic/fleet-server",
+          "roles": [],
+          "full_name": "Service account - elastic/fleet-server",
+          "email": null,
+          "token": {
+            "name": "%s",
+            "type": "_service_account_%s"
+          },
+          "metadata": {
+            "_elastic_service_account": true
+          },
+          "enabled": true,
+          "authentication_realm": {
+            "name": "_service_account",
+            "type": "_service_account"
+          },
+          "lookup_realm": {
+            "name": "_service_account",
+            "type": "_service_account"
+          },
+          "authentication_type": "token"
+        }
+        """;
 
-    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = ""
-        + "{\n"
-        + "      \"cluster\": [\n"
-        + "        \"monitor\",\n"
-        + "        \"manage_own_api_key\"\n"
-        + "      ],\n"
-        + "      \"indices\": [\n"
-        + "        {\n"
-        + "          \"names\": [\n"
-        + "            \"logs-*\",\n"
-        + "            \"metrics-*\",\n"
-        + "            \"traces-*\",\n"
-        + "            \"synthetics-*\",\n"
-        + "            \".logs-endpoint.diagnostic.collection-*\",\n"
-        + "            \".logs-endpoint.action.responses-*\"\n"
-        + "          ],\n"
-        + "          \"privileges\": [\n"
-        + "            \"write\",\n"
-        + "            \"create_index\",\n"
-        + "            \"auto_configure\"\n"
-        + "          ],\n"
-        + "          \"allow_restricted_indices\": false\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"names\": [\n"
-        + "            \".fleet-*\"\n"
-        + "          ],\n"
-        + "          \"privileges\": [\n"
-        + "            \"read\",\n"
-        + "            \"write\",\n"
-        + "            \"monitor\",\n"
-        + "            \"create_index\",\n"
-        + "            \"auto_configure\"\n"
-        + "          ],\n"
-        + "          \"allow_restricted_indices\": true\n"
-        + "        }\n"
-        + "      ],\n"
-        + "      \"applications\": ["
-        + "        {\n"
-        + "          \"application\" : \"kibana-*\",\n"
-        + "          \"privileges\" : [\n"
-        + "            \"reserved_fleet-setup\"\n"
-        + "          ],\n"
-        + "          \"resources\" : [\n"
-        + "            \"*\"\n"
-        + "          ]\n"
-        + "        }"
-        + "      ],\n"
-        + "      \"run_as\": [],\n"
-        + "      \"metadata\": {},\n"
-        + "      \"transient_metadata\": {\n"
-        + "        \"enabled\": true\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }";
+    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = """
+        {
+              "cluster": [
+                "monitor",
+                "manage_own_api_key"
+              ],
+              "indices": [
+                {
+                  "names": [
+                    "logs-*",
+                    "metrics-*",
+                    "traces-*",
+                    "synthetics-*",
+                    ".logs-endpoint.diagnostic.collection-*",
+                    ".logs-endpoint.action.responses-*"
+                  ],
+                  "privileges": [
+                    "write",
+                    "create_index",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".fleet-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": true
+                }
+              ],
+              "applications": [        {
+                  "application" : "kibana-*",
+                  "privileges" : [
+                    "reserved_fleet-setup"
+                  ],
+                  "resources" : [
+                    "*"
+                  ]
+                }      ],
+              "run_as": [],
+              "metadata": {},
+              "transient_metadata": {
+                "enabled": true
+              }
+            }
+          }""";
 
     @BeforeClass
     public static void init() throws URISyntaxException, FileNotFoundException {

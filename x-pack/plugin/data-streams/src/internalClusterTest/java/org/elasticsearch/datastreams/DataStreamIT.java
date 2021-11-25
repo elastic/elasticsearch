@@ -418,16 +418,17 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testComposableTemplateOnlyMatchingWithDataStreamName() throws Exception {
         String dataStreamName = "logs-foobar";
 
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"baz_field\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        },\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "baz_field": {
+                      "type": "keyword"
+                    },
+                    "@timestamp": {
+                      "type": "date"
+                    }
+                  }
+                }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
         request.indexTemplate(
             new ComposableIndexTemplate(
@@ -505,13 +506,14 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testTimeStampValidationInvalidFieldMapping() throws Exception {
         // Adding a template with an invalid mapping for timestamp field and expect template creation to fail.
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "keyword"
+                    }
+                  }
+                }""";
         PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
         createTemplateRequest.indexTemplate(
             new ComposableIndexTemplate(
@@ -993,17 +995,18 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testTimestampFieldCustomAttributes() throws Exception {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\",\n"
-            + "          \"format\": \"yyyy-MM\",\n"
-            + "          \"meta\": {\n"
-            + "            \"x\": \"y\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date",
+                      "format": "yyyy-MM",
+                      "meta": {
+                        "x": "y"
+                      }
+                    }
+                  }
+                }""";
         putComposableIndexTemplate("id1", mapping, List.of("logs-foo*"), null, null);
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
@@ -1811,7 +1814,12 @@ public class DataStreamIT extends ESIntegTestCase {
             List.of("logs"),
             new Template(
                 Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
-                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
                 null
             ),
             null,
@@ -1832,7 +1840,12 @@ public class DataStreamIT extends ESIntegTestCase {
             List.of("logs"),
             new Template(
                 Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
-                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
                 null
             ),
             null,
@@ -1869,7 +1882,12 @@ public class DataStreamIT extends ESIntegTestCase {
                     .put("index.number_of_routing_shards", "10")
                     .put("index.routing_partition_size", "4")
                     .build(),
-                new CompressedXContent("{\n" + "      \"_routing\": {\n" + "        \"required\": true\n" + "      }\n" + "    }"),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
                 null
             ),
             null,

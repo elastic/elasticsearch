@@ -308,22 +308,23 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
-        String multiQuery = "{\n"
-            + "  \"script\": {\n"
-            + "    \"lang\": \"mustache\",\n"
-            + "    \"source\": {\n"
-            + "      \"query\": {\n"
-            + "        \"terms\": {\n"
-            + "            \"theField\": [\n"
-            + "                \"{{#fieldParam}}\",\n"
-            + "                \"{{.}}\",\n"
-            + "                \"{{/fieldParam}}\"\n"
-            + "            ]\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String multiQuery = """
+            {
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "query": {
+                    "terms": {
+                        "theField": [
+                            "{{#fieldParam}}",
+                            "{{.}}",
+                            "{{/fieldParam}}"
+                        ]
+                    }
+                  }
+                }
+              }
+            }""";
         assertAcked(
             client().admin().cluster().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON)
         );

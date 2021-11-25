@@ -93,7 +93,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"wrapper\" : {\n" + "    \"query\" : \"e30=\"\n" + "  }\n" + "}";
+        String json = """
+            {
+              "wrapper" : {
+                "query" : "e30="
+              }
+            }""";
 
         WrapperQueryBuilder parsed = (WrapperQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

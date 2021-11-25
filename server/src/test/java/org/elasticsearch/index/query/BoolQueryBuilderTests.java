@@ -123,7 +123,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         Map<String, BoolQueryBuilder> alternateVersions = new HashMap<>();
         BoolQueryBuilder tempQueryBuilder = createTestQueryBuilder();
         BoolQueryBuilder expectedQuery = new BoolQueryBuilder();
-        String contentString = "{\n" + "    \"bool\" : {\n";
+        String contentString = """
+            {
+                "bool" : {
+            """;
         if (tempQueryBuilder.must().size() > 0) {
             QueryBuilder must = tempQueryBuilder.must().get(0);
             contentString += "\"must\": " + must.toString() + ",";

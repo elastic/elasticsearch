@@ -154,10 +154,10 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
-        Shell.Result changePassword = installation.executables().keystoreTool.run(
-            "passwd",
-            "some-password" + "\n" + "some-password" + "\n"
-        );
+        Shell.Result changePassword = installation.executables().keystoreTool.run("passwd", """
+            some-password
+            some-password
+            """);
         assertThat(changePassword.exitCode, equalTo(0));
         Shell.Result result = installation.executables().nodeReconfigureTool.run(
             "--enrollment-token a-token",

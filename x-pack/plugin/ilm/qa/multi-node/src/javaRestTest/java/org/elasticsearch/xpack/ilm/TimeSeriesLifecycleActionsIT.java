@@ -544,10 +544,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
 
         index = indexPrefix + "-000001";
-        final StringEntity putIndex = new StringEntity(
-            "{\n" + "  \"aliases\": {\n" + "    \"test_alias\": {\n" + "      \"is_write_index\": true\n" + "    }\n" + "  }\n" + "}",
-            ContentType.APPLICATION_JSON
-        );
+        final StringEntity putIndex = new StringEntity("""
+            {
+              "aliases": {
+                "test_alias": {
+                  "is_write_index": true
+                }
+              }
+            }""", ContentType.APPLICATION_JSON);
         Request putIndexRequest = new Request("PUT", index);
         putIndexRequest.setEntity(putIndex);
         client().performRequest(putIndexRequest);

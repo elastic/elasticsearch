@@ -322,9 +322,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper badMerge = fromMapping("{\"type\":\"test_mapper\",\"fixed\":true,\"fixed2\":true,\"required\":\"value\"}");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(badMerge));
-        String expectedError = "Mapper for [field] conflicts with existing mapper:\n"
-            + "\tCannot update parameter [fixed] from [false] to [true]\n"
-            + "\tCannot update parameter [fixed2] from [false] to [true]";
+        String expectedError = """
+            Mapper for [field] conflicts with existing mapper:
+            \tCannot update parameter [fixed] from [false] to [true]
+            \tCannot update parameter [fixed2] from [false] to [true]""";
         assertEquals(expectedError, e.getMessage());
 
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected

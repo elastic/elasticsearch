@@ -50,17 +50,15 @@ import static org.mockito.Mockito.when;
  */
 public class IndexingStateProcessorTests extends ESTestCase {
 
-    private static final String STATE_SAMPLE = ""
-        + "        \n"
-        + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
-        + "{ \"field\" : \"value1\" }\n"
-        + "\0"
-        + "{\"index\": {\"_index\": \"test\", \"_id\": \"2\"}}\n"
-        + "{ \"field\" : \"value2\" }\n"
-        + "\0"
-        + "{\"index\": {\"_index\": \"test\", \"_id\": \"3\"}}\n"
-        + "{ \"field\" : \"value3\" }\n"
-        + "\0";
+    private static final String STATE_SAMPLE = """
+               \s
+        {"index": {"_index": "test", "_id": "1"}}
+        { "field" : "value1" }
+        \0{"index": {"_index": "test", "_id": "2"}}
+        { "field" : "value2" }
+        \0{"index": {"_index": "test", "_id": "3"}}
+        { "field" : "value3" }
+        \0""";
 
     private static final String JOB_ID = "state-processor-test-job";
 

@@ -61,7 +61,11 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     public void testEvaluate_withSecurity() throws Exception {
         String index = "test_data";
         Request createDoc = new Request("POST", index + "/_doc");
-        createDoc.setJsonEntity("{\n" + "  \"is_outlier\": 0.0,\n" + "  \"ml.outlier_score\": 1.0\n" + "}");
+        createDoc.setJsonEntity("""
+            {
+              "is_outlier": 0.0,
+              "ml.outlier_score": 1.0
+            }""");
         client().performRequest(createDoc);
         Request refreshRequest = new Request("POST", index + "/_refresh");
         client().performRequest(refreshRequest);

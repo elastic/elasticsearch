@@ -248,9 +248,11 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // unallocate all index shards
         Request setAllocationToMissingAttribute = new Request("PUT", "/" + index + "/_settings");
-        setAllocationToMissingAttribute.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"index.routing.allocation.include.rack\": \"bogus_rack\"" + "  }\n" + "}"
-        );
+        setAllocationToMissingAttribute.setJsonEntity("""
+            {
+              "settings": {
+                "index.routing.allocation.include.rack": "bogus_rack"  }
+            }""");
         client().performRequest(setAllocationToMissingAttribute);
 
         ensureHealth(index, (request) -> {
@@ -292,9 +294,11 @@ public class ShrinkActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
 
         Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
-        resetAllocationForIndex.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"index.routing.allocation.include.rack\": null" + "  }\n" + "}"
-        );
+        resetAllocationForIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index.routing.allocation.include.rack": null  }
+            }""");
         client().performRequest(resetAllocationForIndex);
 
         String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);

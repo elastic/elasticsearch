@@ -1216,8 +1216,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(lifecyclePolicyMap, firstStepMap, stepMap, xContentRegistry, client, null);
         }
 
-        public void setResolver(BiFunction<IndexMetadata, StepKey, Step> fn) {
-            this.fn = fn;
+        public void setResolver(BiFunction<IndexMetadata, StepKey, Step> resolver) {
+            this.fn = resolver;
         }
 
         @Override

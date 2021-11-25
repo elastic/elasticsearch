@@ -247,14 +247,14 @@ class RollupShardIndexer {
             .build();
     }
 
-    private Rounding createRounding(RollupActionDateHistogramGroupConfig config) {
-        DateHistogramInterval interval = config.getInterval();
-        ZoneId zoneId = config.getTimeZone() != null ? ZoneId.of(config.getTimeZone()) : null;
+    private Rounding createRounding(RollupActionDateHistogramGroupConfig groupConfig) {
+        DateHistogramInterval interval = groupConfig.getInterval();
+        ZoneId zoneId = groupConfig.getTimeZone() != null ? ZoneId.of(groupConfig.getTimeZone()) : null;
         Rounding.Builder tzRoundingBuilder;
-        if (config instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
+        if (groupConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
             TimeValue timeValue = TimeValue.parseTimeValue(interval.toString(), null, getClass().getSimpleName() + ".interval");
             tzRoundingBuilder = Rounding.builder(timeValue);
-        } else if (config instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
+        } else if (groupConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
             Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
             tzRoundingBuilder = Rounding.builder(dateTimeUnit);
         } else {
@@ -539,9 +539,9 @@ class RollupShardIndexer {
             return PointValues.Relation.CELL_CROSSES_QUERY;
         }
 
-        private void checkMinRounding(long rounding) {
-            if (rounding > lastRounding) {
-                nextRounding = rounding;
+        private void checkMinRounding(long roundingValue) {
+            if (roundingValue > lastRounding) {
+                nextRounding = roundingValue;
                 throw new CollectionTerminatedException();
             }
         }

@@ -140,17 +140,17 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         lifecycleState.setPhase("new");
         lifecycleState.setAction("init");
         lifecycleState.setStep("init");
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+        IndexMetadata _indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        index = indexMetadata.getIndex();
+        index = _indexMetadata.getIndex();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
-            .put(IndexMetadata.builder(indexMetadata))
+            .put(IndexMetadata.builder(_indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
@@ -163,7 +163,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         policyStepsRegistry.update(clusterState.metadata().custom(IndexLifecycleMetadata.TYPE));
-        return indexMetadata;
+        return _indexMetadata;
     }
 
     public void testNeverExecuteNonClusterStateStep() throws Exception {

@@ -12,11 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class TransportStats implements Writeable, ToXContentFragment {
 
@@ -27,7 +29,6 @@ public class TransportStats implements Writeable, ToXContentFragment {
     private final long txCount;
     private final long txSize;
     private final long[] handlingTimeBucketFrequencies;
-    private final int[] handlingTimeBucketBounds;
 
     public TransportStats(
         long serverOpen,
@@ -36,8 +37,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         long rxSize,
         long txCount,
         long txSize,
-        long[] handlingTimeBucketFrequencies,
-        int[] handlingTimeBucketBounds
+        long[] handlingTimeBucketFrequencies
     ) {
         this.serverOpen = serverOpen;
         this.totalOutboundConnections = totalOutboundConnections;
@@ -46,7 +46,6 @@ public class TransportStats implements Writeable, ToXContentFragment {
         this.txCount = txCount;
         this.txSize = txSize;
         this.handlingTimeBucketFrequencies = handlingTimeBucketFrequencies;
-        this.handlingTimeBucketBounds = handlingTimeBucketBounds;
         assert assertHistogramConsistent();
     }
 
@@ -57,12 +56,13 @@ public class TransportStats implements Writeable, ToXContentFragment {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
-            handlingTimeBucketFrequencies = in.readLongArray();
-            handlingTimeBucketBounds = in.readIntArray();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0) && in.readBoolean()) {
+            handlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
+            for (int i = 0; i < handlingTimeBucketFrequencies.length; i++) {
+                handlingTimeBucketFrequencies[i] = in.readVLong();
+            }
         } else {
             handlingTimeBucketFrequencies = new long[0];
-            handlingTimeBucketBounds = new int[0];
         }
         assert assertHistogramConsistent();
     }
@@ -76,8 +76,10 @@ public class TransportStats implements Writeable, ToXContentFragment {
         out.writeVLong(txCount);
         out.writeVLong(txSize);
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-            out.writeLongArray(handlingTimeBucketFrequencies);
-            out.writeIntArray(handlingTimeBucketBounds);
+            out.writeBoolean(handlingTimeBucketFrequencies.length > 0);
+            for (long handlingTimeBucketFrequency : handlingTimeBucketFrequencies) {
+                out.writeVLong(handlingTimeBucketFrequency);
+            }
         }
     }
 
@@ -122,24 +124,15 @@ public class TransportStats implements Writeable, ToXContentFragment {
     }
 
     public long[] getHandlingTimeBucketFrequencies() {
-        final long[] histogram = new long[handlingTimeBucketFrequencies.length];
-        System.arraycopy(handlingTimeBucketFrequencies, 0, histogram, 0, handlingTimeBucketFrequencies.length);
-        return histogram;
-    }
-
-    public int[] getHandlingTimeBucketBounds() {
-        final int[] bounds = new int[handlingTimeBucketBounds.length];
-        System.arraycopy(handlingTimeBucketBounds, 0, bounds, 0, handlingTimeBucketBounds.length);
-        return bounds;
+        return Arrays.copyOf(handlingTimeBucketFrequencies, handlingTimeBucketFrequencies.length);
     }
 
     private boolean assertHistogramConsistent() {
         if (handlingTimeBucketFrequencies.length == 0) {
             // Stats came from before v8.1
             assert Version.CURRENT.major == Version.V_8_0_0.major;
-            assert handlingTimeBucketBounds.length == 0;
         } else {
-            assert handlingTimeBucketFrequencies.length == handlingTimeBucketBounds.length + 1;
+            assert handlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         }
         return true;
     }
@@ -154,6 +147,8 @@ public class TransportStats implements Writeable, ToXContentFragment {
         builder.field(Fields.TX_COUNT, txCount);
         builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, new ByteSizeValue(txSize));
         if (handlingTimeBucketFrequencies.length > 0) {
+            final int[] handlingTimeBucketBounds = HandlingTimeTracker.getBucketUpperBounds();
+            assert handlingTimeBucketFrequencies.length == handlingTimeBucketBounds.length + 1;
             builder.startArray(Fields.HANDLING_TIME_HISTOGRAM);
             for (int i = 0; i < handlingTimeBucketFrequencies.length; i++) {
                 builder.startObject();

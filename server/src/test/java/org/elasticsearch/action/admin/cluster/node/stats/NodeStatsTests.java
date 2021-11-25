@@ -244,10 +244,6 @@ public class NodeStatsTests extends ESTestCase {
                         nodeStats.getTransport().getHandlingTimeBucketFrequencies(),
                         deserializedNodeStats.getTransport().getHandlingTimeBucketFrequencies()
                     );
-                    assertArrayEquals(
-                        nodeStats.getTransport().getHandlingTimeBucketBounds(),
-                        deserializedNodeStats.getTransport().getHandlingTimeBucketBounds()
-                    );
                 }
                 if (nodeStats.getHttp() == null) {
                     assertNull(deserializedNodeStats.getHttp());
@@ -683,8 +679,7 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT - 1).map(i -> between(0, Integer.MAX_VALUE)).toArray()
+                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray()
             )
             : null;
         HttpStats httpStats = null;

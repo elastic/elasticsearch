@@ -107,8 +107,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     client.snapshot()
                         .createRepository(
                             new PutRepositoryRequest("testrepo").type("fs")
-                                .settings(
-                                    Settings.builder().put("location", repoLocation).put("allow_bwc_indices", true).build()),
+                                .settings(Settings.builder().put("location", repoLocation).put("allow_bwc_indices", true).build()),
                             RequestOptions.DEFAULT
                         )
                 );

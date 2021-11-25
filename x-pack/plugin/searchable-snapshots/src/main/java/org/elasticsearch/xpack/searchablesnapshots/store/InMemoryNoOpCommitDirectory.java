@@ -95,6 +95,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
         ensureMutable(dest);
         assert notOverwritingRealSegmentsFile(dest) : dest;
         super.rename(source, dest);
+        deletedFiles.remove(dest);
     }
 
     @Override

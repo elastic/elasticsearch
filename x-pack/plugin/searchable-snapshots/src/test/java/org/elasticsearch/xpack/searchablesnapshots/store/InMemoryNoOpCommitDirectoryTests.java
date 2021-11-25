@@ -12,6 +12,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
@@ -207,6 +208,48 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
                 indexWriter.addDocument(document);
                 indexWriter.commit();
             });
+        }
+    }
+
+    public void testSupportsDeletes() throws IOException {
+        try (IndexWriter indexWriter = new IndexWriter(readOnlyDirectory, new IndexWriterConfig())) {
+            final Document document = new Document();
+            document.add(new TextField("foo", "bar", Field.Store.YES));
+            indexWriter.addDocument(document);
+            indexWriter.setLiveCommitData(singletonMap("user_data", "original").entrySet());
+            indexWriter.commit();
+        }
+
+        try (DirectoryReader directoryReader = DirectoryReader.open(inMemoryNoOpCommitDirectory)) {
+            assertThat(directoryReader.getIndexCommit().getUserData().get("user_data"), equalTo("original"));
+            final TopDocs topDocs = new IndexSearcher(directoryReader).search(new MatchAllDocsQuery(), 1);
+            assertThat(topDocs.totalHits, equalTo(new TotalHits(1L, TotalHits.Relation.EQUAL_TO)));
+            assertThat(topDocs.scoreDocs.length, equalTo(1));
+            assertThat(directoryReader.document(topDocs.scoreDocs[0].doc).getField("foo").stringValue(), equalTo("bar"));
+        }
+
+        assertEquals(1, DirectoryReader.listCommits(inMemoryNoOpCommitDirectory).size());
+
+        try (
+            IndexWriter indexWriter = new IndexWriter(
+                inMemoryNoOpCommitDirectory,
+                new IndexWriterConfig().setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE)
+            )
+        ) {
+            indexWriter.setLiveCommitData(singletonMap("user_data", "updated").entrySet());
+            indexWriter.commit();
+        }
+
+        assertEquals(2, DirectoryReader.listCommits(inMemoryNoOpCommitDirectory).size());
+
+        try (IndexWriter indexWriter = new IndexWriter(inMemoryNoOpCommitDirectory, new IndexWriterConfig())) {
+            indexWriter.commit();
+        }
+
+        assertEquals(1, DirectoryReader.listCommits(inMemoryNoOpCommitDirectory).size());
+
+        try (DirectoryReader directoryReader = DirectoryReader.open(inMemoryNoOpCommitDirectory)) {
+            assertThat(directoryReader.getIndexCommit().getUserData().get("user_data"), equalTo("updated"));
         }
     }
 

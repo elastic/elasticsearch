@@ -151,8 +151,6 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
         return segmentInfo1;
     }
 
-
-
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of();

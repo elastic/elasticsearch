@@ -10,17 +10,24 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -32,6 +39,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotA
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -350,6 +358,64 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
 
         final GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots(repository).get();
         assertTrue(getSnapshotsResponse.getSnapshots().stream().noneMatch(snapshotInfo -> mounts.containsValue(snapshotInfo.snapshotId())));
+    }
+
+    public void testSearchableSnapshotIsDeletedWithOnRepoCleanUp() throws Exception {
+        mountIndexThenExecute((repository, snapshot, index) -> {
+            try {
+                final int garbageFiles = between(1, 10);
+                final int garbageSize = between(1, 50);
+                final PlainActionFuture<Collection<Void>> garbageFuture = PlainActionFuture.newFuture();
+                final GroupedActionListener<Void> garbageGroupedListener = new GroupedActionListener<>(garbageFuture, garbageFiles);
+
+                final BlobStoreRepository blobRepository = getRepositoryOnMaster(repository);
+                for (int i = 0; i < garbageFiles; i++) {
+                    int garbageId = i;
+                    blobRepository.threadPool()
+                        .generic()
+                        .execute(
+                            ActionRunnable.run(
+                                garbageGroupedListener,
+                                () -> blobRepository.blobStore()
+                                    .blobContainer(blobRepository.basePath())
+                                    .writeBlob("snap-" + garbageId + ".dat", new BytesArray(randomByteArrayOfLength(garbageSize)), true)
+                            )
+                        );
+                }
+                garbageFuture.get();
+
+                blockMasterOnWriteIndexFile(repository);
+
+                final ActionFuture<CleanupRepositoryResponse> cleanUpFuture = client().admin()
+                    .cluster()
+                    .prepareCleanupRepository(repository)
+                    .execute();
+
+                final String masterNode = internalCluster().getMasterName();
+                awaitClusterState(
+                    state -> state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()
+                );
+                waitForBlock(masterNode, repository);
+
+                assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
+                awaitSnapshotPendingDeletion(snapshot);
+                assertFalse(cleanUpFuture.isDone());
+
+                unblockNode(repository, masterNode);
+                awaitNoMoreSnapshotsDeletions();
+
+                final CleanupRepositoryResponse cleanUpResponse = cleanUpFuture.get();
+                assertThat(cleanUpResponse.result().blobs(), equalTo((long) garbageFiles));
+                assertThat(cleanUpResponse.result().bytes(), equalTo((long) garbageSize * garbageFiles));
+
+                expectThrows(
+                    SnapshotMissingException.class,
+                    () -> client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot.getName()).get()
+                );
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     private void mountIndexThenExecute(final TriConsumer<String, SnapshotId, String> test) throws Exception {

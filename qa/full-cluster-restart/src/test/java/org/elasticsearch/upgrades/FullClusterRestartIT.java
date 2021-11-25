@@ -782,7 +782,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a single empty shard index is correctly recovered. Empty shards are often an edge case.
      */
     public void testEmptyShard() throws IOException {
-        final String index = "test_empty_shard";
+        final String indexName = "test_empty_shard";
 
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = Settings.builder()
@@ -794,9 +794,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            createIndex(index, settings.build());
+            createIndex(indexName, settings.build());
         }
-        ensureGreen(index);
+        ensureGreen(indexName);
     }
 
     /**
@@ -1165,21 +1165,24 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * that the index has started shards.
      */
     @SuppressWarnings("unchecked")
-    private void assertClosedIndex(final String index, final boolean checkRoutingTable) throws IOException {
+    private void assertClosedIndex(final String indexName, final boolean checkRoutingTable) throws IOException {
         final Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
 
-        final Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + index, state);
+        final Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + indexName, state);
         assertThat(metadata, notNullValue());
         assertThat(metadata.get("state"), equalTo("close"));
 
-        final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + index, state);
+        final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + indexName, state);
         assertThat(blocks, notNullValue());
         assertThat(blocks.containsKey(String.valueOf(MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
 
         final Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
         assertThat(settings, notNullValue());
 
-        final Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue("routing_table.indices." + index, state);
+        final Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue(
+            "routing_table.indices." + indexName,
+            state
+        );
         if (checkRoutingTable) {
             assertThat(routingTable, notNullValue());
             assertThat(Booleans.parseBoolean((String) XContentMapValues.extractValue("index.verified_before_close", settings)), is(true));
@@ -1198,7 +1201,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 for (Map<String, ?> shard : shards) {
                     assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
                     assertThat(XContentMapValues.extractValue("state", shard), equalTo("STARTED"));
-                    assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
+                    assertThat(XContentMapValues.extractValue("index", shard), equalTo(indexName));
                 }
             }
         } else {
@@ -1353,12 +1356,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return m.group(1);
     }
 
-    private List<String> dataNodes(String index, RestClient client) throws IOException {
-        Request request = new Request("GET", index + "/_stats");
+    private List<String> dataNodes(String indexName, RestClient client) throws IOException {
+        Request request = new Request("GET", indexName + "/_stats");
         request.addParameter("level", "shards");
         Response response = client.performRequest(request);
         List<String> nodes = new ArrayList<>();
-        List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+        List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + indexName + ".shards.0");
         for (Object shard : shardStats) {
             final String nodeId = ObjectPath.evaluate(shard, "routing.node");
             nodes.add(nodeId);
@@ -1370,8 +1373,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Wait for an index to have green health, waiting longer than
      * {@link ESRestTestCase#ensureGreen}.
      */
-    protected void ensureGreenLongWait(String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
+    protected void ensureGreenLongWait(String indexName) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + indexName);
         request.addParameter("timeout", "2m");
         request.addParameter("wait_for_status", "green");
         request.addParameter("wait_for_no_relocating_shards", "true");

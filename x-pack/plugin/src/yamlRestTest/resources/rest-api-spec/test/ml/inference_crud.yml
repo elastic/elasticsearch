@@ -560,6 +560,121 @@ setup:
       catch: missing
       ml.delete_trained_model:
         model_id: "missing-trained-model"
+
+---
+"Test delete given model referenced by pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      catch: /Cannot delete model \[a-classification-model\] as it is still referenced by ingest processors; use force to delete the model/
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
+---
+"Test force delete given model referenced by pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+        force: true
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
+---
+"Test delete given model with alias referenced by pipeline":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "alias-to-a-classification-model"
+        model_id: "a-classification-model"
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "alias-to-a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      catch: /Cannot delete model \[a-classification-model\] as it has a model_alias \[alias-to-a-classification-model\] that is still referenced by ingest processors; use force to delete the model/
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
+---
+"Test force delete given model with alias referenced by pipeline":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "alias-to-a-classification-model"
+        model_id: "a-classification-model"
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "alias-to-a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+  - do:
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+        force: true
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"
+
 ---
 "Test get pre-packaged trained models":
   - do:
@@ -750,7 +865,7 @@ setup:
   - is_true: license_level
   - is_true: create_time
   - is_true: version
-  - is_true: estimated_heap_memory_usage_bytes
+  - is_true: model_size_bytes
 ---
 "Test PUT model where target type and inference config mismatch":
   - do:
@@ -985,14 +1100,14 @@ setup:
             "description": "model for tests",
             "input": {"field_names": ["field1", "field2"]},
             "inference_config": {"classification": {}},
-            "estimated_heap_memory_usage_bytes": 1024,
+            "model_size_bytes": 1024,
             "compressed_definition": "H4sIAAAAAAAAAEy92a5mW26l9y55HWdj9o3u9RS+SMil4yrBUgpIpywY9fLmR3LMFSpI"
           }
 
 ---
 "Test put with defer_definition_decompression with invalid compression definition and no memory estimate":
   - do:
-      catch: /when \[defer_definition_decompression\] is true and a compressed definition is provided, estimated_heap_memory_usage_bytes must be set/
+      catch: /when \[defer_definition_decompression\] is true and a compressed definition is provided, model_size_bytes must be set/
       ml.put_trained_model:
         defer_definition_decompression: true
         model_id: my-regression-model-compressed-failed

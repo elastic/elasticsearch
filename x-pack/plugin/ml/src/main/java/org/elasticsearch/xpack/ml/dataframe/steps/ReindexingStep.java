@@ -267,7 +267,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         LOGGER.debug("[{}] Cancelling reindex task [{}]", config.getId(), reindexTaskId);
 
         CancelTasksRequest cancelReindex = new CancelTasksRequest();
-        cancelReindex.setTaskId(reindexTaskId);
+        cancelReindex.setTargetTaskId(reindexTaskId);
         cancelReindex.setReason(reason);
         cancelReindex.setTimeout(timeout);
 

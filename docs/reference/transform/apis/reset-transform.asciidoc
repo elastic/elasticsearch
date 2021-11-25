@@ -21,7 +21,7 @@ Resets a {transform}.
 * Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
 
-[[put-transform-desc]]
+[reset-transform-desc]]
 == {api-description-title}
 
 Before you can reset the {transform}, you must stop it; alternatively, use the

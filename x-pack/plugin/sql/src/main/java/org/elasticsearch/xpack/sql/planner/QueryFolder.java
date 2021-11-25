@@ -143,11 +143,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 AttributeMap.Builder<Expression> aliases = AttributeMap.<Expression>builder().putAll(queryC.aliases());
                 AttributeMap.Builder<Pipe> processors = AttributeMap.<Pipe>builder().putAll(queryC.scalarFunctions());
 
-                // recreate the query container's fields such that they appear in order of the projection and with non-projected fields
+                // recreate the query container's fields such that they appear in order of the projection and with hidden fields
                 // last. This is mostly needed for PIVOT queries where we have to fold projections on aggregations because they cannot be
                 // optimized away. Most (all) other queries usually prune nested projections in earlier steps.
                 List<QueryContainer.FieldInfo> fields = new ArrayList<>(queryC.fields().size());
-                List<QueryContainer.FieldInfo> nonProjectedFields = new ArrayList<>(queryC.fields());
+                List<QueryContainer.FieldInfo> hiddenFields = new ArrayList<>(queryC.fields());
 
                 for (NamedExpression pj : project.projections()) {
                     Attribute attr = pj.toAttribute();
@@ -169,16 +169,16 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         }
                     }
 
-                    final NameId finalAttributeId = attributeId;
-
-                    queryC.fields().stream().filter(f -> f.attribute().id().equals(finalAttributeId)).findFirst().ifPresent(f -> {
-                        fields.add(f);
-                        nonProjectedFields.remove(f);
-                    });
-
+                    for (QueryContainer.FieldInfo field : queryC.fields()) {
+                        if (field.attribute().id().equals(attributeId)) {
+                            fields.add(field);
+                            hiddenFields.remove(field);
+                            break;
+                        }
+                    }
                 }
 
-                fields.addAll(nonProjectedFields);
+                fields.addAll(hiddenFields);
 
                 QueryContainer clone = new QueryContainer(
                     queryC.query(),

@@ -16,6 +16,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -411,6 +412,43 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
+    }
+
+    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
+        final Directory directory = newDirectory();
+        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+        }
+        indexWriter.close();
+
+        final Directory unmappedDirectory = newDirectory();
+        final RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
+        final IndexReader indexReader = DirectoryReader.open(directory);
+        final IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        final MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        final IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+
+        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+        final AggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
+
+        final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);
+
+        assertEquals(10.0, cardinality.getValue(), 0);
+        assertEquals("cardinality", cardinality.getName());
+        assertTrue(AggregationInspectionHelper.hasValue(cardinality));
+
+        multiReader.close();
+        directory.close();
+        unmappedDirectory.close();
     }
 
     public void testSingleValuedNumericValueScript() throws IOException {

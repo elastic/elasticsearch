@@ -45,6 +45,10 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -62,6 +66,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -473,6 +478,60 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(3, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
+    }
+
+    public void testAsSubAggregation() throws IOException {
+        final MappedFieldType mappedFieldTypes[] = {
+            new KeywordFieldMapper.KeywordFieldType("str_value"),
+            new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG)
+        };
+
+        final AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms")
+            .field("str_value").missing("unknown")
+            .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
+
+        final Directory directory = newDirectory();
+        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(
+                Arrays.asList(
+                    new SortedDocValuesField("str_value", new BytesRef((((i + 1) % 2 == 0) ? "even" : "odd"))),
+                    new NumericDocValuesField("number", i + 1)
+                )
+            );
+        }
+        indexWriter.close();
+
+        final IndexReader indexReader = DirectoryReader.open(directory);
+        final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+        final GlobalOrdinalsStringTermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, mappedFieldTypes);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        int expectedTermBucketsCount = 2; //("even", "odd")
+        final Terms terms = (StringTerms) aggregator.buildTopLevel();
+        assertNotNull(terms);
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
+        assertNotNull(buckets);
+        assertEquals(expectedTermBucketsCount, buckets.size());
+
+        for (int i = 0; i < expectedTermBucketsCount; i++) {
+            final Terms.Bucket bucket = buckets.get(i);
+            assertNotNull(bucket);
+            assertEquals(((i + 1) % 2 == 0) ? "odd" : "even", bucket.getKey());
+            assertEquals(5L, bucket.getDocCount());
+
+            final InternalCardinality cardinality = bucket.getAggregations().get("cardinality");
+            assertNotNull(cardinality);
+            assertEquals("cardinality", cardinality.getName());
+            assertEquals(5, cardinality.getValue());
+        }
+
+        indexReader.close();
+        directory.close();
     }
 
     private static byte[] hash(final byte[] value) {

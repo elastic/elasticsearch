@@ -43,10 +43,59 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
             @Override
             public void afterFilesRestoredFromRepository(IndexShard indexShard) {
                 if (Build.CURRENT.isSnapshot()) {
-                    convertToNewFormat(indexShard);
+                    maybeConvertToNewFormat(indexShard);
                 }
             }
         });
+    }
+
+    private static void maybeConvertToNewFormat(IndexShard indexShard) {
+        indexShard.store().incRef();
+        try {
+            try {
+                Version version = getLuceneVersion(indexShard.store().directory());
+                // Lucene version in [7.0.0, 8.0.0)
+                if (version != null
+                    && version.onOrAfter(Version.fromBits(7, 0, 0))
+                    && version.onOrAfter(Version.fromBits(8, 0, 0)) == false) {
+                    final SegmentInfos oldSegmentInfos = SegmentInfosHelper.readLucene7x(indexShard.store().directory());
+                    final SegmentInfos segmentInfos = convertLucene7x(oldSegmentInfos);
+                    // write upgraded segments file
+                    segmentInfos.commit(indexShard.store().directory());
+
+                    // validate that what we have written can be read using standard path
+                    // TODO: norelease: remove this when development completes
+                    SegmentInfos segmentInfos1 = SegmentInfos.readLatestCommit(indexShard.store().directory());
+
+                    // clean older segments file
+                    Lucene.pruneUnreferencedFiles(segmentInfos1.getSegmentsFileName(), indexShard.store().directory());
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } finally {
+            indexShard.store().decRef();
+        }
+    }
+
+    private static Version getLuceneVersion(Directory directory) throws IOException {
+        final String segmentFileName = SegmentInfos.getLastCommitSegmentsFileName(directory);
+        if (segmentFileName != null) {
+            long generation = SegmentInfos.generationFromSegmentsFileName(segmentFileName);
+            try (ChecksumIndexInput input = directory.openChecksumInput(segmentFileName, IOContext.READ)) {
+                CodecUtil.checkHeader(input, "segments", 0, Integer.MAX_VALUE);
+                byte[] id = new byte[StringHelper.ID_LENGTH];
+                input.readBytes(id, 0, id.length);
+                CodecUtil.checkIndexHeaderSuffix(input, Long.toString(generation, Character.MAX_RADIX));
+
+                Version luceneVersion = Version.fromBits(input.readVInt(), input.readVInt(), input.readVInt());
+                int indexCreatedVersion = input.readVInt();
+                return luceneVersion;
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        return null;
     }
 
     private static SegmentInfos convertLucene7x(SegmentInfos oldSegmentInfos) {
@@ -70,7 +119,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
                     infoPerCommit.getDelGen(),
                     infoPerCommit.getFieldInfosGen(),
                     infoPerCommit.getDocValuesGen(),
-                    /* use info id as fake id */ info.getId()
+                    infoPerCommit.getId()
                 )
             );
         }
@@ -84,7 +133,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
         if (id == null) {
             id = StringHelper.randomId();
         }
-        Codec codec = segmentInfo.getCodec() instanceof Lucene70Codec ? new FakeLucene70Codec() : segmentInfo.getCodec();
+        Codec codec = segmentInfo.getCodec() instanceof Lucene70Codec ? new BWCLucene70Codec() : segmentInfo.getCodec();
         SegmentInfo segmentInfo1 = new SegmentInfo(
             segmentInfo.dir,
             org.apache.lucene.util.Version.LATEST,
@@ -102,54 +151,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
         return segmentInfo1;
     }
 
-    private static void convertToNewFormat(IndexShard indexShard) {
-        indexShard.store().incRef();
-        try {
-            try {
-                Version version = getVersion(indexShard.store().directory());
-                // Lucene version in [7.0.0, 8.0.0)
-                if (version != null
-                    && version.onOrAfter(Version.fromBits(7, 0, 0))
-                    && version.onOrAfter(Version.fromBits(8, 0, 0)) == false) {
-                    final SegmentInfos oldSegmentInfos = SegmentInfosHelper.readLucene7x(indexShard.store().directory());
-                    final SegmentInfos segmentInfos = convertLucene7x(oldSegmentInfos);
-                    // write upgraded segments file
-                    segmentInfos.commit(indexShard.store().directory());
 
-                    // to validate that what we have written can be read
-                    // TODO: norelease: remove this when development completes
-                    SegmentInfos segmentInfos1 = SegmentInfos.readLatestCommit(indexShard.store().directory());
-
-                    // clean older segments file
-                    Lucene.pruneUnreferencedFiles(segmentInfos1.getSegmentsFileName(), indexShard.store().directory());
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        } finally {
-            indexShard.store().decRef();
-        }
-    }
-
-    private static Version getVersion(Directory directory) throws IOException {
-        final String segmentFileName = SegmentInfos.getLastCommitSegmentsFileName(directory);
-        if (segmentFileName != null) {
-            long generation = SegmentInfos.generationFromSegmentsFileName(segmentFileName);
-            try (ChecksumIndexInput input = directory.openChecksumInput(segmentFileName, IOContext.READ)) {
-                CodecUtil.checkHeader(input, "segments", 0, Integer.MAX_VALUE);
-                byte[] id = new byte[StringHelper.ID_LENGTH];
-                input.readBytes(id, 0, id.length);
-                CodecUtil.checkIndexHeaderSuffix(input, Long.toString(generation, Character.MAX_RADIX));
-
-                Version luceneVersion = Version.fromBits(input.readVInt(), input.readVInt(), input.readVInt());
-                int indexCreatedVersion = input.readVInt();
-                return luceneVersion;
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-        return null;
-    }
 
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {

@@ -89,7 +89,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         logger.info("Failing the running task");
         // Fail the running task and make sure it restarts properly
         assertThat(
-            new TestTasksRequestBuilder(client()).setOperation("fail").setTaskId(firstRunningTask.getTaskId()).get().getTasks().size(),
+            new TestTasksRequestBuilder(client()).setOperation("fail")
+                .setTargetTaskId(firstRunningTask.getTaskId())
+                .get()
+                .getTasks()
+                .size(),
             equalTo(1)
         );
 
@@ -255,7 +259,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             // Complete the running task and make sure it finishes properly
             assertThat(
                 new TestTasksRequestBuilder(client()).setOperation("update_status")
-                    .setTaskId(firstRunningTask.getTaskId())
+                    .setTargetTaskId(firstRunningTask.getTaskId())
                     .get()
                     .getTasks()
                     .size(),
@@ -296,7 +300,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         logger.info("Completing the running task");
         // Complete the running task and make sure it finishes properly
         assertThat(
-            new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(firstRunningTask.getTaskId()).get().getTasks().size(),
+            new TestTasksRequestBuilder(client()).setOperation("finish")
+                .setTargetTaskId(firstRunningTask.getTaskId())
+                .get()
+                .getTasks()
+                .size(),
             equalTo(1)
         );
 
@@ -327,7 +335,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         logger.info("Completing the running task");
         // Fail the running task and make sure it restarts properly
         assertThat(
-            new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(firstRunningTask.getTaskId()).get().getTasks().size(),
+            new TestTasksRequestBuilder(client()).setOperation("finish")
+                .setTargetTaskId(firstRunningTask.getTaskId())
+                .get()
+                .getTasks()
+                .size(),
             equalTo(1)
         );
 
@@ -435,7 +447,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         assertThat(
             new TestTasksRequestBuilder(client()).setOperation("abort_locally")
-                .setTaskId(firstRunningTask.getTaskId())
+                .setTargetTaskId(firstRunningTask.getTaskId())
                 .get()
                 .getTasks()
                 .size(),
@@ -494,12 +506,15 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         if (randomBoolean()) {
             logger.info("Completing the running task");
             // Complete the running task and make sure it finishes properly
-            assertThat(new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(taskId).get().getTasks().size(), equalTo(1));
+            assertThat(
+                new TestTasksRequestBuilder(client()).setOperation("finish").setTargetTaskId(taskId).get().getTasks().size(),
+                equalTo(1)
+            );
 
         } else {
             logger.info("Cancelling the running task");
             // Cancel the running task and make sure it finishes properly
-            assertThat(client().admin().cluster().prepareCancelTasks().setTaskId(taskId).get().getTasks().size(), equalTo(1));
+            assertThat(client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).get().getTasks().size(), equalTo(1));
         }
     }
 

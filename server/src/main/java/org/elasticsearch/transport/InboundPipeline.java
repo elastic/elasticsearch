@@ -129,9 +129,10 @@ public class InboundPipeline implements Releasable {
             if (bytesDecoded != 0 && isClosed == false) {
                 releasePendingBytes(bytesDecoded);
             } else {
+                assert isClosed == false || pending.isEmpty() : "pending chunks should be empty if closed but saw [" + pending + "]";
                 return;
             }
-        } while (isClosed == false && pending.isEmpty() == false);
+        } while (pending.isEmpty() == false);
     }
 
     private void forwardFragment(TcpChannel channel, Object fragment) throws IOException {

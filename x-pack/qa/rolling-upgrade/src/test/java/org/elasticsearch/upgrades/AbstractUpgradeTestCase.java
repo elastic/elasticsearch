@@ -91,6 +91,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
+    protected static final boolean FIRST_MIXED_ROUND = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
 
     @Override
     protected Settings restClientSettings() {

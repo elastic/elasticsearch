@@ -244,10 +244,11 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
             Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
-            stats = (List<Map<String, Object>>) entityAsMap(humanResponse).get("trained_model_stats");
+            var responseMap = entityAsMap(humanResponse);
+            stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
-            assertThat(stringBytes, is(not(nullValue())));
+            assertThat("stats response: " + responseMap, stringBytes, is(not(nullValue())));
             assertThat(stringBytes, equalTo("1.5kb"));
             stopDeployment(model);
         };

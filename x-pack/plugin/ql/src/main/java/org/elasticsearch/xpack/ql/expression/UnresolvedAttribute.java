@@ -80,8 +80,8 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return this;
     }
 
-    public UnresolvedAttribute withUnresolvedMessage(String unresolvedMsg) {
-        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMsg, resolutionMetadata());
+    public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
+        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMessage, resolutionMetadata());
     }
 
     @Override

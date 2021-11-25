@@ -107,13 +107,13 @@ public class AsyncTaskManagementService<
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
             Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
             return operation.createTask(
                 request,
                 id,
                 type,
-                action,
+                actionName,
                 parentTaskId,
                 headers,
                 originHeaders,

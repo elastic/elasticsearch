@@ -71,8 +71,8 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
      * {@link #onClusterStateProcessed(String, ClusterState, ClusterState)} or the {@link #handleFailure(String, Exception)} hooks are
      * executed.
      */
-    public final void addListener(ActionListener<Void> listener) {
-        this.listener.addListener(listener);
+    public final void addListener(ActionListener<Void> actionListener) {
+        this.listener.addListener(actionListener);
     }
 
     /**

@@ -35,8 +35,8 @@ public final class IndexResolution {
         this.invalid = invalid;
     }
 
-    public boolean matches(String index) {
-        return isValid() && this.index.name().equals(index);
+    public boolean matches(String indexName) {
+        return isValid() && this.index.name().equals(indexName);
     }
 
     /**

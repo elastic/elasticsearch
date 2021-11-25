@@ -655,8 +655,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
-        public Builder setThreadPools(ExecutorNames executorNames) {
-            this.executorNames = executorNames;
+        public Builder setThreadPools(ExecutorNames threadPoolExecutorNames) {
+            this.executorNames = threadPoolExecutorNames;
             return this;
         }
 

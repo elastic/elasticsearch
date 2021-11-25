@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -139,7 +138,7 @@ public class FsRepositoryTests extends ESTestCase {
             );
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);
-            final PlainActionFuture<SnapshotFiles> futureA = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> futureA = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> repository.restoreShard(store, snapshotId, indexId, shardId, state, futureA));
             futureA.actionGet();
             assertTrue(state.getIndex().recoveredBytes() > 0);
@@ -175,7 +174,7 @@ public class FsRepositoryTests extends ESTestCase {
 
             // roll back to the first snap and then incrementally restore
             RecoveryState firstState = new RecoveryState(routing, localNode, null);
-            final PlainActionFuture<SnapshotFiles> futureB = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> futureB = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> repository.restoreShard(store, snapshotId, indexId, shardId, firstState, futureB));
             futureB.actionGet();
             assertEquals(
@@ -185,7 +184,7 @@ public class FsRepositoryTests extends ESTestCase {
             );
 
             RecoveryState secondState = new RecoveryState(routing, localNode, null);
-            final PlainActionFuture<SnapshotFiles> futureC = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> futureC = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> repository.restoreShard(store, incSnapshotId, indexId, shardId, secondState, futureC));
             futureC.actionGet();
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size() - 2);

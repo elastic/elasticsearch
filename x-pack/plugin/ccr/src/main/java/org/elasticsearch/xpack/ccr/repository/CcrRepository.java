@@ -365,11 +365,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         IndexId indexId,
         ShardId snapshotShardId,
         RecoveryState recoveryState,
-        ActionListener<SnapshotFiles> listener
+        ActionListener<Void> listener
     ) {
         final ShardId shardId = store.shardId();
         final LinkedList<Closeable> toClose = new LinkedList<>();
-        final ActionListener<SnapshotFiles> restoreListener = ActionListener.runBefore(
+        final ActionListener<Void> restoreListener = ActionListener.runBefore(
             listener.delegateResponse(
                 (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))
             ),
@@ -434,7 +434,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             restoreSession.restoreFiles(store, ActionListener.wrap(v -> {
                 logger.trace("[{}] completed CCR restore", shardId);
                 updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, shardId.getIndex());
-                restoreListener.onResponse(v);
+                restoreListener.onResponse(null);
             }, restoreListener::onFailure));
         } catch (Exception e) {
             restoreListener.onFailure(e);
@@ -640,7 +640,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.throttleListener = throttleListener;
         }
 
-        void restoreFiles(Store store, ActionListener<SnapshotFiles> listener) {
+        void restoreFiles(Store store, ActionListener<Void> listener) {
             ArrayList<FileInfo> fileInfos = new ArrayList<>();
             for (StoreFileMetadata fileMetadata : sourceMetadata) {
                 ByteSizeValue fileSize = new ByteSizeValue(fileMetadata.length());

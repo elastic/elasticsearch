@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -231,7 +230,7 @@ public interface Repository extends LifecycleComponent {
         IndexId indexId,
         ShardId snapshotShardId,
         RecoveryState recoveryState,
-        ActionListener<SnapshotFiles> listener
+        ActionListener<Void> listener
     );
 
     /**

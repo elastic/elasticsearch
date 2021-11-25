@@ -96,7 +96,6 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.store.StoreUtils;
@@ -2556,7 +2555,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 IndexId indexId,
                 ShardId snapshotShardId,
                 RecoveryState recoveryState,
-                ActionListener<SnapshotFiles> listener
+                ActionListener<Void> listener
             ) {
                 ActionListener.completeWith(listener, () -> {
                     cleanLuceneIndex(targetStore.directory());

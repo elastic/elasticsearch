@@ -178,7 +178,7 @@ final class OutboundHandler {
         @Nullable OutboundMessage message,
         ActionListener<Void> listener
     ) {
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         final long messageSize = reference.length();
         TransportLogger.logOutboundMessage(channel, reference);
@@ -206,7 +206,7 @@ final class OutboundHandler {
                 private void maybeLogSlowMessage(boolean success) {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
-                        final long took = threadPool.relativeTimeInMillis() - startTime;
+                        final long took = threadPool.rawRelativeTimeInMillis() - startTime;
                         handlingTimeTracker.addHandlingTime(took);
                         if (took > logThreshold) {
                             logger.warn(

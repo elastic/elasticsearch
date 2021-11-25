@@ -777,7 +777,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *
      * @return chunk size
      */
-    @Nullable
     protected ByteSizeValue chunkSize() {
         return null;
     }

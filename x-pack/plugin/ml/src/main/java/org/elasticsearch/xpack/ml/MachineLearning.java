@@ -650,7 +650,6 @@ public class MachineLearning extends Plugin
     }
 
     public static boolean isMlNode(DiscoveryNode node) {
-        logger.info("DMR node roles are " + node.getRoles());
         return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 

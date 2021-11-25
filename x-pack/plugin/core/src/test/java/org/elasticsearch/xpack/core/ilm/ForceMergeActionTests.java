@@ -14,6 +14,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -62,13 +63,12 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         return ForceMergeAction::new;
     }
 
-    private void assertNonBestCompression(ForceMergeAction instance) {
+    private void assertNonBestCompressionReadOnly(ForceMergeAction instance) {
         String phase = randomAlphaOfLength(5);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        int expectedSteps = instance.getReadOnly() ? 5 : 4;
-        assertEquals(expectedSteps, steps.size());
+        assertEquals(5, steps.size());
         BranchingStep firstStep = (BranchingStep) steps.get(0);
         CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
         UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
@@ -90,13 +90,35 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(fifthStep.getNextStepKey(), equalTo(nextStepKey));
     }
 
-    private void assertBestCompression(ForceMergeAction instance) {
+    private void assertNonBestCompressionNonReadOnly(ForceMergeAction instance) {
         String phase = randomAlphaOfLength(5);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        int expectedSteps = instance.getReadOnly() ? 9 : 8;
-        assertEquals(expectedSteps, steps.size());
+        assertEquals(4, steps.size());
+        BranchingStep firstStep = (BranchingStep) steps.get(0);
+        CheckNotDataStreamWriteIndexStep secondStep = (CheckNotDataStreamWriteIndexStep) steps.get(1);
+        ForceMergeStep thirdStep = (ForceMergeStep) steps.get(2);
+        SegmentCountStep fourthStep = (SegmentCountStep) steps.get(3);
+
+        assertThat(
+            firstStep.getKey(),
+            equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP))
+        );
+        assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME)));
+        assertThat(secondStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
+        assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
+        assertThat(thirdStep.getNextStepKey(), equalTo(fourthStep.getKey()));
+        assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
+        assertThat(fourthStep.getNextStepKey(), equalTo(nextStepKey));
+    }
+
+    private void assertBestCompressionReadOnly(ForceMergeAction instance) {
+        String phase = randomAlphaOfLength(5);
+        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        List<Step> steps = instance.toSteps(null, phase, nextStepKey);
+        assertNotNull(steps);
+        assertEquals(9, steps.size());
         List<Tuple<StepKey, StepKey>> stepKeys = steps.stream()
             // skip the first branching step as `performAction` needs to be executed to evaluate the condition before the next step is
             // available
@@ -120,6 +142,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             contains(
                 new Tuple<>(readOnly, closeIndex),
                 new Tuple<>(closeIndex, updateCodec),
+                new Tuple<>(checkNotWriteIndex, readOnly),
                 new Tuple<>(updateCodec, openIndex),
                 new Tuple<>(openIndex, waitForGreen),
                 new Tuple<>(waitForGreen, forceMerge),
@@ -127,15 +150,53 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
                 new Tuple<>(segmentCount, nextStepKey)
             )
         );
-        if (instance.getReadOnly()) {
-            assertThat(stepKeys, contains(new Tuple<>(checkNotWriteIndex, readOnly)));
-        }
 
         UpdateSettingsStep thirdStep = (UpdateSettingsStep) steps.get(2);
         UpdateSettingsStep fifthStep = (UpdateSettingsStep) steps.get(4);
 
         assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(thirdStep.getSettings()));
         assertThat(fifthStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
+    }
+
+    private void assertBestCompressionNonReadOnly(ForceMergeAction instance) {
+        String phase = randomAlphaOfLength(5);
+        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        List<Step> steps = instance.toSteps(null, phase, nextStepKey);
+        assertNotNull(steps);
+        assertEquals(8, steps.size());
+        List<Tuple<StepKey, StepKey>> stepKeys = steps.stream()
+            // skip the first branching step as `performAction` needs to be executed to evaluate the condition before the next step is
+            // available
+            .skip(1)
+            .map(s -> new Tuple<>(s.getKey(), s.getNextStepKey()))
+            .collect(Collectors.toList());
+        StepKey checkNotWriteIndex = new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey readOnly = new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME);
+        StepKey closeIndex = new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME);
+        StepKey updateCodec = new StepKey(phase, ForceMergeAction.NAME, UpdateSettingsStep.NAME);
+        StepKey openIndex = new StepKey(phase, ForceMergeAction.NAME, OpenIndexStep.NAME);
+        StepKey waitForGreen = new StepKey(phase, ForceMergeAction.NAME, WaitForIndexColorStep.NAME);
+        StepKey forceMerge = new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME);
+        StepKey segmentCount = new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME);
+        assertThat(
+            steps.get(0).getKey(),
+            is(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP))
+        );
+        assertThat(
+            stepKeys,
+            contains(
+                new Tuple<>(closeIndex, updateCodec),
+                new Tuple<>(checkNotWriteIndex, readOnly),
+                new Tuple<>(updateCodec, openIndex),
+                new Tuple<>(openIndex, waitForGreen),
+                new Tuple<>(waitForGreen, forceMerge),
+                new Tuple<>(forceMerge, segmentCount),
+                new Tuple<>(segmentCount, nextStepKey)
+            )
+        );
+
+        UpdateSettingsStep fourthStep = (UpdateSettingsStep) steps.get(3);
+        assertThat(fourthStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
     }
 
     public void testMissingMaxNumSegments() throws IOException {
@@ -165,12 +226,68 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(r.getMessage(), equalTo("unknown index codec: [DummyCompressingStoredFields]"));
     }
 
+    public void testReadOnlyDefault() throws IOException {
+        XContentBuilder content = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject();
+        BytesReference emptyObject = BytesReference.bytes(content);
+        XContentParser parser = XContentHelper.createParser(
+            null,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            emptyObject,
+            XContentType.JSON
+        );
+        ForceMergeAction instance = ForceMergeAction.parse(parser);
+        assertThat(instance.getReadOnly(), equalTo(true));
+        assertNonBestCompressionReadOnly(instance);
+    }
+
+    public void testReadOnlyDisabled() throws IOException {
+        XContentBuilder content = JsonXContent.contentBuilder().startObject()
+            .field("max_num_segments", 1)
+            .field("read_only", false)
+            .endObject();
+        BytesReference emptyObject = BytesReference.bytes(content);
+        XContentParser parser = XContentHelper.createParser(
+            null,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            emptyObject,
+            XContentType.JSON
+        );
+        ForceMergeAction instance = ForceMergeAction.parse(parser);
+        assertThat(instance.getReadOnly(), equalTo(false));
+        assertNonBestCompressionNonReadOnly(instance);
+    }
+
+    public void testReadOnlyInvalid() throws IOException {
+        XContentBuilder content = JsonXContent.contentBuilder().startObject()
+            .field("max_num_segments", 1)
+            .field("read_only", "invalid_read_only")
+            .endObject();
+        BytesReference emptyObject = BytesReference.bytes(content);
+        XContentParser parser = XContentHelper.createParser(
+            null,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            emptyObject,
+            XContentType.JSON
+        );
+        ForceMergeAction instance = ForceMergeAction.parse(parser);
+        assertThat(instance.getReadOnly(), equalTo(false));
+        assertNonBestCompressionReadOnly(instance);
+    }
+
     public void testToSteps() {
         ForceMergeAction instance = createTestInstance();
         if (instance.getCodec() != null && CodecService.BEST_COMPRESSION_CODEC.equals(instance.getCodec())) {
-            assertBestCompression(instance);
+            if (instance.getReadOnly()) {
+                assertBestCompressionReadOnly(instance);
+            } else {
+                assertBestCompressionNonReadOnly(instance);
+            }
         } else {
-            assertNonBestCompression(instance);
+            if (instance.getReadOnly()) {
+                assertNonBestCompressionReadOnly(instance);
+            } else {
+                assertNonBestCompressionNonReadOnly(instance);
+            }
         }
     }
 }

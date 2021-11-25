@@ -40,7 +40,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     static ForceMergeAction randomInstance() {
-        return new ForceMergeAction(randomIntBetween(1, 100), createRandomCompressionSettings());
+        return new ForceMergeAction(randomIntBetween(1, 100), randomBoolean(), createRandomCompressionSettings());
     }
 
     static String createRandomCompressionSettings() {
@@ -54,7 +54,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     protected ForceMergeAction mutateInstance(ForceMergeAction instance) {
         int maxNumSegments = instance.getMaxNumSegments();
         maxNumSegments = maxNumSegments + randomIntBetween(1, 10);
-        return new ForceMergeAction(maxNumSegments, createRandomCompressionSettings());
+        return new ForceMergeAction(maxNumSegments, randomBoolean(), createRandomCompressionSettings());
     }
 
     @Override
@@ -147,14 +147,16 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     public void testInvalidNegativeSegmentNumber() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), null));
+        Exception r = expectThrows(IllegalArgumentException.class, () -> {
+            new ForceMergeAction(randomIntBetween(-10, 0), randomBoolean(), null);
+        });
         assertThat(r.getMessage(), equalTo("[max_num_segments] must be a positive integer"));
     }
 
     public void testInvalidCodec() {
         Exception r = expectThrows(
             IllegalArgumentException.class,
-            () -> new ForceMergeAction(randomIntBetween(1, 10), "DummyCompressingStoredFields")
+            () -> new ForceMergeAction(randomIntBetween(1, 10), randomBoolean(), "DummyCompressingStoredFields")
         );
         assertThat(r.getMessage(), equalTo("unknown index codec: [DummyCompressingStoredFields]"));
     }

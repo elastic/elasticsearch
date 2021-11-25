@@ -62,8 +62,13 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final DeleteAction TEST_DELETE_ACTION = DeleteAction.WITH_SNAPSHOT_DELETE;
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
+<<<<<<< HEAD
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null, null);
+=======
+    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, true, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null);
+>>>>>>> 47923508335 (fix existing tests to use either a randomBoolean or true for the readOnly parameter in ForceMergeAction)
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
@@ -321,7 +326,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                 )
             );
-            Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
+            Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, true, null)));
             Phase cold = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -1085,7 +1090,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     Collections.emptyMap()
                 );
                 case DeleteAction.NAME -> DeleteAction.WITH_SNAPSHOT_DELETE;
-                case ForceMergeAction.NAME -> new ForceMergeAction(1, null);
+                case ForceMergeAction.NAME -> new ForceMergeAction(1, null, null);
                 case ReadOnlyAction.NAME -> new ReadOnlyAction();
                 case RolloverAction.NAME -> new RolloverAction(
                     ByteSizeValue.parseBytesSizeValue("0b", "test"),

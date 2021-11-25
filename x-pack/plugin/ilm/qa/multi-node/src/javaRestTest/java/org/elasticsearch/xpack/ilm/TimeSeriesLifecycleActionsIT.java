@@ -488,7 +488,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         assertThat(getNumberOfSegments(client(), index), greaterThanOrEqualTo(1));
-        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, codec));
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, true, codec));
         updatePolicy(client(), index, policy);
 
         assertBusy(() -> {

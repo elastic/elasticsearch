@@ -282,7 +282,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testMoveToStepWithoutStepName() throws Exception {
-        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createNewSingletonPolicy(client(), policy, "warm",
+            new ForceMergeAction(1, true, null), TimeValue.timeValueHours(1));
         createIndexWithSettings(
             client(),
             index,
@@ -319,7 +320,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testMoveToStepWithoutAction() throws Exception {
-        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createNewSingletonPolicy(client(), policy, "warm",
+            new ForceMergeAction(1, true, null), TimeValue.timeValueHours(1));
         createIndexWithSettings(
             client(),
             index,
@@ -355,7 +357,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testInvalidToMoveToStepWithoutActionButWithName() throws Exception {
-        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createNewSingletonPolicy(client(), policy, "warm",
+            new ForceMergeAction(1, true, null), TimeValue.timeValueHours(1));
         createIndexWithSettings(
             client(),
             index,
@@ -391,7 +394,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testResolveToNonexistentStep() throws Exception {
-        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, null), TimeValue.timeValueHours(1));
+        createNewSingletonPolicy(client(), policy, "warm",
+            new ForceMergeAction(1, true, null), TimeValue.timeValueHours(1));
         createIndexWithSettings(
             client(),
             index,

@@ -242,7 +242,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testForceMergeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, true, null));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 

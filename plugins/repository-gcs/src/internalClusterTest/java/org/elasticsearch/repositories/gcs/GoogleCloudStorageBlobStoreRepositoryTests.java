@@ -221,10 +221,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             return new GoogleCloudStorageService() {
                 @Override
                 StorageOptions createStorageOptions(
-                    final GoogleCloudStorageClientSettings clientSettings,
+                    final GoogleCloudStorageClientSettings gcsClientSettings,
                     final HttpTransportOptions httpTransportOptions
                 ) {
-                    StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
+                    StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                     return options.toBuilder()
                         .setHost(options.getHost())
                         .setCredentials(options.getCredentials())

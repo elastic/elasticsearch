@@ -167,7 +167,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
             .cluster()
             .prepareCancelTasks()
-            .setTaskId(rootTaskId)
+            .setTargetTaskId(rootTaskId)
             .waitForCompletion(true)
             .execute();
         if (randomBoolean()) {
@@ -179,7 +179,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 .get()
                 .getTasks();
             for (TaskInfo subTask : randomSubsetOf(runningTasks)) {
-                client().admin().cluster().prepareCancelTasks().setTaskId(subTask.getTaskId()).waitForCompletion(false).get();
+                client().admin().cluster().prepareCancelTasks().setTargetTaskId(subTask.getTaskId()).waitForCompletion(false).get();
             }
         }
         try {
@@ -217,13 +217,13 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ActionFuture<TestResponse> mainTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
         allowPartialRequest(rootRequest);
-        CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).waitForCompletion(false).get();
+        CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).waitForCompletion(false).get();
         assertThat(resp.getTaskFailures(), empty());
         assertThat(resp.getNodeFailures(), empty());
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
             .cluster()
             .prepareCancelTasks()
-            .setTaskId(taskId)
+            .setTargetTaskId(taskId)
             .waitForCompletion(true)
             .execute();
         assertFalse(cancelFuture.isDone());
@@ -234,7 +234,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         CancelTasksResponse cancelError = client().admin()
             .cluster()
             .prepareCancelTasks()
-            .setTaskId(taskId)
+            .setTargetTaskId(taskId)
             .waitForCompletion(randomBoolean())
             .get();
         assertThat(cancelError.getNodeFailures(), hasSize(1));
@@ -255,7 +255,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
             .cluster()
             .prepareCancelTasks()
-            .setTaskId(taskId)
+            .setTargetTaskId(taskId)
             .waitForCompletion(waitForCompletion)
             .execute();
         if (waitForCompletion) {
@@ -274,7 +274,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
-        client().admin().cluster().prepareCancelTasks().setTaskId(taskId).waitForCompletion(false).get();
+        client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).waitForCompletion(false).get();
         DiscoveryNode nodeWithParentTask = nodes.stream().filter(n -> n.getId().equals(taskId.getNodeId())).findFirst().get();
         TransportTestAction mainAction = internalCluster().getInstance(TransportTestAction.class, nodeWithParentTask.getName());
         PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
@@ -323,7 +323,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
             .cluster()
             .prepareCancelTasks()
-            .setTaskId(rootTaskId)
+            .setTargetTaskId(rootTaskId)
             .waitForCompletion(true)
             .execute();
         try {

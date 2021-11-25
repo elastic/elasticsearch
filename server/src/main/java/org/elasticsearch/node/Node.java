@@ -799,7 +799,6 @@ public class Node implements Closeable {
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
-                bigArrays,
                 transportService,
                 client,
                 namedWriteableRegistry,

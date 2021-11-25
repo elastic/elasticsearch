@@ -256,11 +256,9 @@ tasks.named("licenseHeaders").configure {
 
 tasks.named('splitPackagesAudit').configure {
     // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
-
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9
-    'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
+  ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
 
     // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
     'org.elasticsearch.cli.CommandLoggingConfigurator',

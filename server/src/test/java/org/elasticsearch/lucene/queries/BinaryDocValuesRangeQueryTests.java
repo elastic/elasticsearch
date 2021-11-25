@@ -22,10 +22,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static java.util.Collections.singleton;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
 public class BinaryDocValuesRangeQueryTests extends ESTestCase {
 

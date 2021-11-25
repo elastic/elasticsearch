@@ -489,7 +489,15 @@ public class NumericTermsAggregator extends TermsAggregator {
             backgroundFrequencies = significanceLookup.longLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
-            subsetSizes = bigArrays().newLongArray(1, true);
+            boolean success = false;
+            try {
+                subsetSizes = bigArrays().newLongArray(1, true);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override

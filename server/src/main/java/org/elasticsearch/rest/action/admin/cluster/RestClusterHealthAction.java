@@ -15,12 +15,9 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,12 +29,6 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterHealthAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    private static final String RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT = "return_200_for_cluster_health_timeout";
-    private static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "the ["
-        + RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT
-        + "] parameter is deprecated and will be removed in a future release.";
 
     @Override
     public List<Route> routes() {
@@ -90,15 +81,6 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
-        String return200ForClusterHealthTimeout = request.param(RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT);
-        if (return200ForClusterHealthTimeout != null) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "cluster_health_request_timeout",
-                CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG
-            );
-        }
-        clusterHealthRequest.return200ForClusterHealthTimeout(Boolean.parseBoolean(return200ForClusterHealthTimeout));
         return clusterHealthRequest;
     }
 

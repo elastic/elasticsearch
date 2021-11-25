@@ -11,6 +11,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[8.1.0]
 
+////
 [discrete]
 [[breaking-changes-8.1]]
 === Breaking changes
@@ -32,7 +33,8 @@ enable <<deprecation-logging, deprecation logging>>.
 
 //tag::notable-breaking-changes[]
 
-// end::notable-breaking-changes[]
+//end::notable-breaking-changes[]
+////
 
 [discrete]
 [[deprecated-8.1]]
@@ -49,35 +51,43 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+//tag::notable-breaking-changes[]
+
 [discrete]
-[[breaking_8.1_settings_deprecation]]
-==== Settings deprecations
+[[breaking_8.1_cluster_node_setting_deprecations]]
+==== Cluster and node setting deprecations
 
 [[deprecate-legacy-discovery-type-setting]]
 .Legacy values for the `discovery.type` setting are deprecated.
 [%collapsible]
 ====
 *Details* +
-Legacy values for the `discovery.type` setting are deprecated and will be forbidden in a future version.
+Legacy values for the `discovery.type` setting are deprecated and will be
+forbidden in a future version.
 
 *Impact* +
 Do not set `discovery.type` to any value except `single-node` or `multi-node`.
 All other values are equivalent to the default discovery type which is
-`multi-node`.
-Where possible, omit this setting so that {es} uses the default discovery type.
+`multi-node`. Where possible, omit this setting so that {es} uses the default
+discovery type.
 ====
 
 [discrete]
-[[breaking_8.1_lenient_bulk_action_deprecation]]
-==== Lenient parsing of bulk actions
+[[breaking_8.1_rest_api_deprecations]]
+==== REST API deprecations
 
 [[deprecate-lenient-parsing-of-bulk-actions]]
 .Lenient parsing of bulk actions is deprecated.
 [%collapsible]
 ====
 *Details* +
-{es} 8.1 parses bulk actions more strictly in order to make sure there are no arbitrary fields after a bulk action declaration and that it gets properly closed with the closing brace.
+Older versions of {es} parse the action lines of bulk requests very permissively
+and would silently ignore invalid or malformed actions. This lenience is
+deprecated and a future version will reject bulk requests containing invalid
+actions.
 
 *Impact* +
-Make sure your bulk actions are valid JSON objects and that you don't have any arbitrary JSON fields after bulk actions.
+Ensure that bulk actions are well-formed JSON objects containing a single entry
+with the correct key.
 ====
+//end::notable-breaking-changes[]

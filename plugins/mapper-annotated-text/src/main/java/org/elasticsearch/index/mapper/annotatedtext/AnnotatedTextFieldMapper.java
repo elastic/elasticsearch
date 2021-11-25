@@ -385,11 +385,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             super(in);
         }
 
-        public void setAnnotations(AnnotatedText annotatedText) {
-            this.annotatedText = annotatedText;
+        public void setAnnotations(AnnotatedText text) {
+            this.annotatedText = text;
             currentAnnotationIndex = 0;
-            if (annotatedText != null && annotatedText.numAnnotations() > 0) {
-                nextAnnotationForInjection = annotatedText.getAnnotation(0);
+            if (text != null && text.numAnnotations() > 0) {
+                nextAnnotationForInjection = text.getAnnotation(0);
             } else {
                 nextAnnotationForInjection = null;
             }

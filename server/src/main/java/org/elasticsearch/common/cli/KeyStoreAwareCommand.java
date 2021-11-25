@@ -6,10 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cli;
+package org.elasticsearch.common.cli;
 
 import joptsimple.OptionSet;
 
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
@@ -19,7 +22,7 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 
 /**
- * An {@link org.elasticsearch.cli.EnvironmentAwareCommand} that needs to access the elasticsearch keystore, possibly
+ * An {@link EnvironmentAwareCommand} that needs to access the elasticsearch keystore, possibly
  * decrypting it if it is password protected.
  */
 public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {

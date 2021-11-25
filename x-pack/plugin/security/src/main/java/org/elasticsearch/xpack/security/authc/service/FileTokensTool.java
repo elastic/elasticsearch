@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.security.authc.service;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;

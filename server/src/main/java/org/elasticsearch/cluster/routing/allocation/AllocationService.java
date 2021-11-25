@@ -117,8 +117,6 @@ public class AllocationService {
             return clusterState;
         }
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
-        // shuffle the unassigned shards, just so we won't have things like poison failed shards
-        routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
             routingNodes,
@@ -197,8 +195,6 @@ public class AllocationService {
         ClusterState tmpState = IndexMetadataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards, logger);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(tmpState);
-        // shuffle the unassigned shards, just so we won't have things like poison failed shards
-        routingNodes.unassigned().shuffle();
         long currentNanoTime = currentNanoTime();
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
@@ -274,8 +270,6 @@ public class AllocationService {
      */
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
-        // shuffle the unassigned shards, just so we won't have things like poison failed shards
-        routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
             routingNodes,
@@ -479,8 +473,6 @@ public class AllocationService {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
-        // shuffle the unassigned shards, just so we won't have things like poison failed shards
-        routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
             routingNodes,

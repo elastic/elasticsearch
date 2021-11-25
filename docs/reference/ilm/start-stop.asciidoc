@@ -9,7 +9,7 @@ You can stop {ilm} to suspend management operations for all indices.
 For example, you might stop {ilm} when performing scheduled maintenance or making
 changes to the cluster that could impact the execution of {ilm-init} actions.
 
-IMPORTANT: When you stop {ilm-init}, <<snapshot-lifecycle-management, {slm-init}>> 
+IMPORTANT: When you stop {ilm-init}, <<automate-snapshots-slm,{slm-init}>> 
 operations are also suspended. 
 No snapshots will be taken as scheduled until you restart {ilm-init}.
 In-progress snapshots are not affected.

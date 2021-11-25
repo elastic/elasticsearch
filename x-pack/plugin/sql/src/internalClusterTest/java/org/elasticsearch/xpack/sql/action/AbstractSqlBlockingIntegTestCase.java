@@ -271,7 +271,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
         TaskId taskId = findTaskWithXOpaqueId(id, action);
         assertNotNull(taskId);
         logger.trace("Cancelling task " + taskId);
-        CancelTasksResponse response = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).get();
+        CancelTasksResponse response = client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).get();
         assertThat(response.getTasks(), hasSize(1));
         assertThat(response.getTasks().get(0).getAction(), equalTo(action));
         logger.trace("Task is cancelled " + taskId);

@@ -61,8 +61,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
-  // repackaged jna with native bits linked against all elastic supported platforms
-  api "org.elasticsearch:jna:${versions.jna}"
+  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -131,6 +130,9 @@ tasks.named("processResources").configure {
 
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
+    tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
     }
 }
@@ -257,7 +259,6 @@ tasks.named('splitPackagesAudit').configure {
   ignoreClasses 'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
     'org.apache.lucene.queries.BlendedTermQuery',
     'org.apache.lucene.queries.SpanMatchNoDocsQuery',
-    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
 
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9

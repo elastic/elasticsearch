@@ -1384,6 +1384,9 @@ public class NumberFieldMapper extends FieldMapper {
         if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
+        if (parser.currentToken() == Token.START_OBJECT) {
+            throw new IllegalArgumentException("Cannot parse object as number");
+        }
         return numberType.parse(parser, coerce);
     }
 

@@ -1931,7 +1931,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             String digest = indexMetadata.mapping().getSha256();
             MappingMetadata entry = mappingsByHash.get(digest);
             if (entry != null) {
-                return new IndexMetadata(indexMetadata, entry);
+                return indexMetadata.withMappingMetadata(entry);
             } else {
                 mappingsByHash.put(digest, indexMetadata.mapping());
                 return indexMetadata;

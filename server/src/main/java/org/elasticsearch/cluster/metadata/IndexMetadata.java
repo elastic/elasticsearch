@@ -561,42 +561,43 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
-    IndexMetadata(IndexMetadata indexMetadata, MappingMetadata mapping) {
-        this.index = indexMetadata.index;
-        this.version = indexMetadata.version;
-        this.mappingVersion = indexMetadata.mappingVersion;
-        this.settingsVersion = indexMetadata.settingsVersion;
-        this.aliasesVersion = indexMetadata.aliasesVersion;
-        this.primaryTerms = indexMetadata.primaryTerms;
-        this.state = indexMetadata.state;
-        this.numberOfShards = indexMetadata.numberOfShards;
-        this.numberOfReplicas = indexMetadata.numberOfReplicas;
-        this.totalNumberOfShards = indexMetadata.totalNumberOfShards;
-        this.settings = indexMetadata.settings;
+    IndexMetadata withMappingMetadata(MappingMetadata mapping) {
         ImmutableOpenMap.Builder<String, MappingMetadata> mappingBuilder = ImmutableOpenMap.builder();
         mappingBuilder.put(MapperService.SINGLE_MAPPING_NAME, mapping);
-        this.mappings = mappingBuilder.build();
-        this.customData = indexMetadata.customData;
-        this.aliases = indexMetadata.aliases;
-        this.inSyncAllocationIds = indexMetadata.inSyncAllocationIds;
-        this.requireFilters = indexMetadata.requireFilters;
-        this.includeFilters = indexMetadata.includeFilters;
-        this.excludeFilters = indexMetadata.excludeFilters;
-        this.initialRecoveryFilters = indexMetadata.initialRecoveryFilters;
-        this.indexCreatedVersion = indexMetadata.indexCreatedVersion;
-        this.routingNumShards = indexMetadata.routingNumShards;
-        this.routingFactor = indexMetadata.routingFactor;
-        this.routingPartitionSize = indexMetadata.routingPartitionSize;
-        this.routingPaths = indexMetadata.routingPaths;
-        this.waitForActiveShards = indexMetadata.waitForActiveShards;
-        this.rolloverInfos = indexMetadata.rolloverInfos;
-        this.isSystem = indexMetadata.isSystem;
-        this.isHidden = indexMetadata.isHidden;
-        this.timestampRange = indexMetadata.timestampRange;
-        this.priority = indexMetadata.priority;
-        this.creationDate = indexMetadata.creationDate;
-        this.ignoreDiskWatermarks = indexMetadata.ignoreDiskWatermarks;
-        this.tierPreference = indexMetadata.tierPreference;
+
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            mappingBuilder.build(),
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference
+        );
     }
 
     public Index getIndex() {

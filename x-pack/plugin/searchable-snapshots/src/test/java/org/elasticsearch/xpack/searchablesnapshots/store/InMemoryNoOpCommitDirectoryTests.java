@@ -139,12 +139,14 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
         assertThat(Arrays.asList(inMemoryNoOpCommitDirectory.listAll()), hasItem(name));
     }
 
-    public void testSilentlyIgnoresAttemptsToDeleteInnerSegmentsFiles() throws IOException {
+    public void testEmulatesAttemptsToDeleteInnerSegmentsFiles() throws IOException {
         final String name = "segments_" + randomAlphaOfLength(10);
         assertExposesRealFiles(name);
         inMemoryNoOpCommitDirectory.deleteFile(name); // no-op
-        assertThat(Arrays.asList(inMemoryNoOpCommitDirectory.listAll()), hasItem(name));
+        assertThat(Arrays.asList(readOnlyDirectory.listAll()), hasItem(name));
+        assertThat(Arrays.asList(inMemoryNoOpCommitDirectory.listAll()), not(hasItem(name)));
         readOnlyDirectory.deleteFile(name);
+        assertThat(Arrays.asList(readOnlyDirectory.listAll()), not(hasItem(name)));
         assertThat(Arrays.asList(inMemoryNoOpCommitDirectory.listAll()), not(hasItem(name)));
     }
 

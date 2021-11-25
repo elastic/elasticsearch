@@ -17,37 +17,43 @@ public class HandlingTimeTrackerTests extends ESTestCase {
     public void testHistogram() {
         final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
 
-        assertArrayEquals(new long[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        assertArrayEquals(new long[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
 
         handlingTimeTracker.addHandlingTime(0L);
-        assertArrayEquals(new long[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        assertArrayEquals(new long[] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
 
-        handlingTimeTracker.addHandlingTime(randomLongBetween(0L, 99L));
-        assertArrayEquals(new long[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addHandlingTime(1L);
+        assertArrayEquals(new long[] { 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
 
-        handlingTimeTracker.addHandlingTime(100L);
-        assertArrayEquals(new long[] { 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addHandlingTime(2L);
+        assertArrayEquals(new long[] { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
 
-        handlingTimeTracker.addHandlingTime(299L);
-        assertArrayEquals(new long[] { 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addHandlingTime(3L);
+        assertArrayEquals(new long[] { 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
 
-        handlingTimeTracker.addHandlingTime(300L);
-        assertArrayEquals(new long[] { 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addHandlingTime(4L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+
+        handlingTimeTracker.addHandlingTime(127L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
+
+        handlingTimeTracker.addHandlingTime(128L);
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, handlingTimeTracker.getHistogram());
 
         handlingTimeTracker.addHandlingTime(65535L);
-        assertArrayEquals(new long[] { 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 0 }, handlingTimeTracker.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0 }, handlingTimeTracker.getHistogram());
 
         handlingTimeTracker.addHandlingTime(65536L);
-        assertArrayEquals(new long[] { 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 1 }, handlingTimeTracker.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1 }, handlingTimeTracker.getHistogram());
 
         handlingTimeTracker.addHandlingTime(Long.MAX_VALUE);
-        assertArrayEquals(new long[] { 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 2 }, handlingTimeTracker.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2 }, handlingTimeTracker.getHistogram());
 
         handlingTimeTracker.addHandlingTime(randomLongBetween(65536L, Long.MAX_VALUE));
-        assertArrayEquals(new long[] { 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getHistogram());
+        assertArrayEquals(new long[] { 1, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getHistogram());
 
-        handlingTimeTracker.addHandlingTime(randomLongBetween(Long.MIN_VALUE, 99L));
-        assertArrayEquals(new long[] { 3, 2, 1, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getHistogram());
+        handlingTimeTracker.addHandlingTime(randomLongBetween(Long.MIN_VALUE, 0L));
+        assertArrayEquals(new long[] { 2, 1, 2, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 3 }, handlingTimeTracker.getHistogram());
     }
 
     public void testHistogramRandom() {

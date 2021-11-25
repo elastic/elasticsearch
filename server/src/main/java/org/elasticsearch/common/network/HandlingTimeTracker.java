@@ -16,19 +16,20 @@ import java.util.concurrent.atomic.LongAdder;
 public class HandlingTimeTracker {
 
     public static int[] getBucketUpperBounds() {
-        // Default clock resolution is 200ms so we have buckets for the 0-tick and 1-tick cases, then go up in powers of two
-        return new int[] { 100, 300, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13, 1 << 14, 1 << 15, 1 << 16 };
+        int[] bounds = new int[17];
+        for (int i = 0; i < bounds.length; i++) {
+            bounds[i] = 1 << i;
+        }
+        return bounds;
     }
 
     private static int getBucket(long handlingTimeMillis) {
-        if (handlingTimeMillis < 100L) {
+        if (handlingTimeMillis <= 0) {
             return 0;
-        } else if (handlingTimeMillis < 300L) {
-            return 1;
         } else if (1L << 16 <= handlingTimeMillis) {
             return BUCKET_COUNT - 1;
         } else {
-            return Long.SIZE - 7 - Long.numberOfLeadingZeros(handlingTimeMillis);
+            return Long.SIZE - Long.numberOfLeadingZeros(handlingTimeMillis);
         }
     }
 

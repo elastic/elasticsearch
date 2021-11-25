@@ -37,16 +37,16 @@
       nodes.stats:
         metric: [ transport ]
 
-  - length: { nodes.$node_id.transport.handling_time_histogram: 11 }
+  - length: { nodes.$node_id.transport.handling_time_histogram: 17 }
 
   - gte:    { nodes.$node_id.transport.handling_time_histogram.0.count: 0 }
   - is_false: nodes.$node_id.transport.handling_time_histogram.0.ge_millis
-  - match:  { nodes.$node_id.transport.handling_time_histogram.0.lt_millis: 100 }
+  - match:  { nodes.$node_id.transport.handling_time_histogram.0.lt_millis: 1 }
 
   - gte:    { nodes.$node_id.transport.handling_time_histogram.1.count: 0 }
-  - match:  { nodes.$node_id.transport.handling_time_histogram.1.ge_millis: 100 }
-  - match:  { nodes.$node_id.transport.handling_time_histogram.1.lt_millis: 300 }
+  - match:  { nodes.$node_id.transport.handling_time_histogram.1.ge_millis: 1 }
+  - match:  { nodes.$node_id.transport.handling_time_histogram.1.lt_millis: 2 }
 
-  - gte:    { nodes.$node_id.transport.handling_time_histogram.10.count: 0 }
-  - match:  { nodes.$node_id.transport.handling_time_histogram.10.ge_millis: 65536 }
-  - is_false: nodes.$node_id.transport.handling_time_histogram.10.lt_millis
+  - gte:    { nodes.$node_id.transport.handling_time_histogram.16.count: 0 }
+  - match:  { nodes.$node_id.transport.handling_time_histogram.16.ge_millis: 65536 }
+  - is_false: nodes.$node_id.transport.handling_time_histogram.16.lt_millis

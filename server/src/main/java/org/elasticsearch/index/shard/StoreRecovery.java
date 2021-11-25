@@ -519,7 +519,8 @@ final class StoreRecovery {
                             store.directory().deleteFile(storeFile);
                         } catch (ImmutableDirectoryException e) {
                             // snapshots of immutable directories only contain an empty `segments_N` file since the data lives elsewhere,
-                            // and if we restore such a snapshot then the real data is already present in the directory and cannot be removed.
+                            // and if we restore such a snapshot then the real data is already present in the directory and cannot be
+                            // removed.
                             assert snapshotFiles.indexFiles().size() == 1 : snapshotFiles;
                         } catch (IOException e) {
                             logger.warn("[{}] [{}] failed to delete file [{}] during snapshot cleanup", shardId, snapshotId, storeFile);

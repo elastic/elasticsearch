@@ -259,7 +259,6 @@ tasks.named('splitPackagesAudit').configure {
   ignoreClasses 'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
     'org.apache.lucene.queries.BlendedTermQuery',
     'org.apache.lucene.queries.SpanMatchNoDocsQuery',
-    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
 
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9

@@ -11,8 +11,8 @@ package org.elasticsearch.plugins.cli;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 

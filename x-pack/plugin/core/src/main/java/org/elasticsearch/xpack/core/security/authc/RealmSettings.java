@@ -40,6 +40,11 @@ public class RealmSettings {
         "order",
         key -> Setting.intSetting(key, Integer.MAX_VALUE, Setting.Property.NodeScope)
     );
+    public static final String DOMAIN = "domain";
+    public static final Function<String, Setting.AffixSetting<String>> DOMAIN_SETTING = affixSetting(
+        DOMAIN,
+        key -> Setting.simpleString(key, (String) null, Setting.Property.NodeScope)
+    );
 
     public static String realmSettingPrefix(String type) {
         return PREFIX + type + ".";
@@ -95,8 +100,12 @@ public class RealmSettings {
         return settingsByType.names().stream().flatMap(type -> {
             final Settings settingsByName = settingsByType.getAsSettings(type);
             return settingsByName.names().stream().map(name -> {
-                final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(type, name);
+                final String domain = DOMAIN_SETTING.apply(type).getConcreteSettingForNamespace(name).get(globalSettings);
+                if (domain != null && domain.startsWith("_")) {
+                    throw new SettingsException("realm domain cannot starts with underscore: realm [{}] (with type[{}])", name, type);
+                }
                 final Settings realmSettings = settingsByName.getAsSettings(name);
+                final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(type, name, domain);
                 verifyRealmSettings(id, realmSettings);
                 return new Tuple<>(id, realmSettings);
             });
@@ -139,7 +148,7 @@ public class RealmSettings {
     }
 
     public static List<Setting.AffixSetting<?>> getStandardSettings(String realmType) {
-        return Arrays.asList(ENABLED_SETTING.apply(realmType), ORDER_SETTING.apply(realmType));
+        return Arrays.asList(ENABLED_SETTING.apply(realmType), ORDER_SETTING.apply(realmType), DOMAIN_SETTING.apply(realmType));
     }
 
     private RealmSettings() {}

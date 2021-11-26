@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
@@ -47,6 +48,15 @@ public abstract class Realm implements Comparable<Realm> {
      */
     public String name() {
         return config.name();
+    }
+
+    @Nullable
+    public String domain() {
+        return config.domain();
+    }
+
+    public String effectiveDomain() {
+        return config.effectiveDomain();
     }
 
     /**

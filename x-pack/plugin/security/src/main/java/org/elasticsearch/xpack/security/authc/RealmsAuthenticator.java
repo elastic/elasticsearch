@@ -156,7 +156,7 @@ class RealmsAuthenticator implements Authenticator {
                     );
                     if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                         // user was authenticated, populate the authenticated by information
-                        authenticatedByRef.set(new Authentication.RealmRef(realm.name(), realm.type(), nodeName));
+                        authenticatedByRef.set(new Authentication.RealmRef(realm.name(), realm.type(), nodeName, realm.domain()));
                         authenticationResultRef.set(result);
                         if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
                             lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
@@ -303,7 +303,7 @@ class RealmsAuthenticator implements Authenticator {
                     }
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
                     listener.onResponse(
-                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName))
+                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName, tuple.v2().domain()))
                     );
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));

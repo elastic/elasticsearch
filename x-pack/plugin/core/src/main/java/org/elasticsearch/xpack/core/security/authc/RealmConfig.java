@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.util.Objects;
@@ -29,6 +30,7 @@ public class RealmConfig {
         this.settings = settings;
         this.env = env;
         this.threadContext = threadContext;
+
         this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
         if (enabled && false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
             throw new IllegalArgumentException(
@@ -60,6 +62,15 @@ public class RealmConfig {
 
     public String type() {
         return identifier.type;
+    }
+
+    @Nullable
+    public String domain() {
+        return identifier.getDomain();
+    }
+
+    public String effectiveDomain() {
+        return identifier.getEffectiveDomain();
     }
 
     /**
@@ -182,10 +193,16 @@ public class RealmConfig {
     public static class RealmIdentifier {
         private final String type;
         private final String name;
+        private final String domain;
 
         public RealmIdentifier(String type, String name) {
+            this(type, name, null);
+        }
+
+        public RealmIdentifier(String type, String name, @Nullable String domain) {
             this.type = Objects.requireNonNull(type, "Realm type cannot be null");
             this.name = Objects.requireNonNull(name, "Realm name cannot be null");
+            this.domain = domain;
         }
 
         public String getType() {
@@ -194,6 +211,15 @@ public class RealmConfig {
 
         public String getName() {
             return name;
+        }
+
+        @Nullable
+        public String getDomain() {
+            return domain;
+        }
+
+        public String getEffectiveDomain() {
+            return domain != null ? domain : name;
         }
 
         @Override
@@ -208,17 +234,18 @@ public class RealmConfig {
                 return false;
             }
             final RealmIdentifier other = (RealmIdentifier) o;
-            return Objects.equals(this.type, other.type) && Objects.equals(this.name, other.name);
+            return Objects.equals(this.type, other.type) && Objects.equals(this.name, other.name)
+                && (Objects.equals(this.getEffectiveDomain(), other.getEffectiveDomain()));
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, name);
+            return Objects.hash(type, name, getEffectiveDomain());
         }
 
         @Override
         public String toString() {
-            return type + '/' + name;
+            return type + '/' + name + (domain != null ? ('/' + domain) : "");
         }
     }
 }

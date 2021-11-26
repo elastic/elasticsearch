@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -170,8 +171,8 @@ public class Authentication implements ToXContentObject {
             final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
                 .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
             if (sameKeyId) {
-                assert getUser().principal().equals(other.getUser().principal())
-                    : "The same API key ID cannot be attributed to two different usernames";
+                assert getUser().principal()
+                    .equals(other.getUser().principal()) : "The same API key ID cannot be attributed to two different usernames";
             }
             return sameKeyId;
         }
@@ -195,8 +196,10 @@ public class Authentication implements ToXContentObject {
                 AuthenticationType.TOKEN,
                 AuthenticationType.ANONYMOUS,
                 AuthenticationType.INTERNAL
-            ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
-                : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+            )
+                .containsAll(
+                    EnumSet.of(getAuthenticationType(), other.getAuthenticationType())
+                ) : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
                     + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
             return false;
         }
@@ -250,14 +253,23 @@ public class Authentication implements ToXContentObject {
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
         builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
         builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        if (getAuthenticatedBy().getDomain() != null) {
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain());
+        }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
         if (getLookedUpBy() != null) {
             builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
+            if (getLookedUpBy().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain());
+            }
         } else {
             builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+            if (getAuthenticatedBy().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain());
+            }
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
@@ -274,8 +286,10 @@ public class Authentication implements ToXContentObject {
     }
 
     private void assertApiKeyMetadata() {
-        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
-            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
+        assert (AuthenticationType.API_KEY.equals(this.type) == false)
+            || (this.metadata.get(
+                AuthenticationField.API_KEY_ID_KEY
+            ) != null) : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
     }
 
     @Override
@@ -297,23 +311,43 @@ public class Authentication implements ToXContentObject {
         private final String nodeName;
         private final String name;
         private final String type;
+        private final String domain;
 
-        public RealmRef(String name, String type, String nodeName) {
+        public RealmRef(String name, String type, String nodeName, String domain) {
             this.nodeName = nodeName;
             this.name = name;
             this.type = type;
+            this.domain = domain;
+        }
+
+        public RealmRef(String name, String type, String nodeName) {
+            this(name, type, nodeName, null);
         }
 
         public RealmRef(StreamInput in) throws IOException {
             this.nodeName = in.readString();
             this.name = in.readString();
             this.type = in.readString();
+            if (in.getVersion().onOrBefore(Version.V_8_0_0)) {
+                this.domain = null;
+            } else {
+                this.domain = in.readOptionalString();
+            }
         }
 
         void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeName);
             out.writeString(name);
             out.writeString(type);
+            if (out.getVersion().onOrBefore(Version.V_8_0_0)) {
+                if (domain != null) {
+                    throw new IllegalArgumentException(
+                        "realm domain is not supported by node of version [" + Version.V_8_0_0 + "] and earlier"
+                    );
+                }
+            } else {
+                out.writeOptionalString(domain);
+            }
         }
 
         public String getNodeName() {
@@ -328,6 +362,15 @@ public class Authentication implements ToXContentObject {
             return type;
         }
 
+        @Nullable
+        public String getDomain() {
+            return domain;
+        }
+
+        public String getEffectiveDomain() {
+            return domain != null ? domain : name;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -337,7 +380,8 @@ public class Authentication implements ToXContentObject {
 
             if (nodeName.equals(realmRef.nodeName) == false) return false;
             if (name.equals(realmRef.name) == false) return false;
-            return type.equals(realmRef.type);
+            if (type.equals(realmRef.type) == false) return false;
+            return getEffectiveDomain().equals(realmRef.getEffectiveDomain());
         }
 
         @Override
@@ -345,12 +389,13 @@ public class Authentication implements ToXContentObject {
             int result = nodeName.hashCode();
             result = 31 * result + name.hashCode();
             result = 31 * result + type.hashCode();
+            result = 31 * result + getEffectiveDomain().hashCode();
             return result;
         }
 
         @Override
         public String toString() {
-            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
+            return "{Realm[" + type + "." + name + (domain != null ? ("." + domain) : "") + "] on Node[" + nodeName + "]}";
         }
     }
 

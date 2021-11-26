@@ -140,7 +140,7 @@ public class InitialNodeSecurityAutoConfiguration {
                                 + "] in order to authenticate as elastic"
                         );
                     }
-                    // empty password in case password generation is skyped
+                    // empty password in case password generation is skipped
                     groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
                 }
                 final Iterator<TimeValue> backoff = BACKOFF_POLICY.iterator();

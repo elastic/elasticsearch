@@ -38,7 +38,6 @@ public class InitialNodeSecurityAutoConfiguration {
     private static final Logger LOGGER = LogManager.getLogger(InitialNodeSecurityAutoConfiguration.class);
     private static final BackoffPolicy BACKOFF_POLICY = BackoffPolicy.exponentialBackoff();
 
-
     private InitialNodeSecurityAutoConfiguration() {
         throw new IllegalStateException("Class should not be instantiated");
     }

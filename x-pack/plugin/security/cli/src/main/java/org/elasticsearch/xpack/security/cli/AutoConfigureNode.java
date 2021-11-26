@@ -284,16 +284,18 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             HttpResponse enrollResponse = null;
             URL enrollNodeUrl = null;
             for (String address : enrollmentToken.getBoundAddress()) {
-                enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
-                enrollResponse = client.execute(
-                    "GET",
-                    enrollNodeUrl,
-                    new SecureString(enrollmentToken.getApiKey().toCharArray()),
-                    () -> null,
-                    CommandLineHttpClient::responseBuilder
-                );
-                if (enrollResponse.getHttpStatus() == 200) {
-                    break;
+                try {
+                    enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
+                    enrollResponse = client.execute("GET",
+                        enrollNodeUrl,
+                        new SecureString(enrollmentToken.getApiKey().toCharArray()),
+                        () -> null,
+                        CommandLineHttpClient::responseBuilder);
+                    if (enrollResponse.getHttpStatus() == 200) {
+                        break;
+                    }
+                } catch (Exception e) {
+                    terminal.errorPrint(Terminal.Verbosity.NORMAL, "Unable to communicate with the initial node on " + enrollNodeUrl);
                 }
             }
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
@@ -301,9 +303,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 throw new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "
-                        + "Could not communicate with the initial node in any of the addresses from the enrollment token. All of "
+                        + "Could not communicate with the initial node on any of the addresses from the enrollment token. All of "
                         + enrollmentToken.getBoundAddress()
-                        + "where attempted."
+                        + " where attempted."
                 );
             }
             final Map<String, Object> responseMap = enrollResponse.getResponseBody();

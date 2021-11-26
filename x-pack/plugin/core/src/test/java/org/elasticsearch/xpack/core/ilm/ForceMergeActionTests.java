@@ -212,9 +212,10 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     public void testInvalidNegativeSegmentNumber() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> {
-            new ForceMergeAction(randomIntBetween(-10, 0), randomBoolean(), null);
-        });
+        Exception r = expectThrows(
+            IllegalArgumentException.class,
+            () -> { new ForceMergeAction(randomIntBetween(-10, 0), randomBoolean(), null); }
+        );
         assertThat(r.getMessage(), equalTo("[max_num_segments] must be a positive integer"));
     }
 
@@ -241,7 +242,8 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     public void testReadOnlyDisabled() throws IOException {
-        XContentBuilder content = JsonXContent.contentBuilder().startObject()
+        XContentBuilder content = JsonXContent.contentBuilder()
+            .startObject()
             .field("max_num_segments", 1)
             .field("read_only", false)
             .endObject();

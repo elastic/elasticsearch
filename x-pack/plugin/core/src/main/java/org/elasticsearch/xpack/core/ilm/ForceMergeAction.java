@@ -224,8 +224,9 @@ public class ForceMergeAction implements LifecycleAction {
             return false;
         }
         ForceMergeAction other = (ForceMergeAction) obj;
-        return Objects.equals(this.maxNumSegments, other.maxNumSegments) &&
-            Objects.equals(this.codec, other.codec) && Objects.equals(this.readOnly, other.readOnly);
+        return Objects.equals(this.maxNumSegments, other.maxNumSegments)
+            && Objects.equals(this.codec, other.codec)
+            && Objects.equals(this.readOnly, other.readOnly);
     }
 
     @Override

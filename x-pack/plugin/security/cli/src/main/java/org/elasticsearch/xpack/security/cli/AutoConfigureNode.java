@@ -286,11 +286,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             for (String address : enrollmentToken.getBoundAddress()) {
                 try {
                     enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
-                    enrollResponse = client.execute("GET",
+                    enrollResponse = client.execute(
+                        "GET",
                         enrollNodeUrl,
                         new SecureString(enrollmentToken.getApiKey().toCharArray()),
                         () -> null,
-                        CommandLineHttpClient::responseBuilder);
+                        CommandLineHttpClient::responseBuilder
+                    );
                     if (enrollResponse.getHttpStatus() == 200) {
                         break;
                     }

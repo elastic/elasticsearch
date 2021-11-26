@@ -1,9 +1,11 @@
 [[modules-cross-cluster-search]]
 == Search across clusters
 
-{ccs-cap} ({ccs-init}) lets you run a single search request against one or more
-remote clusters. For example, you can use {ccs} to filter and analyze log
-data stored on clusters in different data centers.
+*{ccs-cap}* lets you run a single search request against one or more remote
+clusters. For example, you can use a {ccs} to filter and analyze log data stored
+on clusters in different data centers.
+
+IMPORTANT: {ccs-cap} requires <<remote-clusters,remote clusters>>.
 
 [discrete]
 [[ccs-supported-apis]]
@@ -21,8 +23,12 @@ The following APIs support {ccs}:
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
 
 [discrete]
-[[ccs-cluster-compatability]]
-=== Cluster compatability
+[[ccs-example]]
+=== {ccs-cap} examples
+
+[discrete]
+[[ccs-remote-cluster-setup]]
+==== Remote cluster setup
 
 To perform a {ccs}, you must have at least one
 <<remote-clusters-connect,remote cluster configured>>.
@@ -30,96 +36,6 @@ To perform a {ccs}, you must have at least one
 TIP: If you want to search across clusters in the cloud, you can
 link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
 can search across clusters and <<ccr-getting-started-tutorial,set up {ccr}>>.
-
-In a {ccs}, you submit a search request to a local cluster. A coordinating node
-on the local cluster parses the request and passes any relevant searches to a
-<<gateway-nodes-selection,gateway node>> on the remote cluster specified in
-the request.
-
-To run the search, the local coordinating node and the remote gateway node must
-use compatible versions of {es}. Elastic only supports searches from a local
-cluster to a remote cluster running:
-
-* The previous minor version
-* The same version
-* A later release in the local cluster's major version
-* Any minor release in the next major version
-
-IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
-clusters must use the same {es} version.
-
-For example, a local 8.0 cluster can search a remote cluster running:
-
-* 7.16 (the previous minor version)
-* 8.0
-* Any later 8.x version
-* Any 9.x version
-
-A search from a local 8.0 cluster to a remote 7.15 or 6.8 cluster is not
-supported.
-
-A search on an unsupported remote cluster may still work. However, such searches
-aren't tested by Elastic, and their behavior isn't guaranteed.
-
-[discrete]
-[[ccs-ensure-cluster-compatibility]]
-==== Ensure cluster compatibility
-
-The simplest way to ensure cluster compatibility for {ccs} is to keep each
-cluster on the same version of {es}. If you need to maintain clusters with
-separate versions, you can:
-
-* Maintain a local cluster for {ccs}. Keep this cluster on the earliest
-release needed to search the other clusters.
-+
-For example, if you have 7.14 and 8.0 clusters, you can maintain a 7.13
-cluster to run cross-cluster searches on them.
-
-* Keep each cluster no more than one minor version apart. For example, if one
-cluster runs {es} 8.0, other clusters must run 8.0 or 7.16.
-
-[discrete]
-[[ccs-during-upgrade]]
-==== {ccs-cap} during an upgrade
-
-You can search remote clusters while performing a <<rolling-upgrades,rolling
-upgrade>> on the local cluster. However, the "upgrade from" and "upgrade to"
-versions must be compatible with the gateway node.
-
-WARNING: Running multiple versions of {es} in the same cluster beyond the
-duration of an upgrade is not supported.
-
-[discrete]
-[[ccs-gateway-seed-nodes]]
-==== Selecting gateway and seed nodes in sniff mode
-
-For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
-seed nodes need to be accessible from the local cluster on your network.
-
-By default, any non-<<master-node,master-eligible>> node can act as a
-gateway node. If wanted, you can define the gateway nodes for a cluster by
-setting `cluster.remote.node.attr.gateway` to `true`.
-
-For {ccs}, we recommend you use gateway nodes that are capable of serving as
-<<coordinating-node,coordinating nodes>> for search requests. If
-wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
-
-[discrete]
-[[ccs-proxy-mode]]
-==== {ccs-cap} in proxy mode
-
-<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
-connections connect to the configured `proxy_address`. Any desired connection
-routing to gateway or <<coordinating-node,coordinating nodes>> must
-be implemented by the intermediate proxy at this configured address.
-
-[discrete]
-[[ccs-example]]
-=== {ccs-cap} examples
-
-[discrete]
-[[ccs-remote-cluster-setup]]
-==== Remote cluster setup
 
 The following <<cluster-update-settings,cluster update settings>> API request
 adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
@@ -372,6 +288,30 @@ If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
 include matching documents from that cluster in the final results.
 
 [discrete]
+[[ccs-gateway-seed-nodes]]
+=== Selecting gateway and seed nodes in sniff mode
+
+For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
+seed nodes need to be accessible from the local cluster via your network.
+
+By default, any non-<<master-node,master-eligible>> node can act as a
+gateway node. If wanted, you can define the gateway nodes for a cluster by
+setting `cluster.remote.node.attr.gateway` to `true`.
+
+For {ccs}, we recommend you use gateway nodes that are capable of serving as
+<<coordinating-node,coordinating nodes>> for search requests. If
+wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
+
+[discrete]
+[[ccs-proxy-mode]]
+=== {ccs-cap} in proxy mode
+
+<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
+connections connect to the configured `proxy_address`. Any desired connection
+routing to gateway or <<coordinating-node,coordinating nodes>> must
+be implemented by the intermediate proxy at this configured address.
+
+[discrete]
 [[ccs-network-delays]]
 === How {ccs} handles network delays
 
@@ -470,3 +410,60 @@ image:images/ccs/ccs-dont-min-roundtrip-shard-results.svg[]
 final results in the {ccs} response.
 +
 image:images/ccs/ccs-min-roundtrip-client-response.svg[]
+
+[discrete]
+[[ccs-supported-configurations]]
+=== Supported {ccs} configurations
+
+Elastic only supports searches from a local cluster to a remote cluster running:
+
+* The previous minor version
+* The same minor version
+* A later release in the local cluster's major version
+* Any minor release in the next major version
+
+IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
+clusters must use the same {es} version.
+
+For example, a local 8.0 cluster can search a remote cluster running:
+
+* 7.16 (the previous minor version)
+* 8.0
+* Any 8.x version after 8.0
+* Any 9.x version
+
+A search from a local 8.0 cluster to a remote 7.15 or 6.8 cluster is not
+supported.
+
+A {ccs} using an unsupported configuration may still work. However, such
+searches aren't tested by Elastic, and their behavior isn't guaranteed.
+
+[discrete]
+[[ensure-ccs-support]]
+==== Ensure {ccs} support
+
+The simplest way to ensure your clusters support {ccs} is to keep each cluster
+on the same version of {es}. If you need to maintain clusters with different
+versions, you can:
+
+* Maintain a cluster for {ccs}. Keep this cluster on the earliest version needed
+to search the other clusters.
++
+For example, if you have 7.14 and 8.0 clusters, you can maintain a 7.13 cluster.
+Use the 7.13 cluster as the local cluster when running any {ccs}.
+
+* Keep each cluster no more than one minor version apart. For example, if one
+cluster runs {es} 8.0, other clusters must run 8.0 or 7.16. This lets you use
+any cluster as the local cluster when running a {ccs}.
+
+[discrete]
+[[ccs-during-upgrade]]
+==== {ccs-cap} during an upgrade
+
+You can still search a remote cluster while performing a
+<<rolling-upgrades,rolling upgrade>> on the local cluster. However, the local
+coordinating node's "upgrade from" and "upgrade to" version must be compatible
+with the remote cluster's gateway node.
+
+WARNING: Running multiple versions of {es} in the same cluster beyond the
+duration of an upgrade is not supported.

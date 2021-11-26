@@ -186,6 +186,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 escapeJson(ESLogMessage.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
             );
             messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
+            //The search_action field is added to the slow query log, and the changed field is from the action field of the query task
             messageFields.put("elasticsearch.slowlog.search_action", context.getTask().getAction());
             messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());
 

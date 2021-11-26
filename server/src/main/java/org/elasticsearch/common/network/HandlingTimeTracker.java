@@ -26,7 +26,7 @@ public class HandlingTimeTracker {
     private static int getBucket(long handlingTimeMillis) {
         if (handlingTimeMillis <= 0) {
             return 0;
-        } else if (1L << 16 <= handlingTimeMillis) {
+        } else if (LAST_BUCKET_LOWER_BOUND <= handlingTimeMillis) {
             return BUCKET_COUNT - 1;
         } else {
             return Long.SIZE - Long.numberOfLeadingZeros(handlingTimeMillis);
@@ -34,6 +34,8 @@ public class HandlingTimeTracker {
     }
 
     public static final int BUCKET_COUNT = getBucketUpperBounds().length + 1;
+
+    private static final long LAST_BUCKET_LOWER_BOUND = getBucketUpperBounds()[BUCKET_COUNT - 2];
 
     private final LongAdder[] buckets;
 

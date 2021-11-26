@@ -449,8 +449,9 @@ versions, you can:
 * Maintain a cluster for {ccs}. Keep this cluster on the earliest version needed
 to search the other clusters.
 +
-For example, if you have 7.14 and 8.0 clusters, you can maintain a 7.13 cluster.
-Use the 7.13 cluster as the local cluster when running any {ccs}.
+For example, if you have 7.14 and 8.0 clusters, you can maintain a dedicated
+7.14 cluster for {ccs}. Use this dedicated cluster as the local cluster when
+running any {ccs}.
 
 * Keep each cluster no more than one minor version apart. For example, if one
 cluster runs {es} 8.0, other clusters must run 8.0 or 7.16. This lets you use

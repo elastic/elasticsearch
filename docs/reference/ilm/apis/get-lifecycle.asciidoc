@@ -55,7 +55,8 @@ PUT _ilm/policy/my_policy
         "min_age": "10d",
         "actions": {
           "forcemerge": {
-            "max_num_segments": 1
+            "max_num_segments": 1,
+            "read_only": true
           }
         }
       },

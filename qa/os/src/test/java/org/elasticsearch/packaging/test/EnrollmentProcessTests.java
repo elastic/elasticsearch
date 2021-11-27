@@ -11,7 +11,6 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.docker.Docker;
 

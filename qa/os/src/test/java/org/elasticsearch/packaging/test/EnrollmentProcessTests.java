@@ -11,31 +11,37 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.BeforeClass;
+import org.elasticsearch.packaging.util.docker.Docker;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
+import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.runAdditionalContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.runContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInstallation;
+import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
+import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
 
-    @BeforeClass
-    public static void filterDistros() {
-        assumeTrue("only archives", distribution.isArchive());
-    }
-
-    public void test10AutoFormCluster() throws Exception {
+    public void test10ArchiveAutoFormCluster() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("only archives", distribution.isArchive());
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node1"), getCurrentVersion(), true);
         verifyArchiveInstallation(installation, distribution());
         setFileSuperuser("test_superuser", "test_superuser_password");
@@ -64,6 +70,35 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         // verify that the two nodes formed a cluster
         assertThat(makeRequest("https://localhost:9200/_cluster/health"), containsString("\"number_of_nodes\":2"));
+    }
+
+    public void test20DockerAutoFormCluster() throws Exception {
+        assumeTrue("only docker", distribution.isDocker());
+        // First node
+        installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", "password"));
+        verifyContainerInstallation(installation);
+        verifySecurityAutoConfigured(installation);
+        waitForElasticsearch(installation);
+        final String node1ContainerId = Docker.getContainerId();
+        Shell.Result createTokenResult = installation.executables().createEnrollmentToken.run("-s node");
+        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout), is(false));
+        final List<String> noWarningOutputLines = Arrays.stream(createTokenResult.stdout.split("\\n"))
+            .filter(line -> line.startsWith("WARNING:") == false)
+            .collect(Collectors.toList());
+        assertThat(noWarningOutputLines.size(), equalTo(1));
+        // installation refers to second node from now on
+        installation = runAdditionalContainer(
+            distribution(),
+            builder().envVar("ENROLLMENT_TOKEN", noWarningOutputLines.get(0)).extraArgs("--publish 9301:9300 --publish 9201:9200")
+        );
+        waitForElasticsearch(installation);
+        verifyContainerInstallation(installation);
+        verifySecurityAutoConfigured(installation);
+        // verify that the two nodes formed a cluster
+        assertThat(makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"), containsString("\"number_of_nodes\":2"));
+
+        // Cleanup the first node that is still running
+        removeContainer(node1ContainerId);
     }
 
     private void waitForSecondNode() {

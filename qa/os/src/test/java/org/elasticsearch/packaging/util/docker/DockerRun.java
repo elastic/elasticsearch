@@ -108,12 +108,12 @@ public class DockerRun {
 
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 
-        // The container won't run without configuring discovery
-        cmd.add("--env discovery.type=single-node");
-
         // Map ports in the container to the host, so that we can send requests
-        cmd.add("--publish 9200:9200");
-        cmd.add("--publish 9300:9300");
+        // allow ports to be overridden by tests
+        if (this.extraArgs.stream().anyMatch(arg -> arg.startsWith("-p") || arg.startsWith("--publish")) == false) {
+            cmd.add("--publish 9200:9200");
+            cmd.add("--publish 9300:9300");
+        }
 
         // Bind-mount any volumes
         volumes.forEach((localPath, containerPath) -> {

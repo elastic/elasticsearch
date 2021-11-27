@@ -121,6 +121,23 @@ public class Docker {
     }
 
     /**
+     * Runs an Elasticsearch Docker container without removing any existing containers first,
+     * and checks that it has started up successfully.
+     *
+     * @param distribution details about the docker image being tested
+     * @param builder the command to run
+     * @return an installation that models the running container
+     */
+    public static Installation runAdditionalContainer(Distribution distribution, DockerRun builder) {
+        // TODO Maybe revisit this as part of https://github.com/elastic/elasticsearch/issues/79688
+        final String command = builder.distribution(distribution).build();
+        logger.info("Running command: " + command);
+        containerId = sh.run(command).stdout.trim();
+        waitForElasticsearchToStart();
+        return Installation.ofContainer(dockerShell, distribution);
+    }
+
+    /**
      * Similar to {@link #runContainer(Distribution, DockerRun)} in that it runs an Elasticsearch Docker
      * container, expect that the container expecting it to exit e.g. due to configuration problem.
      *
@@ -213,31 +230,39 @@ public class Docker {
     }
 
     /**
+     * Removes the container with a given id
+     */
+    public static void removeContainer(String containerId) {
+        if (containerId != null) {
+            // Remove the container, forcibly killing it if necessary
+            logger.debug("Removing container " + containerId);
+            final String command = "docker rm -f " + containerId;
+            final Shell.Result result = sh.runIgnoreExitCode(command);
+
+            if (result.isSuccess() == false) {
+                boolean isErrorAcceptable = result.stderr.contains("removal of container " + containerId + " is already in progress")
+                    || result.stderr.contains("Error: No such container: " + containerId);
+
+                // I'm not sure why we're already removing this container, but that's OK.
+                if (isErrorAcceptable == false) {
+                    throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
+                }
+            }
+
+        }
+    }
+
+    /**
      * Removes the currently running container.
      */
     public static void removeContainer() {
-        if (containerId != null) {
-            try {
-                // Remove the container, forcibly killing it if necessary
-                logger.debug("Removing container " + containerId);
-                final String command = "docker rm -f " + containerId;
-                final Shell.Result result = sh.runIgnoreExitCode(command);
-
-                if (result.isSuccess() == false) {
-                    boolean isErrorAcceptable = result.stderr.contains("removal of container " + containerId + " is already in progress")
-                        || result.stderr.contains("Error: No such container: " + containerId);
-
-                    // I'm not sure why we're already removing this container, but that's OK.
-                    if (isErrorAcceptable == false) {
-                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
-                    }
-                }
-            } finally {
-                // Null out the containerId under all circumstances, so that even if the remove command fails
-                // for some reason, the other tests will still proceed. Otherwise they can get stuck, continually
-                // trying to remove a non-existent container ID.
-                containerId = null;
-            }
+        try {
+            removeContainer(containerId);
+        } finally {
+            // Null out the containerId under all circumstances, so that even if the remove command fails
+            // for some reason, the other tests will still proceed. Otherwise they can get stuck, continually
+            // trying to remove a non-existent container ID.
+            containerId = null;
         }
     }
 

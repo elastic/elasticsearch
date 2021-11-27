@@ -13,6 +13,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -33,13 +34,21 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.ShardRequestInfo;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodesGroupedGatewayStartedShards;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGroupedGatewayStartedShards;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodesGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
@@ -130,11 +139,13 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public void allocateUnassigned(
         ShardRouting shardRouting,
         final RoutingAllocation allocation,
-        UnassignedAllocationHandler unassignedAllocationHandler
+        UnassignedAllocationHandler unassignedAllocationHandler,
+        boolean flushAsyncShardFetching
     ) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator,
+            shardRouting, unassignedAllocationHandler, flushAsyncShardFetching);
     }
 
     // allow for testing infra to change shard allocators implementation
@@ -143,13 +154,14 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         PrimaryShardAllocator primaryShardAllocator,
         ReplicaShardAllocator replicaShardAllocator,
         ShardRouting shardRouting,
-        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler,
+        boolean flushAsyncShardFetching
     ) {
         assert shardRouting.unassigned();
         if (shardRouting.primary()) {
-            primaryShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
+            primaryShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler, flushAsyncShardFetching);
         } else {
-            replicaShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
+            replicaShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler, flushAsyncShardFetching);
         }
     }
 
@@ -159,10 +171,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         assert routingAllocation.debugDecision();
         if (unassignedShard.primary()) {
             assert primaryShardAllocator != null;
-            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, true, logger);
         } else {
             assert replicaShardAllocator != null;
-            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, true, logger);
         }
     }
 
@@ -246,10 +258,132 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             this.client = client;
         }
 
+        // node grouped shard requests
+        private final Map<DiscoveryNode, Map<ShardId, ShardRequestInfo>> queuedRequests = new ConcurrentHashMap<>();
+        // shard to nodes requests
+        private final Map<ShardId, Map<String, ActionListener<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards>>>
+            queuedListeners = new ConcurrentHashMap<>();
+
+        Lister<NodesGatewayStartedShards, NodeGatewayStartedShards> lister =
+            new Lister<>() {
+                @Override
+                public void list(ShardId shardId, String customDataPath, DiscoveryNode[] nodes,
+                                 ActionListener<NodesGatewayStartedShards> listener) {
+                    // group shards by node
+                    for (DiscoveryNode node : nodes) {
+                        Map<ShardId, ShardRequestInfo> nodeLevelRequest = queuedRequests.computeIfAbsent(node, n -> new HashMap<>());
+                        nodeLevelRequest.put(shardId, new ShardRequestInfo(shardId, customDataPath, listener));
+                    }
+                }
+
+                @Override
+                public void flush() {
+                    Map<ShardId, String> shards = new HashMap<>();
+                    for (DiscoveryNode node : queuedRequests.keySet()) {
+                        Map<ShardId, ShardRequestInfo> requestMap = queuedRequests.get(node);
+                        for (ShardId shardId : requestMap.keySet()) {
+                            ShardRequestInfo shardRequest = requestMap.get(shardId);
+                            shards.put(shardRequest.shardId(), shardRequest.getCustomDataPath());
+                            if (node.getVersion().before(Version.V_7_16_0)) {
+                                // bwc, send single shard to node
+                                ActionListener<NodesGroupedGatewayStartedShards> listener = new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(TransportNodesListGatewayStartedShards.NodesGroupedGatewayStartedShards
+                                                               nodesGroupedStartedShards) {
+                                        assert nodesGroupedStartedShards.getNodes().size() == 1;
+                                        NodeGroupedGatewayStartedShards startedShardResponse = nodesGroupedStartedShards.getNodes().get(0);
+
+                                        List<NodeGatewayStartedShards> startedShards = startedShardResponse.getStartedShards();
+                                        assert startedShards.size() == 1;
+
+                                        NodesGatewayStartedShards newNodesResponse = new NodesGatewayStartedShards(
+                                            nodesGroupedStartedShards.getClusterName(),
+                                            startedShards,
+                                            nodesGroupedStartedShards.failures());
+                                        shardRequest.getListener().onResponse(newNodesResponse);
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        shardRequest.getListener().onFailure(e);
+                                    }
+                                };
+                                client.executeLocally(
+                                    TransportNodesListGatewayStartedShards.TYPE,
+                                    new TransportNodesListGatewayStartedShards.Request(shards, new DiscoveryNode[]{node}),
+                                    listener);
+                                shards.remove(shardRequest.shardId());
+                            } else {
+                                // queue child listeners
+                                Map<String, ActionListener<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards>> shardListeners =
+                                    queuedListeners.computeIfAbsent(shardRequest.shardId(), m -> new HashMap<>());
+                                shardListeners.put(node.getId(), shardRequest.getListener());
+                            }
+                        }
+
+                        assert shards.isEmpty() == false;
+                        logger.debug("Batch sending number of {} shard async fetch request to node {}", shards.size(), node.getId());
+
+                        if (node.getVersion().onOrAfter(Version.V_7_16_0)) {
+                            // send shard fetch request per node
+                            final Map<ShardId, ShardRequestInfo> curNodeRequests = queuedRequests.get(node);
+                            ActionListener<NodesGroupedGatewayStartedShards> listener = new ActionListener<>() {
+                                @Override
+                                public void onResponse(NodesGroupedGatewayStartedShards nodesGroupedStartedShards) {
+                                    assert nodesGroupedStartedShards.getNodes().size() == 1;
+                                    NodeGroupedGatewayStartedShards startedShardResponse = nodesGroupedStartedShards.getNodes().get(0);
+                                    List<NodeGatewayStartedShards> startedShards = startedShardResponse.getStartedShards();
+                                    for (NodeGatewayStartedShards startedShard : startedShards) {
+                                        // transfer to single shard -> nodes (single node) response
+                                        List<NodeGatewayStartedShards> listSingleStartedShards = new ArrayList<>();
+                                        listSingleStartedShards.add(startedShard);
+                                        NodesGatewayStartedShards newNodesResponse = new NodesGatewayStartedShards(
+                                            nodesGroupedStartedShards.getClusterName(),
+                                            listSingleStartedShards,
+                                            nodesGroupedStartedShards.failures());
+
+                                        // call child listener
+                                        Map<String, ActionListener<NodesGatewayStartedShards>> listeners =
+                                            queuedListeners.get(startedShard.getShardId());
+                                        ActionListener<NodesGatewayStartedShards> listener = listeners.get(node.getId());
+                                        listener.onResponse(newNodesResponse);
+
+                                        // clean child listener
+                                        ActionListener<NodesGatewayStartedShards> removed = listeners.remove(node.getId());
+                                        assert removed != null;
+                                        if (listeners.isEmpty()) {
+                                            queuedListeners.remove(startedShard.getShardId());
+                                        }
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    // clean requests and listeners of this node
+                                    for (ShardId shardId : curNodeRequests.keySet()) {
+                                        curNodeRequests.get(shardId).getListener().onFailure(e);
+                                        queuedListeners.get(shardId).remove(node.getId());
+                                    }
+                                }
+                            };
+
+                            client.executeLocally(
+                                TransportNodesListGatewayStartedShards.TYPE,
+                                new TransportNodesListGatewayStartedShards.Request(shards, new DiscoveryNode[]{node}),
+                                listener);
+                            // clean queued node requests after sending done
+                            queuedRequests.remove(node);
+                        }
+                    }
+                }
+            };
+
         @Override
-        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard,
+                                                                                  RoutingAllocation allocation,
+                                                                                  boolean flushAsyncShardFetching) {
             // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-            Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
+
             AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
                 shard.shardId(),
                 shardId -> new InternalAsyncFetch<>(
@@ -262,27 +396,14 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
             AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState = fetch.fetchData(
                 allocation.nodes(),
-                allocation.getIgnoreNodes(shard.shardId())
+                allocation.getIgnoreNodes(shard.shardId()),
+                flushAsyncShardFetching
             );
 
             if (shardState.hasData()) {
                 shardState.processAllocation(allocation);
             }
             return shardState;
-        }
-
-        private void listStartedShards(
-            ShardId shardId,
-            String customDataPath,
-            DiscoveryNode[] nodes,
-            ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener
-        ) {
-            var request = new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes);
-            client.executeLocally(
-                TransportNodesListGatewayStartedShards.TYPE,
-                request,
-                ActionListener.wrap(listener::onResponse, listener::onFailure)
-            );
         }
     }
 

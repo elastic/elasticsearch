@@ -67,6 +67,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     public AllocateUnassignedDecision makeAllocationDecision(
         final ShardRouting unassignedShard,
         final RoutingAllocation allocation,
+        boolean flushAsyncShardFetching,
         final Logger logger
     ) {
         if (isResponsibleFor(unassignedShard) == false) {
@@ -85,7 +86,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
 
-        final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
+        final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation, flushAsyncShardFetching);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
             List<NodeAllocationResult> nodeDecisions = null;
@@ -416,7 +417,9 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         );
     }
 
-    protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
+    protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard,
+                                                                       RoutingAllocation allocation,
+                                                                       boolean flushAsyncShardFetching);
 
     private static class NodeShardsResult {
         final List<NodeGatewayStartedShards> orderedAllocationCandidates;

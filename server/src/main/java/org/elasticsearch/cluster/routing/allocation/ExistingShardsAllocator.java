@@ -51,7 +51,8 @@ public interface ExistingShardsAllocator {
     void allocateUnassigned(
         ShardRouting shardRouting,
         RoutingAllocation allocation,
-        UnassignedAllocationHandler unassignedAllocationHandler
+        UnassignedAllocationHandler unassignedAllocationHandler,
+        boolean flushAsyncShardFetching
     );
 
     /**

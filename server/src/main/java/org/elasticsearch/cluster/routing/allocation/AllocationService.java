@@ -531,11 +531,20 @@ public class AllocationService {
             existingShardsAllocator.beforeAllocation(allocation);
         }
 
+        int n = 0;
+        int size = allocation.routingNodes().size();
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
             final ShardRouting shardRouting = primaryIterator.next();
             if (shardRouting.primary()) {
-                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator);
+                n++;
+                if (n == size) {
+                    // the last shard, we flush the pending fetching, or we could send them in batch mode like 1000 shard requests per node
+                    getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator, true);
+                } else {
+                    // queue shard async fetch request
+                    getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator, false);
+                }
             }
         }
 
@@ -547,7 +556,7 @@ public class AllocationService {
         while (replicaIterator.hasNext()) {
             final ShardRouting shardRouting = replicaIterator.next();
             if (shardRouting.primary() == false) {
-                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
+                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator, true);
             }
         }
     }

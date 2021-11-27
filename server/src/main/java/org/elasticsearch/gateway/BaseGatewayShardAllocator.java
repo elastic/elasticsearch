@@ -36,7 +36,7 @@ public abstract class BaseGatewayShardAllocator {
 
     /**
      * Allocate an unassigned shard to nodes (if any) where valid copies of the shard already exist.
-     * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, Logger)}
+     * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, boolean, Logger)}
      * to make decisions on assigning shards to nodes.
      * @param shardRouting the shard to allocate
      * @param allocation the allocation state container object
@@ -45,9 +45,11 @@ public abstract class BaseGatewayShardAllocator {
     public void allocateUnassigned(
         ShardRouting shardRouting,
         RoutingAllocation allocation,
-        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler,
+        boolean flushAsyncShardFetching
     ) {
-        final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation, logger);
+        final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation,
+            flushAsyncShardFetching, logger);
 
         if (allocateUnassignedDecision.isDecisionTaken() == false) {
             // no decision was taken by this allocator
@@ -91,6 +93,7 @@ public abstract class BaseGatewayShardAllocator {
     public abstract AllocateUnassignedDecision makeAllocationDecision(
         ShardRouting unassignedShard,
         RoutingAllocation allocation,
+        boolean flushAsyncShardFetching,
         Logger logger
     );
 

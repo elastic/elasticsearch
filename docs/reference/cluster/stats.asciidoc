@@ -1477,6 +1477,18 @@ The API returns the following response:
           ...
         }
       },
+      "index_pressure": {
+        "memory": {
+            "current": {
+                ...
+            },
+            "total": {
+                ...
+            },
+            "limit": "0b",
+            "limit_in_bytes": 0
+        }
+      },
       "network_types": {
         ...
       },
@@ -1495,6 +1507,8 @@ The API returns the following response:
 // TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
 // TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
 // TESTRESPONSE[s/"processor_stats": \{[^\}]*\}/"processor_stats": $body.$_path/]
+// TESTRESPONSE[s/"current": \{[^\}]*\}/"current": $body.$_path/]
+// TESTRESPONSE[s/"total": \{[^\}]*\}/"total": $body.$_path/]
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]

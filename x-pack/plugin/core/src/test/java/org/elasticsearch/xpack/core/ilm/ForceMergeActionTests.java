@@ -185,8 +185,8 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(
             stepKeys,
             contains(
-                new Tuple<>(closeIndex, updateCodec),
                 new Tuple<>(checkNotWriteIndex, readOnly),
+                new Tuple<>(closeIndex, updateCodec),
                 new Tuple<>(updateCodec, openIndex),
                 new Tuple<>(openIndex, waitForGreen),
                 new Tuple<>(waitForGreen, forceMerge),

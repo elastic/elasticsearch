@@ -74,7 +74,12 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
     private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
-    public static final Version MIN_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
+    // Ideally this would be 7.0.0, but it has to be 6.4.0 because due to an oversight it's impossible
+    // for the Java code to distinguish the model states for versions 6.4.0 to 7.9.3 inclusive.
+    public static final Version MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION = Version.fromString("6.4.0");
+    // We tell the user we support model snapshots newer than 7.0.0 as that's the major version
+    // boundary, even though behind the scenes we have to support back to 6.4.0.
+    public static final Version MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
 
     // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
     // can only be done if the master node is on or after that version.
@@ -425,16 +430,17 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     }
                     assert snapshot.getPage().results().size() == 1;
                     ModelSnapshot snapshotObj = snapshot.getPage().results().get(0);
-                    if (snapshotObj.getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
+                    if (snapshotObj.getMinVersion().onOrAfter(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
                         listener.onResponse(true);
                         return;
                     }
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(
-                            "[{}] job snapshot [{}] has min version before [{}], please revert to a newer model snapshot or reset the job",
+                            "[{}] job model snapshot [{}] has min version before [{}], "
+                                + "please revert to a newer model snapshot or reset the job",
                             jobId,
                             jobSnapshotId,
-                            MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
+                            MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION.toString()
                         )
                     );
                 }, snapshotFailure -> {

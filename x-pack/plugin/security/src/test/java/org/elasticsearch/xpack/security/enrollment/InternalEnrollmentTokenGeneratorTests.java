@@ -213,22 +213,30 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ActionListener<NodesInfoResponse> responseActionListener = (ActionListener<NodesInfoResponse>) invocationOnMock.getArguments()[2];
         nodeInfoApiCalls += 1;
-        responseActionListener.onResponse(new NodesInfoResponse(new ClusterName("cluster_name"),
-            List.of(new NodeInfo(Version.CURRENT,
-                null,
-                new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null)),
-            List.of()));
+        responseActionListener.onResponse(
+            new NodesInfoResponse(
+                new ClusterName("cluster_name"),
+                List.of(
+                    new NodeInfo(
+                        Version.CURRENT,
+                        null,
+                        new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                ),
+                List.of()
+            )
+        );
         return null;
     }
 

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClau
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;

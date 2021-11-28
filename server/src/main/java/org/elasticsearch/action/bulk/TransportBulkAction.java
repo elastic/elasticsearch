@@ -348,6 +348,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+        DocWriteRequest.OpType opType = writeRequest.opType();
+        if ((opType == OpType.CREATE || opType == OpType.INDEX) == false) {
+            // op type not create or index, then bail early
+            return;
+        }
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
         if (indexAbstraction == null) {
             return;
@@ -365,7 +370,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // so checking if write op is append-only and if so fail.
         // (Updates and deletes are allowed to target a backing index)
 
-        DocWriteRequest.OpType opType = writeRequest.opType();
         // CREATE op_type is considered append-only and
         // INDEX op_type is considered append-only when no if_primary_term and if_seq_no is specified.
         // (the latter maybe an update, but at this stage we can't determine that. In order to determine
@@ -524,10 +528,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
 
-                    if (docWriteRequest.opType() == OpType.CREATE || docWriteRequest.opType() == OpType.INDEX) {
-                        prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
-                        prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
-                    }
+                    prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
+                    prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
                     docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                     docWriteRequest.process();
 

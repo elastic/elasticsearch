@@ -90,7 +90,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             distribution(),
             builder().envVar("ENROLLMENT_TOKEN", noWarningOutputLines.get(0)).extraArgs("--publish 9301:9300 --publish 9201:9200")
         );
-        waitForElasticsearch(installation);
+        waitForSecondNode();
         verifyContainerInstallation(installation);
         verifySecurityAutoConfigured(installation);
         // verify that the two nodes formed a cluster

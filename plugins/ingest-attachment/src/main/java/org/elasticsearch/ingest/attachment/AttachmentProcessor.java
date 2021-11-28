@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
@@ -132,40 +133,11 @@ public final class AttachmentProcessor extends AbstractProcessor {
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
 
-        if (properties.contains(Property.DATE)) {
-            String createdDate = metadata.get(TikaCoreProperties.CREATED);
-            if (createdDate != null) {
-                additionalFields.put(Property.DATE.toLowerCase(), createdDate);
-            }
-        }
-
-        if (properties.contains(Property.TITLE)) {
-            String title = metadata.get(TikaCoreProperties.TITLE);
-            if (Strings.hasLength(title)) {
-                additionalFields.put(Property.TITLE.toLowerCase(), title);
-            }
-        }
-
-        if (properties.contains(Property.AUTHOR)) {
-            String author = metadata.get("Author");
-            if (Strings.hasLength(author)) {
-                additionalFields.put(Property.AUTHOR.toLowerCase(), author);
-            }
-        }
-
-        if (properties.contains(Property.KEYWORDS)) {
-            String keywords = metadata.get("Keywords");
-            if (Strings.hasLength(keywords)) {
-                additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
-            }
-        }
-
-        if (properties.contains(Property.CONTENT_TYPE)) {
-            String contentType = metadata.get(Metadata.CONTENT_TYPE);
-            if (Strings.hasLength(contentType)) {
-                additionalFields.put(Property.CONTENT_TYPE.toLowerCase(), contentType);
-            }
-        }
+        addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));
+        addAdditionalField(additionalFields, Property.TITLE, metadata.get(TikaCoreProperties.TITLE));
+        addAdditionalField(additionalFields, Property.AUTHOR, metadata.get("Author"));
+        addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get("Keywords"));
+        addAdditionalField(additionalFields, Property.CONTENT_TYPE, metadata.get(Metadata.CONTENT_TYPE));
 
         if (properties.contains(Property.CONTENT_LENGTH)) {
             String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
@@ -178,12 +150,48 @@ public final class AttachmentProcessor extends AbstractProcessor {
             additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
         }
 
+        addAdditionalField(additionalFields, Property.AUTHOR, metadata.get(TikaCoreProperties.CREATOR));
+        addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get(Office.KEYWORDS));
+
+        addAdditionalField(additionalFields, Property.MODIFIED, metadata.get(TikaCoreProperties.MODIFIED));
+        addAdditionalField(additionalFields, Property.FORMAT, metadata.get(TikaCoreProperties.FORMAT));
+        addAdditionalField(additionalFields, Property.IDENTIFIER, metadata.get(TikaCoreProperties.IDENTIFIER));
+        addAdditionalField(additionalFields, Property.CONTRIBUTOR, metadata.get(TikaCoreProperties.CONTRIBUTOR));
+        addAdditionalField(additionalFields, Property.COVERAGE, metadata.get(TikaCoreProperties.COVERAGE));
+        addAdditionalField(additionalFields, Property.MODIFIER, metadata.get(TikaCoreProperties.MODIFIER));
+        addAdditionalField(additionalFields, Property.CREATOR_TOOL, metadata.get(TikaCoreProperties.CREATOR_TOOL));
+        addAdditionalField(additionalFields, Property.PUBLISHER, metadata.get(TikaCoreProperties.PUBLISHER));
+        addAdditionalField(additionalFields, Property.RELATION, metadata.get(TikaCoreProperties.RELATION));
+        addAdditionalField(additionalFields, Property.RIGHTS, metadata.get(TikaCoreProperties.RIGHTS));
+        addAdditionalField(additionalFields, Property.SOURCE, metadata.get(TikaCoreProperties.SOURCE));
+        addAdditionalField(additionalFields, Property.TYPE, metadata.get(TikaCoreProperties.TYPE));
+        addAdditionalField(additionalFields, Property.DESCRIPTION, metadata.get(TikaCoreProperties.DESCRIPTION));
+        addAdditionalField(additionalFields, Property.PRINT_DATE, metadata.get(TikaCoreProperties.PRINT_DATE));
+        addAdditionalField(additionalFields, Property.METADATA_DATE, metadata.get(TikaCoreProperties.METADATA_DATE));
+        addAdditionalField(additionalFields, Property.LATITUDE, metadata.get(TikaCoreProperties.LATITUDE));
+        addAdditionalField(additionalFields, Property.LONGITUDE, metadata.get(TikaCoreProperties.LONGITUDE));
+        addAdditionalField(additionalFields, Property.ALTITUDE, metadata.get(TikaCoreProperties.ALTITUDE));
+        addAdditionalField(additionalFields, Property.RATING, metadata.get(TikaCoreProperties.RATING));
+        addAdditionalField(additionalFields, Property.COMMENTS, metadata.get(TikaCoreProperties.COMMENTS));
+
         ingestDocument.setFieldValue(targetField, additionalFields);
 
         if (removeBinary) {
             ingestDocument.removeField(field);
         }
         return ingestDocument;
+    }
+
+    /**
+     * Add an additional field if not null or empty
+     * @param additionalFields  additional fields
+     * @param property          property to add
+     * @param value             value to add
+     */
+    private <T> void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
+        if (properties.contains(property) && Strings.hasLength(value)) {
+            additionalFields.put(property.toLowerCase(), value);
+        }
     }
 
     @Override
@@ -270,7 +278,27 @@ public final class AttachmentProcessor extends AbstractProcessor {
         DATE,
         CONTENT_TYPE,
         CONTENT_LENGTH,
-        LANGUAGE;
+        LANGUAGE,
+        MODIFIED,
+        FORMAT,
+        IDENTIFIER,
+        CONTRIBUTOR,
+        COVERAGE,
+        MODIFIER,
+        CREATOR_TOOL,
+        PUBLISHER,
+        RELATION,
+        RIGHTS,
+        SOURCE,
+        TYPE,
+        DESCRIPTION,
+        PRINT_DATE,
+        METADATA_DATE,
+        LATITUDE,
+        LONGITUDE,
+        ALTITUDE,
+        RATING,
+        COMMENTS;
 
         public static Property parse(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));

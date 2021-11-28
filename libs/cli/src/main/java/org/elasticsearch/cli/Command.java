@@ -93,7 +93,7 @@ public abstract class Command implements Closeable {
     /**
      * Executes the command, but all errors are thrown.
      */
-    void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
+    protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
         final OptionSet options = parser.parse(args);
 
         if (options.has(helpOption)) {

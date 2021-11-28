@@ -69,7 +69,7 @@ public class RestListTasksAction extends BaseRestHandler {
         listTasksRequest.setNodes(nodes);
         listTasksRequest.setDetailed(detailed);
         listTasksRequest.setActions(actions);
-        listTasksRequest.setParentTaskId(parentTaskId);
+        listTasksRequest.setTargetParentTaskId(parentTaskId);
         listTasksRequest.setWaitForCompletion(waitForCompletion);
         listTasksRequest.setTimeout(timeout);
         return listTasksRequest;

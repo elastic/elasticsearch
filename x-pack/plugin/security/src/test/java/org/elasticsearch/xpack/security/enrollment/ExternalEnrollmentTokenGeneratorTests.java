@@ -83,7 +83,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
 
     public void testCreateSuccess() throws Exception {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
-        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL baseURL = new URL("http://localhost:9200");
         final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
@@ -173,7 +172,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
 
     public void testFailedCreateApiKey() throws Exception {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
-        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final URL baseURL = new URL("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
@@ -200,7 +198,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
 
     public void testFailedRetrieveHttpInfo() throws Exception {
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
-        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final URL baseURL = new URL("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
@@ -279,7 +276,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
             .build();
         environment = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
-        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL baseURL = new URL("http://localhost:9200");
         final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
@@ -364,7 +360,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
             .build();
         environment = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
-        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(environment, client);
         final URL baseURL = new URL("http://localhost:9200");
         final URL createAPIKeyURL = externalEnrollmentTokenGenerator.createAPIKeyUrl(baseURL);
@@ -438,7 +433,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
             .build();
         final Environment environment_no_keystore = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
-        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final URL baseURL = new URL("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(
             environment_no_keystore,
@@ -475,7 +469,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
             .build();
         final Environment environment_not_enabled = new Environment(settings, tempDir);
         final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
-        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
         final URL baseURL = new URL("http://localhost:9200");
         final ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = new ExternalEnrollmentTokenGenerator(
             environment_not_enabled,

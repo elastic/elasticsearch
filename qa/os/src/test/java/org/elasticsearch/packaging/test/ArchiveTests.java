@@ -293,6 +293,8 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test60StartAndStop() throws Exception {
         startElasticsearch();
+        // Cleanup node.name so that following tests can set it if need be.
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
         assertThat(installation.logs.resolve("gc.log"), fileExists());
         runElasticsearchTests();
         stopElasticsearch();

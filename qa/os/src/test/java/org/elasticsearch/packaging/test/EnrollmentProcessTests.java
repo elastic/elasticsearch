@@ -78,6 +78,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifyContainerInstallation(installation);
         verifySecurityAutoConfigured(installation);
         waitForElasticsearch(installation);
+        assertThat(makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"), containsString("\"number_of_nodes\":1"));
         final String node1ContainerId = Docker.getContainerId();
         Shell.Result createTokenResult = installation.executables().createEnrollmentToken.run("-s node");
         assertThat(Strings.isNullOrEmpty(createTokenResult.stdout), is(false));
@@ -90,6 +91,8 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             distribution(),
             builder().envVar("ENROLLMENT_TOKEN", noWarningOutputLines.get(0)).extraArgs("--publish 9301:9300 --publish 9201:9200")
         );
+        // TODO Make our packaging test methods aware of multiple installations, see https://github.com/elastic/elasticsearch/issues/79688
+        waitForElasticsearch(installation);
         waitForSecondNode();
         verifyContainerInstallation(installation);
         verifySecurityAutoConfigured(installation);

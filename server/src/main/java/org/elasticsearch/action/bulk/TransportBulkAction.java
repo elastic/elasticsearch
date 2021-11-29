@@ -591,7 +591,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final String indexName = request.index();
                             DocWriteRequest<?> docWriteRequest = request.request();
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
@@ -689,15 +689,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 addFailure(request, idx, cannotCreate);
                 return true;
             }
-            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
-            if (concreteIndex == null) {
-                try {
-                    concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                    addFailure(request, idx, ex);
-                    return true;
-                }
-            }
+            Index concreteIndex = concreteIndices.resolveIfAbsent(request);
             IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
             if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                 addFailure(request, idx, new IndexClosedException(concreteIndex));
@@ -736,10 +728,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
             this.state = state;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
-        }
-
-        Index getConcreteIndex(String indexOrAlias) {
-            return indices.get(indexOrAlias);
         }
 
         Index resolveIfAbsent(DocWriteRequest<?> request) {

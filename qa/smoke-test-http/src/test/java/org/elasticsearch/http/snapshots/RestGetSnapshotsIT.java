@@ -47,11 +47,6 @@ import static org.hamcrest.Matchers.is;
 // TODO: dry up duplication across this suite and org.elasticsearch.snapshots.GetSnapshotsIT more
 public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
-    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5)
-        .put("thread_pool.snapshot.max", 5)
-        .build();
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()

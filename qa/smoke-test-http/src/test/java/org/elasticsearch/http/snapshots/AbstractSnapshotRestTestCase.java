@@ -29,6 +29,15 @@ public abstract class AbstractSnapshotRestTestCase extends HttpSmokeTestCase {
         .put("thread_pool.snapshot_meta.max", 1)
         .build();
 
+    /**
+     * Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
+     * threads so that blocking some threads on one repository doesn't block other repositories from doing work
+     */
+    protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
+        .put("thread_pool.snapshot.core", 5)
+        .put("thread_pool.snapshot.max", 5)
+        .build();
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);

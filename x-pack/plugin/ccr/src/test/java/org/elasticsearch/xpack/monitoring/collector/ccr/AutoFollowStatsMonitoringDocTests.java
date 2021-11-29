@@ -88,7 +88,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
         final NavigableMap<String, AutoFollowedCluster> trackingClusters = new TreeMap<>(
             Collections.singletonMap(randomAlphaOfLength(4), new AutoFollowedCluster(1L, 1L))
         );
-        final AutoFollowStats autoFollowStats = new AutoFollowStats(
+        autoFollowStats = new AutoFollowStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),

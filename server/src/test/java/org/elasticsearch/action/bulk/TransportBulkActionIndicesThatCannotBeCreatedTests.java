@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -131,7 +132,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             mock(ActionFilters.class),
             indexNameExpressionResolver,
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE
         ) {
             @Override
             void executeBulk(

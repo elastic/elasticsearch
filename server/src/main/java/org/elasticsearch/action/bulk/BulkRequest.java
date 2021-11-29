@@ -75,7 +75,7 @@ public class BulkRequest extends ActionRequest
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
-    private RequestMemory requestMemory = new RequestMemory();
+    private RequestMemory requestMemory = RequestMemory.NO_OP;
 
     private long sizeInBytes = 0;
 

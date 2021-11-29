@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -248,6 +249,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
                 relativeTimeProvider
             );
         }

@@ -34,12 +34,16 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexingPressure;
@@ -57,6 +61,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -78,6 +83,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final PageCacheRecycler recycler;
+    private final ThreadLocal<RecyclerBytesStreamOutput> bytesStream;
 
     @Inject
     public TransportShardBulkAction(
@@ -113,6 +119,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.recycler = recycler;
+        final BytesRefRecycler bytesRefRecycler = new BytesRefRecycler(recycler);
+        this.bytesStream = ThreadLocal.withInitial(() -> new RecyclerBytesStreamOutput(bytesRefRecycler));
     }
 
     @Override
@@ -159,6 +167,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
         }), listener, threadPool, executor(primary));
+    }
+
+    @Override
+    protected Releasable copyMemoryFromRequest(BulkShardRequest request, Releasable limitsReleasable) {
+        if (request.getRequestMemory().needToReleaseNetworkMemory()) {
+            ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream.get(), request);
+            request.getRequestMemory().releaseNetworkMemory();
+            return () -> Releasables.close(bytesReference, limitsReleasable);
+        } else {
+            return limitsReleasable;
+        }
     }
 
     @Override
@@ -525,6 +544,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
+    }
+
+    @Override
+    protected Releasable copyMemoryFromReplicaRequest(BulkShardRequest request, Releasable limitsReleasable) {
+        if (request.getRequestMemory().needToReleaseNetworkMemory()) {
+            ReleasableBytesReference bytesReference = RequestMemory.copyBytesToNewReference(bytesStream.get(), request);
+            request.getRequestMemory().releaseNetworkMemory();
+            return () -> Releasables.close(bytesReference, limitsReleasable);
+        } else {
+            return limitsReleasable;
+        }
     }
 
     @Override

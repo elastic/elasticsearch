@@ -56,11 +56,11 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         } else {
             sourceBytes = null;
         }
-        requestMemory = new RequestMemory();
+        requestMemory = RequestMemory.NO_OP;
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        this(shardId, refreshPolicy, items, new RequestMemory());
+        this(shardId, refreshPolicy, items, RequestMemory.NO_OP);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, RequestMemory requestMemory) {
@@ -222,6 +222,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }
         }
+    }
+
+    public RequestMemory getRequestMemory() {
+        return requestMemory;
     }
 
     @Override

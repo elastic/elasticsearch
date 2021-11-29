@@ -43,10 +43,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -66,7 +65,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -105,6 +103,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
+    private final ThreadLocal<RecyclerBytesStreamOutput> bytesStream;
 
     @Inject
     public TransportBulkAction(
@@ -116,7 +115,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        PageCacheRecycler pageCacheRecycler
     ) {
         this(
             threadPool,
@@ -128,6 +128,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            pageCacheRecycler,
             System::nanoTime
         );
     }
@@ -142,6 +143,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        PageCacheRecycler pageCacheRecycler,
         LongSupplier relativeTimeProvider
     ) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
@@ -155,6 +157,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
+        final BytesRefRecycler bytesRefRecycler = new BytesRefRecycler(pageCacheRecycler);
+        this.bytesStream = ThreadLocal.withInitial(() -> new RecyclerBytesStreamOutput(bytesRefRecycler));
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -562,15 +566,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             String nodeId = clusterService.localNode().getId();
-            Releasable coordinatingMemoryReleaser = bulkRequest.requestMemory().childCoordinatingMemoryReleaser(requestsByShard.size());
+            RequestMemory requestMemory = bulkRequest.requestMemory();
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[requests.size()]),
-                    new RequestMemory(coordinatingMemoryReleaser)
+                    requests.toArray(new BulkItemRequest[requests.size()])
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
@@ -578,93 +581,65 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(BulkShardResponse bulkShardResponse) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                            // we may have no response if item failed
-                            if (bulkItemResponse.getResponse() != null) {
-                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+
+                Releasable toRelease;
+                if (requestMemory.needToReleaseNetworkMemory()) {
+                    RecyclerBytesStreamOutput streamOutput = bytesStream.get();
+                    toRelease = RequestMemory.copyBytesToNewReference(streamOutput, bulkShardRequest);
+                } else {
+                    toRelease = Releasable.NO_OP;
+                }
+                boolean success = false;
+                try {
+                    client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(BulkShardResponse bulkShardResponse) {
+                            for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                                // we may have no response if item failed
+                                if (bulkItemResponse.getResponse() != null) {
+                                    bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                                }
+                                responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                             }
-                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                            toRelease.close();
+                            if (counter.decrementAndGet() == 0) {
+                                finishHim();
+                            }
                         }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // create failures for all relevant requests
-                        for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                            DocWriteRequest<?> docWriteRequest = request.request();
-                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
-                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                        @Override
+                        public void onFailure(Exception e) {
+                            // create failures for all relevant requests
+                            for (BulkItemRequest request : requests) {
+                                final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                                DocWriteRequest<?> docWriteRequest = request.request();
+                                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+                                responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                            }
+                            toRelease.close();
+                            if (counter.decrementAndGet() == 0) {
+                                finishHim();
+                            }
                         }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
-                    }
 
-                    private void finishHim() {
-                        listener.onResponse(
-                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                        );
+                        private void finishHim() {
+                            listener.onResponse(
+                                new BulkResponse(
+                                    responses.toArray(new BulkItemResponse[responses.length()]),
+                                    buildTookInMillis(startTimeNanos)
+                                )
+                            );
+                        }
+                    });
+                } finally {
+                    if (success == false) {
+                        toRelease.close();
                     }
-                });
+                }
             }
 
-            // allow memory for bulk request items to be reclaimed before all items have been completed
-            bulkRequest.requestMemory().releaseCoordinatingMemory();
+            requestMemory.releaseNetworkMemory();
             bulkRequest = null;
-        }
-
-        private void copySourceBytes(List<BulkShardRequest> bulkShardRequests) {
-            try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-                for (BulkShardRequest bulkShardRequest : bulkShardRequests) {
-                    copySourceBytes(streamOutput, bulkShardRequest);
-                }
-                List<ReleasableBytesReference> pages = streamOutput.retainPages();
-                int currentPage = 0;
-                for (BulkShardRequest bulkShardRequest : bulkShardRequests) {
-                    for (BulkItemRequest item : bulkShardRequest.items()) {
-                        DocWriteRequest<?> request = item.request();
-                        if (request instanceof IndexRequest) {
-
-                        } else if (request instanceof UpdateRequest) {
-                            UpdateRequest updateRequest = (UpdateRequest) request;
-                            if (updateRequest.upsertRequest() != null) {
-
-                            }
-                            if (updateRequest.doc() != null) {
-
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        private void copySourceBytes(BytesStream streamOutput, BulkShardRequest bulkShardRequest) {
-            try {
-                for (BulkItemRequest item : bulkShardRequest.items()) {
-                    DocWriteRequest<?> request = item.request();
-                    if (request instanceof IndexRequest) {
-                        ((IndexRequest) request).source().writeTo(streamOutput);
-                    } else if (request instanceof UpdateRequest) {
-                        UpdateRequest updateRequest = (UpdateRequest) request;
-                        if (updateRequest.upsertRequest() != null) {
-                            updateRequest.upsertRequest().source().writeTo(streamOutput);
-                        }
-                        if (updateRequest.doc() != null) {
-                            updateRequest.doc().source().writeTo(streamOutput);
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
         }
 
         private boolean handleBlockExceptions(ClusterState state) {

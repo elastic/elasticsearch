@@ -107,6 +107,11 @@ public class InboundDecoderTests extends ESTestCase {
             final Object endMarker = fragments.get(1);
 
             assertEquals(messageBytes, content);
+            // Ref count is incremented since the bytes are forwarded as a fragment
+            assertTrue(releasable2.hasReferences());
+            releasable2.decRef();
+            assertTrue(releasable2.hasReferences());
+            assertTrue(releasable2.decRef());
             assertEquals(InboundDecoder.END_CONTENT, endMarker);
         }
 

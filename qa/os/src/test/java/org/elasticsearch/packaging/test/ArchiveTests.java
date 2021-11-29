@@ -604,7 +604,8 @@ public class ArchiveTests extends PackagingTestCase {
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
-
+        logger.info("FAILING TEST TEMPORARY OUTPUT OF CONFIGURATION: ");
+        logger.info(Files.readAllLines(installation.config("elasticsearch.yml")));
         sh.setWorkingDirectory(getRootTempDir());
 
         startElasticsearch();

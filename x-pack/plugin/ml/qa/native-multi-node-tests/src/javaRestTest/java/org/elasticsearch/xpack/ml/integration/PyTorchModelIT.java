@@ -204,7 +204,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         // even with a zero timeout a valid inference response may
         // be returned.
         // The test asserts that if an error occurs it is a timeout error
-        try{
+        try {
             infer("my words", modelId, TimeValue.ZERO);
         } catch (ResponseException ex) {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(408));

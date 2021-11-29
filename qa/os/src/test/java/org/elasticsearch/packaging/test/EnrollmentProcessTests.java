@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
@@ -31,8 +32,10 @@ import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInst
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
@@ -78,11 +81,16 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifyContainerInstallation(installation);
         verifySecurityAutoConfigured(installation);
         waitForElasticsearch(installation);
-        assertThat(makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"), containsString("\"number_of_nodes\":1"));
+        assertBusy(
+            () -> assertThat(
+                makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"),
+                containsString("\"number_of_nodes\":1")
+            )
+        );
         final String node1ContainerId = Docker.getContainerId();
-        Shell.Result createTokenResult = installation.executables().createEnrollmentToken.run("-s node");
-        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout), is(false));
-        final List<String> noWarningOutputLines = Arrays.stream(createTokenResult.stdout.split("\\n"))
+        String createTokenResult = installation.executables().createEnrollmentToken.run("-s node").stdout;
+        assertThat(createTokenResult, not(emptyOrNullString()));
+        final List<String> noWarningOutputLines = createTokenResult.lines()
             .filter(line -> line.startsWith("WARNING:") == false)
             .collect(Collectors.toList());
         assertThat(noWarningOutputLines.size(), equalTo(1));
@@ -97,9 +105,12 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         // Allow some time for the second node to join the cluster, we can probably do this more elegantly in
         // https://github.com/elastic/elasticsearch/issues/79688
-        Thread.sleep(15000);
+        assertBusy(() ->
         // verify that the two nodes formed a cluster
-        assertThat(makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"), containsString("\"number_of_nodes\":2"));
+        assertThat(makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"), containsString("\"number_of_nodes\":2")),
+            20,
+            TimeUnit.SECONDS
+        );
 
         // Cleanup the first node that is still running
         removeContainer(node1ContainerId);

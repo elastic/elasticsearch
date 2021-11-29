@@ -181,7 +181,7 @@ POST _ml/trained_models/model2/deployment/_infer
 // NOTCONSOLE
 
 
-The tokenization truncate option can be overridden when calling the API
+The tokenization truncate option can be overridden when calling the API:
 
 [source,console]
 --------------------------------------------------

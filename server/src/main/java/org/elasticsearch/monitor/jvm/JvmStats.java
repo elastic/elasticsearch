@@ -8,6 +8,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +28,6 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -346,7 +346,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
 
         @Override
         public Iterator<GarbageCollector> iterator() {
-            return Arrays.stream(collectors).iterator();
+            return Iterators.forArray(collectors);
         }
     }
 

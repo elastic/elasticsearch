@@ -63,8 +63,9 @@ The following command creates an enrollment token for enrolling an {es} node int
 bin/elasticsearch-create-enrollment-token -s node
 ----
 
-The following command creates an enrollment token for enrolling a kibana instance into a cluster, 
-while overriding the url where the local elasticsearch node is reachable:
+The following command creates an enrollment token for enrolling a {kib} instance into a cluster.
+The specified URL indicates where the elasticsearch-create-enrollment-token tool attempts to reach the
+local {es} node:
 
 [source,shell]
 ----

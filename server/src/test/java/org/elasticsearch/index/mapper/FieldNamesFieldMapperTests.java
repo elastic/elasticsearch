@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;

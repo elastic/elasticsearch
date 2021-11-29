@@ -1925,6 +1925,10 @@ public class Security extends Plugin
                             builder.startObject("realm_type");
                             builder.field("type", "keyword");
                             builder.endObject();
+
+                            builder.startObject("realm_domain");
+                            builder.field("type", "keyword");
+                            builder.endObject();
                         }
                         builder.endObject();
                     }

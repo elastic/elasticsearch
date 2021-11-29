@@ -424,6 +424,7 @@ public class ApiKeyService {
             .field("metadata", authentication.getUser().metadata())
             .field("realm", authentication.getSourceRealm().getName())
             .field("realm_type", authentication.getSourceRealm().getType())
+            .field("realm_domain", authentication.getSourceRealm().getDomain())
             .endObject()
             .endObject();
 
@@ -785,6 +786,7 @@ public class ApiKeyService {
             final Map<String, Object> authResultMetadata = new HashMap<>();
             authResultMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, apiKeyDoc.creator.get("realm"));
             authResultMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, apiKeyDoc.creator.get("realm_type"));
+            authResultMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_DOMAIN, apiKeyDoc.creator.get("realm_domain"));
             authResultMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, apiKeyDoc.roleDescriptorsBytes);
             authResultMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, apiKeyDoc.limitedByRoleDescriptorsBytes);
             authResultMetadata.put(AuthenticationField.API_KEY_ID_KEY, credentials.getId());
@@ -973,23 +975,44 @@ public class ApiKeyService {
         }
     }
 
-    /**
-     * Invalidate API keys for given realm, user name, API key name and id.
-     * @param realmName realm name
-     * @param username user name
-     * @param apiKeyName API key name
-     * @param apiKeyIds API key id
-     * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
-     */
-    public void invalidateApiKeys(
+    public void invalidateApiKeysForRealmName(
         String realmName,
         String username,
         String apiKeyName,
         String[] apiKeyIds,
         ActionListener<InvalidateApiKeyResponse> invalidateListener
     ) {
+        invalidateApiKeys(realmName, false, username, apiKeyName, apiKeyIds, invalidateListener);
+    }
+
+    public void invalidateApiKeysForDomain(
+        String realmDomain,
+        String username,
+        String apiKeyName,
+        String[] apiKeyIds,
+        ActionListener<InvalidateApiKeyResponse> invalidateListener
+    ) {
+        invalidateApiKeys(realmDomain, true, username, apiKeyName, apiKeyIds, invalidateListener);
+    }
+
+    /**
+     * Invalidate API keys for given realm, user name, API key name and id.
+     * @param realmTerm realm name
+     * @param username user name
+     * @param apiKeyName API key name
+     * @param apiKeyIds API key id
+     * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
+     */
+    public void invalidateApiKeys(
+        String realmTerm,
+        boolean forDomain,
+        String username,
+        String apiKeyName,
+        String[] apiKeyIds,
+        ActionListener<InvalidateApiKeyResponse> invalidateListener
+    ) {
         ensureEnabled();
-        if (Strings.hasText(realmName) == false
+        if (Strings.hasText(realmTerm) == false
             && Strings.hasText(username) == false
             && Strings.hasText(apiKeyName) == false
             && (apiKeyIds == null || apiKeyIds.length == 0)) {
@@ -999,7 +1022,8 @@ public class ApiKeyService {
             );
         } else {
             findApiKeysForUserRealmApiKeyIdAndNameCombination(
-                realmName,
+                realmTerm,
+                forDomain,
                 username,
                 apiKeyName,
                 apiKeyIds,
@@ -1009,7 +1033,7 @@ public class ApiKeyService {
                     if (apiKeys.isEmpty()) {
                         logger.debug(
                             "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
-                            realmName,
+                            realmTerm,
                             username,
                             apiKeyName,
                             Arrays.toString(apiKeyIds)
@@ -1067,7 +1091,8 @@ public class ApiKeyService {
     }
 
     private void findApiKeysForUserRealmApiKeyIdAndNameCombination(
-        String realmName,
+        String realmTerm,
+        boolean forDomain,
         String userName,
         String apiKeyName,
         String[] apiKeyIds,
@@ -1082,8 +1107,8 @@ public class ApiKeyService {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
-            if (Strings.hasText(realmName)) {
-                boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmName));
+            if (Strings.hasText(realmTerm)) {
+                boolQuery.filter(QueryBuilders.termQuery(forDomain ? "creator.realm_domain" : "creator.realm", realmTerm));
             }
             if (Strings.hasText(userName)) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.principal", userName));
@@ -1260,8 +1285,29 @@ public class ApiKeyService {
      * @param apiKeyId API key id
      * @param listener listener for {@link GetApiKeyResponse}
      */
-    public void getApiKeys(
+    public void getApiKeysForRealmName(
         String realmName,
+        String username,
+        String apiKeyName,
+        String apiKeyId,
+        ActionListener<GetApiKeyResponse> listener
+    ) {
+        getApiKeys(realmName, false, username, apiKeyName, apiKeyId, listener);
+    }
+
+    public void getApiKeysForDomain(
+        String realmDomain,
+        String username,
+        String apiKeyName,
+        String apiKeyId,
+        ActionListener<GetApiKeyResponse> listener
+    ) {
+        getApiKeys(realmDomain, true, username, apiKeyName, apiKeyId, listener);
+    }
+
+    public void getApiKeys(
+        String realmTerm,
+        boolean forDomain,
         String username,
         String apiKeyName,
         String apiKeyId,
@@ -1270,7 +1316,8 @@ public class ApiKeyService {
         ensureEnabled();
         final String[] apiKeyIds = Strings.hasText(apiKeyId) == false ? null : new String[] { apiKeyId };
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
-            realmName,
+            realmTerm,
+            forDomain,
             username,
             apiKeyName,
             apiKeyIds,
@@ -1279,8 +1326,9 @@ public class ApiKeyService {
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty()) {
                     logger.debug(
-                        "No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
-                        realmName,
+                        "No active api keys found for [{}] [{}], user [{}], api key name [{}] and api key id [{}]",
+                        forDomain ? "realm domain" : "realm",
+                        realmTerm,
                         username,
                         apiKeyName,
                         apiKeyId
@@ -1343,6 +1391,8 @@ public class ApiKeyService {
         @SuppressWarnings("unchecked")
         String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
         @SuppressWarnings("unchecked")
+        String domain = (String) ((Map<String, Object>) source.get("creator")).get("realm_domain");
+        @SuppressWarnings("unchecked")
         Map<String, Object> metadata = (Map<String, Object>) source.get("metadata_flattened");
 
         return new ApiKey(
@@ -1353,7 +1403,8 @@ public class ApiKeyService {
             invalidated,
             username,
             realm,
-            metadata
+            metadata,
+            domain
         );
     }
 
@@ -1395,7 +1446,7 @@ public class ApiKeyService {
 
     /**
      * Returns realm name for the authenticated user.
-     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
+     * If the user is authenticated by realm name {@value AuthenticationField#API_KEY_REALM_NAME}
      * then it will return the realm name of user who created this API key.
      *
      * @param authentication {@link Authentication}
@@ -1422,6 +1473,22 @@ public class ApiKeyService {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();
+        }
+    }
+
+    /**
+     * Returns realm domain for the authenticated user.
+     * If the user is authenticated by realm domain {@value AuthenticationField#API_KEY_CREATOR_REALM_DOMAIN}
+     * then it will return the realm domain of user who created this API key.
+     *
+     * @param authentication {@link Authentication}
+     * @return realm domain
+     */
+    public static String getCreatorRealmDomain(final Authentication authentication) {
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+            return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_DOMAIN);
+        } else {
+            return authentication.getSourceRealm().getDomain();
         }
     }
 

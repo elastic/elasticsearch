@@ -168,6 +168,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_ROLES_FIELD_NAME = "user.roles";
     public static final String AUTHENTICATION_TYPE_FIELD_NAME = "authentication.type";
     public static final String REALM_FIELD_NAME = "realm";
+    public static final String REALM_DOMAIN_FIELD_NAME = "realm.domain";
     public static final String URL_PATH_FIELD_NAME = "url.path";
     public static final String URL_QUERY_FIELD_NAME = "url.query";
     public static final String REQUEST_METHOD_FIELD_NAME = "request.method";
@@ -451,6 +452,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                 .with(REALM_FIELD_NAME, authnRealm)
+                .with(REALM_DOMAIN_FIELD_NAME, authentication.getAuthenticatedBy().getDomain())
                 .withRestUriAndMethod(request)
                 .withRequestId(requestId)
                 .withAuthentication(authentication)
@@ -612,6 +614,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(
         String requestId,
         String realm,
+        String domain,
         AuthenticationToken token,
         String action,
         TransportRequest transportRequest
@@ -623,6 +626,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                     .with(REALM_FIELD_NAME, realm)
+                    .with(REALM_DOMAIN_FIELD_NAME, domain)
                     .with(PRINCIPAL_FIELD_NAME, token.principal())
                     .with(ACTION_FIELD_NAME, action)
                     .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
@@ -637,13 +641,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, String realm, String domain, AuthenticationToken token, RestRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                 .with(REALM_FIELD_NAME, realm)
+                .with(REALM_DOMAIN_FIELD_NAME, domain)
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
                 .withRestOrigin(request)
@@ -1807,6 +1812,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     static final class AuditEventMetaInfo {
         final String principal;
         final String realm;
+        // TODO: domain
         final String action;
         final Supplier<Stream<String>> roles;
         final Supplier<Stream<String>> indices;

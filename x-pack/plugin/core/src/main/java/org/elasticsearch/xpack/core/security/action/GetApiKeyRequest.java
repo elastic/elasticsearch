@@ -30,6 +30,7 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final String apiKeyId;
     private final String apiKeyName;
     private final boolean ownedByAuthenticatedUser;
+    private final String realmDomain;
 
     public GetApiKeyRequest() {
         this(null, null, null, null, false);
@@ -46,6 +47,11 @@ public final class GetApiKeyRequest extends ActionRequest {
         } else {
             ownedByAuthenticatedUser = false;
         }
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            realmDomain = textOrNull(in.readOptionalString());
+        } else {
+            realmDomain = null;
+        }
     }
 
     public GetApiKeyRequest(
@@ -55,11 +61,23 @@ public final class GetApiKeyRequest extends ActionRequest {
         @Nullable String apiKeyName,
         boolean ownedByAuthenticatedUser
     ) {
+        this(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, null);
+    }
+
+    public GetApiKeyRequest(
+        @Nullable String realmName,
+        @Nullable String userName,
+        @Nullable String apiKeyId,
+        @Nullable String apiKeyName,
+        boolean ownedByAuthenticatedUser,
+        @Nullable String realmDomain
+    ) {
         this.realmName = textOrNull(realmName);
         this.userName = textOrNull(userName);
         this.apiKeyId = textOrNull(apiKeyId);
         this.apiKeyName = textOrNull(apiKeyName);
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
+        this.realmDomain = realmDomain;
     }
 
     private static String textOrNull(@Nullable String arg) {
@@ -84,6 +102,10 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     public boolean ownedByAuthenticatedUser() {
         return ownedByAuthenticatedUser;
+    }
+
+    public String getRealmDomain() {
+        return realmDomain;
     }
 
     /**
@@ -185,6 +207,9 @@ public final class GetApiKeyRequest extends ActionRequest {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalBoolean(ownedByAuthenticatedUser);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeOptionalString(realmDomain);
+        }
     }
 
     @Override
@@ -200,11 +225,12 @@ public final class GetApiKeyRequest extends ActionRequest {
             && Objects.equals(realmName, that.realmName)
             && Objects.equals(userName, that.userName)
             && Objects.equals(apiKeyId, that.apiKeyId)
-            && Objects.equals(apiKeyName, that.apiKeyName);
+            && Objects.equals(apiKeyName, that.apiKeyName)
+            && Objects.equals(realmDomain, that.realmDomain);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser);
+        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, realmDomain);
     }
 }

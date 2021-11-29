@@ -39,6 +39,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final String username;
     private final String realm;
     private final Map<String, Object> metadata;
+    @Nullable
+    private final String domain;
 
     public ApiKey(
         String name,
@@ -49,6 +51,20 @@ public final class ApiKey implements ToXContentObject, Writeable {
         String username,
         String realm,
         @Nullable Map<String, Object> metadata
+    ) {
+        this(name, id, creation, expiration, invalidated, username, realm, metadata, null);
+    }
+
+    public ApiKey(
+        String name,
+        String id,
+        Instant creation,
+        Instant expiration,
+        boolean invalidated,
+        String username,
+        String realm,
+        @Nullable Map<String, Object> metadata,
+        @Nullable String domain
     ) {
         this.name = name;
         this.id = id;
@@ -61,6 +77,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.username = username;
         this.realm = realm;
         this.metadata = metadata == null ? Map.of() : metadata;
+        this.domain = domain;
     }
 
     public ApiKey(StreamInput in) throws IOException {
@@ -79,6 +96,11 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.metadata = in.readMap();
         } else {
             this.metadata = Map.of();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            this.domain = in.readOptionalString();
+        } else {
+            this.domain = null;
         }
     }
 
@@ -114,6 +136,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return metadata;
     }
 
+    public String getDomain() {
+        return domain;
+    }
+
+    public String getEffectiveDomain() {
+        return domain != null ? domain : realm;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -126,10 +156,11 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
-        builder.field("invalidated", invalidated)
-            .field("username", username)
-            .field("realm", realm)
-            .field("metadata", (metadata == null ? Map.of() : metadata));
+        builder.field("invalidated", invalidated).field("username", username).field("realm", realm);
+        if (domain != null) {
+            builder.field("domain", domain);
+        }
+        builder.field("metadata", (metadata == null ? Map.of() : metadata));
         return builder;
     }
 
@@ -149,11 +180,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeMap(metadata);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeOptionalString(domain);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata, domain);
     }
 
     @Override
@@ -175,7 +209,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
             && Objects.equals(invalidated, other.invalidated)
             && Objects.equals(username, other.username)
             && Objects.equals(realm, other.realm)
-            && Objects.equals(metadata, other.metadata);
+            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(getEffectiveDomain(), other.getEffectiveDomain());
     }
 
     @SuppressWarnings("unchecked")
@@ -200,6 +235,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("domain"));
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {
@@ -224,6 +260,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + realm
             + ", metadata="
             + metadata
+            + (domain != null ? (", domain=" + domain) : "")
             + "]";
     }
 

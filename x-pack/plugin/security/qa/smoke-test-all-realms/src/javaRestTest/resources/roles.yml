@@ -6,3 +6,11 @@ security_test_role:
   indices:
     - names: [ "index_allowed" ]
       privileges: [ "read", "write", "create_index" ]
+
+# Role for testing security domain
+rac_role:
+  cluster:
+    - manage_own_api_key
+  indices:
+    - names: [ "rac_index" ]
+      privileges: [ "all" ]

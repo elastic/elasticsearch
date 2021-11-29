@@ -164,7 +164,7 @@ class RealmsAuthenticator implements Authenticator {
                         userListener.onResponse(result.getValue());
                     } else {
                         // the user was not authenticated, call this so we can audit the correct event
-                        context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
+                        context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name(), realm.domain());
                         if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                             if (result.getException() != null) {
                                 logger.info(

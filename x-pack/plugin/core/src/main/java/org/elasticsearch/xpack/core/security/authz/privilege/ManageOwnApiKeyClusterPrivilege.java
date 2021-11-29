@@ -67,6 +67,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     getApiKeyRequest.getApiKeyId(),
                     getApiKeyRequest.getUserName(),
                     getApiKeyRequest.getRealmName(),
+                    getApiKeyRequest.getRealmDomain(),
                     getApiKeyRequest.ownedByAuthenticatedUser()
                 );
             } else if (request instanceof InvalidateApiKeyRequest) {
@@ -78,6 +79,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                         null,
                         invalidateApiKeyRequest.getUserName(),
                         invalidateApiKeyRequest.getRealmName(),
+                        invalidateApiKeyRequest.getRealmDomain(),
                         invalidateApiKeyRequest.ownedByAuthenticatedUser()
                     );
                 } else {
@@ -88,6 +90,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                                 id,
                                 invalidateApiKeyRequest.getUserName(),
                                 invalidateApiKeyRequest.getRealmName(),
+                                invalidateApiKeyRequest.getRealmDomain(),
                                 invalidateApiKeyRequest.ownedByAuthenticatedUser()
                             )
                         );
@@ -111,6 +114,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             String apiKeyId,
             String username,
             String realmName,
+            String realmDomain,
             boolean ownedByAuthenticatedUser
         ) {
             if (isCurrentAuthenticationUsingSameApiKeyIdFromRequest(authentication, apiKeyId)) {
@@ -125,6 +129,10 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     return false;
                 } else if (ownedByAuthenticatedUser) {
                     return true;
+                } else if (Strings.hasText(username) && Strings.hasText(realmDomain)) {
+                    final String sourceUserPrincipal = authentication.getUser().principal();
+                    final String sourceRealmDomain = authentication.getSourceRealm().getDomain();
+                    return username.equals(sourceUserPrincipal) && realmDomain.equals(sourceRealmDomain);
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
                     final String sourceUserPrincipal = authentication.getUser().principal();
                     final String sourceRealmName = authentication.getSourceRealm().getName();

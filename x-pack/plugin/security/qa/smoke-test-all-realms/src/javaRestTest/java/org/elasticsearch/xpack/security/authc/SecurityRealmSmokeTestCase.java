@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -92,6 +93,15 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
         Map<?, ?> realmObj = (Map<?, ?>) authenticateResponse.get("authentication_realm");
         assertThat(realmObj, hasEntry("type", realmType));
         assertThat(realmObj, hasEntry("name", realmName));
+        assertThat(realmObj, not(hasKey("domain")));
+    }
+
+    protected void assertRealm(Map<String, Object> authenticateResponse, String realmType, String realmName, String realmDomain) {
+        assertThat(authenticateResponse, hasEntry(equalTo("authentication_realm"), instanceOf(Map.class)));
+        Map<?, ?> realmObj = (Map<?, ?>) authenticateResponse.get("authentication_realm");
+        assertThat(realmObj, hasEntry("type", realmType));
+        assertThat(realmObj, hasEntry("name", realmName));
+        assertThat(realmObj, hasEntry("domain", realmDomain));
     }
 
     protected void assertRoles(Map<String, Object> authenticateResponse, String... roles) {
@@ -147,5 +157,10 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
             };
         }
         return highLevelAdminClient;
+    }
+
+    static RequestOptions.Builder optionsBuilderWithAuthorization(String username, String password) {
+        return RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password.toCharArray())));
     }
 }

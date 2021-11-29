@@ -44,7 +44,8 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
                 (String) a[1],
                 (String) a[2],
                 (a[3] == null) ? false : (Boolean) a[3],
-                (a[4] == null) ? null : ((List<String>) a[4]).toArray(new String[0])
+                (a[4] == null) ? null : ((List<String>) a[4]).toArray(new String[0]),
+                (String) a[5]
             );
         }
     );
@@ -129,5 +130,6 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
         if (restCompatMode) {
             objectParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id").withAllDeprecated("ids"));
         }
+        objectParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_domain"));
     }
 }

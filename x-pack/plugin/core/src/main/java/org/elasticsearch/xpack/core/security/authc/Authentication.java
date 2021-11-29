@@ -185,10 +185,14 @@ public class Authentication implements ToXContentObject {
             }
             final RealmRef thisRealm = getSourceRealm();
             final RealmRef otherRealm = other.getSourceRealm();
-            if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
-                return thisRealm.getType().equals(otherRealm.getType());
+            if (thisRealm.getEffectiveDomain().equals(otherRealm.getEffectiveDomain())) {
+                return true;
+            } else {
+                if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
+                    return thisRealm.getType().equals(otherRealm.getType());
+                }
+                return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
             }
-            return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
         } else {
             assert EnumSet.of(
                 AuthenticationType.REALM,

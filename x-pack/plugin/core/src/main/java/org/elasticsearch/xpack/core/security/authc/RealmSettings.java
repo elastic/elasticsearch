@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -43,7 +44,7 @@ public class RealmSettings {
     public static final String DOMAIN = "domain";
     public static final Function<String, Setting.AffixSetting<String>> DOMAIN_SETTING = affixSetting(
         DOMAIN,
-        key -> Setting.simpleString(key, (String) null, Setting.Property.NodeScope)
+        key -> Setting.simpleString(key, "", Setting.Property.NodeScope)
     );
 
     public static String realmSettingPrefix(String type) {
@@ -101,7 +102,7 @@ public class RealmSettings {
             final Settings settingsByName = settingsByType.getAsSettings(type);
             return settingsByName.names().stream().map(name -> {
                 final String domain = DOMAIN_SETTING.apply(type).getConcreteSettingForNamespace(name).get(globalSettings);
-                if (domain != null && domain.startsWith("_")) {
+                if (Strings.hasText(domain) && domain.startsWith("_")) {
                     throw new SettingsException("realm domain cannot starts with underscore: realm [{}] (with type[{}])", name, type);
                 }
                 final Settings realmSettings = settingsByName.getAsSettings(name);

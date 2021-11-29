@@ -49,6 +49,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         String apiKeyName = request.getName();
         String username = request.getUserName();
         String realm = request.getRealmName();
+        String domain = request.getRealmDomain();
 
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
@@ -57,12 +58,18 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
             assert realm == null;
+            assert domain == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
             realm = ApiKeyService.getCreatorRealmName(authentication);
+            domain = ApiKeyService.getCreatorRealmDomain(authentication);
         }
 
-        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyIds, listener);
+        if (domain != null) {
+            apiKeyService.invalidateApiKeysForDomain(domain, username, apiKeyName, apiKeyIds, listener);
+        } else {
+            apiKeyService.invalidateApiKeysForRealmName(realm, username, apiKeyName, apiKeyIds, listener);
+        }
     }
 
 }

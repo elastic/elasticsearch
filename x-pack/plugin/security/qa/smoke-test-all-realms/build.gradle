@@ -48,6 +48,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.file.file0.order', '0'
   //  - Native
   setting 'xpack.security.authc.realms.native.native1.order', '1'
+  setting 'xpack.security.authc.realms.native.native1.domain', 'rac'
   //  - LDAP (configured but won't work because we don't want external fixtures in this test suite)
   setting 'xpack.security.authc.realms.ldap.ldap2.order', '2'
   setting 'xpack.security.authc.realms.ldap.ldap2.url', 'ldap://localhost:7777'
@@ -57,6 +58,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.active_directory.ad3.domain_name', 'localhost'
   //  - PKI (works)
   setting 'xpack.security.authc.realms.pki.pki4.order', '4'
+  setting 'xpack.security.authc.realms.pki.pki4.domain', 'rac'
   //  - SAML (configured but won't work because we don't want external fixtures in this test suite)
   setting 'xpack.security.authc.realms.saml.saml5.order', '5'
   setting 'xpack.security.authc.realms.saml.saml5.idp.metadata.path', 'saml-metadata.xml'

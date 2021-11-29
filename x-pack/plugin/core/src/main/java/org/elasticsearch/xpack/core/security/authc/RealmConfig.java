@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -202,7 +203,7 @@ public class RealmConfig {
         public RealmIdentifier(String type, String name, @Nullable String domain) {
             this.type = Objects.requireNonNull(type, "Realm type cannot be null");
             this.name = Objects.requireNonNull(name, "Realm name cannot be null");
-            this.domain = domain;
+            this.domain = Strings.hasText(domain) ? domain : null;
         }
 
         public String getType() {

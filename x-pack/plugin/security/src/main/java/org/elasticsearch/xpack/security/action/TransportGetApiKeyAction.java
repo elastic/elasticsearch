@@ -44,6 +44,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         String apiKeyName = request.getApiKeyName();
         String username = request.getUserName();
         String realm = request.getRealmName();
+        String domain = request.getRealmDomain();
 
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
@@ -52,12 +53,18 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
             assert realm == null;
+            assert domain == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
             realm = ApiKeyService.getCreatorRealmName(authentication);
+            domain = ApiKeyService.getCreatorRealmDomain(authentication);
         }
-
-        apiKeyService.getApiKeys(realm, username, apiKeyName, apiKeyId, listener);
+        // TODO: pass complete realm info
+        if (domain != null) {
+            apiKeyService.getApiKeysForDomain(domain, username,  apiKeyName, apiKeyId, listener);
+        } else {
+            apiKeyService.getApiKeysForRealmName(realm, username,  apiKeyName, apiKeyId, listener);
+        }
     }
 
 }

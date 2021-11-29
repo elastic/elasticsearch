@@ -39,9 +39,24 @@ public interface AuditTrail {
 
     void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request);
 
-    void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportRequest transportRequest);
+    default void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportRequest transportRequest) {
+        authenticationFailed(requestId, realm, null, token, action, transportRequest);
+    }
 
-    void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request);
+    void authenticationFailed(
+        String requestId,
+        String realm,
+        String domain,
+        AuthenticationToken token,
+        String action,
+        TransportRequest transportRequest
+    );
+
+    default void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
+        authenticationFailed(requestId, realm, null, token, request);
+    }
+
+    void authenticationFailed(String requestId, String realm, String domain, AuthenticationToken token, RestRequest request);
 
     void accessGranted(
         String requestId,

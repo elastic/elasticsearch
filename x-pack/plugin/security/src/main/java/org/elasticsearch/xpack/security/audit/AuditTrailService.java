@@ -114,13 +114,14 @@ public class AuditTrailService {
         public void authenticationFailed(
             String requestId,
             String realm,
+            String domain,
             AuthenticationToken token,
             String action,
             TransportRequest transportRequest
         ) {}
 
         @Override
-        public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {}
+        public void authenticationFailed(String requestId, String realm, String domain, AuthenticationToken token, RestRequest request) {}
 
         @Override
         public void accessGranted(
@@ -278,12 +279,13 @@ public class AuditTrailService {
         public void authenticationFailed(
             String requestId,
             String realm,
+            String domain,
             AuthenticationToken token,
             String action,
             TransportRequest transportRequest
         ) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(requestId, realm, token, action, transportRequest);
+                auditTrail.authenticationFailed(requestId, realm, domain, token, action, transportRequest);
             }
         }
 
@@ -295,9 +297,9 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
+        public void authenticationFailed(String requestId, String realm, String domain, AuthenticationToken token, RestRequest request) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationFailed(requestId, realm, token, request);
+                auditTrail.authenticationFailed(requestId, realm, domain, token, request);
             }
         }
 

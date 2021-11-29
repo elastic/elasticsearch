@@ -18,6 +18,7 @@ public final class AuthenticationField {
 
     public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
     public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
+    public static final String API_KEY_CREATOR_REALM_DOMAIN = "_security_api_key_creator_realm_domain";
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
     public static final String API_KEY_NAME_KEY = "_security_api_key_name";
     public static final String API_KEY_METADATA_KEY = "_security_api_key_metadata";

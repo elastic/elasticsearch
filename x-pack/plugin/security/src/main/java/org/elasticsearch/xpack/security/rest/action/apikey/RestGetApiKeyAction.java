@@ -48,7 +48,15 @@ public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
         final String userName = request.param("username");
         final String realmName = request.param("realm_name");
         final boolean myApiKeysOnly = request.paramAsBoolean("owner", false);
-        final GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, myApiKeysOnly);
+        final String realmDomain = request.param("realm_domain");
+        final GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest(
+            realmName,
+            userName,
+            apiKeyId,
+            apiKeyName,
+            myApiKeysOnly,
+            realmDomain
+        );
         return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest, new RestBuilderListener<GetApiKeyResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetApiKeyResponse getApiKeyResponse, XContentBuilder builder) throws Exception {

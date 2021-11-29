@@ -178,6 +178,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     if (realmType != null) {
                         realmField.put("type", realmType);
                     }
+                    final Object realmDomain = ApiKeyService.getCreatorRealmDomain(authentication);
+                    if (realmDomain != null) {
+                        realmField.put("domain", realmDomain);
+                    }
                     if (false == realmField.isEmpty()) {
                         userObject.put(realmKey, realmField);
                     }

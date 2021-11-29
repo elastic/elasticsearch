@@ -89,6 +89,7 @@ public interface UserRoleMapper {
             );
             metadata.keySet().forEach(k -> model.defineField("metadata." + k, metadata.get(k)));
             model.defineField("realm.name", realm.name());
+            model.defineField("realm.domain", realm.effectiveDomain());
             return model;
         }
 
@@ -105,6 +106,8 @@ public interface UserRoleMapper {
                 + metadata
                 + "; realm="
                 + realm.name()
+                + "; domain="
+                + realm.effectiveDomain()
                 + '}';
         }
 

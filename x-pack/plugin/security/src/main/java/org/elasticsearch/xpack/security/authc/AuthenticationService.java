@@ -264,7 +264,7 @@ public class AuthenticationService {
             this.threadContext = threadContext;
         }
 
-        abstract void realmAuthenticationFailed(AuthenticationToken token, String realm);
+        abstract void realmAuthenticationFailed(AuthenticationToken token, String realm, String domain);
 
         abstract ElasticsearchSecurityException tamperedRequest();
 
@@ -306,8 +306,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void realmAuthenticationFailed(AuthenticationToken token, String realm) {
-            auditTrail.authenticationFailed(requestId, realm, token, action, transportRequest);
+        void realmAuthenticationFailed(AuthenticationToken token, String realm, String domain) {
+            auditTrail.authenticationFailed(requestId, realm, domain, token, action, transportRequest);
         }
 
         @Override
@@ -374,8 +374,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void realmAuthenticationFailed(AuthenticationToken token, String realm) {
-            auditTrail.authenticationFailed(requestId, realm, token, request);
+        void realmAuthenticationFailed(AuthenticationToken token, String realm, String domain) {
+            auditTrail.authenticationFailed(requestId, realm, domain, token, request);
         }
 
         @Override

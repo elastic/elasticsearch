@@ -185,7 +185,8 @@ public class Authentication implements ToXContentObject {
             }
             final RealmRef thisRealm = getSourceRealm();
             final RealmRef otherRealm = other.getSourceRealm();
-            if (thisRealm.getEffectiveDomain().equals(otherRealm.getEffectiveDomain())) {
+            // Domain only works when both realms have it explicitly configured
+            if (thisRealm.getDomain() != null && thisRealm.getDomain().equals(otherRealm.getDomain())) {
                 return true;
             } else {
                 if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {

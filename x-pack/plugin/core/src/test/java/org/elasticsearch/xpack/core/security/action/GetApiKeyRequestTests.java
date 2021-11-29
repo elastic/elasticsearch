@@ -53,6 +53,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
             String apiKeyId;
             String apiKeyName;
             boolean ownedByAuthenticatedUser;
+            String realmDomain = null; // temporary so that tests do not fail, this test is not great anyway
 
             Dummy(String[] a) {
                 realm = a[0];
@@ -75,6 +76,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(apiKeyId);
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
+                out.writeOptionalString(realmDomain);
             }
         }
 

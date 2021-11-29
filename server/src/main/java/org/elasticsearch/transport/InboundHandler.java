@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -40,6 +41,7 @@ public class InboundHandler {
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
+    private final HandlingTimeTracker handlingTimeTracker;
     private final Transport.RequestHandlers requestHandlers;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
@@ -53,7 +55,8 @@ public class InboundHandler {
         TransportHandshaker handshaker,
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
-        Transport.ResponseHandlers responseHandlers
+        Transport.ResponseHandlers responseHandlers,
+        HandlingTimeTracker handlingTimeTracker
     ) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
@@ -62,6 +65,7 @@ public class InboundHandler {
         this.keepAlive = keepAlive;
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
+        this.handlingTimeTracker = handlingTimeTracker;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -77,7 +81,7 @@ public class InboundHandler {
     }
 
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         TransportLogger.logInboundMessage(channel, message);
 
@@ -155,7 +159,8 @@ public class InboundHandler {
                 }
             }
         } finally {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+            handlingTimeTracker.addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 if (isRequest) {

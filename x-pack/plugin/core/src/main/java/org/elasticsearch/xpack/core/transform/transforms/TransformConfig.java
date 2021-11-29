@@ -308,8 +308,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         return transformVersion;
     }
 
-    public TransformConfig setVersion(Version transformVersion) {
-        this.transformVersion = transformVersion;
+    public TransformConfig setVersion(Version version) {
+        this.transformVersion = version;
         return this;
     }
 

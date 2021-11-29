@@ -117,7 +117,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             )
         );
         final long timeSinceLastReadMillis = randomNonNegativeLong();
-        final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+        final ShardFollowNodeTaskStatus taskStatus = new ShardFollowNodeTaskStatus(
             "leader_cluster",
             "leader_index",
             "follower_index",
@@ -148,7 +148,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             timeSinceLastReadMillis,
             new ElasticsearchException("fatal error")
         );
-        final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
+        final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, taskStatus);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertThat(
             xContent.utf8ToString(),
@@ -273,7 +273,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions = new TreeMap<>(
             Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad")))
         );
-        final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+        final ShardFollowNodeTaskStatus taskStatus = new ShardFollowNodeTaskStatus(
             "remote_cluster",
             "leader_index",
             "follower_index",
@@ -305,7 +305,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             new ElasticsearchException("fatal error")
         );
         XContentBuilder builder = jsonBuilder();
-        builder.value(status);
+        builder.value(taskStatus);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
         byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();

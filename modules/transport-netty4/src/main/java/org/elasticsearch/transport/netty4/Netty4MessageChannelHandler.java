@@ -228,6 +228,9 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
         @Override
         public boolean tryIncRef() {
+            if (refCount() == 0) {
+                return false;
+            }
             try {
                 buffer.retain();
             } catch (RuntimeException e) {

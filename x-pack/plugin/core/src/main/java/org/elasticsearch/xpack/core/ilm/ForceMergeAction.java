@@ -43,26 +43,26 @@ public class ForceMergeAction implements LifecycleAction {
 
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
-    public static final ParseField READ_ONLY = new ParseField("read_only");
     public static final ParseField CODEC = new ParseField("index_codec");
+    public static final ParseField READ_ONLY = new ParseField("read_only");
     public static final String CONDITIONAL_SKIP_FORCE_MERGE_STEP = BranchingStep.NAME + "-forcemerge-check-prerequisites";
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME, false, a -> {
         int maxNumSegments = (int) a[0];
-        boolean readOnly = a[1] != null ? (Boolean) a[1] : true;
-        String codec = a[2] != null ? (String) a[2] : null;
+        String codec = a[1] != null ? (String) a[1] : null;
+        boolean readOnly = a[2] != null ? (Boolean) a[2] : true;
         return new ForceMergeAction(maxNumSegments, readOnly, codec);
     });
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_NUM_SEGMENTS_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), READ_ONLY);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CODEC);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), READ_ONLY);
     }
 
     private final int maxNumSegments;
-    private final boolean readOnly;
     private final String codec;
+    private final boolean readOnly;
 
     public static ForceMergeAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -76,34 +76,39 @@ public class ForceMergeAction implements LifecycleAction {
         if (codec != null && CodecService.BEST_COMPRESSION_CODEC.equals(codec) == false) {
             throw new IllegalArgumentException("unknown index codec: [" + codec + "]");
         }
-        this.readOnly = readOnly;
         this.codec = codec;
+        this.readOnly = readOnly;
     }
 
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
-        Boolean readOnly = in.readOptionalBoolean();
-        this.readOnly = readOnly == null || readOnly;
         this.codec = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            this.readOnly = in.readBoolean();
+        } else {
+            this.readOnly = true;
+        }
     }
 
     public int getMaxNumSegments() {
         return maxNumSegments;
     }
 
-    public boolean getReadOnly() {
-        return readOnly;
-    }
-
     public String getCodec() {
         return this.codec;
+    }
+
+    public boolean getReadOnly() {
+        return readOnly;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
-        out.writeBoolean(readOnly);
         out.writeOptionalString(codec);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeBoolean(readOnly);
+        }
     }
 
     @Override
@@ -120,10 +125,10 @@ public class ForceMergeAction implements LifecycleAction {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MAX_NUM_SEGMENTS_FIELD.getPreferredName(), maxNumSegments);
-        builder.field(READ_ONLY.getPreferredName(), readOnly);
         if (codec != null) {
             builder.field(CODEC.getPreferredName(), codec);
         }
+        builder.field(READ_ONLY.getPreferredName(), readOnly);
         builder.endObject();
         return builder;
     }
@@ -212,7 +217,7 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxNumSegments, codec);
+        return Objects.hash(maxNumSegments, codec, readOnly);
     }
 
     @Override

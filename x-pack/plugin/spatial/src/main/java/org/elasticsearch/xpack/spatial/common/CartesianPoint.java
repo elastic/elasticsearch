@@ -46,6 +46,7 @@ public class CartesianPoint implements ToXContentFragment {
         this.y = y;
     }
 
+    @SuppressWarnings("HiddenField")
     public CartesianPoint reset(double x, double y) {
         this.x = x;
         this.y = y;
@@ -60,6 +61,7 @@ public class CartesianPoint implements ToXContentFragment {
         }
     }
 
+    @SuppressWarnings("HiddenField")
     public CartesianPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3 || vals.length < 2) {

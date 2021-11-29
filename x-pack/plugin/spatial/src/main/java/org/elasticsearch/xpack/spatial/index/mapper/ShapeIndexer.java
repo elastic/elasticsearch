@@ -117,8 +117,8 @@ public class ShapeIndexer {
             return null;
         }
 
-        private void addFields(IndexableField[] fields) {
-            this.fields.addAll(Arrays.asList(fields));
+        private void addFields(IndexableField[] indexableFields) {
+            this.fields.addAll(Arrays.asList(indexableFields));
         }
     }
 }

@@ -18,6 +18,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * from intersection consideration for consistent tiling definition of shapes on the boundaries of tiles
  *
  */
+@SuppressWarnings("HiddenField")
 class Tile2DVisitor implements TriangleTreeReader.Visitor {
 
     private GeoRelation relation;

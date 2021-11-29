@@ -49,6 +49,7 @@ class Extent {
         this.posRight = posRight;
     }
 
+    @SuppressWarnings("HiddenField")
     public void reset(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
         this.bottom = bottom;

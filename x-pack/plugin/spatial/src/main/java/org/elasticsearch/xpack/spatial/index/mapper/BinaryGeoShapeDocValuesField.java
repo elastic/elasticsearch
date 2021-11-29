@@ -31,8 +31,8 @@ public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
         this.centroidCalculator = new CentroidCalculator();
     }
 
-    public void add(List<IndexableField> fields, Geometry geometry) {
-        this.fields.addAll(fields);
+    public void add(List<IndexableField> indexableFields, Geometry geometry) {
+        this.fields.addAll(indexableFields);
         this.centroidCalculator.add(geometry);
     }
 

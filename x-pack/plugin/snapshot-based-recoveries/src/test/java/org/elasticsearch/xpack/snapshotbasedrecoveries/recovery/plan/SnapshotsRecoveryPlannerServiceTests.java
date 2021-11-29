@@ -101,7 +101,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId _shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         assert false : "Unexpected call";
                     }
                 },
@@ -135,7 +135,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId _shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         if (randomBoolean()) {
                             listener.onResponse(Optional.empty());
                         } else {
@@ -179,7 +179,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId _shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(shardSnapshotData));
                     }
                 },
@@ -241,7 +241,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId _shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(latestSnapshot));
                     }
                 },
@@ -305,7 +305,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId _shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         if (availableSnapshots.isEmpty()) {
                             listener.onResponse(Optional.empty());
                         } else {
@@ -361,7 +361,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId _shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
                     }
                 },
@@ -398,7 +398,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 translogOps,
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
-                    public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
+                    public void fetchLatestSnapshotsForShard(ShardId _shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(shardSnapshot));
                     }
                 },

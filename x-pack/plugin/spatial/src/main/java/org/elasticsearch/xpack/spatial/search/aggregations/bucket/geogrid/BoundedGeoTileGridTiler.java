@@ -77,10 +77,10 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
         final int splits = 1 << precision - zTile;
         // The start value of a dimension is calculated by multiplying the value of that dimension at the start level
         // by the number of splits. Choose the max value with respect to the bounding box.
-        final int minY = Math.max(this.minY, yTile * splits);
+        final int _minY = Math.max(this.minY, yTile * splits);
         // The end value of a dimension is calculated by adding to the start value the number of splits.
         // Choose the min value with respect to the bounding box.
-        final int maxY = Math.min(this.maxY, yTile * splits + splits);
+        final int _maxY = Math.min(this.maxY, yTile * splits + splits);
         // Do the same for the X dimension taking into account that the bounding box might cross the dateline.
         if (crossesDateline) {
             final int eastMinX = xTile * splits;
@@ -89,22 +89,22 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
             final int eastMaxX = Math.min(westMinX, Math.min(this.maxX, xTile * splits + splits));
             final int westMaxX = xTile * splits + splits;
             for (int i = eastMinX; i < eastMaxX; i++) {
-                for (int j = minY; j < maxY; j++) {
+                for (int j = _minY; j < _maxY; j++) {
                     assert validTile(i, j, precision);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }
             for (int i = westMinX; i < westMaxX; i++) {
-                for (int j = minY; j < maxY; j++) {
+                for (int j = _minY; j < _maxY; j++) {
                     assert validTile(i, j, precision);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }
         } else {
-            final int minX = Math.max(this.minX, xTile * splits);
-            final int maxX = Math.min(this.maxX, xTile * splits + splits);
-            for (int i = minX; i < maxX; i++) {
-                for (int j = minY; j < maxY; j++) {
+            final int _minX = Math.max(this.minX, xTile * splits);
+            final int _maxX = Math.min(this.maxX, xTile * splits + splits);
+            for (int i = _minX; i < _maxX; i++) {
+                for (int j = _minY; j < _maxY; j++) {
                     assert validTile(i, j, precision);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }

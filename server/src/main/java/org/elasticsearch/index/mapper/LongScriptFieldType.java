@@ -27,6 +27,7 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.LongFieldScript.LeafFactory;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -72,6 +74,21 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         @Override
         LongFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
             return LongFieldScript.leafAdapter(parentScriptFactory);
+        }
+
+        @Override
+        protected LongFieldScript.Factory compile(
+            MappingParserContext parserContext,
+            Script script,
+            ScriptContext<LongFieldScript.Factory> scriptContext
+        ) {
+            if (approximateFirst.get()) {
+                // Enable argument collection in painless so it'll implement emitExpression
+                Map<String, String> options = new HashMap<>(script.getOptions());
+                options.put("collect_arguments", "true");
+                script = new Script(script.getType(), script.getLang(), script.getIdOrCode(), options, script.getParams());
+            }
+            return super.compile(parserContext, script, scriptContext);
         }
 
         @Override

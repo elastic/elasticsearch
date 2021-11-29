@@ -219,7 +219,7 @@ final class Compiler {
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
-        if (painlessLookup.collectArgumentsTargetMethods().isEmpty() == false) {
+        if (settings.getCollectArguments() && painlessLookup.collectArgumentsTargetMethods().isEmpty() == false) {
             new CollectArgumentsPhase().visitClass(classNode, scriptScope.getQueryableExpressionScope());
         }
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);

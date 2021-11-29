@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.queryableexpression.QueryableExpression;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.StringFieldScript.LeafFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,6 +82,22 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         StringFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
             return StringFieldScript.leafAdapter(parentScriptFactory);
         }
+
+        @Override
+        protected StringFieldScript.Factory compile(
+            MappingParserContext parserContext,
+            Script script,
+            ScriptContext<StringFieldScript.Factory> scriptContext
+        ) {
+            if (approximateFirst.get()) {
+                // Enable argument collection in painless so it'll implement emitExpression
+                Map<String, String> options = new HashMap<>(script.getOptions());
+                options.put("collect_arguments", "true");
+                script = new Script(script.getType(), script.getLang(), script.getIdOrCode(), options, script.getParams());
+            }
+            return super.compile(parserContext, script, scriptContext);
+        }
+
 
         @Override
         protected List<Parameter<?>> getParameters() {

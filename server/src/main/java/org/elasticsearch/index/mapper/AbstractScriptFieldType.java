@@ -251,8 +251,12 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             if (script.get() == null) {
                 return createRuntimeField(getParseFromSourceFactory());
             }
-            ScriptFactory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
+            ScriptFactory factory = compile(parserContext, script.getValue(), scriptContext);
             return createRuntimeField(factory);
+        }
+
+        protected ScriptFactory compile(MappingParserContext parserContext, Script script, ScriptContext<ScriptFactory> scriptContext) {
+            return parserContext.scriptCompiler().compile(script, scriptContext);
         }
 
         @Override

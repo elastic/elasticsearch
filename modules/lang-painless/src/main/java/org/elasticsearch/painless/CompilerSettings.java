@@ -11,6 +11,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.painless.api.Augmentation;
+import org.elasticsearch.painless.spi.annotation.CollectArgumentAnnotation;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -58,6 +59,11 @@ public final class CompilerSettings {
     public static final String INITIAL_CALL_SITE_DEPTH = "initialCallSiteDepth";
 
     /**
+     * Should painless collect arguments to methods annotated with {@link CollectArgumentAnnotation}?
+     */
+    public static final String COLLECT_ARGUMENTS = "collect_arguments";
+
+    /**
      * The maximum number of statements allowed to be run in a loop.
      * For now the number is set fairly high to accommodate users
      * doing large update queries.
@@ -69,6 +75,11 @@ public final class CompilerSettings {
      * makes things slower too, it is only for debugging.
      */
     private boolean picky = false;
+
+    /**
+     * Should painless collect arguments to methods annotated with {@link CollectArgumentAnnotation}?
+     */
+    private boolean collectArguments = false;
 
     /**
      * For testing. Do not use.
@@ -164,6 +175,20 @@ public final class CompilerSettings {
      */
     public int getRegexLimitFactor() {
         return regexLimitFactor;
+    }
+
+    /**
+     * Should painless collect arguments to methods annotated with {@link CollectArgumentAnnotation}?
+     */
+    public void setCollectArguments(boolean collectArguments) {
+        this.collectArguments = collectArguments;
+    }
+
+    /**
+     * Should painless collect arguments to methods annotated with {@link CollectArgumentAnnotation}?
+     */
+    public boolean getCollectArguments() {
+        return collectArguments;
     }
 
     /**

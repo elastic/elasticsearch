@@ -128,8 +128,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                             request.indicesOptions(),
                             indexExpression,
                             request.indicesOptions().allowNoIndices(),
-                            request.includeDataStreams(),
-                            null
+                            request.includeDataStreams()
                         )
                     );
                 }

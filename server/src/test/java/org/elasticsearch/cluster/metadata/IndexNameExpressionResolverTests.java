@@ -1886,7 +1886,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false, null)
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false)
         );
         assertThat(
             exception.getMessage(),
@@ -1922,7 +1922,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false, null)
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, false)
         );
         assertThat(
             exception.getMessage(),
@@ -2557,7 +2557,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
-            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, true, null);
+            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, true);
             assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, epochMillis)));
         }
         {
@@ -2568,7 +2568,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             );
             Exception e = expectThrows(
                 IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true, false, null)
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true, false)
             );
             assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
         }
@@ -2577,7 +2577,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Exception e = expectThrows(
                 IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false, null)
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false)
             );
             assertThat(e.getMessage(), equalTo("no such index [my-data-stream]"));
         }
@@ -2589,7 +2589,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             );
             Exception e = expectThrows(
                 IndexNotFoundException.class,
-                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false, null)
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false)
             );
             assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
@@ -2686,7 +2686,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
-            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, dataStreamAlias1, false, true, null);
+            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, dataStreamAlias1, false, true);
             assertThat(result, notNullValue());
             assertThat(result.getName(), backingIndexEqualTo(dataStream2, 2));
         }

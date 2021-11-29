@@ -202,7 +202,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public Index getWriteIndex(DocWriteRequest<?> request, Metadata metadata) {
-        if (type != Type.TSDB ) {
+        if (type != Type.TSDB) {
             return getWriteIndex();
         }
 

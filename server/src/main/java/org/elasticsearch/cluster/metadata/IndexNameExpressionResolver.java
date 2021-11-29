@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -206,6 +207,46 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
+     * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.
+     *
+     * @param state The cluster state
+     * @param request The provided write request
+     * @return {@link IndexAbstraction} instance for the provided write request
+     */
+    public IndexAbstraction resolveWriteIndexAbstraction(ClusterState state, DocWriteRequest<?> request) {
+        boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE && request.includeDataStreams();
+        Context context = new Context(
+            state,
+            request.indicesOptions(),
+            false,
+            false,
+            includeDataStreams,
+            true,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+
+        List<String> expressions = List.of(request.index());
+        for (ExpressionResolver expressionResolver : expressionResolvers) {
+            expressions = expressionResolver.resolve(context, expressions);
+        }
+
+        if (expressions.size() == 1) {
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.get(0));
+            if (ia == null) {
+                throw new IndexNotFoundException(expressions.get(0));
+            }
+            return ia;
+        } else {
+            throw new IllegalArgumentException(
+                "unable to return a single target as the provided expression and options got resolved to multiple targets"
+            );
+        }
+    }
+
+    /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
      * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
@@ -259,8 +300,7 @@ public class IndexNameExpressionResolver {
             false,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
-            getNetNewSystemIndexPredicate(),
-            null
+            getNetNewSystemIndexPredicate()
         );
         return concreteIndices(context, request.indices());
     }
@@ -366,13 +406,7 @@ public class IndexNameExpressionResolver {
                     concreteIndices.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                final Index writeIndex;
-                if (context.getTimestampSupplier() != null) {
-                    long timestamp = context.timestampSupplier.getAsLong();
-                    writeIndex = indexAbstraction.getWriteIndex(timestamp, context.getState().getMetadata());
-                } else {
-                    writeIndex = indexAbstraction.getWriteIndex();
-                }
+                final Index writeIndex = indexAbstraction.getWriteIndex();
                 if (addIndex(writeIndex, null, context)) {
                     concreteIndices.add(writeIndex);
                 }
@@ -536,7 +570,7 @@ public class IndexNameExpressionResolver {
         if (request.indices() == null || (request.indices() != null && request.indices().length != 1)) {
             throw new IllegalArgumentException("indices request must specify a single index expression");
         }
-        return concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, request.includeDataStreams(), null);
+        return concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, request.includeDataStreams());
     }
 
     /**
@@ -547,7 +581,6 @@ public class IndexNameExpressionResolver {
      * @param index             index that can be resolved to alias or index name.
      * @param allowNoIndices    whether to allow resolve to no index
      * @param includeDataStreams Whether data streams should be included in the evaluation.
-     * @param timestampSupplier
      * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index, as well as
      * if a remote index is requested.
      * @return the write index obtained as a result of the index resolution or null if no index
@@ -557,8 +590,7 @@ public class IndexNameExpressionResolver {
         IndicesOptions options,
         String index,
         boolean allowNoIndices,
-        boolean includeDataStreams,
-        LongSupplier timestampSupplier
+        boolean includeDataStreams
     ) {
         IndicesOptions combinedOptions = IndicesOptions.fromOptions(
             options.ignoreUnavailable(),
@@ -580,8 +612,7 @@ public class IndexNameExpressionResolver {
             includeDataStreams,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
-            getNetNewSystemIndexPredicate(),
-            timestampSupplier
+            getNetNewSystemIndexPredicate()
         );
         Index[] indices = concreteIndices(context, index);
         if (allowNoIndices && indices.length == 0) {
@@ -976,7 +1007,6 @@ public class IndexNameExpressionResolver {
         private final SystemIndexAccessLevel systemIndexAccessLevel;
         private final Predicate<String> systemIndexAccessPredicate;
         private final Predicate<String> netNewSystemIndexPredicate;
-        private final LongSupplier timestampSupplier;
 
         Context(ClusterState state, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
             this(state, options, systemIndexAccessLevel, s -> true, s -> false);
@@ -1019,34 +1049,7 @@ public class IndexNameExpressionResolver {
                 false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate,
-                null
-            );
-        }
-
-        Context(
-            ClusterState state,
-            IndicesOptions options,
-            boolean preserveAliases,
-            boolean resolveToWriteIndex,
-            boolean includeDataStreams,
-            SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
-            Predicate<String> netNewSystemIndexPredicate,
-            LongSupplier timestampSupplier
-        ) {
-            this(
-                state,
-                options,
-                System.currentTimeMillis(),
-                preserveAliases,
-                resolveToWriteIndex,
-                includeDataStreams,
-                false,
-                systemIndexAccessLevel,
-                systemIndexAccessPredicate,
-                netNewSystemIndexPredicate,
-                timestampSupplier
+                netNewSystemIndexPredicate
             );
         }
 
@@ -1071,8 +1074,7 @@ public class IndexNameExpressionResolver {
                 preserveDataStreams,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate,
-                null
+                netNewSystemIndexPredicate
             );
         }
 
@@ -1094,8 +1096,7 @@ public class IndexNameExpressionResolver {
                 false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate,
-                null
+                netNewSystemIndexPredicate
             );
         }
 
@@ -1109,8 +1110,7 @@ public class IndexNameExpressionResolver {
             boolean preserveDataStreams,
             SystemIndexAccessLevel systemIndexAccessLevel,
             Predicate<String> systemIndexAccessPredicate,
-            Predicate<String> netNewSystemIndexPredicate,
-            LongSupplier timestampSupplier
+            Predicate<String> netNewSystemIndexPredicate
         ) {
             this.state = state;
             this.options = options;
@@ -1122,7 +1122,6 @@ public class IndexNameExpressionResolver {
             this.systemIndexAccessLevel = systemIndexAccessLevel;
             this.systemIndexAccessPredicate = systemIndexAccessPredicate;
             this.netNewSystemIndexPredicate = netNewSystemIndexPredicate;
-            this.timestampSupplier = timestampSupplier;
         }
 
         public ClusterState getState() {
@@ -1169,9 +1168,6 @@ public class IndexNameExpressionResolver {
             return systemIndexAccessPredicate;
         }
 
-        public LongSupplier getTimestampSupplier() {
-            return timestampSupplier;
-        }
     }
 
     private interface ExpressionResolver {
@@ -1691,7 +1687,7 @@ public class IndexNameExpressionResolver {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, name -> false, name -> false, null);
+            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, name -> false, name -> false);
         }
 
         @Override

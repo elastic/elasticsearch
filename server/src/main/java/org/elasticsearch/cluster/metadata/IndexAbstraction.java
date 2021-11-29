@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -51,7 +52,7 @@ public interface IndexAbstraction {
     @Nullable
     Index getWriteIndex();
 
-    default Index getWriteIndex(long timestamp, Metadata metadata) {
+    default Index getWriteIndex(DocWriteRequest<?> request, Metadata metadata) {
         return getWriteIndex();
     }
 
@@ -416,8 +417,8 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public Index getWriteIndex(long timestamp, Metadata metadata) {
-            return dataStream.getWriteIndex(timestamp, metadata);
+        public Index getWriteIndex(DocWriteRequest<?> request, Metadata metadata) {
+            return dataStream.getWriteIndex(request, metadata);
         }
 
         @Override

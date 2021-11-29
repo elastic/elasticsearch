@@ -51,7 +51,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -512,19 +511,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
-                    continue;
-                }
-                Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
+
+                IndexAbstraction ia = null;
+                boolean includeDataStreams = docWriteRequest.opType() == DocWriteRequest.OpType.CREATE;
                 try {
+                    ia = concreteIndices.resolveIfAbsent1(docWriteRequest);
+                    if (ia.isDataStreamRelated() && includeDataStreams == false) {
+                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
+                    }
                     // The ConcreteIndices#resolveIfAbsent(...) method validates via IndexNameExpressionResolver whether
                     // an operation is allowed in index into a data stream, but this isn't done when resolve call is cached, so
                     // the validation needs to be performed here too.
-                    IndexAbstraction indexAbstraction = clusterState.getMetadata().getIndicesLookup().get(concreteIndex.getName());
-                    if (indexAbstraction.getParentDataStream() != null &&
+                    if (ia.getParentDataStream() != null &&
                     // avoid valid cases when directly indexing into a backing index
                     // (for example when directly indexing into .ds-logs-foobar-000001)
-                        concreteIndex.getName().equals(docWriteRequest.index()) == false
+                        ia.getName().equals(docWriteRequest.index()) == false
                         && docWriteRequest.opType() != DocWriteRequest.OpType.CREATE) {
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
@@ -534,6 +535,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                     docWriteRequest.process();
 
+                    final Index concreteIndex = ia.getWriteIndex(docWriteRequest, metadata);
+                    if (addFailureIfIndexIsUnavailable(docWriteRequest, concreteIndex, i, metadata)) {
+                        continue;
+                    }
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                     int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
@@ -541,8 +546,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         shard -> new ArrayList<>()
                     );
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
-                } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.id(), e);
+                } catch (ElasticsearchParseException | IllegalArgumentException | IndexNotFoundException | RoutingMissingException e) {
+                    String name = ia != null ? ia.getName() : docWriteRequest.index();
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
@@ -592,7 +598,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final String indexName = request.index();
                             DocWriteRequest<?> docWriteRequest = request.request();
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
@@ -679,25 +685,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(
-            DocWriteRequest<?> request,
-            int idx,
-            final ConcreteIndices concreteIndices,
-            final Metadata metadata
-        ) {
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, Index concreteIndex, int idx, final Metadata metadata) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
                 return true;
-            }
-            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
-            if (concreteIndex == null) {
-                try {
-                    concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                    addFailure(request, idx, ex);
-                    return true;
-                }
             }
             IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
             if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
@@ -732,6 +724,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final Map<String, Index> indices = new HashMap<>();
+        private final Map<String, IndexAbstraction> indexAbstractions = new HashMap<>();
         private final Map<Index, IndexRouting> routings = new HashMap<>();
 
         ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -743,32 +736,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return indices.get(indexOrAlias);
         }
 
+        IndexAbstraction resolveIfAbsent1(DocWriteRequest<?> request) {
+            return indexAbstractions.computeIfAbsent(
+                request.index(),
+                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+            );
+        }
+
         Index resolveIfAbsent(DocWriteRequest<?> request) {
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
                 try {
-                    // TODO: This is broken, because concreteIndex is cached here. For demo / prototype purpose this is ok for now.
-                    // (Subsequent documents for same data stream in the same bulk request for different timestamp fail during indexing.)
-                    // (Should refactor this code is prototype evolves into something better)
-                    final LongSupplier timestampSupplier;
-                    if (includeDataStreams) {
-                        IndexRequest indexRequest = (IndexRequest) request;
-                        timestampSupplier = () -> {
-                            // TODO: this really be streaming parsed:
-                            String timestamp = (String) indexRequest.sourceAsMap().get("@timestamp");
-                            return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(timestamp);
-                        };
-                    } else {
-                        timestampSupplier = null;
-                    }
                     concreteIndex = indexNameExpressionResolver.concreteWriteIndex(
                         state,
                         request.indicesOptions(),
                         request.indices()[0],
                         false,
-                        includeDataStreams,
-                        timestampSupplier
+                        includeDataStreams
                     );
                 } catch (IndexNotFoundException e) {
                     if (includeDataStreams == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {

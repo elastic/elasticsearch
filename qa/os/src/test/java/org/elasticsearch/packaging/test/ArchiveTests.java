@@ -260,7 +260,8 @@ public class ArchiveTests extends PackagingTestCase {
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
         assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
         verifySecurityNotAutoConfigured(installation);
-        if (RandomizedTest.randomBoolean()) {
+        final boolean useNodeName = RandomizedTest.randomBoolean();
+        if (useNodeName) {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
         }
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
@@ -273,8 +274,10 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(
             () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + "" + "'} | " + bin.keystoreTool + " passwd")
         );
-        // Cleanup node.name so that following tests can set it if need be.
-        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
+        if (useNodeName) {
+            // Cleanup node.name so that following tests can set it if need be.
+            ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
+        }
     }
 
     public void test52AutoConfigurationOnWindows() throws Exception {
@@ -284,15 +287,18 @@ public class ArchiveTests extends PackagingTestCase {
         );
         sh.chown(installation.config, installation.getOwner());
         FileUtils.assertPathsDoNotExist(installation.data);
-        if (RandomizedTest.randomBoolean()) {
+        final boolean useNodeName = RandomizedTest.randomBoolean();
+        if (useNodeName) {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
         }
         startElasticsearch();
         verifySecurityAutoConfigured(installation);
         stopElasticsearch();
         sh.chown(installation.config);
-        // Cleanup node.name so that following tests can set it if need be.
-        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
+        if (useNodeName) {
+            // Cleanup node.name so that following tests can set it if need be.
+            ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
+        }
     }
 
     public void test60StartAndStop() throws Exception {

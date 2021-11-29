@@ -216,7 +216,7 @@ dependencies {
   // for our ide tweaking
   api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
-  api 'de.thetaphi:forbiddenapis:3.1'
+  api 'de.thetaphi:forbiddenapis:3.2'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'

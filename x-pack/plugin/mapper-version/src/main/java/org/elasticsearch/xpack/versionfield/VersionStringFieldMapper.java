@@ -50,7 +50,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
-import org.elasticsearch.xpack.versionfield.VersionScriptDocValues.VersionScriptSupplier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

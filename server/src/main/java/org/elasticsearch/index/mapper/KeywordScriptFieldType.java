@@ -98,7 +98,6 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             return super.compile(parserContext, script, scriptContext);
         }
 
-
         @Override
         protected List<Parameter<?>> getParameters() {
             List<Parameter<?>> parameters = new ArrayList<>(super.getParameters());

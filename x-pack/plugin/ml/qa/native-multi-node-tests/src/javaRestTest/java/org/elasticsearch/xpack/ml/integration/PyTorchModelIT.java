@@ -200,8 +200,15 @@ public class PyTorchModelIT extends ESRestTestCase {
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
-        ResponseException ex = expectThrows(ResponseException.class, () -> infer("my words", modelId, TimeValue.ZERO));
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        // There is a race between inference and timeout so that
+        // even with a zero timeout a valid inference response may
+        // be returned.
+        // The test asserts that if an error occurs it is a timeout error
+        try{
+            infer("my words", modelId, TimeValue.ZERO);
+        } catch (ResponseException ex) {
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(408));
+        }
         stopDeployment(modelId);
     }
 

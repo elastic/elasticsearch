@@ -74,22 +74,24 @@ public class BasicTokenizer {
      * @param text The input text to tokenize
      * @return List of tokens
      */
+<<<<<<< HEAD
     public List<String> tokenize(String text) {
         return mergeNeverSplitTokens(doTokenize(text));
     }
 
-    private List<String> doTokenize(String text) {
+    public List<DelimitedToken> tokenize(String text) {
         text = cleanText(text);
         if (isTokenizeCjkChars) {
             text = tokenizeCjkChars(text);
         }
 
-        String[] tokens = whiteSpaceTokenize(text);
+        List<DelimitedToken> tokens = whiteSpaceTokenize(text);
 
-        List<String> processedTokens = new ArrayList<>(tokens.length);
-        for (String token : tokens) {
+        List<DelimitedToken> processedTokens = new ArrayList<>(tokens.size());
+        for (DelimitedToken tokenRecord : tokens) {
 
-            if (Strings.EMPTY.equals(token)) {
+            String tokenStr = tokenRecord.token;
+            if (Strings.EMPTY.equals(tokenStr)) {
                 continue;
             }
 
@@ -146,9 +148,41 @@ public class BasicTokenizer {
         return isTokenizeCjkChars;
     }
 
-    static String[] whiteSpaceTokenize(String text) {
+    /**
+     * Should be called after {@link #cleanText(String)}
+     * @param text
+     * @return
+     */
+    static List<DelimitedToken> whiteSpaceTokenize(String text) {
         text = text.trim();
-        return text.split(" ");
+
+        var tokens = new ArrayList<DelimitedToken>();
+
+        int tokenStart = 0;
+        // int tokenEnd = 1;
+        int index = 0;
+        // whitespace at beginning
+        while (index < text.length()) {
+            if (text.charAt(index) == ' ') {
+                int tokenEnd = index;
+                index++;
+                while (text.charAt(index) == ' ') {
+                    index++;
+                }
+
+                tokens.add(new DelimitedToken(tokenStart, index, text.substring(tokenStart, tokenEnd)));
+
+                tokenStart = index;
+            }
+            index++;
+        }
+
+        // trailing whitespace
+        if (tokenStart != text.length()) {
+            tokens.add(new DelimitedToken(tokenStart, text.length(), text.substring(tokenStart, text.length())));
+        }
+
+        return tokens;
     }
 
     /**
@@ -172,9 +206,10 @@ public class BasicTokenizer {
         return new String(codePoints, 0, codePoints.length);
     }
 
-    static List<String> splitOnPunctuation(String word) {
-        List<String> split = new ArrayList<>();
-        int[] codePoints = word.codePoints().toArray();
+
+    static List<DelimitedToken> splitOnPunctuation(DelimitedToken word) {
+        List<DelimitedToken> splits = new ArrayList<>();
+        int[] codePoints = token.token.codePoints().toArray();
 
         int lastSplit = 0;
         for (int i = 0; i < codePoints.length; i++) {
@@ -182,18 +217,26 @@ public class BasicTokenizer {
                 int charCount = i - lastSplit;
                 if (charCount > 0) {
                     // add a new string for what has gone before
-                    split.add(new String(codePoints, lastSplit, i - lastSplit));
+                    splits.add(
+                        new DelimitedToken(token.startPos + lastSplit, token.startPos + i, new String(codePoints, lastSplit, i - lastSplit))
+                    );
                 }
-                split.add(new String(codePoints, i, 1));
+                splits.add(new DelimitedToken(token.startPos + i, token.startPos + i + 1, new String(codePoints, i, 1)));
                 lastSplit = i + 1;
             }
         }
 
         if (lastSplit < codePoints.length) {
-            split.add(new String(codePoints, lastSplit, codePoints.length - lastSplit));
+            splits.add(
+                new DelimitedToken(
+                    token.startPos + lastSplit,
+                    token.startPos + codePoints.length,
+                    new String(codePoints, lastSplit, codePoints.length - lastSplit)
+                )
+            );
         }
 
-        return split;
+        return splits;
     }
 
     /**
